@@ -1,60 +1,92 @@
 # beginning-agents
 
-Canonical MCP and skill registry for the shared `~/.agents/` configuration hub.
+`beginning-agents` is a canonical repository and `bgng` CLI for managing shared MCP server configuration and reusable skills across local coding agents.
 
-See the `ARCHITECTURE.md` file in your `~/.agents/` directory for the target architecture and workflow.
+It is built for people who want one source of truth for:
 
-## Sync
+- shared skill definitions
+- canonical MCP server configuration
+- synced local state for Claude Code, Codex, Cursor, and `~/.agents`
 
-Run the sync script from this repo root:
+## What It Does
+
+- keeps `config.json` and `mcp-servers.json` as the canonical registry
+- syncs that canonical state into local tool config files
+- manages a shared skill library under `skills/shared`
+- provides a safe-by-default CLI for sync, inspection, and diagnostics
+- supports Parallel as CLI-backed skills by default, with optional MCP overlay
+
+## Safety Model
+
+The project is intentionally conservative:
+
+- sync commands are non-destructive by default
+- stale state is reported instead of silently deleted
+- `bgng doctor` is report-only
+- `sync-mcp.ts` remains available as a compatibility wrapper
+
+## Requirements
+
+- Bun 1.2+
+- Node.js available for MCP servers that use `node`
+- local installations of optional tools such as `parallel-cli` or `markdownify-mcp` when you enable them
+
+## Install
+
+### Work from a checkout
 
 ```bash
-bun run sync-mcp.ts
+git clone https://github.com/remyjkim/beginning-agents.git
+cd beginning-agents
+bun install
 ```
 
-Preview changes without writing:
-
-```bash
-bun run sync-mcp.ts --dry-run
-```
-
-Sync only MCP config or only skills:
-
-```bash
-bun run sync-mcp.ts --mcp-only
-bun run sync-mcp.ts --skills-only
-```
-
-Sync one target:
-
-```bash
-bun run sync-mcp.ts --target=claude
-```
-
-## BGNG CLI
-
-Phase 2 introduces a Clipanion-based `bgng` CLI from the `beginning-agents` package on top of the same core modules used by `sync-mcp.ts`.
-
-Repo-local usage:
+Use the CLI directly from the checkout:
 
 ```bash
 bun run bgng -- --help
-bun run bgng -- sync --dry-run
-bun run bgng -- skills list
-bun run bgng -- mcp list
-bun run bgng -- status
-bun run bgng -- doctor
 ```
 
-Global usage:
+Or link it globally for local development:
 
 ```bash
 bun link
 bgng --help
-bgng sync --dry-run
-bgng skills list
-bgng mcp sync --dry-run
 ```
+
+### Install the published package
+
+Once the package is published, install it globally with:
+
+```bash
+npm install -g beginning-agents
+```
+
+When installed globally, `bgng` will use the packaged canonical repo by default. If you want it to operate on a different checkout, set `AGENTS_REPO_ROOT`.
+
+## Quickstart
+
+Inspect current state:
+
+```bash
+bgng status
+bgng skills list
+bgng mcp list
+```
+
+Preview changes before writing:
+
+```bash
+bgng sync --dry-run
+```
+
+Apply the canonical config and curated skills:
+
+```bash
+bgng sync
+```
+
+## Commands
 
 Current implemented commands:
 
@@ -70,21 +102,33 @@ Current implemented commands:
 
 `sync-mcp.ts` remains available as a compatibility wrapper over the same extracted core modules.
 
-## Add an MCP Server
+## Sync Wrapper
+
+Run the compatibility script from the repo root:
+
+```bash
+bun run sync-mcp.ts
+bun run sync-mcp.ts --dry-run
+bun run sync-mcp.ts --mcp-only
+bun run sync-mcp.ts --skills-only
+bun run sync-mcp.ts --target=claude
+```
+
+## MCP Registry
 
 Edit [mcp-servers.json](./mcp-servers.json) and, if the server is optional, update [config.json](./config.json). Then run:
 
 ```bash
-bun run sync-mcp.ts
+bgng mcp sync
 ```
 
 `platform-provided` entries stay in the canonical registry but are intentionally excluded from generated local tool configs.
 
-Parallel MCP is handled separately through `config.parallel.mcp.enabled` because it is an integration-mode choice, not just an optional single server toggle.
+Parallel MCP is handled separately through `config.parallel.mcp.enabled` because it is an integration-mode choice, not just an optional single-server toggle.
 
-## Add a Skill
+## Skill Library
 
-Place the skill in one of these directories:
+Place a skill in one of these directories:
 
 - `skills/shared/` for skills exposed through `~/.agents/skills/`
 - `skills/claude-only/` for Claude-only symlinks
@@ -94,10 +138,10 @@ Place the skill in one of these directories:
 For shared skills, add the curated `~/.agents/skills/<name>` symlink to point at the repo copy, then run:
 
 ```bash
-bun run sync-mcp.ts --skills-only
+bgng skills sync
 ```
 
-The sync script creates downstream symlinks in `~/.claude/skills/` and `~/.codex/skills/` and reports stale symlinks without removing them.
+The sync flow creates downstream symlinks in `~/.claude/skills/` and `~/.codex/skills/` and reports stale symlinks without removing them.
 
 ## Parallel
 
@@ -158,7 +202,7 @@ These are disabled by default. To opt in globally, edit [config.json](./config.j
 Then run:
 
 ```bash
-bun run sync-mcp.ts
+bgng mcp sync
 ```
 
 Notes:
@@ -167,14 +211,6 @@ Notes:
 - `parallel-task` points at `https://task-mcp.parallel.ai/mcp`
 - Search MCP is usable anonymously at lower limits
 - Task MCP requires authentication and may require a client-side OAuth or API-key flow after sync, depending on the tool
-
-## Update Superpowers
-
-Refresh the source copies from `~/.codex/superpowers/skills/` into `skills/shared/`, then rerun:
-
-```bash
-bun run sync-mcp.ts --skills-only
-```
 
 ## Markdownify
 
@@ -188,3 +224,17 @@ The canonical registry assumes a local install path:
 ```
 
 If you want to enable it, update the path in [mcp-servers.json](./mcp-servers.json) to match your machine and then enable it in [config.json](./config.json).
+
+## Contributing
+
+Community contributions are welcome.
+
+Start with:
+
+```bash
+bun test
+bun run typecheck
+bun run verify:release --json
+```
+
+Then read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a pull request.

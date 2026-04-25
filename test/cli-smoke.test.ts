@@ -2,6 +2,9 @@
 // ABOUTME: Protects the initial command shell while deeper command implementations are added.
 
 import { describe, expect, test } from "bun:test";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 
 describe("CLI entrypoint", () => {
   test("--help exits 0 and mentions 'bgng'", async () => {
@@ -47,5 +50,27 @@ describe("CLI entrypoint", () => {
 
     expect(await proc.exited).not.toBe(0);
     expect(stderr).toMatch(/config\.json|not.*repo|not found/i);
+  });
+
+  test("uses the packaged repo root when invoked outside a repo without AGENTS_REPO_ROOT", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "bgng-outside-repo-"));
+    const homeDir = await mkdtemp(join(tmpdir(), "bgng-home-"));
+    const entrypoint = new URL("../cli/index.ts", import.meta.url).pathname;
+    const proc = Bun.spawn(["bun", "run", entrypoint, "status", "--json"], {
+      cwd,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: {
+        ...process.env,
+        AGENTS_HOME_DIR: homeDir,
+        AGENTS_DIR: join(homeDir, ".agents"),
+      },
+    });
+
+    const stdout = await new Response(proc.stdout).text();
+    expect(await proc.exited).toBe(0);
+
+    const parsed = JSON.parse(stdout) as { repoRoot: string };
+    expect(resolve(parsed.repoRoot)).toBe(resolve(process.cwd()));
   });
 });

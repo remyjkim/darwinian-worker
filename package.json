@@ -1,7 +1,7 @@
 {
   "name": "beginning-agents",
   "bin": {
-    "bgng": "./cli/index.ts"
+    "bgng": "cli/index.ts"
   },
   "type": "module",
   "description": "Canonical MCP and skill registry CLI for multi-agent configuration.",
@@ -14,8 +14,18 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/remyjkim/beginning-agents.git"
+    "url": "git+https://github.com/remyjkim/beginning-agents.git"
   },
+  "files": [
+    "cli",
+    "config.json",
+    "mcp-servers.json",
+    "skills",
+    "sync-mcp.ts",
+    "README.md",
+    "LICENSE",
+    "CONTRIBUTING.md"
+  ],
   "keywords": [
     "beginning-agents",
     "bgng",

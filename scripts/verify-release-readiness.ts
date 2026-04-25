@@ -39,6 +39,54 @@ async function runCommand(name: string, cmd: string[]) {
   } satisfies CheckResult;
 }
 
+async function verifyPackageContents() {
+  const proc = Bun.spawn(["npm", "pack", "--dry-run", "--json"], {
+    cwd: repoRoot,
+    stdout: "pipe",
+    stderr: "pipe",
+    env: process.env,
+  });
+  const stdout = await new Response(proc.stdout).text();
+  const stderr = await new Response(proc.stderr).text();
+  const exitCode = await proc.exited;
+
+  if (exitCode !== 0) {
+    return {
+      name: "package contents",
+      ok: false,
+      details: `${stdout}${stderr}`.trim(),
+    } satisfies CheckResult;
+  }
+
+  const parsed = JSON.parse(stdout) as Array<{ files?: Array<{ path: string }> }>;
+  const files = parsed[0]?.files?.map((file) => file.path) ?? [];
+  const forbidden = files.filter(
+    (file) =>
+      file === ".env" ||
+      file.startsWith(".ai/") ||
+      file.startsWith("test/") ||
+      file.startsWith("scripts/"),
+  );
+  const required = [
+    "cli/index.ts",
+    "config.json",
+    "mcp-servers.json",
+    "sync-mcp.ts",
+    "skills/shared/frontend-design/SKILL.md",
+  ];
+  const missingRequired = required.filter((file) => !files.includes(file));
+  const details = [
+    ...(forbidden.length > 0 ? [`Forbidden: ${forbidden.join(", ")}`] : []),
+    ...(missingRequired.length > 0 ? [`Missing: ${missingRequired.join(", ")}`] : []),
+  ];
+
+  return {
+    name: "package contents",
+    ok: details.length === 0,
+    details: details.join("; ") || undefined,
+  } satisfies CheckResult;
+}
+
 function findHardcodedUserPaths() {
   const targets = [
     "cli",
@@ -153,6 +201,7 @@ async function main() {
   warnings.push(...packageResult.warnings);
 
   checks.push(verifyDocsPresence());
+  checks.push(await verifyPackageContents());
 
   const report: GateReport = {
     ok: checks.every((check) => check.ok),

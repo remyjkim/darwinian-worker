@@ -44,4 +44,23 @@ describe("package readiness", () => {
     expect(parsed.ok).toBe(true);
     expect(parsed.warnings).not.toContain("repository metadata unresolved");
   });
+
+  test("npm pack excludes local secrets, planning docs, and tests", async () => {
+    const proc = Bun.spawn(["npm", "pack", "--dry-run", "--json"], {
+      stdout: "pipe",
+      stderr: "pipe",
+      cwd: process.cwd(),
+      env: process.env,
+    });
+
+    const stdout = await new Response(proc.stdout).text();
+    expect(await proc.exited).toBe(0);
+
+    const parsed = JSON.parse(stdout) as Array<{ files: Array<{ path: string }> }>;
+    const paths = parsed[0]?.files.map((file) => file.path) ?? [];
+
+    expect(paths.some((path) => path === ".env" || path.startsWith(".ai/"))).toBe(false);
+    expect(paths.some((path) => path.startsWith("test/"))).toBe(false);
+    expect(paths).toContain("skills/shared/frontend-design/SKILL.md");
+  });
 });
