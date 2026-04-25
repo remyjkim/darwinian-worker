@@ -8,6 +8,17 @@ It is built for people who want one source of truth for:
 - canonical MCP server configuration
 - synced local state for Claude Code, Codex, Cursor, and `~/.agents`
 
+## Who This Is For
+
+Use this project if you:
+
+- run local coding agents and want one canonical config source
+- want a shared skill library with explicit curation and sync behavior
+- prefer safe-by-default sync and diagnostics over hidden mutation
+- are comfortable with Bun-based local tooling
+
+If you only need a one-off MCP config file for a single tool, this repo is probably more system than you need.
+
 ## What It Does
 
 - keeps `config.json` and `mcp-servers.json` as the canonical registry
@@ -30,6 +41,70 @@ The project is intentionally conservative:
 - Bun 1.2+
 - Node.js available for MCP servers that use `node`
 - local installations of optional tools such as `parallel-cli` or `markdownify-mcp` when you enable them
+
+## Usage Modes
+
+There are two supported ways to use `beginning-agents`.
+
+### 1. Use the published CLI
+
+This is the fastest path if you want the packaged canonical configuration and command surface:
+
+```bash
+npm install -g beginning-agents
+bgng status
+```
+
+By default, the published CLI uses the packaged canonical repo that ships with the package.
+
+### 2. Use this repo as your canonical source
+
+This is the right choice if you want to edit the registry, add skills, or maintain your own fork:
+
+```bash
+git clone https://github.com/remyjkim/beginning-agents.git
+cd beginning-agents
+bun install
+bun run bgng -- status
+```
+
+You can also point a global install at a checkout:
+
+```bash
+export AGENTS_REPO_ROOT=/path/to/beginning-agents
+bgng status
+```
+
+## What It Changes On Disk
+
+`bgng` can read and write local agent configuration under:
+
+- `~/.agents`
+- `~/.claude`
+- `~/.codex`
+- `~/.cursor`
+
+Start with `bgng sync --dry-run` if you want to inspect the planned changes before writing anything.
+
+## Quickstart
+
+The safest first-run sequence is:
+
+```bash
+bgng status
+bgng skills list
+bgng mcp list
+bgng sync --dry-run
+bgng sync
+```
+
+That gives you:
+
+- a system overview
+- the current skill inventory
+- the active MCP inventory
+- a dry-run preview
+- an explicit apply step
 
 ## Install
 
@@ -63,28 +138,6 @@ npm install -g beginning-agents
 ```
 
 When installed globally, `bgng` will use the packaged canonical repo by default. If you want it to operate on a different checkout, set `AGENTS_REPO_ROOT`.
-
-## Quickstart
-
-Inspect current state:
-
-```bash
-bgng status
-bgng skills list
-bgng mcp list
-```
-
-Preview changes before writing:
-
-```bash
-bgng sync --dry-run
-```
-
-Apply the canonical config and curated skills:
-
-```bash
-bgng sync
-```
 
 ## Commands
 
@@ -142,6 +195,18 @@ bgng skills sync
 ```
 
 The sync flow creates downstream symlinks in `~/.claude/skills/` and `~/.codex/skills/` and reports stale symlinks without removing them.
+
+## Optional Integrations
+
+Baseline CLI usage does not require any third-party runtime beyond Bun and Node.
+
+Optional integrations include:
+
+- Parallel CLI-backed skills
+- Parallel MCP overlay
+- local `markdownify-mcp` installation
+
+These are opt-in and should not break the normal CLI workflow when absent.
 
 ## Parallel
 
@@ -238,3 +303,8 @@ bun run verify:release --json
 ```
 
 Then read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a pull request.
+
+## Documentation Map
+
+- [CONTRIBUTING.md](./CONTRIBUTING.md): contributor workflow, setup, verification, and PR expectations
+- [docs/maintainers/README.md](./docs/maintainers/README.md): maintainer-facing operational and release documentation

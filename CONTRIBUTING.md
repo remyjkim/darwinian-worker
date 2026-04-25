@@ -37,3 +37,13 @@ The current typecheck workflow may exclude the pre-existing `skills/shared/syste
 - Update tests when behavior changes.
 - Update docs when command surfaces or safety semantics change.
 - Do not make destructive cleanup behavior the default without explicit design approval.
+
+## Documentation
+
+Use the docs by audience:
+
+- `README.md` for public onboarding and normal usage
+- `CONTRIBUTING.md` for contributor workflow
+- `docs/maintainers/` for release and operational runbooks
+
+If a document is too specialized for the README quickstart, it should usually move into `docs/maintainers/`.

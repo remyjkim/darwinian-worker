@@ -6,10 +6,12 @@ import { readFile } from "node:fs/promises";
 
 describe("documentation readiness", () => {
   test("README, usage guide, and Homebrew checklist cover key scenarios", async () => {
-    const [readme, usageGuide, brewGuide] = await Promise.all([
+    const [readme, usageGuide, brewGuide, maintainerReadme, publishingGuide] = await Promise.all([
       readFile(new URL("../README.md", import.meta.url), "utf8"),
       readFile(new URL("../.ai/knowledges/01_agents-cli-usage-guide.md", import.meta.url), "utf8"),
       readFile(new URL("../.ai/knowledges/02_homebrew-release-checklist.md", import.meta.url), "utf8"),
+      readFile(new URL("../docs/maintainers/README.md", import.meta.url), "utf8"),
+      readFile(new URL("../docs/maintainers/publishing.md", import.meta.url), "utf8"),
     ]);
 
     for (const doc of [readme, usageGuide]) {
@@ -25,5 +27,11 @@ describe("documentation readiness", () => {
     expect(brewGuide).toContain("tagged release");
     expect(brewGuide).toContain("bgng");
     expect(brewGuide).toContain("beginning-agents");
+    expect(readme).toContain("What It Changes On Disk");
+    expect(readme).toContain("Usage Modes");
+    expect(readme).toContain("Documentation Map");
+    expect(maintainerReadme).toContain("publishing.md");
+    expect(publishingGuide).toContain("TMP_NPMRC");
+    expect(publishingGuide).toContain("--userconfig");
   });
 });
