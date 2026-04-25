@@ -1,0 +1,32 @@
+// ABOUTME: Implements the `agents doctor` command for report-only diagnostics over the current machine state.
+// ABOUTME: Surfaces broken links, stale state, MCP drift, and missing generated files without mutating anything.
+
+import { Option } from "clipanion";
+import { buildDoctorReport } from "../core/diagnostics";
+import { renderDoctorReport, renderJson } from "../core/output";
+import { BaseCommand } from "./base";
+
+export class DoctorCommand extends BaseCommand {
+  static override paths = [["doctor"]];
+
+  static override usage = BaseCommand.Usage({
+    category: "General",
+    description: "Report drift, stale state, and broken symlinks without mutating anything.",
+  });
+
+  json = Option.Boolean("--json", false, {
+    description: "Emit machine-readable JSON output.",
+  });
+
+  async execute() {
+    const report = await buildDoctorReport(this.context.repoRoot, this.context.agentsDir, this.context.homeDir);
+
+    if (this.json) {
+      this.context.stdout.write(renderJson(report));
+      return 0;
+    }
+
+    this.context.stdout.write(renderDoctorReport(report));
+    return 0;
+  }
+}
