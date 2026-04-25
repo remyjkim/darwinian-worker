@@ -17,13 +17,13 @@ describe("package readiness", () => {
     expect(existsSync(join(process.cwd(), "README.md"))).toBe(true);
     expect(existsSync(join(process.cwd(), "CONTRIBUTING.md"))).toBe(true);
     expect(pkg.name).toBe("beginning-agents");
-    expect((pkg.bin as Record<string, string>).bgng).toBe("./cli/index.ts");
+    expect((pkg.bin as Record<string, string>).bgng).toBe("cli/index.ts");
     expect((pkg.scripts as Record<string, string>).bgng).toBe("bun run cli/index.ts");
     expect(pkg.homepage).toBe("https://github.com/remyjkim/beginning-agents");
     expect(pkg.bugs).toEqual({ url: "https://github.com/remyjkim/beginning-agents/issues" });
     expect(pkg.repository).toEqual({
       type: "git",
-      url: "https://github.com/remyjkim/beginning-agents.git",
+      url: "git+https://github.com/remyjkim/beginning-agents.git",
     });
   });
 

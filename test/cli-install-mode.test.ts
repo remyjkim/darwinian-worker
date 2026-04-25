@@ -15,6 +15,6 @@ describe("CLI install mode", () => {
     expect(pkg.name).toBe("beginning-agents");
     expect(pkg.scripts?.bgng).toBe("bun run cli/index.ts");
     expect(typeof pkg.bin).toBe("object");
-    expect((pkg.bin as Record<string, string>).bgng).toBe("./cli/index.ts");
+    expect((pkg.bin as Record<string, string>).bgng).toBe("cli/index.ts");
   });
 });

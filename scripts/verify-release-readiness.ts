@@ -139,8 +139,8 @@ function verifyPackageMetadata() {
     metadataIssues.push("name must be beginning-agents");
   }
 
-  if (typeof pkg.bin !== "object" || pkg.bin === null || (pkg.bin as Record<string, string>).bgng !== "./cli/index.ts") {
-    metadataIssues.push("bin.bgng must point to ./cli/index.ts");
+  if (typeof pkg.bin !== "object" || pkg.bin === null || (pkg.bin as Record<string, string>).bgng !== "cli/index.ts") {
+    metadataIssues.push("bin.bgng must point to cli/index.ts");
   }
 
   if (typeof pkg.scripts !== "object" || pkg.scripts === null || (pkg.scripts as Record<string, string>).bgng !== "bun run cli/index.ts") {
