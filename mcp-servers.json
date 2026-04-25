@@ -1,0 +1,62 @@
+{
+  "$schema": "./schemas/mcp-servers.schema.json",
+  "version": 1,
+  "servers": {
+    "context7": {
+      "description": "Library and framework documentation lookup",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"],
+      "optional": false
+    },
+    "chrome-devtools": {
+      "description": "Browser debugging via Chrome DevTools Protocol",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "chrome-devtools-mcp@latest"],
+      "optional": false
+    },
+    "markdownify": {
+      "description": "HTML to Markdown conversion",
+      "transport": "stdio",
+      "command": "node",
+      "args": ["markdownify-mcp/dist/index.js"],
+      "notes": "Requires a local markdownify-mcp installation. Set the args path to your local install.",
+      "optional": true
+    },
+    "parallel-search": {
+      "description": "Parallel Search MCP for real-time web search and extraction",
+      "transport": "http",
+      "url": "https://search.parallel.ai/mcp",
+      "notes": "Search MCP is free for exploration at lower limits and can also accept a Bearer API key for higher limits. Enabled only when config.parallel.mcp.enabled is true.",
+      "optional": false
+    },
+    "parallel-task": {
+      "description": "Parallel Task MCP for deep research and enrichment workflows",
+      "transport": "http",
+      "url": "https://task-mcp.parallel.ai/mcp",
+      "notes": "Task MCP requires a Parallel API key and is enabled only when config.parallel.mcp.enabled is true.",
+      "optional": false
+    },
+    "notion": {
+      "description": "Notion workspace access",
+      "transport": "platform-provided",
+      "provider": "claude.ai",
+      "auth": "oauth",
+      "notes": "Requires Claude.ai OAuth flow. Other tools need a separate Notion MCP server.",
+      "optional": true
+    },
+    "slack": {
+      "description": "Slack workspace messaging",
+      "transport": "http",
+      "url": "https://mcp.slack.com/mcp",
+      "auth": {
+        "type": "oauth",
+        "clientId": "1601185624273.8899143856786",
+        "callbackPort": 3118
+      },
+      "notes": "OAuth flow required on first use per tool.",
+      "optional": true
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "targets": {
+    "claude": {
+      "enabled": true,
+      "configPath": "~/.claude/settings.json",
+      "format": "json-merge",
+      "mcpKey": "mcpServers"
+    },
+    "codex": {
+      "enabled": true,
+      "configPath": "~/.codex/config.toml",
+      "format": "toml-merge",
+      "mcpKey": "mcp_servers"
+    },
+    "cursor": {
+      "enabled": true,
+      "configPath": "~/.cursor/mcp.json",
+      "format": "json-standalone",
+      "mcpKey": "mcpServers",
+      "symlink": true
+    }
+  },
+  "parallel": {
+    "cli": {
+      "enabled": true
+    },
+    "mcp": {
+      "enabled": false
+    }
+  },
+  "optional": {
+    "markdownify": false,
+    "notion": false,
+    "slack": false
+  }
+}
