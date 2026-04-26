@@ -43,6 +43,22 @@ export function resolveSkillScopeDirs(repoRoot: string) {
   };
 }
 
+export function resolveSkillPackagesRoot(agentsDir: string) {
+  return join(agentsDir, "packages", "skills");
+}
+
+export function resolveSkillPackageRoot(agentsDir: string, packageName: string) {
+  return join(resolveSkillPackagesRoot(agentsDir), packageName);
+}
+
+export function resolveSkillPackageVersionRoot(agentsDir: string, packageName: string, version: string) {
+  return join(resolveSkillPackageRoot(agentsDir, packageName), version);
+}
+
+export function resolveSkillPackageCurrentLink(agentsDir: string, packageName: string) {
+  return join(resolveSkillPackageRoot(agentsDir, packageName), "current");
+}
+
 export function normalizeSyncPathOptions(
   options: SyncOptions = {},
   modulePath?: string,
@@ -53,6 +69,7 @@ export function normalizeSyncPathOptions(
     repoRoot: options.repoRoot ?? inferRepoRootFromModulePath(modulePath ?? import.meta.path),
     agentsDir: options.agentsDir ?? resolveAgentsDir(homeDir),
     homeDir,
+    cwd: options.cwd ?? process.cwd(),
     dryRun: options.dryRun ?? false,
     mcpOnly: options.mcpOnly ?? false,
     skillsOnly: options.skillsOnly ?? false,

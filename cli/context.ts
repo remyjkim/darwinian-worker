@@ -6,23 +6,29 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveAgentsDir } from "./core/paths";
+import { findProjectConfig } from "./core/project";
 
 export interface AgentsContext extends BaseContext {
   repoRoot: string;
   agentsDir: string;
   homeDir: string;
+  cwd: string;
+  projectConfigPath: string | null;
 }
 
 export function createAgentsContext(): Omit<AgentsContext, keyof BaseContext> {
   const homeDir = process.env.AGENTS_HOME_DIR ?? process.env.HOME ?? "";
   const packagedRepoRoot = fileURLToPath(new URL("..", import.meta.url));
   const cwdRepoRoot = process.cwd();
+  const cwd = process.cwd();
   return {
     repoRoot:
       process.env.AGENTS_REPO_ROOT ??
       (existsSync(join(cwdRepoRoot, "config.json")) ? cwdRepoRoot : packagedRepoRoot),
     agentsDir: process.env.AGENTS_DIR ?? resolveAgentsDir(homeDir),
     homeDir,
+    cwd,
+    projectConfigPath: findProjectConfig(cwd),
   };
 }
 

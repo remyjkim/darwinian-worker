@@ -46,6 +46,7 @@ export class SyncCommand extends BaseCommand {
       repoRoot: this.context.repoRoot,
       agentsDir: this.context.agentsDir,
       homeDir: this.context.homeDir,
+      cwd: this.context.cwd,
       dryRun: this.dryRun,
       mcpOnly: this.mcpOnly,
       skillsOnly: this.skillsOnly,

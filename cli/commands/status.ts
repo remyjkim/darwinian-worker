@@ -19,27 +19,37 @@ export class StatusCommand extends BaseCommand {
   });
 
   async execute() {
-    const status = await buildStatusReport(this.context.repoRoot, this.context.agentsDir, this.context.homeDir);
+    const status = await buildStatusReport(
+      this.context.repoRoot,
+      this.context.agentsDir,
+      this.context.homeDir,
+      this.context.projectConfigPath,
+    );
 
     if (this.json) {
       this.context.stdout.write(renderJson(status));
       return 0;
     }
 
-    this.context.stdout.write(
-      renderTable(
-        ["field", "value"],
-        [
-          ["repoRoot", status.repoRoot],
-          ["agentsDir", status.agentsDir],
-          ["homeDir", status.homeDir],
-          ["enabledTargets", status.enabledTargets.join(",")],
-          ["curatedSkillCount", String(status.curatedSkillCount)],
-          ["repoSkillCount", String(status.repoSkillCount)],
-          ["activeMcpServerCount", String(status.activeMcpServerCount)],
-        ],
-      ),
+    let output = renderTable(
+      ["field", "value"],
+      [
+        ["repoRoot", status.repoRoot],
+        ["agentsDir", status.agentsDir],
+        ["homeDir", status.homeDir],
+        ["enabledTargets", status.enabledTargets.join(",")],
+        ["curatedSkillCount", String(status.curatedSkillCount)],
+        ["repoSkillCount", String(status.repoSkillCount)],
+        ["activeMcpServerCount", String(status.activeMcpServerCount)],
+      ],
     );
+    if (status.project) {
+      output += `\nProject: ${status.project.configPath}\n\n`;
+      output += `  Server overrides:  ${status.project.serverOverrideCount} (${status.project.serverDisabledCount} disabled, ${status.project.serverAddedCount} added)\n`;
+      output += `  Skill overrides:   ${status.project.skillIncludeCount} included, ${status.project.skillExcludeCount} excluded\n`;
+      output += `  Target overrides:  ${status.project.targetOverrides.join(", ") || "none"}\n`;
+    }
+    this.context.stdout.write(output);
     return 0;
   }
 }

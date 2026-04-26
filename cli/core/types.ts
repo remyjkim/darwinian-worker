@@ -45,10 +45,50 @@ export interface CanonicalConfig {
   optional: Record<string, boolean>;
 }
 
+export type ServerOverride =
+  | { enabled: boolean }
+  | RegistryServer;
+
+export interface ProjectConfig {
+  version: number;
+  servers?: Record<string, ServerOverride>;
+  skills?: {
+    include?: string[];
+    exclude?: string[];
+  };
+  targets?: Partial<Record<TargetName, { enabled: boolean }>>;
+}
+
+export type SkillSourceType = "repo" | "npm";
+
+export interface BundleSkillEntry {
+  name: string;
+  scope: "shared" | "claude-only" | "codex-only" | "experimental";
+  path: string;
+}
+
+export interface BundleManifest {
+  schemaVersion: number;
+  bundleName: string;
+  version: string;
+  displayName?: string;
+  description?: string;
+  skills: BundleSkillEntry[];
+}
+
+export interface InstalledSkillBundle {
+  packageName: string;
+  activeVersion: string;
+  packageRoot: string;
+  versionRoot: string;
+  manifest: BundleManifest;
+}
+
 export interface SyncOptions {
   repoRoot?: string;
   agentsDir?: string;
   homeDir?: string;
+  cwd?: string;
   dryRun?: boolean;
   mcpOnly?: boolean;
   skillsOnly?: boolean;
@@ -64,6 +104,7 @@ export interface NormalizedSyncOptions {
   repoRoot: string;
   agentsDir: string;
   homeDir: string;
+  cwd?: string;
   dryRun: boolean;
   mcpOnly: boolean;
   skillsOnly: boolean;

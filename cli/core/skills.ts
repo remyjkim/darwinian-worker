@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { resolveSkillScopeDirs, resolveToolPaths } from "./paths";
 import { ensureParentDir, lstatSafe, realpathSafe } from "./fs";
 import type { NormalizedSyncOptions, SyncResult, TargetName } from "./types";
+import { listInstalledSkillBundles } from "./skill-packages";
 
 export type SkillScope = "shared" | "claude-only" | "codex-only" | "experimental";
 
@@ -27,6 +28,14 @@ export interface SkillInventoryItem extends RepoSkill {
   curated: boolean;
   claudeLinked: boolean;
   codexLinked: boolean;
+  sourceType?: "repo" | "npm";
+  sourceId?: string;
+  sourceVersion?: string;
+}
+
+export interface SkillSyncOverrides {
+  include?: string[];
+  exclude?: string[];
 }
 
 function validateSkillName(name: string) {
@@ -92,6 +101,25 @@ export async function findRepoSkill(repoRoot: string, name: string): Promise<Rep
   return skills.find((skill) => skill.name === name) ?? null;
 }
 
+async function findPackageSkill(agentsDir: string, name: string): Promise<RepoSkill | null> {
+  const bundles = await listInstalledSkillBundles(agentsDir);
+  for (const bundle of bundles) {
+    const skill = bundle.manifest.skills.find((entry) => entry.name === name);
+    if (skill) {
+      return {
+        name: skill.name,
+        scope: skill.scope,
+        path: join(bundle.versionRoot, skill.path),
+      };
+    }
+  }
+  return null;
+}
+
+async function findAvailableSkill(repoRoot: string, agentsDir: string, name: string): Promise<RepoSkill | null> {
+  return (await findRepoSkill(repoRoot, name)) ?? (await findPackageSkill(agentsDir, name));
+}
+
 export async function listCuratedSkills(agentsDir: string) {
   const curatedDir = join(agentsDir, "skills");
   if (!existsSync(curatedDir)) {
@@ -116,11 +144,12 @@ function isLinkedToTarget(linkPath: string, targetPath: string) {
 
 export async function buildSkillInventory(repoRoot: string, agentsDir: string, homeDir: string): Promise<SkillInventoryItem[]> {
   const skills = await listRepoSkills(repoRoot);
+  const bundles = await listInstalledSkillBundles(agentsDir);
   const curated = await listCuratedSkills(agentsDir);
   const curatedNames = new Set(curated.map((entry) => entry.name));
   const toolPaths = resolveToolPaths(homeDir);
 
-  return skills.map((skill) => {
+  const repoInventory = skills.map((skill) => {
     const curatedPath = join(agentsDir, "skills", skill.name);
     const expectedClaudeTarget = skill.scope === "shared" ? curatedPath : skill.scope === "claude-only" ? skill.path : "";
     const expectedCodexTarget = skill.scope === "shared" ? curatedPath : skill.scope === "codex-only" ? skill.path : "";
@@ -138,6 +167,32 @@ export async function buildSkillInventory(repoRoot: string, agentsDir: string, h
           : false,
     };
   });
+
+  const packageInventory = bundles.flatMap((bundle) =>
+    bundle.manifest.skills.map((skill) => {
+      const skillPath = join(bundle.versionRoot, skill.path);
+      const curatedPath = join(agentsDir, "skills", skill.name);
+      return {
+        name: skill.name,
+        scope: skill.scope,
+        path: skillPath,
+        curated: curatedNames.has(skill.name),
+        claudeLinked:
+          skill.scope === "shared" || skill.scope === "claude-only"
+            ? isLinkedToTarget(join(toolPaths.claudeSkills, skill.name), curatedPath)
+            : false,
+        codexLinked:
+          skill.scope === "shared" || skill.scope === "codex-only"
+            ? isLinkedToTarget(join(toolPaths.codexSkills, skill.name), curatedPath)
+            : false,
+        sourceType: "npm" as const,
+        sourceId: bundle.packageName,
+        sourceVersion: bundle.activeVersion,
+      } satisfies SkillInventoryItem;
+    }),
+  );
+
+  return [...repoInventory, ...packageInventory].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function curateSkill(
@@ -145,7 +200,7 @@ export async function curateSkill(
   name: string,
 ) {
   validateSkillName(name);
-  const skill = await findRepoSkill(options.repoRoot, name);
+  const skill = await findAvailableSkill(options.repoRoot, options.agentsDir, name);
   if (!skill) {
     throw new Error(`Unknown skill: ${name}`);
   }
@@ -186,11 +241,24 @@ export async function findStaleSymlinks(dirPath: string, desiredNames: Set<strin
     .map((entry) => join(dirPath, entry.name));
 }
 
-export async function syncSkills(options: NormalizedSyncOptions): Promise<SyncResult> {
+export async function syncSkills(options: NormalizedSyncOptions, overrides?: SkillSyncOverrides): Promise<SyncResult> {
   const result: SyncResult = { changes: [], warnings: [] };
   const toolPaths = resolveToolPaths(options.homeDir);
   const scopeDirs = resolveSkillScopeDirs(options.repoRoot);
   const curatedDir = join(options.agentsDir, "skills");
+  const excluded = new Set(overrides?.exclude ?? []);
+  const includedSkills = await Promise.all(
+    (overrides?.include ?? [])
+      .filter((name) => !excluded.has(name))
+      .map(async (name) => {
+        const skill = await findRepoSkill(options.repoRoot, name);
+        if (!skill) {
+          result.warnings.push(`unknown skill override include: ${name}`);
+          return null;
+        }
+        return skill;
+      }),
+  );
 
   const desiredClaude = new Set<string>();
   const desiredCodex = new Set<string>();
@@ -199,6 +267,9 @@ export async function syncSkills(options: NormalizedSyncOptions): Promise<SyncRe
     const curatedEntries = await readdir(curatedDir, { withFileTypes: true });
     for (const entry of curatedEntries) {
       if (entry.name.startsWith(".")) {
+        continue;
+      }
+      if (excluded.has(entry.name)) {
         continue;
       }
       const sourcePath = join(curatedDir, entry.name);
@@ -219,6 +290,9 @@ export async function syncSkills(options: NormalizedSyncOptions): Promise<SyncRe
       if (entry.name.startsWith(".")) {
         continue;
       }
+      if (excluded.has(entry.name)) {
+        continue;
+      }
       desiredClaude.add(entry.name);
       ensureDirSymlink(join(toolPaths.claudeSkills, entry.name), join(scopeDirs.claudeOnly, entry.name), options.dryRun, result);
     }
@@ -230,8 +304,29 @@ export async function syncSkills(options: NormalizedSyncOptions): Promise<SyncRe
       if (entry.name.startsWith(".")) {
         continue;
       }
+      if (excluded.has(entry.name)) {
+        continue;
+      }
       desiredCodex.add(entry.name);
       ensureDirSymlink(join(toolPaths.codexSkills, entry.name), join(scopeDirs.codexOnly, entry.name), options.dryRun, result);
+    }
+  }
+
+  for (const skill of includedSkills) {
+    if (!skill) {
+      continue;
+    }
+    if (!options.target || options.target === "claude") {
+      if (skill.scope === "shared" || skill.scope === "claude-only") {
+        desiredClaude.add(skill.name);
+        ensureDirSymlink(join(toolPaths.claudeSkills, skill.name), skill.path, options.dryRun, result);
+      }
+    }
+    if (!options.target || options.target === "codex") {
+      if (skill.scope === "shared" || skill.scope === "codex-only") {
+        desiredCodex.add(skill.name);
+        ensureDirSymlink(join(toolPaths.codexSkills, skill.name), skill.path, options.dryRun, result);
+      }
     }
   }
 

@@ -10,6 +10,7 @@ import { loadRegistry } from "./registry";
 import { buildActiveServers, mergeClaudeSettingsText, mergeCodexTomlText, renderCursorConfig } from "./mcp";
 import { syncSkills as syncSkillsCore } from "./skills";
 import { ensureParentDir, lstatSafe, realpathSafe } from "./fs";
+import { findProjectConfig, loadProjectConfig, mergeProjectConfig } from "./project";
 import type {
   CanonicalConfig,
   NormalizedSyncOptions,
@@ -119,17 +120,31 @@ export async function syncRepository(options: SyncOptions = {}): Promise<SyncRes
   const normalized = normalizeSyncPathOptions(options, options.repoRoot ? undefined : import.meta.path);
   const config = await loadConfig(normalized.repoRoot);
   const registry = await loadRegistry(normalized.repoRoot);
-  const activeServers = buildActiveServers(registry, config);
+  let effectiveConfig = config;
+  let effectiveRegistry = registry;
+  let skillOverrides: ReturnType<typeof mergeProjectConfig>["skills"];
   const result: SyncResult = { changes: [], warnings: [] };
+  const projectConfigPath = findProjectConfig(normalized.cwd ?? process.cwd());
+
+  if (projectConfigPath) {
+    const projectConfig = await loadProjectConfig(projectConfigPath);
+    const merged = mergeProjectConfig(config, registry, projectConfig);
+    effectiveConfig = merged.config;
+    effectiveRegistry = merged.registry;
+    skillOverrides = merged.skills;
+    result.changes.push(`project config: ${projectConfigPath}`);
+  }
+
+  const activeServers = buildActiveServers(effectiveRegistry, effectiveConfig);
 
   if (!normalized.skillsOnly) {
-    const mcpResult = await syncMcp(normalized, config, activeServers);
+    const mcpResult = await syncMcp(normalized, effectiveConfig, activeServers);
     result.changes.push(...mcpResult.changes);
     result.warnings.push(...mcpResult.warnings);
   }
 
   if (!normalized.mcpOnly) {
-    const skillsResult = await syncSkillsCore(normalized);
+    const skillsResult = await syncSkillsCore(normalized, skillOverrides);
     result.changes.push(...skillsResult.changes);
     result.warnings.push(...skillsResult.warnings);
   }

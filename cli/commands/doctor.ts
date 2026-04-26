@@ -2,7 +2,7 @@
 // ABOUTME: Surfaces broken links, stale state, MCP drift, and missing generated files without mutating anything.
 
 import { Option } from "clipanion";
-import { buildDoctorReport } from "../core/diagnostics";
+import { buildDoctorReportWithProject } from "../core/diagnostics";
 import { renderDoctorReport, renderJson } from "../core/output";
 import { BaseCommand } from "./base";
 
@@ -19,7 +19,12 @@ export class DoctorCommand extends BaseCommand {
   });
 
   async execute() {
-    const report = await buildDoctorReport(this.context.repoRoot, this.context.agentsDir, this.context.homeDir);
+    const report = await buildDoctorReportWithProject(
+      this.context.repoRoot,
+      this.context.agentsDir,
+      this.context.homeDir,
+      this.context.projectConfigPath,
+    );
 
     if (this.json) {
       this.context.stdout.write(renderJson(report));

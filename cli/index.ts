@@ -4,6 +4,7 @@
 
 import { Builtins, Cli } from "clipanion";
 import { DoctorCommand } from "./commands/doctor";
+import { InitCommand } from "./commands/init";
 import { createAgentsContext, validateRepoRoot } from "./context";
 import { McpListCommand } from "./commands/mcp/list";
 import { McpSyncCommand } from "./commands/mcp/sync";
@@ -11,6 +12,9 @@ import { SyncCommand } from "./commands/sync";
 import { StatusCommand } from "./commands/status";
 import { SkillsCurateCommand } from "./commands/skills/curate";
 import { SkillsListCommand } from "./commands/skills/list";
+import { SkillsPackagesAddCommand } from "./commands/skills/packages/add";
+import { SkillsPackagesListCommand } from "./commands/skills/packages/list";
+import { SkillsPackagesShowCommand } from "./commands/skills/packages/show";
 import { SkillsSyncCommand } from "./commands/skills/sync";
 import { SkillsUncurateCommand } from "./commands/skills/uncurate";
 
@@ -21,6 +25,9 @@ const cli = new Cli({
 });
 
 cli.register(SkillsListCommand);
+cli.register(SkillsPackagesAddCommand);
+cli.register(SkillsPackagesListCommand);
+cli.register(SkillsPackagesShowCommand);
 cli.register(SkillsCurateCommand);
 cli.register(SkillsUncurateCommand);
 cli.register(SkillsSyncCommand);
@@ -29,6 +36,7 @@ cli.register(McpSyncCommand);
 cli.register(SyncCommand);
 cli.register(StatusCommand);
 cli.register(DoctorCommand);
+cli.register(InitCommand);
 cli.register(Builtins.HelpCommand);
 cli.register(Builtins.VersionCommand);
 

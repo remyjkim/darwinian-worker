@@ -35,6 +35,7 @@ export function renderDoctorReport(report: {
   staleSkillSymlinks: string[];
   mcpDrift: string[];
   missingGeneratedFiles: string[];
+  projectConfigIssues?: string[];
 }) {
   const sections: string[] = [];
 
@@ -43,6 +44,7 @@ export function renderDoctorReport(report: {
     { label: "Stale skill symlinks", items: report.staleSkillSymlinks },
     { label: "MCP drift", items: report.mcpDrift },
     { label: "Missing generated files", items: report.missingGeneratedFiles },
+    { label: "Project config issues", items: report.projectConfigIssues ?? [] },
   ];
 
   for (const { label, items } of categories) {
