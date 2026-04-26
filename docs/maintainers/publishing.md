@@ -2,7 +2,7 @@
 
 This document is the maintainer-facing manual for publishing `beginning-agents` to npm.
 
-It focuses on the verified working workflow. The deeper investigation notes remain in `.ai/knowledges/01_npm-publishing-analysis-and-manual.md`.
+It focuses on the verified working workflow. The deeper investigation notes remain in `.ai/knowledges/05_npm-publishing-analysis-and-manual.md`.
 
 ## Why This Exists
 

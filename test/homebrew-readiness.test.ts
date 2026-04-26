@@ -6,7 +6,7 @@ import { readFile } from "node:fs/promises";
 
 describe("homebrew readiness", () => {
   test("homebrew checklist exists with required sections", async () => {
-    const content = await readFile(new URL("../.ai/knowledges/02_homebrew-release-checklist.md", import.meta.url), "utf8");
+    const content = await readFile(new URL("../.ai/knowledges/04_homebrew-release-checklist.md", import.meta.url), "utf8");
 
     expect(content).toContain("package name finalization");
     expect(content).toContain("tagged release");

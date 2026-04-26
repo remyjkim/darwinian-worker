@@ -24,6 +24,8 @@ If you only need a one-off MCP config file for a single tool, this repo is proba
 - keeps `config.json` and `mcp-servers.json` as the canonical registry
 - syncs that canonical state into local tool config files
 - manages a shared skill library under `skills/shared`
+- supports package-backed extension skill bundles through `bgng skills packages ...`
+- supports per-project overrides under `<project>/.agents/bgng/config.json`
 - provides a safe-by-default CLI for sync, inspection, and diagnostics
 - supports Parallel as CLI-backed skills by default, with optional MCP overlay
 
@@ -83,6 +85,7 @@ bgng status
 - `~/.claude`
 - `~/.codex`
 - `~/.cursor`
+- `<project>/.agents/bgng/config.json`
 
 Start with `bgng sync --dry-run` if you want to inspect the planned changes before writing anything.
 
@@ -105,6 +108,12 @@ That gives you:
 - the active MCP inventory
 - a dry-run preview
 - an explicit apply step
+
+If you want project-specific overrides, scaffold them with:
+
+```bash
+bgng init
+```
 
 ## Install
 
@@ -144,7 +153,11 @@ When installed globally, `bgng` will use the packaged canonical repo by default.
 Current implemented commands:
 
 - `bgng sync`
+- `bgng init`
 - `bgng skills list`
+- `bgng skills packages add <spec>`
+- `bgng skills packages list`
+- `bgng skills packages show <package>`
 - `bgng skills curate <name>`
 - `bgng skills uncurate <name>`
 - `bgng skills sync`
@@ -154,6 +167,41 @@ Current implemented commands:
 - `bgng doctor`
 
 `sync-mcp.ts` remains available as a compatibility wrapper over the same extracted core modules.
+
+## Per-Project Configuration
+
+Use per-project config when one project should see a different tool or skill set than your global default.
+
+The per-project file lives at:
+
+```text
+<project>/.agents/bgng/config.json
+```
+
+Scaffold it with:
+
+```bash
+bgng init
+```
+
+Per-project config can:
+
+- disable or enable MCP servers for one project
+- add a project-local MCP server definition
+- include or exclude skills during sync
+- disable or enable targets for one project
+
+Discovery walks upward from your current working directory and stops at the first matching file.
+
+Useful commands:
+
+```bash
+bgng status
+bgng sync --dry-run
+bgng doctor
+```
+
+Those commands will reflect the effective merged project view when a project config is active.
 
 ## Sync Wrapper
 
@@ -195,6 +243,29 @@ bgng skills sync
 ```
 
 The sync flow creates downstream symlinks in `~/.claude/skills/` and `~/.codex/skills/` and reports stale symlinks without removing them.
+
+## Extension Skill Bundles
+
+`beginning-agents` also supports optional package-backed extension skill bundles.
+
+Use them when you want to make additional skills available without adding them to the built-in first-party skill tree.
+
+Typical flow:
+
+```bash
+bgng skills packages add <npm-package-or-local-path>
+bgng skills packages list
+bgng skills packages show <package-name>
+bgng skills curate <skill-name>
+bgng skills sync
+```
+
+Important:
+
+- package-backed skills become **available** when the bundle is added
+- they are not exposed until you curate them
+- sync remains centralized in `bgng`
+- built-in first-party skills remain repo-native
 
 ## Optional Integrations
 

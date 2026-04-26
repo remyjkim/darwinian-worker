@@ -13,6 +13,7 @@ Use it for:
 ## Current Docs
 
 - [publishing.md](./publishing.md): manual npm publishing workflow, token-isolation strategy, and lessons from the first release path
+- package-backed skill bundles are implemented in the main repo and should be documented here as the operational model stabilizes
 
 ## Scope Guidelines
 

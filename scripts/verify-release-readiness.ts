@@ -96,7 +96,10 @@ function findHardcodedUserPaths() {
     "config.json",
     "package.json",
     ".ai/knowledges/01_agents-cli-usage-guide.md",
-    ".ai/knowledges/02_homebrew-release-checklist.md",
+    ".ai/knowledges/02_per-project-config-guide.md",
+    ".ai/knowledges/03_npm-skill-bundles-guide.md",
+    ".ai/knowledges/04_homebrew-release-checklist.md",
+    ".ai/knowledges/05_npm-publishing-analysis-and-manual.md",
   ];
   const matches: string[] = [];
 
@@ -167,7 +170,10 @@ function verifyDocsPresence() {
     "CONTRIBUTING.md",
     "LICENSE",
     ".ai/knowledges/01_agents-cli-usage-guide.md",
-    ".ai/knowledges/02_homebrew-release-checklist.md",
+    ".ai/knowledges/02_per-project-config-guide.md",
+    ".ai/knowledges/03_npm-skill-bundles-guide.md",
+    ".ai/knowledges/04_homebrew-release-checklist.md",
+    ".ai/knowledges/05_npm-publishing-analysis-and-manual.md",
   ];
   const missing = requiredFiles.filter((file) => !existsSync(join(repoRoot, file)));
 
