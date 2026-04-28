@@ -2,7 +2,7 @@
   "lockfileVersion": 1,
   "workspaces": {
     "": {
-      "name": "agents-config-saam",
+      "name": "beginning-harness",
       "dependencies": {
         "clipanion": "4.0.0-rc.4",
         "smol-toml": "^1.6.1",

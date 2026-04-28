@@ -12,7 +12,7 @@ describe("CLI install mode", () => {
       bin?: string | Record<string, string>;
     };
 
-    expect(pkg.name).toBe("beginning-agents");
+    expect(pkg.name).toBe("beginning-harness");
     expect(pkg.scripts?.bgng).toBe("bun run cli/index.ts");
     expect(typeof pkg.bin).toBe("object");
     expect((pkg.bin as Record<string, string>).bgng).toBe("cli/index.ts");

@@ -1,4 +1,4 @@
-// ABOUTME: Runs the release-readiness quality gate for the bgng CLI and beginning-agents package.
+// ABOUTME: Runs the release-readiness quality gate for the bgng CLI and beginning-harness package.
 // ABOUTME: Combines automated checks and explicit warnings into a single non-mutating verification entrypoint.
 
 import { existsSync, readFileSync } from "node:fs";
@@ -138,8 +138,8 @@ function verifyPackageMetadata() {
   const metadataIssues: string[] = [];
   const warnings: string[] = [];
 
-  if (pkg.name !== "beginning-agents") {
-    metadataIssues.push("name must be beginning-agents");
+  if (pkg.name !== "beginning-harness") {
+    metadataIssues.push("name must be beginning-harness");
   }
 
   if (typeof pkg.bin !== "object" || pkg.bin === null || (pkg.bin as Record<string, string>).bgng !== "cli/index.ts") {

@@ -1,20 +1,20 @@
 {
-  "name": "beginning-agents",
+  "name": "beginning-harness",
   "bin": {
     "bgng": "cli/index.ts"
   },
   "type": "module",
-  "description": "Canonical MCP and skill registry CLI for multi-agent configuration.",
+  "description": "Local meta-harness CLI for managing AI agent skills, MCP servers, extensions, defaults, and project overlays.",
   "version": "0.1.0",
   "license": "Apache-2.0",
   "author": "remyjkim <jkkim123@gmail.com>",
-  "homepage": "https://github.com/remyjkim/beginning-agents",
+  "homepage": "https://github.com/remyjkim/beginning-harness",
   "bugs": {
-    "url": "https://github.com/remyjkim/beginning-agents/issues"
+    "url": "https://github.com/remyjkim/beginning-harness/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/remyjkim/beginning-agents.git"
+    "url": "git+https://github.com/remyjkim/beginning-harness.git"
   },
   "files": [
     "cli",
@@ -23,12 +23,15 @@
     "skills",
     "sync-mcp.ts",
     "README.md",
+    "the-beginning-harness.png",
     "LICENSE",
     "CONTRIBUTING.md"
   ],
   "keywords": [
-    "beginning-agents",
+    "beginning-harness",
     "bgng",
+    "harness",
+    "meta-harness",
     "agents",
     "mcp",
     "skills",

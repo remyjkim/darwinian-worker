@@ -6,7 +6,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 describe("package readiness", () => {
-  test("package has required metadata and canonical repository wiring", () => {
+  test("package has required metadata and repository wiring", () => {
     const pkg = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as Record<string, unknown>;
 
     for (const key of ["name", "version", "description", "license", "author", "keywords", "bin"]) {
@@ -16,14 +16,14 @@ describe("package readiness", () => {
     expect(existsSync(join(process.cwd(), "LICENSE"))).toBe(true);
     expect(existsSync(join(process.cwd(), "README.md"))).toBe(true);
     expect(existsSync(join(process.cwd(), "CONTRIBUTING.md"))).toBe(true);
-    expect(pkg.name).toBe("beginning-agents");
+    expect(pkg.name).toBe("beginning-harness");
     expect((pkg.bin as Record<string, string>).bgng).toBe("cli/index.ts");
     expect((pkg.scripts as Record<string, string>).bgng).toBe("bun run cli/index.ts");
-    expect(pkg.homepage).toBe("https://github.com/remyjkim/beginning-agents");
-    expect(pkg.bugs).toEqual({ url: "https://github.com/remyjkim/beginning-agents/issues" });
+    expect(pkg.homepage).toBe("https://github.com/remyjkim/beginning-harness");
+    expect(pkg.bugs).toEqual({ url: "https://github.com/remyjkim/beginning-harness/issues" });
     expect(pkg.repository).toEqual({
       type: "git",
-      url: "git+https://github.com/remyjkim/beginning-agents.git",
+      url: "git+https://github.com/remyjkim/beginning-harness.git",
     });
   });
 
@@ -61,6 +61,7 @@ describe("package readiness", () => {
 
     expect(paths.some((path) => path === ".env" || path.startsWith(".ai/"))).toBe(false);
     expect(paths.some((path) => path.startsWith("test/"))).toBe(false);
+    expect(paths).toContain("the-beginning-harness.png");
     expect(paths).toContain("skills/shared/frontend-design/SKILL.md");
   });
 });
