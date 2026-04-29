@@ -27,6 +27,7 @@
     "noPropertyAccessFromIndexSignature": false
   },
   "exclude": [
-    "skills/shared/systematic-debugging/condition-based-waiting-example.ts"
+    "skills/shared/systematic-debugging/condition-based-waiting-example.ts",
+    "docs-astro"
   ]
 }
