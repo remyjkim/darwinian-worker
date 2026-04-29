@@ -55,8 +55,8 @@ bgng init
 bgng add extension parallel --mcp
 bgng add skill "technical writing"
 bgng add mcp github
-bgng apply --dry-run
-bgng apply
+bgng write --dry-run
+bgng write
 ```
 
 Recommended discovery flow:
@@ -109,7 +109,7 @@ If it inspects or repairs understanding, use status/doctor.
 | First-run setup | `bgng init` defaults to guided mode | Reuses the existing bootstrap verb without creating a vague `configure` surface. |
 | Local reusable inventory | `bgng library ...` | "Library" correctly implies owned local reusable material. |
 | Online discovery | search local library and catalogs by default | This matches user intent when they ask to find the best skill/MCP; `--library` restricts to owned inventory. |
-| Materialization verb | `bgng apply` | Apply clearly means one-way writing from effective config into target tools. |
+| Materialization verb | `bgng write` | Write clearly means one-way file output from effective config into target tools. |
 | Existing `sync` command | keep as compatibility alias | Avoids breaking current users while docs shift to clearer vocabulary. |
 | Extension activation | `bgng add extension <name>` | Extensions are project capabilities when selected for a project. |
 | Extension operations | `bgng extensions ...` | Advanced inspection/setup remains available without dominating the happy path. |
@@ -131,7 +131,7 @@ Users think in tasks:
 - "Add Parallel to this project."
 - "Find a good writing skill."
 - "Add GitHub MCP to this project."
-- "Apply this setup to Claude/Codex/Cursor."
+- "Write this setup to Claude/Codex/Cursor."
 - "Check what is active."
 - "Tell me what is broken."
 
@@ -161,14 +161,14 @@ Do not make `apply` interactive by default.
 Use:
 
 ```bash
-bgng apply --dry-run
-bgng apply
+bgng write --dry-run
+bgng write
 ```
 
 Not:
 
 ```bash
-bgng apply
+bgng write
 # prompts user to decide setup
 ```
 
@@ -216,7 +216,7 @@ Direct:
 bgng add extension parallel --mcp
 bgng add skill writing-polish
 bgng add mcp github
-bgng apply --dry-run
+bgng write --dry-run
 ```
 
 Machine-readable:
@@ -224,7 +224,7 @@ Machine-readable:
 ```bash
 bgng search skill "writing" --json
 bgng add skill writing-polish --json
-bgng apply --dry-run --json
+bgng write --dry-run --json
 ```
 
 ## Terminology
@@ -409,7 +409,7 @@ A non-MCP executable or helper used by agents or extensions.
 
 Tool support should be designed but can remain later-phase. Avoid overloading `mcp` to mean all tools.
 
-### Apply
+### Write
 
 Meaning:
 
@@ -512,7 +512,7 @@ Behavior:
 6. Show next step:
 
 ```bash
-bgng apply --dry-run
+bgng write --dry-run
 ```
 
 Project config examples:
@@ -660,18 +660,18 @@ If `writing-polish` is not local, this can offer to search catalogs and install 
 Purpose:
 
 ```text
-Apply effective bgng configuration to downstream tools.
+Write effective bgng configuration to downstream tools.
 ```
 
 Commands:
 
 ```bash
-bgng apply
-bgng apply --dry-run
-bgng apply --json
-bgng apply --target=claude
-bgng apply --skills-only
-bgng apply --mcp-only
+bgng write
+bgng write --dry-run
+bgng write --json
+bgng write --target=claude
+bgng write --skills-only
+bgng write --mcp-only
 ```
 
 Semantics:
@@ -693,7 +693,7 @@ bgng sync
 should remain an alias for:
 
 ```bash
-bgng apply
+bgng write
 ```
 
 Documentation should teach `apply` first and mention `sync` as compatibility.
@@ -791,21 +791,21 @@ Target evolution:
 
 ```bash
 bgng mcp list
-bgng mcp apply
+bgng mcp write
 ```
 
 Recommended:
 
-- Add `bgng mcp apply` as an advanced alias for `bgng apply --mcp-only`.
-- Keep `bgng mcp sync` as a compatibility alias for at least one release cycle after `mcp apply` ships.
-- Teach top-level `bgng apply --mcp-only` in primary docs and `bgng mcp apply` in advanced MCP docs.
+- Add `bgng mcp write` as an advanced alias for `bgng write --mcp-only`.
+- Keep `bgng mcp sync` as a compatibility alias for at least one release cycle after `mcp write` ships.
+- Teach top-level `bgng write --mcp-only` in primary docs and `bgng mcp write` in advanced MCP docs.
 
 Relationship to higher-level commands:
 
 - `bgng add mcp github` adds an MCP server to the current project.
 - `bgng library add mcp github` registers an MCP server in local library.
 - `bgng mcp list` inspects effective MCP state.
-- `bgng apply --mcp-only` writes MCP state to tools.
+- `bgng write --mcp-only` writes MCP state to tools.
 
 ## Guided UX
 
@@ -851,7 +851,7 @@ Preview:
 <render config and planned external commands>
 
 Write config and run setup? yes
-Next: bgng apply --dry-run
+Next: bgng write --dry-run
 ```
 
 Rules:
@@ -891,7 +891,7 @@ Choose skill/package:
 > 1
 
 Add writing-polish to this project? yes
-Run bgng apply --dry-run now? no
+Run bgng write --dry-run now? no
 ```
 
 If online package selected:
@@ -1053,7 +1053,7 @@ bgng library ...
   mutates or inspects local reusable inventory
   does not mutate project config unless --project is explicit
 
-bgng apply
+bgng write
   reads global config + project config + library
   writes downstream tool state
 
@@ -1072,31 +1072,31 @@ bgng skills / mcp / extensions
 ```bash
 cd /path/to/project
 bgng init
-bgng apply --dry-run
-bgng apply
+bgng write --dry-run
+bgng write
 ```
 
 ### Add Parallel to one project
 
 ```bash
 bgng add extension parallel --mcp
-bgng apply --dry-run
-bgng apply
+bgng write --dry-run
+bgng write
 ```
 
 Equivalent advanced command:
 
 ```bash
 bgng extensions setup parallel --mcp
-bgng apply
+bgng write
 ```
 
 ### Find and add a writing skill
 
 ```bash
 bgng add skill
-bgng apply --dry-run
-bgng apply
+bgng write --dry-run
+bgng write
 ```
 
 Explicit:
@@ -1105,15 +1105,15 @@ Explicit:
 bgng search skill "writing polish" --project
 bgng library add skill @acme/writing-skills
 bgng add skill writing-polish
-bgng apply
+bgng write
 ```
 
 ### Add GitHub MCP to one project
 
 ```bash
 bgng add mcp github
-bgng apply --mcp-only --dry-run
-bgng apply --mcp-only
+bgng write --mcp-only --dry-run
+bgng write --mcp-only
 ```
 
 ### Inspect local inventory
@@ -1131,8 +1131,8 @@ bgng init --non-interactive
 bgng add extension parallel --mcp --yes
 bgng add skill writing-polish --yes
 bgng add mcp github --yes
-bgng apply --dry-run --json
-bgng apply --json
+bgng write --dry-run --json
+bgng write --json
 ```
 
 ## Migration From Current CLI
@@ -1150,10 +1150,10 @@ bgng extensions setup parallel
 Target documentation should gradually prefer:
 
 ```bash
-bgng apply
+bgng write
 bgng library add skill <package>
 bgng add skill <skill>
-bgng apply --mcp-only
+bgng write --mcp-only
 bgng add extension parallel
 ```
 
@@ -1161,13 +1161,13 @@ Compatibility mapping:
 
 | Current | Target |
 | --- | --- |
-| `bgng sync` | `bgng apply` |
+| `bgng sync` | `bgng write` |
 | `bgng skills packages add <package>` | `bgng library add skill <package>` |
 | `bgng skills packages list` | `bgng library list skills` |
 | `bgng skills packages show <package>` | `bgng library show <id>` |
 | `bgng extensions setup <name>` | `bgng add extension <name>` |
-| `bgng mcp sync` | `bgng apply --mcp-only` or `bgng mcp apply` |
-| `bgng skills sync` | `bgng apply --skills-only` or `bgng skills apply` |
+| `bgng mcp sync` | `bgng write --mcp-only` or `bgng mcp write` |
+| `bgng skills sync` | `bgng write --skills-only` or `bgng skills apply` |
 
 Do not remove old commands until the new surface has been documented, tested, and used for at least one release cycle.
 
@@ -1238,7 +1238,7 @@ Added writing-polish to this project.
 Updated .agents/bgng/config.json
 
 Next:
-  bgng apply --dry-run
+  bgng write --dry-run
 ```
 
 Avoid:
@@ -1258,7 +1258,7 @@ JSON output should expose stable structured data:
   "projectChanges": [
     { "kind": "skill", "id": "writing-polish", "action": "included" }
   ],
-  "next": ["bgng apply --dry-run"]
+  "next": ["bgng write --dry-run"]
 }
 ```
 
@@ -1266,7 +1266,7 @@ JSON output should expose stable structured data:
 
 ### Phase A: Naming and aliases
 
-- Add `bgng apply` as alias over current sync implementation.
+- Add `bgng write` as alias over current sync implementation.
 - Keep `bgng sync` as compatibility alias.
 - Update docs to prefer `apply`.
 
@@ -1378,15 +1378,15 @@ Options:
 
 | Option | Pros | Cons |
 | --- | --- | --- |
-| Promote only `bgng apply --mcp-only` | One lifecycle verb; least command surface; reinforces `apply` as the materialization operation. | Less discoverable from `bgng mcp --help`; advanced MCP users may expect the MCP namespace to contain its own apply command. |
-| Add `bgng mcp apply` as alias for `bgng apply --mcp-only` | Discoverable inside the MCP namespace; aligns with `mcp list`; smooth migration from `mcp sync`; useful for advanced scripts. | Adds another spelling for the same operation; docs must prevent users from thinking `mcp apply` and `apply --mcp-only` differ. |
+| Promote only `bgng write --mcp-only` | One lifecycle verb; least command surface; reinforces `apply` as the materialization operation. | Less discoverable from `bgng mcp --help`; advanced MCP users may expect the MCP namespace to contain its own apply command. |
+| Add `bgng mcp write` as alias for `bgng write --mcp-only` | Discoverable inside the MCP namespace; aligns with `mcp list`; smooth migration from `mcp sync`; useful for advanced scripts. | Adds another spelling for the same operation; docs must prevent users from thinking `mcp write` and `write --mcp-only` differ. |
 | Keep only `bgng mcp sync` | Minimum implementation churn; zero migration work. | Preserves ambiguous terminology; conflicts with the target `apply` vocabulary; looks stale once top-level `apply` exists. |
 
 Recommendation:
 
-- Add `bgng mcp apply` as an advanced alias for `bgng apply --mcp-only`.
+- Add `bgng mcp write` as an advanced alias for `bgng write --mcp-only`.
 - Keep `bgng mcp sync` as a compatibility alias.
-- Teach `bgng apply --mcp-only` in primary docs and `bgng mcp apply` in advanced MCP docs.
+- Teach `bgng write --mcp-only` in primary docs and `bgng mcp write` in advanced MCP docs.
 
 This gives discoverability without fragmenting the underlying implementation.
 
@@ -1424,5 +1424,5 @@ extensions/skills/mcp advanced direct controls
 This preserves the power of the existing architecture while giving users a simpler story:
 
 ```text
-Find useful things. Keep them in your library. Add them to a project. Apply the project setup to your agent tools.
+Find useful things. Keep them in your library. Add them to a project. Write the project setup to your agent tools.
 ```

@@ -52,7 +52,7 @@ bgng library defaults remove mcp <serverName>
 
 bgng add skill <skillName>
 bgng add mcp <serverName>
-bgng apply
+bgng write
 ```
 
 Core decision:
@@ -62,7 +62,7 @@ Core decision:
 This preserves the user mental model:
 
 ```text
-Find useful things. Keep them in your library. Make some defaults. Add project-specific extras. Apply.
+Find useful things. Keep them in your library. Make some defaults. Add project-specific extras. Write.
 ```
 
 ## Non-Goals
@@ -438,14 +438,14 @@ Project config should not store:
 
 ## Effective Config Resolution
 
-`bgng apply` should resolve state in this order:
+`bgng write` should resolve state in this order:
 
 1. Load packaged fallback config and built-in registry.
 2. Load or initialize user global config from `~/.agents/bgng/config.json`.
 3. Load local library inventory from `~/.agents/library` and package caches.
 4. Build the global active set from `defaults`.
 5. Discover nearest project config from the current working directory.
-6. Apply project overrides.
+6. Merge project overrides.
 7. Render MCP config and skill symlinks into enabled targets.
 
 Conceptual flow:
@@ -458,7 +458,7 @@ packaged defaults
   = effective config
 
 effective config
-  -> bgng apply
+  -> bgng write
   -> downstream tool state
 ```
 
@@ -607,7 +607,7 @@ Behavior:
 - require the item to exist in the built-in registry or local library
 - refuse unknown or ambiguous names
 - preserve unrelated config fields
-- print `bgng apply --dry-run` as the next step
+- print `bgng write --dry-run` as the next step
 
 JSON payload should include:
 
@@ -618,7 +618,7 @@ JSON payload should include:
   "scope": "global-default",
   "configPath": "~/.agents/bgng/config.json",
   "action": "added",
-  "next": ["bgng apply --dry-run"]
+  "next": ["bgng write --dry-run"]
 }
 ```
 
@@ -668,8 +668,8 @@ Recommended relationship:
 | `bgng library defaults add mcp <name>` | no | yes | no | no |
 | `bgng add skill <name>` | yes, only if installing a selected catalog result | no | yes | no |
 | `bgng add mcp <name>` | yes, only if registering a selected catalog result | no | yes | no |
-| `bgng apply --dry-run` | no | no | no | no |
-| `bgng apply` | no | no | no | yes |
+| `bgng write --dry-run` | no | no | no | no |
+| `bgng write` | no | no | no | yes |
 
 ## Migration Strategy
 
@@ -724,7 +724,7 @@ MCP default migration:
 - Preserve existing `optional` semantics for compatibility during migration.
 - Eventually prefer explicit `defaults.mcpServers` over implicit `optional: false` behavior.
 
-### Phase 4: Update Apply And Doctor
+### Phase 4: Update Write And Doctor
 
 `apply` should consume:
 
@@ -767,8 +767,8 @@ No command removal is required. Compatibility commands can remain indefinitely i
 bgng search skill "writing"
 bgng library add skill @acme/writing-skills
 bgng library defaults add skill writing-polish
-bgng apply --dry-run
-bgng apply
+bgng write --dry-run
+bgng write
 ```
 
 Result:
@@ -783,7 +783,7 @@ Result:
 ```bash
 cd ~/dev/api
 bgng add skill writing-polish
-bgng apply --dry-run
+bgng write --dry-run
 ```
 
 Result:
@@ -797,7 +797,7 @@ Result:
 ```bash
 bgng library add mcp github
 bgng library defaults add mcp github
-bgng apply --dry-run
+bgng write --dry-run
 ```
 
 Result:
@@ -811,7 +811,7 @@ Result:
 ```bash
 cd ~/dev/webapp
 bgng add mcp github
-bgng apply --dry-run
+bgng write --dry-run
 ```
 
 Result:
@@ -824,7 +824,7 @@ Result:
 
 ```bash
 bgng library defaults remove mcp github
-bgng apply
+bgng write
 ```
 
 Result:
@@ -871,7 +871,7 @@ context7 is already active by global default.
 No project override needed.
 
 Next:
-  bgng apply --dry-run
+  bgng write --dry-run
 ```
 
 Use `--force-project-override` only if there is a real future need.
@@ -889,7 +889,7 @@ Use --replace to update it, or --as <id> to register another copy.
 
 ```text
 github requires environment variable GITHUB_TOKEN.
-Set it before running bgng apply, or keep the server project-scoped until needed.
+Set it before running bgng write, or keep the server project-scoped until needed.
 ```
 
 `library defaults add mcp` may allow adding an MCP with missing env as long as it warns clearly. `doctor` must continue reporting the missing env.
@@ -930,7 +930,7 @@ Integration tests:
 - `library defaults add mcp` makes it active globally
 - `add mcp` remains project-scoped
 - project disable overrides global default
-- `apply --dry-run --json` includes global defaults and project overrides
+- `write --dry-run --json` includes global defaults and project overrides
 - `doctor --json` reports stale project overrides and missing default references
 
 TTY tests:
@@ -979,7 +979,7 @@ This design is compatible with the current command architecture:
 - `bgng add ...` remains project-first
 - `bgng library ...` expands from read-only inventory plus skill bundle add into full local inventory management
 - `bgng library defaults ...` gives users a precise CLI for global defaults
-- `bgng apply` remains deterministic and non-interactive
+- `bgng write` remains deterministic and non-interactive
 - `bgng doctor` becomes the consistency guard across library, defaults, and project config
 
 The highest-value first implementation slice is:
