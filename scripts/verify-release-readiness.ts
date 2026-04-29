@@ -69,14 +69,25 @@ async function verifyPackageContents() {
   );
   const required = [
     "cli/index.ts",
+    "cli/commands/write.ts",
+    "cli/commands/mcp/write.ts",
     "config.json",
     "mcp-servers.json",
-    "sync-mcp.ts",
     "skills/shared/frontend-design/SKILL.md",
   ];
+  const removedCommandFiles = [
+    "cli/commands/apply.ts",
+    "cli/commands/mcp/apply.ts",
+    "cli/commands/sync.ts",
+    "cli/commands/mcp/sync.ts",
+    "cli/commands/skills/sync.ts",
+    "sync-mcp.ts",
+  ];
+  const forbiddenCommands = removedCommandFiles.filter((file) => files.includes(file));
   const missingRequired = required.filter((file) => !files.includes(file));
   const details = [
     ...(forbidden.length > 0 ? [`Forbidden: ${forbidden.join(", ")}`] : []),
+    ...(forbiddenCommands.length > 0 ? [`Removed commands: ${forbiddenCommands.join(", ")}`] : []),
     ...(missingRequired.length > 0 ? [`Missing: ${missingRequired.join(", ")}`] : []),
   ];
 

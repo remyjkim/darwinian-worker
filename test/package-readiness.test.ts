@@ -19,6 +19,7 @@ describe("package readiness", () => {
     expect(pkg.name).toBe("beginning-harness");
     expect((pkg.bin as Record<string, string>).bgng).toBe("cli/index.ts");
     expect((pkg.scripts as Record<string, string>).bgng).toBe("bun run cli/index.ts");
+    expect((pkg.scripts as Record<string, string>).sync).toBeUndefined();
     expect(pkg.homepage).toBe("https://github.com/remyjkim/beginning-harness");
     expect(pkg.bugs).toEqual({ url: "https://github.com/remyjkim/beginning-harness/issues" });
     expect(pkg.repository).toEqual({
@@ -61,6 +62,14 @@ describe("package readiness", () => {
 
     expect(paths.some((path) => path === ".env" || path.startsWith(".ai/"))).toBe(false);
     expect(paths.some((path) => path.startsWith("test/"))).toBe(false);
+    expect(paths).not.toContain("sync-mcp.ts");
+    expect(paths).toContain("cli/commands/write.ts");
+    expect(paths).toContain("cli/commands/mcp/write.ts");
+    expect(paths).not.toContain("cli/commands/apply.ts");
+    expect(paths).not.toContain("cli/commands/mcp/apply.ts");
+    expect(paths).not.toContain("cli/commands/sync.ts");
+    expect(paths).not.toContain("cli/commands/mcp/sync.ts");
+    expect(paths).not.toContain("cli/commands/skills/sync.ts");
     expect(paths).toContain("the-beginning-harness.png");
     expect(paths).toContain("skills/shared/frontend-design/SKILL.md");
   });

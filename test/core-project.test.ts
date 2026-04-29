@@ -1,5 +1,5 @@
 // ABOUTME: Verifies per-project config discovery, loading, merge behavior, and scaffolding.
-// ABOUTME: Protects the project-override layer so sync commands can consume effective state safely.
+// ABOUTME: Protects the project-override layer so write and diagnostics consume effective state safely.
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";

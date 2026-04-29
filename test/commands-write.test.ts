@@ -1,5 +1,5 @@
-// ABOUTME: Verifies the target `bgng apply` command surface over the existing sync engine.
-// ABOUTME: Protects the clearer materialization vocabulary while preserving sync compatibility.
+// ABOUTME: Verifies the target `bgng write` command surface over the materialization engine.
+// ABOUTME: Protects the supported one-way write vocabulary for downstream tool updates.
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -13,8 +13,8 @@ afterEach(async () => {
   await cleanupTempRoots(tempRoots);
 });
 
-describe("bgng apply", () => {
-  test("dry-run reports changes like sync", async () => {
+describe("bgng write", () => {
+  test("dry-run reports planned materialization changes", async () => {
     const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
     tempRoots.push(fixture.root);
     const env = {
@@ -23,13 +23,10 @@ describe("bgng apply", () => {
       AGENTS_DIR: fixture.agentsDir,
     };
 
-    const apply = await runAgentsCli(["apply", "--dry-run"], env);
-    const sync = await runAgentsCli(["sync", "--dry-run"], env);
+    const write = await runAgentsCli(["write", "--dry-run"], env);
 
-    expect(apply.exitCode).toBe(0);
-    expect(sync.exitCode).toBe(0);
-    expect(apply.stdout).toContain("Changes:");
-    expect(sync.stdout).toContain("Changes:");
+    expect(write.exitCode).toBe(0);
+    expect(write.stdout).toContain("Changes:");
   });
 
   test("supports json, target, and mode flags", async () => {
@@ -41,16 +38,16 @@ describe("bgng apply", () => {
       AGENTS_DIR: fixture.agentsDir,
     };
 
-    const json = await runAgentsCli(["apply", "--dry-run", "--json"], env);
+    const json = await runAgentsCli(["write", "--dry-run", "--json"], env);
     expect(json.exitCode).toBe(0);
     expect(() => JSON.parse(json.stdout)).not.toThrow();
 
-    const target = await runAgentsCli(["apply", "--dry-run", "--target=claude"], env);
+    const target = await runAgentsCli(["write", "--dry-run", "--target=claude"], env);
     expect(target.exitCode).toBe(0);
     expect(target.stdout).toContain("settings.json");
     expect(target.stdout).not.toContain("config.toml");
 
-    const mcpOnly = await runAgentsCli(["apply", "--dry-run", "--mcp-only"], env);
+    const mcpOnly = await runAgentsCli(["write", "--dry-run", "--mcp-only"], env);
     expect(mcpOnly.exitCode).toBe(0);
     expect(mcpOnly.stdout).not.toContain(".claude/skills");
   });
@@ -59,7 +56,7 @@ describe("bgng apply", () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
 
-    const result = await runAgentsCli(["apply", "--mcp-only", "--skills-only"], {
+    const result = await runAgentsCli(["write", "--mcp-only", "--skills-only"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,
@@ -69,7 +66,7 @@ describe("bgng apply", () => {
     expect(`${result.stdout}\n${result.stderr}`).toContain("Use either --mcp-only or --skills-only");
   });
 
-  test("global default skills sync without curated symlinks", async () => {
+  test("global default skills write without curated symlinks", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     await mkdir(join(fixture.agentsDir, "bgng"), { recursive: true });
@@ -77,7 +74,7 @@ describe("bgng apply", () => {
     repoConfig.defaults = { skills: ["alpha"], mcpServers: ["context7"] };
     await writeFile(join(fixture.agentsDir, "bgng", "config.json"), JSON.stringify(repoConfig, null, 2));
 
-    const result = await runAgentsCli(["apply", "--dry-run"], {
+    const result = await runAgentsCli(["write", "--dry-run"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,
@@ -103,7 +100,7 @@ describe("bgng apply", () => {
       JSON.stringify({ version: 1, skills: { exclude: ["alpha"] } }, null, 2),
     );
 
-    const result = await runAgentsCli(["apply", "--dry-run"], {
+    const result = await runAgentsCli(["write", "--dry-run"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,
@@ -128,7 +125,7 @@ describe("bgng apply", () => {
       JSON.stringify({ version: 1, servers: { context7: { enabled: false } } }, null, 2),
     );
 
-    const result = await runAgentsCli(["apply", "--dry-run", "--json"], {
+    const result = await runAgentsCli(["write", "--dry-run", "--json"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,
@@ -138,7 +135,7 @@ describe("bgng apply", () => {
     expect(result.stdout).not.toContain("@upstash/context7-mcp");
   });
 
-  test("global default user library MCP servers render during apply", async () => {
+  test("global default user library MCP servers render during write", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     const { saveMcpLibrary } = await import("../cli/core/mcp-library");
@@ -159,7 +156,7 @@ describe("bgng apply", () => {
     repoConfig.defaults = { mcpServers: ["github"] };
     await writeFile(join(fixture.agentsDir, "bgng", "config.json"), JSON.stringify(repoConfig, null, 2));
 
-    const result = await runAgentsCli(["apply", "--dry-run"], {
+    const result = await runAgentsCli(["write", "--dry-run"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,
@@ -169,7 +166,7 @@ describe("bgng apply", () => {
     expect(result.stdout).toContain("settings.json");
   });
 
-  test("project-enabled user library MCP servers render during apply", async () => {
+  test("project-enabled user library MCP servers render during write", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     const { saveMcpLibrary } = await import("../cli/core/mcp-library");
@@ -192,7 +189,7 @@ describe("bgng apply", () => {
       JSON.stringify({ version: 1, servers: { github: { enabled: true } } }, null, 2),
     );
 
-    const result = await runAgentsCli(["apply"], {
+    const result = await runAgentsCli(["write"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,

@@ -17,7 +17,7 @@ describe("bgng doctor", () => {
     const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
     tempRoots.push(fixture.root);
 
-    await runAgentsCli(["skills", "sync"], {
+    await runAgentsCli(["write", "--skills-only"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,

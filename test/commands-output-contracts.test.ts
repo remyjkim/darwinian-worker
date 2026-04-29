@@ -23,11 +23,11 @@ describe("command output contracts", () => {
     };
 
     const humanCommands = [
-      ["sync", "--dry-run"],
+      ["write", "--dry-run"],
+      ["scan"],
       ["skills", "list"],
-      ["skills", "sync", "--dry-run"],
       ["mcp", "list"],
-      ["mcp", "sync", "--dry-run"],
+      ["mcp", "write", "--dry-run"],
       ["extensions", "list"],
       ["extensions", "show", "beads"],
       ["extensions", "status"],
@@ -46,11 +46,11 @@ describe("command output contracts", () => {
     }
 
     const jsonCommands = [
-      ["sync", "--dry-run", "--json"],
+      ["write", "--dry-run", "--json"],
+      ["scan", "--json"],
       ["skills", "list", "--json"],
-      ["skills", "sync", "--dry-run", "--json"],
       ["mcp", "list", "--json"],
-      ["mcp", "sync", "--dry-run", "--json"],
+      ["mcp", "write", "--dry-run", "--json"],
       ["extensions", "list", "--json"],
       ["extensions", "show", "beads", "--json"],
       ["extensions", "status", "--json"],
@@ -84,14 +84,14 @@ describe("command output contracts", () => {
       AGENTS_DIR: fixture.agentsDir,
     };
 
-    for (const args of [["status"], ["doctor"], ["sync", "--dry-run"]]) {
+    for (const args of [["status"], ["doctor"], ["write", "--dry-run"]]) {
       const result = await runAgentsCli(args, env, projectDir);
       expect(result.exitCode).toBe(0);
       expect(result.stdout.trim().length).toBeGreaterThan(0);
       expect(result.stdout).not.toContain("[object Object]");
     }
 
-    for (const args of [["status", "--json"], ["doctor", "--json"], ["sync", "--dry-run", "--json"]]) {
+    for (const args of [["status", "--json"], ["doctor", "--json"], ["write", "--dry-run", "--json"]]) {
       const result = await runAgentsCli(args, env, projectDir);
       expect(result.exitCode).toBe(0);
       expect(() => JSON.parse(result.stdout)).not.toThrow();

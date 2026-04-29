@@ -63,7 +63,7 @@ async function addParallelSkills(repoRoot: string) {
 }
 
 describe("user journeys", () => {
-  test("first-time user can inspect, curate, and sync a skill", async () => {
+  test("first-time user can inspect, curate, and write a skill downstream", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     const env = {
@@ -82,7 +82,7 @@ describe("user journeys", () => {
     result = await runAgentsCli(["skills", "curate", "alpha"], env);
     expect(result.exitCode).toBe(0);
 
-    result = await runAgentsCli(["skills", "sync"], env);
+    result = await runAgentsCli(["write", "--skills-only"], env);
     expect(result.exitCode).toBe(0);
   });
 
@@ -96,7 +96,7 @@ describe("user journeys", () => {
     };
 
     const legacy = await runSyncWrapper(["--dry-run"], env);
-    const modern = await runAgentsCli(["sync", "--dry-run"], env);
+    const modern = await runAgentsCli(["write", "--dry-run"], env);
 
     expect(legacy.exitCode).toBe(0);
     expect(modern.exitCode).toBe(0);
@@ -113,7 +113,7 @@ describe("user journeys", () => {
       AGENTS_DIR: fixture.agentsDir,
     };
 
-    await runAgentsCli(["skills", "sync"], env);
+    await runAgentsCli(["write", "--skills-only"], env);
     await runAgentsCli(["skills", "uncurate", "alpha"], env);
     await writeFile(
       fixture.claudeSettings,
@@ -173,11 +173,11 @@ describe("user journeys", () => {
       ),
     );
 
-    result = await runAgentsCli(["sync", "--dry-run"], env, projectDir);
+    result = await runAgentsCli(["write", "--dry-run"], env, projectDir);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain(projectConfigPath);
 
-    result = await runAgentsCli(["sync"], env, projectDir);
+    result = await runAgentsCli(["write"], env, projectDir);
     expect(result.exitCode).toBe(0);
 
     result = await runAgentsCli(["status"], env, projectDir);
@@ -189,7 +189,7 @@ describe("user journeys", () => {
     expect(result.stdout).toContain("No issues found");
   });
 
-  test("per-project user can select Parallel extension and sync its CLI-backed skills", async () => {
+  test("per-project user can select Parallel extension and write its CLI-backed skills", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     await addParallelSkills(fixture.repoRoot);
@@ -218,19 +218,19 @@ describe("user journeys", () => {
       AGENTS_DIR: fixture.agentsDir,
     };
 
-    const dryRun = await runAgentsCli(["sync", "--dry-run"], env, projectDir);
+    const dryRun = await runAgentsCli(["write", "--dry-run"], env, projectDir);
     expect(dryRun.exitCode).toBe(0);
     expect(dryRun.stdout).toContain("parallel-web-search");
     expect(dryRun.stdout).not.toContain("parallel-web-extract");
 
-    const sync = await runAgentsCli(["sync"], env, projectDir);
-    expect(sync.exitCode).toBe(0);
+    const write = await runAgentsCli(["write"], env, projectDir);
+    expect(write.exitCode).toBe(0);
     expect(existsSync(join(fixture.homeDir, ".claude", "skills", "parallel-web-search"))).toBe(true);
     expect(existsSync(join(fixture.homeDir, ".codex", "skills", "parallel-web-search"))).toBe(true);
     expect(existsSync(join(fixture.homeDir, ".claude", "skills", "parallel-web-extract"))).toBe(false);
   });
 
-  test("invalid project config references are ignored by sync and surfaced by doctor", async () => {
+  test("invalid project config references are ignored by write and surfaced by doctor", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     const projectDir = join(fixture.root, "project");
@@ -258,8 +258,8 @@ describe("user journeys", () => {
       AGENTS_DIR: fixture.agentsDir,
     };
 
-    const syncResult = await runAgentsCli(["sync", "--dry-run"], env, projectDir);
-    expect(syncResult.exitCode).toBe(0);
+    const writeResult = await runAgentsCli(["write", "--dry-run"], env, projectDir);
+    expect(writeResult.exitCode).toBe(0);
 
     const doctorResult = await runAgentsCli(["doctor"], env, projectDir);
     expect(doctorResult.exitCode).toBe(0);
@@ -267,7 +267,7 @@ describe("user journeys", () => {
     expect(doctorResult.stdout).toContain("deleted-skill");
   });
 
-  test("package-backed bundle user can add, inspect, curate, and sync a skill", async () => {
+  test("package-backed bundle user can add, inspect, curate, and write a skill downstream", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     const { bundleRoot } = await createBundleFixture(fixture.root);
@@ -287,7 +287,7 @@ describe("user journeys", () => {
     result = await runAgentsCli(["skills", "curate", "hello-skill"], env);
     expect(result.exitCode).toBe(0);
 
-    result = await runAgentsCli(["skills", "sync"], env);
+    result = await runAgentsCli(["write", "--skills-only"], env);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("hello-skill");
   });

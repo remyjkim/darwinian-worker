@@ -18,6 +18,24 @@ describe("CLI entrypoint", () => {
     expect(stdout).toContain("bgng");
   });
 
+  test("--help lists write and scan and omits removed apply and sync commands", async () => {
+    const proc = Bun.spawn(["bun", "run", "cli/index.ts", "--help"], {
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const stdout = await new Response(proc.stdout).text();
+
+    expect(await proc.exited).toBe(0);
+    expect(stdout).toContain("bgng write");
+    expect(stdout).toContain("bgng mcp write");
+    expect(stdout).toContain("bgng scan");
+    expect(stdout).not.toContain("bgng apply");
+    expect(stdout).not.toContain("bgng mcp apply");
+    expect(stdout).not.toContain("bgng sync");
+    expect(stdout).not.toContain("bgng mcp sync");
+    expect(stdout).not.toContain("bgng skills sync");
+  });
+
   test("--version exits 0", async () => {
     const proc = Bun.spawn(["bun", "run", "cli/index.ts", "--version"], {
       stdout: "pipe",

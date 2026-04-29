@@ -19,7 +19,8 @@ describe("documentation readiness", () => {
 
     for (const doc of [readme, usageGuide]) {
       expect(doc).toContain("bun link");
-      expect(doc).toContain("bgng sync");
+      expect(doc).toContain("bgng write");
+      expect(doc).toContain("bgng scan");
       expect(doc).toContain("bgng doctor");
       expect(doc).toContain("bgng init");
       expect(doc).toContain("bgng extensions");
@@ -28,7 +29,6 @@ describe("documentation readiness", () => {
       expect(doc).toContain("markdownify");
       expect(doc).toContain("beads");
       expect(doc).toContain("parallel");
-      expect(doc).toContain("sync-mcp.ts");
     }
 
     expect(brewGuide).toContain("Homebrew");
@@ -52,6 +52,8 @@ describe("documentation readiness", () => {
     expect(usageGuide).toContain("repo-native and installed package-backed skills");
     expect(usageGuide).toContain("beginning-harness");
     expect(usageGuide).toContain("local harness");
+    expect(readme).not.toContain("bgng apply");
+    expect(usageGuide).not.toContain("bgng apply");
     expect(projectGuide).toContain("Discovery walks upward");
     expect(projectGuide).toContain("\"version\": 1");
     expect(projectGuide).toContain("skills.include");

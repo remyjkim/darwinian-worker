@@ -1,4 +1,4 @@
-// ABOUTME: Verifies `bgng skills curate`, `uncurate`, and `sync` command behavior against temp fixtures.
+// ABOUTME: Verifies `bgng skills curate`, `uncurate`, and write behavior against temp fixtures.
 // ABOUTME: Locks in safe-by-default mutation semantics for the curated skill publication layer.
 
 import { afterEach, describe, expect, test } from "bun:test";
@@ -77,11 +77,11 @@ describe("bgng skills mutate", () => {
     await expect(access(join(fixture.agentsDir, "skills", "alpha"))).rejects.toThrow();
   });
 
-  test("sync installs downstream skill symlinks", async () => {
+  test("write --skills-only installs downstream skill symlinks", async () => {
     const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
     tempRoots.push(fixture.root);
 
-    const result = await runAgentsCli(["skills", "sync"], {
+    const result = await runAgentsCli(["write", "--skills-only"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,
@@ -92,7 +92,7 @@ describe("bgng skills mutate", () => {
     expect((await lstat(join(fixture.homeDir, ".codex", "skills", "alpha"))).isSymbolicLink()).toBe(true);
   });
 
-  test("sync applies project extension-derived skill includes", async () => {
+  test("write --skills-only uses project extension-derived skill includes", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     await addParallelSkills(fixture.repoRoot);
@@ -116,7 +116,7 @@ describe("bgng skills mutate", () => {
       ),
     );
 
-    const result = await runAgentsCli(["skills", "sync"], {
+    const result = await runAgentsCli(["write", "--skills-only"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,
@@ -127,7 +127,7 @@ describe("bgng skills mutate", () => {
     await expect(access(join(fixture.homeDir, ".claude", "skills", "parallel-web-extract"))).rejects.toThrow();
   });
 
-  test("sync installs downstream symlinks for curated package-backed skills", async () => {
+  test("write --skills-only installs downstream symlinks for curated package-backed skills", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     const packageRoot = join(fixture.agentsDir, "packages", "skills", "@acme", "skills-sample", "1.0.0");
@@ -151,7 +151,7 @@ describe("bgng skills mutate", () => {
       AGENTS_DIR: fixture.agentsDir,
     });
 
-    const result = await runAgentsCli(["skills", "sync"], {
+    const result = await runAgentsCli(["write", "--skills-only"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,
@@ -162,11 +162,11 @@ describe("bgng skills mutate", () => {
     expect((await lstat(join(fixture.homeDir, ".codex", "skills", "hello-skill"))).isSymbolicLink()).toBe(true);
   });
 
-  test("sync reports stale links but does not prune by default", async () => {
+  test("write --skills-only reports stale links but does not prune by default", async () => {
     const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
     tempRoots.push(fixture.root);
 
-    await runAgentsCli(["skills", "sync"], {
+    await runAgentsCli(["write", "--skills-only"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,
@@ -178,7 +178,7 @@ describe("bgng skills mutate", () => {
       AGENTS_DIR: fixture.agentsDir,
     });
 
-    const result = await runAgentsCli(["skills", "sync"], {
+    const result = await runAgentsCli(["write", "--skills-only"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,

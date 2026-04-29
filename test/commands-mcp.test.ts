@@ -1,5 +1,5 @@
-// ABOUTME: Verifies the public `bgng mcp list` and `bgng mcp sync` command surfaces.
-// ABOUTME: Protects harness MCP listing and sync behavior while the CLI replaces ad hoc script usage.
+// ABOUTME: Verifies the public `bgng mcp list` and `bgng mcp write` command surfaces.
+// ABOUTME: Protects harness MCP listing and write behavior while the CLI replaces ad hoc script usage.
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -65,12 +65,12 @@ describe("bgng mcp", () => {
     expect(parsed.some((server) => server.name === "parallel-search" && server.active)).toBe(true);
   });
 
-  test("sync --dry-run reports changes without mutating target files", async () => {
+  test("write --dry-run reports changes without mutating target files", async () => {
     const fixture = await scaffoldCliFixture({ parallelMcpEnabled: true });
     tempRoots.push(fixture.root);
     const before = await readFile(fixture.claudeSettings, "utf8");
 
-    const result = await runAgentsCli(["mcp", "sync", "--dry-run"], {
+    const result = await runAgentsCli(["mcp", "write", "--dry-run"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,
@@ -81,12 +81,12 @@ describe("bgng mcp", () => {
     expect(await readFile(fixture.claudeSettings, "utf8")).toBe(before);
   });
 
-  test("apply --dry-run reports MCP changes without mutating target files", async () => {
+  test("write --dry-run reports MCP changes without mutating target files", async () => {
     const fixture = await scaffoldCliFixture({ parallelMcpEnabled: true });
     tempRoots.push(fixture.root);
     const before = await readFile(fixture.claudeSettings, "utf8");
 
-    const result = await runAgentsCli(["mcp", "apply", "--dry-run"], {
+    const result = await runAgentsCli(["mcp", "write", "--dry-run"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,
@@ -97,11 +97,11 @@ describe("bgng mcp", () => {
     expect(await readFile(fixture.claudeSettings, "utf8")).toBe(before);
   });
 
-  test("apply supports --json output", async () => {
+  test("write supports --json output", async () => {
     const fixture = await scaffoldCliFixture({ parallelMcpEnabled: true });
     tempRoots.push(fixture.root);
 
-    const result = await runAgentsCli(["mcp", "apply", "--dry-run", "--json"], {
+    const result = await runAgentsCli(["mcp", "write", "--dry-run", "--json"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,
@@ -111,7 +111,7 @@ describe("bgng mcp", () => {
     expect(() => JSON.parse(result.stdout)).not.toThrow();
   });
 
-  test("sync applies project extension MCP state", async () => {
+  test("write uses project extension MCP state", async () => {
     const fixture = await scaffoldCliFixture({ parallelMcpEnabled: false });
     tempRoots.push(fixture.root);
     const projectDir = join(fixture.root, "project");
@@ -122,7 +122,7 @@ describe("bgng mcp", () => {
       JSON.stringify({ version: 1, extensions: { parallel: { enabled: true, skills: true, mcp: true } } }, null, 2),
     );
 
-    const result = await runAgentsCli(["mcp", "sync"], {
+    const result = await runAgentsCli(["mcp", "write"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,
@@ -135,11 +135,11 @@ describe("bgng mcp", () => {
     expect(claudeSettings.mcpServers["parallel-search"]).toBeDefined();
   });
 
-  test("sync --target=claude limits output scope", async () => {
+  test("write --target=claude limits output scope", async () => {
     const fixture = await scaffoldCliFixture({ parallelMcpEnabled: true });
     tempRoots.push(fixture.root);
 
-    const result = await runAgentsCli(["mcp", "sync", "--dry-run", "--target=claude"], {
+    const result = await runAgentsCli(["mcp", "write", "--dry-run", "--target=claude"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,

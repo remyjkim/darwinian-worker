@@ -1,5 +1,5 @@
 // ABOUTME: Verifies bgng skills packages add/list/show command behavior for package-backed skill bundles.
-// ABOUTME: Locks in the package-backed extension source UX without conflating it with curation or sync.
+// ABOUTME: Locks in the package-backed extension source UX without conflating it with curation or write.
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
