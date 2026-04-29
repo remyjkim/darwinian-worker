@@ -106,7 +106,7 @@ describe("bgng doctor", () => {
       parallel: { cli: { enabled: true }, mcp: { enabled: false } },
     };
 
-    await writeFile(join(fixture.repoRoot, "config.json"), JSON.stringify(configWithTildes, null, 2));
+    await writeFile(join(fixture.repoRoot, "registry", "config.json"), JSON.stringify(configWithTildes, null, 2));
     await writeFile(
       join(fixture.homeDir, ".claude", "settings.json"),
       JSON.stringify({ model: "sonnet", mcpServers: { rogue: { url: "x" } } }, null, 2),
@@ -166,7 +166,7 @@ describe("bgng doctor", () => {
   test("reports unknown global default references", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
-    const config = JSON.parse(await Bun.file(join(fixture.repoRoot, "config.json")).text());
+    const config = JSON.parse(await Bun.file(join(fixture.repoRoot, "registry", "config.json")).text());
     config.defaults = { skills: ["missing-skill"], mcpServers: ["missing-mcp"] };
     await mkdir(join(fixture.agentsDir, "bgng"), { recursive: true });
     await writeFile(join(fixture.agentsDir, "bgng", "config.json"), JSON.stringify(config, null, 2));

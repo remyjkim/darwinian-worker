@@ -70,7 +70,7 @@ describe("bgng write", () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     await mkdir(join(fixture.agentsDir, "bgng"), { recursive: true });
-    const repoConfig = JSON.parse(await readFile(join(fixture.repoRoot, "config.json"), "utf8"));
+    const repoConfig = JSON.parse(await readFile(join(fixture.repoRoot, "registry", "config.json"), "utf8"));
     repoConfig.defaults = { skills: ["alpha"], mcpServers: ["context7"] };
     await writeFile(join(fixture.agentsDir, "bgng", "config.json"), JSON.stringify(repoConfig, null, 2));
 
@@ -90,7 +90,7 @@ describe("bgng write", () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     await mkdir(join(fixture.agentsDir, "bgng"), { recursive: true });
-    const repoConfig = JSON.parse(await readFile(join(fixture.repoRoot, "config.json"), "utf8"));
+    const repoConfig = JSON.parse(await readFile(join(fixture.repoRoot, "registry", "config.json"), "utf8"));
     repoConfig.defaults = { skills: ["alpha"], mcpServers: ["context7"] };
     await writeFile(join(fixture.agentsDir, "bgng", "config.json"), JSON.stringify(repoConfig, null, 2));
     const projectDir = join(fixture.root, "project");
@@ -115,7 +115,7 @@ describe("bgng write", () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     await mkdir(join(fixture.agentsDir, "bgng"), { recursive: true });
-    const repoConfig = JSON.parse(await readFile(join(fixture.repoRoot, "config.json"), "utf8"));
+    const repoConfig = JSON.parse(await readFile(join(fixture.repoRoot, "registry", "config.json"), "utf8"));
     repoConfig.defaults = { mcpServers: ["context7"] };
     await writeFile(join(fixture.agentsDir, "bgng", "config.json"), JSON.stringify(repoConfig, null, 2));
     const projectDir = join(fixture.root, "project");
@@ -152,7 +152,7 @@ describe("bgng write", () => {
       },
     });
     await mkdir(join(fixture.agentsDir, "bgng"), { recursive: true });
-    const repoConfig = JSON.parse(await readFile(join(fixture.repoRoot, "config.json"), "utf8"));
+    const repoConfig = JSON.parse(await readFile(join(fixture.repoRoot, "registry", "config.json"), "utf8"));
     repoConfig.defaults = { mcpServers: ["github"] };
     await writeFile(join(fixture.agentsDir, "bgng", "config.json"), JSON.stringify(repoConfig, null, 2));
 

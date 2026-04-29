@@ -70,7 +70,11 @@ describe("package readiness", () => {
     expect(paths).not.toContain("cli/commands/sync.ts");
     expect(paths).not.toContain("cli/commands/mcp/sync.ts");
     expect(paths).not.toContain("cli/commands/skills/sync.ts");
-    expect(paths).toContain("the-beginning-harness.png");
+    expect(paths).not.toContain("config.json");
+    expect(paths).not.toContain("mcp-servers.json");
+    expect(paths).toContain("registry/config.json");
+    expect(paths).toContain("registry/mcp-servers.json");
+    expect(paths).toContain("docs/assets/the-beginning-harness.png");
     expect(paths).toContain("skills/shared/frontend-design/SKILL.md");
   });
 });

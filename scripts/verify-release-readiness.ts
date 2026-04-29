@@ -71,8 +71,8 @@ async function verifyPackageContents() {
     "cli/index.ts",
     "cli/commands/write.ts",
     "cli/commands/mcp/write.ts",
-    "config.json",
-    "mcp-servers.json",
+    "registry/config.json",
+    "registry/mcp-servers.json",
     "skills/shared/frontend-design/SKILL.md",
   ];
   const removedCommandFiles = [
@@ -103,8 +103,8 @@ function findHardcodedUserPaths() {
     "cli",
     "sync-mcp.ts",
     "README.md",
-    "mcp-servers.json",
-    "config.json",
+    "registry/mcp-servers.json",
+    "registry/config.json",
     "package.json",
     ".ai/knowledges/01_agents-cli-usage-guide.md",
     ".ai/knowledges/02_per-project-config-guide.md",

@@ -69,6 +69,7 @@ export async function scaffoldCliFixture(options?: { parallelMcpEnabled?: boolea
   const codexConfig = join(homeDir, ".codex", "config.toml");
   const cursorConfig = join(homeDir, ".cursor", "mcp.json");
 
+  await mkdir(join(repoRoot, "registry"), { recursive: true });
   await mkdir(join(repoRoot, "skills", "shared"), { recursive: true });
   await mkdir(join(repoRoot, "skills", "claude-only"), { recursive: true });
   await mkdir(join(repoRoot, "skills", "codex-only"), { recursive: true });
@@ -78,9 +79,9 @@ export async function scaffoldCliFixture(options?: { parallelMcpEnabled?: boolea
   await mkdir(dirname(cursorConfig), { recursive: true });
   await mkdir(join(agentsDir, "skills"), { recursive: true });
 
-  await writeFile(join(repoRoot, "mcp-servers.json"), JSON.stringify(createFixtureRegistry(), null, 2));
+  await writeFile(join(repoRoot, "registry", "mcp-servers.json"), JSON.stringify(createFixtureRegistry(), null, 2));
   await writeFile(
-    join(repoRoot, "config.json"),
+    join(repoRoot, "registry", "config.json"),
     JSON.stringify(
       createFixtureConfig({ claudeSettings, codexConfig, cursorConfig }, options?.parallelMcpEnabled ?? false),
       null,

@@ -27,9 +27,9 @@ describe("core config and registry", () => {
     const root = await createTempRoot();
     const repoRoot = join(root, "repo");
 
-    await mkdir(repoRoot, { recursive: true });
+    await mkdir(join(repoRoot, "registry"), { recursive: true });
     await writeFile(
-      join(repoRoot, "config.json"),
+      join(repoRoot, "registry", "config.json"),
       JSON.stringify(
         {
           version: 1,
@@ -57,9 +57,9 @@ describe("core config and registry", () => {
     const root = await createTempRoot();
     const repoRoot = join(root, "repo");
 
-    await mkdir(repoRoot, { recursive: true });
+    await mkdir(join(repoRoot, "registry"), { recursive: true });
     await writeFile(
-      join(repoRoot, "mcp-servers.json"),
+      join(repoRoot, "registry", "mcp-servers.json"),
       JSON.stringify(
         {
           version: 1,

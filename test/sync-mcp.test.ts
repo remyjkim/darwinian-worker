@@ -150,7 +150,7 @@ describe("buildActiveServers", () => {
 
   test("real packaged registry includes Parallel MCP entries when globally enabled", async () => {
     const registry = JSON.parse(
-      await readFile(join(import.meta.dir, "..", "mcp-servers.json"), "utf8"),
+      await readFile(join(import.meta.dir, "..", "registry", "mcp-servers.json"), "utf8"),
     ) as CanonicalRegistry;
 
     const active = buildActiveServers(registry, createConfig(false, true));
@@ -344,15 +344,16 @@ describe("syncRepository", () => {
     const codexConfigPath = join(homeDir, ".codex", "config.toml");
     const cursorConfigPath = join(homeDir, ".cursor", "mcp.json");
 
+    await mkdir(join(repoRoot, "registry"), { recursive: true });
     await mkdir(join(repoRoot, "skills", "shared"), { recursive: true });
     await mkdir(dirname(claudeSettingsPath), { recursive: true });
     await mkdir(dirname(codexConfigPath), { recursive: true });
     await mkdir(dirname(cursorConfigPath), { recursive: true });
     await mkdir(join(agentsDir, "skills"), { recursive: true });
 
-    await writeFile(join(repoRoot, "mcp-servers.json"), JSON.stringify(createRegistry(), null, 2));
+    await writeFile(join(repoRoot, "registry", "mcp-servers.json"), JSON.stringify(createRegistry(), null, 2));
     await writeFile(
-      join(repoRoot, "config.json"),
+      join(repoRoot, "registry", "config.json"),
       JSON.stringify(
         {
           ...createConfig(false),
@@ -413,6 +414,7 @@ describe("syncRepository", () => {
     const claudeSkillPath = join(homeDir, ".claude", "skills", "alpha");
     const codexSkillPath = join(homeDir, ".codex", "skills", "alpha");
 
+    await mkdir(join(repoRoot, "registry"), { recursive: true });
     await mkdir(sharedSkillPath, { recursive: true });
     await mkdir(dirname(agentsSkillPath), { recursive: true });
     await mkdir(dirname(claudeSkillPath), { recursive: true });
@@ -420,9 +422,9 @@ describe("syncRepository", () => {
 
     await writeFile(join(sharedSkillPath, "SKILL.md"), "---\nname: alpha\ndescription: alpha\n---\n");
     await symlink(sharedSkillPath, agentsSkillPath, "dir");
-    await writeFile(join(repoRoot, "mcp-servers.json"), JSON.stringify(createRegistry(), null, 2));
+    await writeFile(join(repoRoot, "registry", "mcp-servers.json"), JSON.stringify(createRegistry(), null, 2));
     await writeFile(
-      join(repoRoot, "config.json"),
+      join(repoRoot, "registry", "config.json"),
       JSON.stringify(
         {
           ...createConfig(false),

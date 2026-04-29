@@ -3,9 +3,8 @@
 
 import type { BaseContext } from "clipanion";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { resolveAgentsDir } from "./core/paths";
+import { resolveAgentsDir, resolvePackagedConfigPath } from "./core/paths";
 import { findProjectConfig } from "./core/project";
 
 export interface AgentsContext extends BaseContext {
@@ -24,7 +23,7 @@ export function createAgentsContext(): Omit<AgentsContext, keyof BaseContext> {
   return {
     repoRoot:
       process.env.AGENTS_REPO_ROOT ??
-      (existsSync(join(cwdRepoRoot, "config.json")) ? cwdRepoRoot : packagedRepoRoot),
+      (existsSync(resolvePackagedConfigPath(cwdRepoRoot)) ? cwdRepoRoot : packagedRepoRoot),
     agentsDir: process.env.AGENTS_DIR ?? resolveAgentsDir(homeDir),
     homeDir,
     cwd,
@@ -33,7 +32,7 @@ export function createAgentsContext(): Omit<AgentsContext, keyof BaseContext> {
 }
 
 export function validateRepoRoot(repoRoot: string) {
-  if (!existsSync(join(repoRoot, "config.json"))) {
-    throw new Error(`No config.json found at ${repoRoot}. Run bgng from a beginning-harness checkout or set AGENTS_REPO_ROOT.`);
+  if (!existsSync(resolvePackagedConfigPath(repoRoot))) {
+    throw new Error(`No registry/config.json found at ${repoRoot}. Run bgng from a beginning-harness checkout or set AGENTS_REPO_ROOT.`);
   }
 }

@@ -30,6 +30,18 @@ export function resolveMcpLibraryPath(agentsDir: string) {
   return join(resolveLibraryDir(agentsDir), "mcp-servers.json");
 }
 
+export function resolvePackagedRegistryDir(repoRoot: string) {
+  return join(repoRoot, "registry");
+}
+
+export function resolvePackagedConfigPath(repoRoot: string) {
+  return join(resolvePackagedRegistryDir(repoRoot), "config.json");
+}
+
+export function resolvePackagedMcpRegistryPath(repoRoot: string) {
+  return join(resolvePackagedRegistryDir(repoRoot), "mcp-servers.json");
+}
+
 export function expandHomePath(pathValue: string, homeDir: string) {
   if (pathValue === "~") {
     return homeDir;

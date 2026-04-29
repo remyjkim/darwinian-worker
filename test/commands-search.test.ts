@@ -82,9 +82,9 @@ describe("bgng search", () => {
         },
       }),
     );
-    const config = JSON.parse(await readFile(join(fixture.repoRoot, "config.json"), "utf8"));
+    const config = JSON.parse(await readFile(join(fixture.repoRoot, "registry", "config.json"), "utf8"));
     config.catalogs = { mcp: { enabled: true, sources: [{ type: "file", path: catalogPath }] } };
-    await writeFile(join(fixture.repoRoot, "config.json"), JSON.stringify(config, null, 2));
+    await writeFile(join(fixture.repoRoot, "registry", "config.json"), JSON.stringify(config, null, 2));
 
     const result = await runAgentsCli(["search", "mcp", "git", "--json"], envFor(fixture));
 

@@ -30,6 +30,7 @@ async function scaffoldFixture() {
   const codexConfig = join(homeDir, ".codex", "config.toml");
   const cursorConfig = join(homeDir, ".cursor", "mcp.json");
 
+  await mkdir(join(repoRoot, "registry"), { recursive: true });
   await mkdir(join(repoRoot, "skills", "shared"), { recursive: true });
   await mkdir(dirname(claudeSettings), { recursive: true });
   await mkdir(dirname(codexConfig), { recursive: true });
@@ -59,8 +60,8 @@ async function scaffoldFixture() {
     parallel: { cli: { enabled: true }, mcp: { enabled: false } },
   };
 
-  await writeFile(join(repoRoot, "mcp-servers.json"), JSON.stringify(registry, null, 2));
-  await writeFile(join(repoRoot, "config.json"), JSON.stringify(config, null, 2));
+  await writeFile(join(repoRoot, "registry", "mcp-servers.json"), JSON.stringify(registry, null, 2));
+  await writeFile(join(repoRoot, "registry", "config.json"), JSON.stringify(config, null, 2));
   await writeFile(claudeSettings, JSON.stringify({ model: "sonnet" }, null, 2));
   await writeFile(codexConfig, 'personality = "pragmatic"\n');
   await writeFile(cursorConfig, JSON.stringify({ mcpServers: {} }, null, 2));

@@ -113,9 +113,9 @@ describe("bgng add mcp", () => {
         },
       }),
     );
-    const config = JSON.parse(await readFile(join(fixture.repoRoot, "config.json"), "utf8"));
+    const config = JSON.parse(await readFile(join(fixture.repoRoot, "registry", "config.json"), "utf8"));
     config.catalogs = { mcp: { enabled: true, sources: [{ type: "file", path: catalogPath }] } };
-    await writeFile(join(fixture.repoRoot, "config.json"), JSON.stringify(config, null, 2));
+    await writeFile(join(fixture.repoRoot, "registry", "config.json"), JSON.stringify(config, null, 2));
     const projectDir = join(fixture.root, "project");
     await mkdir(projectDir, { recursive: true });
 
@@ -134,7 +134,7 @@ describe("bgng add mcp", () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     await mkdir(join(fixture.agentsDir, "bgng"), { recursive: true });
-    const repoConfig = JSON.parse(await readFile(join(fixture.repoRoot, "config.json"), "utf8"));
+    const repoConfig = JSON.parse(await readFile(join(fixture.repoRoot, "registry", "config.json"), "utf8"));
     repoConfig.defaults = { mcpServers: ["context7"] };
     await writeFile(join(fixture.agentsDir, "bgng", "config.json"), JSON.stringify(repoConfig, null, 2));
     const projectDir = join(fixture.root, "project");

@@ -38,12 +38,14 @@ describe("documentation readiness", () => {
     expect(readme).toContain("local meta-harness");
     expect(readme).toContain("The package is `beginning-harness`. The command is `bgng`.");
     expect(readme).toContain("What It Changes On Disk");
-    expect(readme).toContain("![The Beginning Harness hero image](./the-beginning-harness.png)");
+    expect(readme).toContain("![The Beginning Harness hero image](./docs/assets/the-beginning-harness.png)");
     expect(readme).toContain("Usage Modes");
     expect(readme).toContain("Documentation Map");
     expect(readme).toContain("Per-Project Configuration");
     expect(readme).toContain("Extension Skill Bundles");
     expect(readme).toContain("Optional Extensions");
+    expect(readme).toContain("[registry/config.json](./registry/config.json)");
+    expect(readme).toContain("[registry/mcp-servers.json](./registry/mcp-servers.json)");
     expect(usageGuide).toContain("<project>/.agents/bgng/config.json");
     expect(usageGuide).toContain("~/.agents/bgng/config.json");
     expect(usageGuide).toContain("~/.agents/library/mcp-servers.json");

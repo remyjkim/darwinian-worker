@@ -60,7 +60,7 @@ describe("bgng status", () => {
         },
       },
     });
-    const config = JSON.parse(await readFile(join(fixture.repoRoot, "config.json"), "utf8"));
+    const config = JSON.parse(await readFile(join(fixture.repoRoot, "registry", "config.json"), "utf8"));
     config.defaults = { skills: ["alpha"], mcpServers: ["context7"] };
     await mkdir(join(fixture.agentsDir, "bgng"), { recursive: true });
     await writeFile(join(fixture.agentsDir, "bgng", "config.json"), JSON.stringify(config, null, 2));

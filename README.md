@@ -1,6 +1,6 @@
 # beginning-harness
 
-![The Beginning Harness hero image](./the-beginning-harness.png)
+![The Beginning Harness hero image](./docs/assets/the-beginning-harness.png)
 
 `beginning-harness` is a local meta-harness for AI agent tools: one CLI to organize skills, MCP servers, extensions, defaults, project overlays, downstream tool configs, and diagnostics.
 
@@ -158,8 +158,8 @@ bgng status
 
 In checkout mode, edit:
 
-- [config.json](./config.json) for target and optional-server toggles
-- [mcp-servers.json](./mcp-servers.json) for MCP server definitions
+- [registry/config.json](./registry/config.json) for target and optional-server toggles
+- [registry/mcp-servers.json](./registry/mcp-servers.json) for MCP server definitions
 - [skills](./skills) for built-in skill content
 
 ## Command Reference
@@ -252,7 +252,7 @@ bgng mcp write --target=cursor
 
 ## MCP Registry
 
-MCP servers are defined in [mcp-servers.json](./mcp-servers.json). Target config and optional toggles live in [config.json](./config.json).
+MCP servers are defined in [registry/mcp-servers.json](./registry/mcp-servers.json). Target config and optional toggles live in [registry/config.json](./registry/config.json).
 
 User-registered MCP servers live in `~/.agents/library/mcp-servers.json`. Machine-wide active MCP defaults live in `~/.agents/bgng/config.json` under `defaults.mcpServers`.
 
@@ -530,7 +530,7 @@ parallel-cli login
 parallel-cli auth
 ```
 
-To enable the optional Parallel MCP overlay, edit [config.json](./config.json):
+To enable the optional Parallel MCP overlay, edit [registry/config.json](./registry/config.json):
 
 ```json
 "parallel": {
@@ -556,7 +556,7 @@ The registry entry uses:
 "args": ["markdownify-mcp/dist/index.js"]
 ```
 
-If you enable it, make sure the path in [mcp-servers.json](./mcp-servers.json) matches your local installation and the optional toggle in [config.json](./config.json) is enabled.
+If you enable it, make sure the path in [registry/mcp-servers.json](./registry/mcp-servers.json) matches your local installation and the optional toggle in [registry/config.json](./registry/config.json) is enabled.
 
 ## Safety Model
 

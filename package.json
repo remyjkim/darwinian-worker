@@ -18,11 +18,10 @@
   },
   "files": [
     "cli",
-    "config.json",
-    "mcp-servers.json",
+    "registry",
     "skills",
     "README.md",
-    "the-beginning-harness.png",
+    "docs/assets/the-beginning-harness.png",
     "LICENSE",
     "CONTRIBUTING.md"
   ],
