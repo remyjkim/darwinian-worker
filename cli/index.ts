@@ -1,6 +1,5 @@
 import { recommendSkillsWithOpenRouter, createBufferedLogger } from "../src/skill-recommendation";
 import { enrichSkillsWithSummaries } from "../src/skill-recommendation/skill-enricher";
-import { OpenRouterMastraTextClient } from "../src/skill-recommendation/openrouter-client";
 import { createInterface } from "readline";
 import { spawn } from "child_process";
 
@@ -27,15 +26,7 @@ async function searchSkills(query: string) {
     const top5 = result.aggregatedSkills.slice(0, 5);
 
     if (top5.length > 0) {
-      const enrichmentSpinner = setInterval(() => {
-        printSpinner(`Generating summaries...`, frame++);
-      }, 100);
-
-      const client = new OpenRouterMastraTextClient();
-      const enrichedSkills = await enrichSkillsWithSummaries(top5, client, logger);
-
-      clearInterval(enrichmentSpinner);
-      process.stdout.write("\r");
+      const enrichedSkills = enrichSkillsWithSummaries(top5);
 
       enrichedSkills.forEach((skill, i) => {
         const installs = (skill.metadata?.installs as number) || 0;

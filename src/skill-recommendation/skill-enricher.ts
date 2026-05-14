@@ -1,66 +1,62 @@
-import type { MastraTextClient, Skill, SkillRecommendationLogger } from "./types";
-import { OpenRouterMastraTextClient } from "./openrouter-client";
+import type { Skill, SkillRecommendationLogger } from "./types";
 
-export async function generateSkillSummary(
-  skill: Skill,
-  client: MastraTextClient,
-  logger?: SkillRecommendationLogger,
-): Promise<string> {
-  const system = "You are a technical documentation expert.";
-  const prompt = `Generate a concise 3-sentence summary of what the following skill/package does.
+const DOMAIN_DESCRIPTIONS: Record<string, string> = {
+  testing: "Provides utilities for automated testing and test execution",
+  security: "Enhances security posture and identifies vulnerabilities",
+  performance: "Analyzes and optimizes application performance characteristics",
+  deployment: "Facilitates deployment processes and release management",
+  documentation: "Generates, maintains, and publishes documentation",
+  patterns: "Demonstrates architectural patterns and industry best practices",
+  code_quality: "Enforces code standards and identifies code quality issues",
+  debugging: "Assists with debugging workflows and problem diagnosis",
+  refactoring: "Facilitates code restructuring and architectural improvements",
+  internationalization: "Provides support for localization and multi-language applications",
+  "build tools": "Streamlines build processes and compilation",
+  "package management": "Manages dependencies and package versions",
+  database: "Database connectivity and ORM functionality",
+  api: "REST API design, GraphQL, and server frameworks",
+  state_management: "Manages application state and data flow",
+  ui_components: "Pre-built user interface components and libraries",
+};
 
-Skill: ${skill.name}
-ID: ${skill.id}
-${skill.description ? `Description: ${skill.description}` : ""}
-
-Return ONLY the 3-sentence summary, no additional text or formatting.`;
-
-  try {
-    const response = await client.generateText({
-      system,
-      prompt,
-      model: "minimax/minimax-text-01",
-      temperature: 0.5,
-      timeoutMs: 3000,
-    });
-
-    return response.trim();
-  } catch (error) {
-    logger?.error("Failed to generate skill summary", {
-      skillId: skill.id,
-      skillName: skill.name,
-      error: formatError(error),
-    });
-    return `${skill.name} is a useful package for development.`;
+export function generateSkillExplanation(skill: Skill): string {
+  // Use existing summary/description if available
+  const summary = (skill.metadata?.summary as string) || skill.description;
+  if (summary && summary.length > 20) {
+    return summary;
   }
+
+  // Extract domain from skill name or metadata
+  const nameWords = skill.name.toLowerCase().split(/[-_\s]/);
+  const skillId = (skill.metadata?.skillId as string) || skill.id || "";
+  const idWords = skillId.toLowerCase().split(/[-_/@]/);
+  const allWords = [...nameWords, ...idWords];
+
+  // Find matching domain description
+  for (const word of allWords) {
+    for (const [domain, description] of Object.entries(DOMAIN_DESCRIPTIONS)) {
+      const domainPrefix = domain.split("_")[0] || "";
+      if (domain.includes(word) || word.includes(domainPrefix)) {
+        return description;
+      }
+    }
+  }
+
+  // Generic fallback
+  return `A versatile package for development that enhances project capabilities.`;
 }
 
-export async function enrichSkillsWithSummaries(
+export function enrichSkillsWithSummaries(
   skills: Skill[],
-  client?: MastraTextClient,
-  logger?: SkillRecommendationLogger,
-): Promise<Skill[]> {
-  const resolvedClient = client ?? new OpenRouterMastraTextClient();
-
-  const summaries = await Promise.all(
-    skills.map((skill) =>
-      generateSkillSummary(skill, resolvedClient, logger).catch(() =>
-        `${skill.name} is a useful package for development.`,
-      ),
-    ),
-  );
-
-  return skills.map((skill, i) => ({
+  _client?: any,
+  _logger?: SkillRecommendationLogger,
+): Skill[] {
+  // Use rule-based explanations instead of API calls
+  return skills.map((skill) => ({
     ...skill,
     metadata: {
       ...skill.metadata,
-      summary: summaries[i],
+      summary: generateSkillExplanation(skill),
     },
   }));
-}
-
-function formatError(error: unknown) {
-  return error instanceof Error
-    ? { name: error.name, message: error.message }
-    : { message: String(error) };
 }
