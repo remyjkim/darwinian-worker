@@ -1,27 +1,25 @@
-import type { Skill, SkillRecommendationLogger } from "./types";
-import { ClaudeApiClient } from "./claude-client";
+import type { MastraTextClient, Skill, SkillRecommendationLogger } from "./types";
+import { OpenRouterMastraTextClient } from "./openrouter-client";
 
 export async function enrichSkillsWithSummaries(
   skills: Skill[],
-  clientOptions?: { apiKey?: string; model?: string },
+  client?: MastraTextClient,
   logger?: SkillRecommendationLogger,
 ): Promise<Skill[]> {
   try {
-    const client = new ClaudeApiClient(clientOptions);
+    const resolvedClient = client ?? new OpenRouterMastraTextClient();
 
-    // Generate summaries in parallel for all skills
+    // Generate summaries in parallel for all skills using minimax
     const summaries = await Promise.all(
       skills.map((skill) =>
-        client
-          .generateSummary(skill.name, skill.id)
-          .catch((error) => {
-            logger?.error("Failed to generate skill summary", {
-              skillId: skill.id,
-              skillName: skill.name,
-              error: error instanceof Error ? error.message : String(error),
-            });
-            return `${skill.name} is a useful package for development.`;
-          }),
+        generateSkillSummary(skill, resolvedClient).catch((error) => {
+          logger?.error("Failed to generate skill summary", {
+            skillId: skill.id,
+            skillName: skill.name,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return `${skill.name} is a useful package for development.`;
+        }),
       ),
     );
 
@@ -34,11 +32,31 @@ export async function enrichSkillsWithSummaries(
     }));
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
-    logger?.error("Failed to initialize Claude client", { error: errorMsg });
+    logger?.error("Failed to initialize OpenRouter client", { error: errorMsg });
     process.stderr.write(
       `⚠️  Warning: Could not generate skill summaries (${errorMsg})\n`
     );
     // Return skills without summaries if client initialization fails
     return skills;
   }
+}
+
+async function generateSkillSummary(
+  skill: Skill,
+  client: MastraTextClient,
+): Promise<string> {
+  const prompt = `Generate a concise 3-sentence summary of what the "${skill.name}" package/skill does.
+${skill.description ? `Description: ${skill.description}` : ""}
+
+Return ONLY the 3 sentences, no additional text.`;
+
+  const response = await client.generateText({
+    system: "You are a technical documentation expert. Generate concise summaries.",
+    prompt,
+    model: "minimax/minimax-text-01",
+    temperature: 0.3,
+    timeoutMs: 3000,
+  });
+
+  return response.trim();
 }
