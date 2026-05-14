@@ -45,12 +45,12 @@ async function generateSkillSummary(
   skill: Skill,
   client: MastraTextClient,
 ): Promise<string> {
-  const prompt = `Generate a concise 3-sentence summary of what the "${skill.name}" package/skill does.
+  const prompt = `Generate a comprehensive 3-5 sentence summary of what the "${skill.name}" package/skill does, its main purpose, and typical use cases.
 
-Return ONLY the 3 sentences, no additional text or formatting.`;
+Return ONLY the summary sentences, no additional text or formatting.`;
 
   const response = await client.generateText({
-    system: "You are a technical documentation expert. Generate concise summaries.",
+    system: "You are a technical documentation expert. Generate clear, informative summaries.",
     prompt,
     model: "minimax/minimax-text-01",
     temperature: 0.2,
