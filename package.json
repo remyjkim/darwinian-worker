@@ -38,6 +38,7 @@
   ],
   "scripts": {
     "bgng": "bun run cli/index.ts",
+    "test:real-query-generator": "bun --env-file=.env run scripts/test-real-mastra-query-generator.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "verify:release": "bun run scripts/verify-release-readiness.ts"

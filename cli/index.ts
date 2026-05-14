@@ -1,4 +1,6 @@
 import { recommendSkillsWithOpenRouter, createBufferedLogger } from "../src/skill-recommendation";
+import { enrichSkillsWithSummaries } from "../src/skill-recommendation/skill-enricher";
+import { OpenRouterMastraTextClient } from "../src/skill-recommendation/openrouter-client";
 import { createInterface } from "readline";
 import { spawn } from "child_process";
 
@@ -23,12 +25,27 @@ async function searchSkills(query: string) {
 
     console.log(`\n✨ Top 5 Results:\n`);
     const top5 = result.aggregatedSkills.slice(0, 5);
-    
+
     if (top5.length > 0) {
-      top5.forEach((skill, i) => {
+      const enrichmentSpinner = setInterval(() => {
+        printSpinner(`Generating summaries...`, frame++);
+      }, 100);
+
+      const client = new OpenRouterMastraTextClient();
+      const enrichedSkills = await enrichSkillsWithSummaries(top5, client, logger);
+
+      clearInterval(enrichmentSpinner);
+      process.stdout.write("\r");
+
+      enrichedSkills.forEach((skill, i) => {
         const installs = (skill.metadata?.installs as number) || 0;
         const installStr = formatInstalls(installs, true);
-        console.log(`   ${i + 1}. ${skill.name.padEnd(25)} ${installStr}`);
+        const summary = (skill.metadata?.summary as string) || "";
+        console.log(`   ${i + 1}. ${skill.name} ${installStr}`);
+        if (summary) {
+          console.log(`      ${summary}`);
+        }
+        console.log("");
       });
     } else {
       console.log("   (No skills found)\n");

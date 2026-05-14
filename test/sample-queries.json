@@ -1,0 +1,42 @@
+[
+  {
+    "query": "find react hook",
+    "expectedBehavior": "Covers React hooks, reusable components, state workflows, and related package searches."
+  },
+  {
+    "query": "debug flaky browser tests",
+    "expectedBehavior": "Surfaces browser automation, race-condition debugging, retry diagnostics, and testing workflow skills."
+  },
+  {
+    "query": "write better rails code",
+    "expectedBehavior": "Finds Rails style, architecture, maintainability, and framework convention guidance."
+  },
+  {
+    "query": "review database migration safety",
+    "expectedBehavior": "Finds migration, data integrity, rollback, and deployment verification skills."
+  },
+  {
+    "query": "create an onboarding document",
+    "expectedBehavior": "Finds documentation, repo research, and contributor onboarding skills."
+  },
+  {
+    "query": "optimize slow TypeScript loops",
+    "expectedBehavior": "Finds TypeScript review, performance analysis, profiling, and simplification skills."
+  },
+  {
+    "query": "investigate GitHub issue bug",
+    "expectedBehavior": "Finds issue analysis, bug reproduction, debugging, and validation skills."
+  },
+  {
+    "query": "build a polished frontend dashboard",
+    "expectedBehavior": "Finds frontend design, visual review, screenshot testing, and implementation iteration skills."
+  },
+  {
+    "query": "prepare release notes for merged PRs",
+    "expectedBehavior": "Finds changelog, copy editing, git history, and release documentation skills."
+  },
+  {
+    "query": "design agent native tool architecture",
+    "expectedBehavior": "Finds agent architecture, MCP tooling, agent-native review, and audit skills."
+  }
+]
