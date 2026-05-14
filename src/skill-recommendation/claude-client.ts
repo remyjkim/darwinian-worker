@@ -16,7 +16,7 @@ export class ClaudeApiClient {
     }
 
     this.client = new Anthropic({ apiKey });
-    this.model = options.model ?? "claude-3-5-haiku-20241022";
+    this.model = options.model ?? "claude-haiku-4-5-20251001";
   }
 
   async generateSummary(skillName: string, skillId: string): Promise<string> {
