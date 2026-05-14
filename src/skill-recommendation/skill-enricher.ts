@@ -33,9 +33,11 @@ export async function enrichSkillsWithSummaries(
       },
     }));
   } catch (error) {
-    logger?.error("Failed to initialize Claude client", {
-      error: error instanceof Error ? error.message : String(error),
-    });
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    logger?.error("Failed to initialize Claude client", { error: errorMsg });
+    process.stderr.write(
+      `⚠️  Warning: Could not generate skill summaries (${errorMsg})\n`
+    );
     // Return skills without summaries if client initialization fails
     return skills;
   }

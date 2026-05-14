@@ -34,11 +34,13 @@ export class ClaudeApiClient {
 
       const content = message.content[0];
       if (content && content.type === "text") {
-        return content.text.trim();
+          return content.text.trim();
       }
       return `${skillName} is a useful package for development.`;
     } catch (error) {
-      console.error(`Failed to generate summary for ${skillName}:`, error);
+      process.stderr.write(
+        `Failed to generate summary for ${skillName}: ${error instanceof Error ? error.message : String(error)}\n`
+      );
       return `${skillName} is a useful package for development.`;
     }
   }
