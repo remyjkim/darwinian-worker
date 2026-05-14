@@ -13,11 +13,13 @@ export async function enrichSkillsWithSummaries(
     const summaries = await Promise.all(
       skills.map((skill) =>
         generateSkillSummary(skill, resolvedClient).catch((error) => {
+          const errorMsg = error instanceof Error ? error.message : String(error);
           logger?.error("Failed to generate skill summary", {
             skillId: skill.id,
             skillName: skill.name,
-            error: error instanceof Error ? error.message : String(error),
+            error: errorMsg,
           });
+          process.stderr.write(`Error summarizing ${skill.name}: ${errorMsg}\n`);
           return `${skill.name} is a useful package for development.`;
         }),
       ),
@@ -52,7 +54,7 @@ Return ONLY the summary sentences, no additional text or formatting.`;
   const response = await client.generateText({
     system: "You are a technical documentation expert. Generate clear, informative summaries.",
     prompt,
-    model: "minimax/minimax-text-01",
+    model: "openai/gpt-3.5-turbo",
     temperature: 0.2,
     timeoutMs: 5000,
   });
