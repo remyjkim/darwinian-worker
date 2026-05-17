@@ -1,0 +1,327 @@
+{
+  "name": "Phase 2: Context-Aware Query Generation",
+  "phase": 2,
+  "status": "planning",
+  "startDate": "2026-05-17",
+  "description": "Enhance Query Generator to understand project context (README, languages, frameworks, runtime, existing packages, recent session themes) for smarter, contextual skill recommendations.",
+
+  "goals": [
+    "Extract 6 types of project context from local files (no API calls)",
+    "Avoid recommending duplicate/existing skills",
+    "Improve top-5 relevance precision from 84% to >90%",
+    "Maintain end-to-end latency < 15 seconds",
+    "Enable context-aware query generation via enhanced prompt"
+  ],
+
+  "success_criteria": [
+    {
+      "metric": "Context extraction latency",
+      "target": "< 300ms",
+      "reasoning": "Parallel execution of 6 extractors"
+    },
+    {
+      "metric": "Duplicate filtering accuracy",
+      "target": "> 95%",
+      "reasoning": "Should remove 80%+ false positives from Phase 1"
+    },
+    {
+      "metric": "Top-5 relevance precision",
+      "target": "> 90%",
+      "reasoning": "Contextual queries + filtering = better matches"
+    },
+    {
+      "metric": "E2E latency (with context)",
+      "target": "< 15 seconds",
+      "reasoning": "Context extraction is parallel; no latency increase"
+    },
+    {
+      "metric": "Language/runtime detection accuracy",
+      "target": "> 90%",
+      "reasoning": "Correct environment detection improves query relevance"
+    }
+  ],
+
+  "components": [
+    {
+      "name": "README Parser",
+      "file": "src/skill-recommendation/extractors/readme-parser.ts",
+      "input": "README.md file",
+      "output": "Extracted summary (title, description, tech stack)",
+      "latency_ms": 100,
+      "method": "Regex pattern matching",
+      "fallback": "package.json description"
+    },
+    {
+      "name": "Language Detector",
+      "file": "src/skill-recommendation/extractors/language-detector.ts",
+      "input": "Repository directory",
+      "output": "Language breakdown (GitHub-style %)",
+      "example_output": { "TypeScript": 75, "JavaScript": 15, "JSON": 10 },
+      "latency_ms": 200,
+      "method": "File extension scanning, line/file counting"
+    },
+    {
+      "name": "Framework Detector",
+      "file": "src/skill-recommendation/extractors/framework-detector.ts",
+      "input": "package.json, pyproject.toml, go.mod, etc.",
+      "output": "Detected frameworks (React, Vue, Angular, Express, Django, etc.)",
+      "example_output": ["React", "Next.js"],
+      "latency_ms": 50,
+      "method": "Dependency list pattern matching"
+    },
+    {
+      "name": "Runtime Detector",
+      "file": "src/skill-recommendation/extractors/runtime-detector.ts",
+      "input": "Config files (package.json, .python-version, Cargo.toml, etc.)",
+      "output": "Detected runtimes + package managers",
+      "example_output": {
+        "runtimes": ["Node.js", "TypeScript", "Bun"],
+        "packageManagers": ["npm", "bun"]
+      },
+      "latency_ms": 50,
+      "method": "Config file presence detection"
+    },
+    {
+      "name": "Dependency Parser",
+      "file": "src/skill-recommendation/extractors/dependency-parser.ts",
+      "input": "package.json, pyproject.toml, Gemfile, Cargo.toml, go.mod",
+      "output": "List of existing packages (to avoid duplicates)",
+      "example_output": ["react", "jest", "webpack", "typescript", "eslint"],
+      "latency_ms": 100,
+      "method": "Parse dependency manifest files"
+    },
+    {
+      "name": "Session Log Extractor",
+      "file": "src/skill-recommendation/extractors/session-log-extractor.ts",
+      "input": "Recent Claude Code session logs (~/.claude/logs/)",
+      "output": "2-5 distinct themes from recent work",
+      "example_output": ["React component testing", "E2E test setup", "DevOps/Deployment"],
+      "latency_ms": 300,
+      "method": "JSONL parsing + keyword extraction + tool usage analysis"
+    }
+  ],
+
+  "enhanced_query_generator": {
+    "file": "src/skill-recommendation/query-generator.ts",
+    "changes": [
+      "Accept ProjectContext input (all 6 extractors)",
+      "Update prompt to include context info",
+      "Explicitly mention avoiding existing packages",
+      "Leverage recent session themes in prompt",
+      "Output 3 context-aware, diverse queries"
+    ],
+    "new_prompt": "Given user query + project context (languages, frameworks, existing packages, recent work themes), generate 3 distinct search queries that: 1. NEVER recommend existing packages, 2. Match detected frameworks & languages, 3. Consider recent work themes, 4. Provide diverse search angles",
+    "example": {
+      "context": {
+        "languages": { "TypeScript": 75, "JavaScript": 25 },
+        "frameworks": ["React", "Next.js"],
+        "runtimes": ["Node.js", "Bun"],
+        "existingPackages": ["react", "jest", "typescript", "webpack", "eslint"],
+        "recentSessionThemes": ["React testing", "E2E setup"]
+      },
+      "userQuery": "testing utilities",
+      "output": [
+        "React Testing Library advanced patterns",
+        "E2E testing frameworks Cypress Playwright",
+        "Accessibility testing tools WCAG"
+      ]
+    }
+  },
+
+  "cli_updates": {
+    "file": "cli/index.ts",
+    "changes": [
+      "Parallel extraction: call all 6 extractors concurrently",
+      "Aggregate results into ProjectContext",
+      "Pass context to enhanced query generator",
+      "Filter results: remove already-installed packages",
+      "No CLI syntax changes (same bgng recommend skill command)"
+    ]
+  },
+
+  "pipeline_updates": {
+    "file": "src/skill-recommendation/pipeline.ts",
+    "changes": [
+      "Add context extraction stage (parallel, before query generation)",
+      "Pass ProjectContext through pipeline",
+      "Add filtering step after skill aggregation"
+    ],
+    "new_flow": [
+      "Context Extraction (parallel, ~300ms)",
+      "Enhanced Query Generation",
+      "Skill Finding (parallel, 3 queries)",
+      "Skill Aggregation + Filtering",
+      "Skill Enrichment",
+      "CLI Display"
+    ]
+  },
+
+  "types_updates": {
+    "file": "src/skill-recommendation/types.ts",
+    "new_types": [
+      {
+        "name": "ProjectContext",
+        "fields": [
+          "readmeSummary?: string",
+          "languages: Record<string, number>",
+          "frameworks?: string[]",
+          "runtimes: string[]",
+          "existingPackages: string[]",
+          "recentSessionThemes?: string[]"
+        ]
+      }
+    ]
+  },
+
+  "implementation_order": [
+    {
+      "sprint": 1,
+      "name": "Context Extractors (Foundation)",
+      "tasks": [
+        "Create src/skill-recommendation/extractors/ directory",
+        "Implement readme-parser.ts",
+        "Implement language-detector.ts",
+        "Implement framework-detector.ts",
+        "Implement runtime-detector.ts",
+        "Implement dependency-parser.ts",
+        "Write tests for each extractor",
+        "Verify parallel execution latency < 300ms"
+      ],
+      "duration_days": 2,
+      "blockers": []
+    },
+    {
+      "sprint": 2,
+      "name": "Session Log Extraction",
+      "tasks": [
+        "Implement session-log-extractor.ts",
+        "JSONL parsing logic",
+        "User message keyword extraction",
+        "Assistant tool_use analysis",
+        "Theme aggregation (2-5 themes)",
+        "Error handling (missing logs, corrupt JSONL)",
+        "Write tests with sample logs",
+        "Verify latency < 300ms"
+      ],
+      "duration_days": 2,
+      "blockers": []
+    },
+    {
+      "sprint": 3,
+      "name": "Enhanced Query Generator",
+      "tasks": [
+        "Update types.ts: add ProjectContext interface",
+        "Update query-generator.ts to accept ProjectContext",
+        "Update prompt template with context info",
+        "Add context to OpenRouter API call",
+        "Test with various project contexts",
+        "Verify query diversity & relevance",
+        "Update error handling (missing context)"
+      ],
+      "duration_days": 2,
+      "blockers": ["Sprint 1"]
+    },
+    {
+      "sprint": 4,
+      "name": "Pipeline Integration",
+      "tasks": [
+        "Update pipeline.ts: add context extraction stage",
+        "Wire up all 6 extractors in parallel",
+        "Add filtering step (remove existing packages)",
+        "Update CLI to extract context automatically",
+        "Update CLI usage messages",
+        "E2E testing: full flow with context",
+        "Measure latency breakdown"
+      ],
+      "duration_days": 2,
+      "blockers": ["Sprint 1, 2, 3"]
+    },
+    {
+      "sprint": 5,
+      "name": "Testing & Documentation",
+      "tasks": [
+        "Test with 10+ different repositories",
+        "Test edge cases (empty README, no dependencies, etc.)",
+        "Performance testing (large repos)",
+        "Update PRD with Phase 2 results",
+        "Update diagrams.md with context flow",
+        "Create test fixtures (sample repos)",
+        "Document fallback behavior"
+      ],
+      "duration_days": 2,
+      "blockers": ["Sprint 4"]
+    }
+  ],
+
+  "testing_strategy": {
+    "unit_tests": [
+      "Each extractor independently (mocked file system)",
+      "Query generator with various contexts",
+      "Filtering logic (duplicate removal)"
+    ],
+    "integration_tests": [
+      "Full context extraction pipeline",
+      "E2E flow: context -> queries -> skills -> display",
+      "CLI command with real repo"
+    ],
+    "test_fixtures": [
+      "TypeScript+React project",
+      "Python+Django project",
+      "Go project",
+      "Mixed monorepo",
+      "Minimal project (no docs, few dependencies)"
+    ]
+  },
+
+  "rollback_plan": {
+    "if_context_extraction_slow": "Disable session log extractor (most expensive), keep other 5",
+    "if_queries_degraded": "Fallback to Phase 1 query generator (ignore context)",
+    "if_filtering_removes_too_much": "Reduce confidence threshold for existing package filter"
+  },
+
+  "dependencies": [
+    "Phase 1 (MVP) must be complete and working",
+    "OpenRouter API access (minimax model)"
+  ],
+
+  "risks": [
+    {
+      "risk": "Session log extractor is slow (~300ms)",
+      "mitigation": "Make it optional; cache results; limit to last 3 logs not 5"
+    },
+    {
+      "risk": "Language detector fails on large repos",
+      "mitigation": "Sample 1000 files max; use file count, not line count"
+    },
+    {
+      "risk": "Context filtering removes legitimate recommendations",
+      "mitigation": "Fuzzy match existing packages; allow similar but different versions"
+    }
+  ],
+
+  "metrics_to_track": [
+    "Context extraction latency (per extractor)",
+    "Total extraction time (all 6 parallel)",
+    "Number of false positives removed",
+    "Query diversity score",
+    "Top-5 relevance precision",
+    "E2E latency (Phase 1 vs Phase 2)",
+    "User satisfaction (if feedback collected)"
+  ],
+
+  "deliverables": [
+    "6 extractor modules + tests",
+    "Enhanced query-generator.ts",
+    "Updated pipeline.ts with context flow",
+    "Updated CLI (automatic context extraction)",
+    "Updated PRD (Phase 2 documentation)",
+    "Updated diagrams (context extraction flow)",
+    "Test fixtures (10+ sample repos)"
+  ],
+
+  "timeline": {
+    "total_duration_days": 10,
+    "start_date": "2026-05-17",
+    "target_completion": "2026-05-27"
+  }
+}
