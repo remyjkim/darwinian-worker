@@ -1,8 +1,8 @@
 ---
 title: Skill Recommendation System - PRD
-version: 1.0
-date: 2026-05-14
-status: Phase 1 Complete, Phase 2 Planning
+version: 1.1
+date: 2026-05-17
+status: Phase 1 Complete, Phase 2 Planning (Context-Aware Generation)
 ---
 
 # Skill Recommendation System - PRD
@@ -111,12 +111,223 @@ User Query
 
 ---
 
-## Phase 2: Optimization & Features (PLANNED)
+## Phase 2: Context-Aware Query Generation (PLANNED)
 
-### 2.1 Generalized 3-Block Pipeline
+### 2.0 Overview
+
+**Goal**: Enhance Query Generator to understand project context, avoiding duplicate recommendations and improving relevance.
+
+**Key Change**: Query Generator now accepts:
+1. User prompt (original)
+2. Project context:
+   - README/documentation summary
+   - Language breakdown (GitHub-style: %)
+   - Runtime environment (Node.js, Python, Bun, etc.)
+   - Existing skills in the repo (to filter duplicates)
+
+**Impact**: Smarter, context-aware queries instead of generic ones.
+
+---
+
+### 2.1 Context Extraction Pipeline
+
+**New Components to Implement**:
+
+#### 2.1.1 README Parser
+- **Input**: Repository root
+- **Output**: Extracted summary (title, description, tech stack mentions)
+- **Method**: Parse README.md (or package.json description as fallback)
+- **Implementation**: Simple regex/markdown parsing or LLM-based summarization
+- **File**: `src/skill-recommendation/repo-context/readme-parser.ts`
+
+#### 2.1.2 Language Detector
+- **Input**: Repository root
+- **Output**: Language breakdown (GitHub-style percentages)
+- **Method**:
+  - Scan common config files: `package.json`, `pyproject.toml`, `go.mod`, `Gemfile`, `pom.xml`, `cargo.toml`
+  - Detect primary language from file extensions (.ts, .py, .go, .rb, etc.)
+  - Calculate percentages by line count (or file count as approximation)
+- **Output Format**:
+  ```json
+  {
+    "TypeScript": 75,
+    "JavaScript": 15,
+    "JSON": 10
+  }
+  ```
+- **File**: `src/skill-recommendation/repo-context/language-detector.ts`
+
+#### 2.1.3 Runtime Environment Detector
+- **Input**: Repository files (package.json, Dockerfile, .python-version, etc.)
+- **Output**: Detected runtime(s)
+- **Detection Logic**:
+  - Node.js: `package.json`, `node_modules/`, `bun.lockb`
+  - Python: `requirements.txt`, `pyproject.toml`, `.python-version`
+  - Deno: `deno.json`, `deno.lock`
+  - Bun: `bun.lockb`, `bunfig.toml`
+  - Go: `go.mod`, `go.sum`
+  - Ruby: `Gemfile`, `Gemfile.lock`
+  - Rust: `Cargo.toml`, `Cargo.lock`
+- **Output Format**:
+  ```json
+  {
+    "runtimes": ["Node.js", "TypeScript", "Bun"],
+    "package_managers": ["npm", "bun"]
+  }
+  ```
+- **File**: `src/skill-recommendation/repo-context/runtime-detector.ts`
+
+#### 2.1.4 Existing Skills Inventory
+- **Input**: Repository (package.json, pyproject.toml, Gemfile, etc.)
+- **Output**: List of already-installed packages/skills
+- **Method**:
+  - Parse `package.json` → npm dependencies + devDependencies
+  - Parse `pyproject.toml` → pip dependencies
+  - Parse `Gemfile` → gem dependencies
+  - Parse `Cargo.toml` → crate dependencies
+  - Parse `go.mod` → go module dependencies
+- **Output Format**:
+  ```json
+  {
+    "existing_packages": [
+      "react",
+      "jest",
+      "webpack",
+      "typescript",
+      "eslint"
+    ]
+  }
+  ```
+- **File**: `src/skill-recommendation/repo-context/dependency-parser.ts`
+
+#### 2.1.5 Context Aggregator
+- **Input**: All context extractors output
+- **Output**: Structured context object
+- **File**: `src/skill-recommendation/repo-context/context-aggregator.ts`
+
+**New Type**:
+```typescript
+interface ProjectContext {
+  readmeSummary?: string;
+  languages: { [name: string]: number }; // e.g. { "TypeScript": 75 }
+  runtimes: string[];
+  packageManagers: string[];
+  existingPackages: string[];
+}
+```
+
+---
+
+### 2.2 Updated Query Generator
+
+**Changes to Query Generator**:
+
+**Old Input**:
+```typescript
+interface QueryGeneratorInput {
+  query: string;
+}
+```
+
+**New Input**:
+```typescript
+interface QueryGeneratorInput {
+  query: string;
+  context: ProjectContext; // NEW
+}
+```
+
+**Updated Prompt**:
+```
+Given the user's query and the project context below, generate 3 distinct search queries:
+
+PROJECT CONTEXT:
+- Primary Language(s): {languages}
+- Runtime: {runtimes}
+- Existing Packages: {existingPackages}
+- README Summary: {readmeSummary}
+
+USER QUERY: {query}
+
+Generate 3 refined queries that:
+1. Avoid recommending existing packages
+2. Are specific to the detected languages/runtimes
+3. Consider the project's tech stack and README context
+
+Return ONLY 3 queries as a JSON array, no explanations.
+```
+
+**Example**:
+```
+Project: TypeScript/React app using Jest
+Existing: react, jest, typescript, webpack
+Query: "testing utilities"
+
+Output:
+[
+  "react testing library",
+  "jest extensions hooks",
+  "testing accessibility tools"
+]
+```
+
+**File**: Update `src/skill-recommendation/query-generator.ts`
+
+---
+
+### 2.3 CLI Updates
+
+**New Command**:
+```bash
+# Recommend skills with project context
+bun run cli/index.ts recommend skill --query "testing" --repo /path/to/project
+
+# Or use current directory as default
+bun run cli/index.ts recommend skill --query "testing"  # infers repo = cwd
+```
+
+**Flow**:
+```
+User Query + Repo Path
+    ↓
+[Context Extractor] → README, languages, runtime, existing packages
+    ↓
+[Query Generator] → 3 context-aware queries
+    ↓
+[Skill Finder] → Find skills (parallel, 5 per query)
+    ↓
+[Skill Aggregator] → Deduplicate + rank
+    ↓
+[Filter] → Remove already-installed packages
+    ↓
+[Skill Enricher] → Generate summaries
+    ↓
+[CLI Display] → Show top 5 with summaries
+```
+
+**File**: Update `cli/index.ts`
+
+---
+
+### 2.4 Phase 1 vs Phase 2 Comparison
+
+| Aspect | Phase 1 | Phase 2 |
+|--------|---------|---------|
+| Query Input | User prompt only | User prompt + project context |
+| Query Generator | Static, generic | Context-aware |
+| Avoids Duplicates | No | Yes (filters existing) |
+| Latency | 7-10s | 7-12s (context extraction adds ~2-3s) |
+| Accuracy | ~84% precision | Target: >90% precision |
+| Files to Create | 0 | 5+ new context modules |
+
+---
+
+## Phase 3: Optimization & Features (PLANNED - moved from Phase 2)
+
+### 3.1 Generalized 3-Block Pipeline
 
 **Current State (Phase 1)**: Direct pipeline with fixed components
-**Goal (Phase 2)**: Generalizable, extensible architecture for future improvements
+**Goal (Phase 3)**: Generalizable, extensible architecture for future improvements
 
 **The 3-Block Design**:
 
@@ -166,7 +377,7 @@ Recommended Skills
 
 ---
 
-### 2.2 Caching Layer
+### 3.2 Caching Layer
 
 **Goal**: Reduce latency for repeated queries by 80%+
 
@@ -187,7 +398,7 @@ Recommended Skills
 
 ---
 
-### 2.3 Rate Limiting & Quotas
+### 3.3 Rate Limiting & Quotas
 
 **Goal**: Prevent API abuse and manage costs
 
@@ -202,7 +413,7 @@ Recommended Skills
 
 ---
 
-### 2.4 Web UI (Phase 2B)
+### 3.4 Web UI (Phase 3B)
 
 **Goal**: Provide browser-based interface with better UX
 
@@ -227,7 +438,7 @@ Browser → Express Server → Skill Recommendation Pipeline
 
 ---
 
-### 2.5 Feedback Loop & Learning
+### 3.5 Feedback Loop & Learning
 
 **Goal**: Improve recommendations over time based on user feedback
 
@@ -247,22 +458,22 @@ Browser → Express Server → Skill Recommendation Pipeline
 
 ---
 
-## Phase 3: Integration & Distribution (FUTURE)
+## Phase 4: Integration & Distribution (FUTURE)
 
-### 3.1 IDE Extensions
+### 4.1 IDE Extensions
 - VS Code extension for inline skill discovery
 - JetBrains IDE plugin
 
-### 3.2 CLI Tool Distribution
+### 4.2 CLI Tool Distribution
 - Publish to npm as `@bgng/skill-finder`
 - Standalone `bgng` CLI tool with skill command
 
-### 3.3 API Service
+### 4.3 API Service
 - REST API for skill recommendations
 - GraphQL endpoint option
 - Rate-limited public access tier
 
-### 3.4 Analytics
+### 4.4 Analytics
 - Track popular queries and skills
 - Identify skill discovery patterns
 - Public dashboard with trending skills
@@ -331,13 +542,21 @@ Return ONLY the summary sentences, no additional text or formatting.
 - [ ] CLI arrow navigation smooth (no jank)
 - [ ] Error handling graceful (fallbacks work)
 
-### Phase 2
+### Phase 2 (Context-Aware)
+- [ ] Context extraction latency < 3 seconds
+- [ ] Duplicate filtering accuracy > 95%
+- [ ] Top 5 relevance improves to >90% precision
+- [ ] E2E latency remains < 15 seconds (with context)
+- [ ] Language & runtime detection accuracy > 90%
+- [ ] Filter removes 80%+ of false positives from Phase 1
+
+### Phase 3 (Optimization)
 - [ ] Query cache hit rate > 60%
 - [ ] Reranker improves top-5 relevance by 20%+
 - [ ] Latency with cache < 5 seconds
 - [ ] Rate limiting prevents >10 req/min per user
 
-### Phase 3
+### Phase 4 (Integration)
 - [ ] IDE extension installed by >1k developers
 - [ ] API service handles >100 req/sec
 - [ ] Public dashboard shows 10k+ monthly searches
