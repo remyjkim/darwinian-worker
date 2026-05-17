@@ -113,7 +113,60 @@ User Query
 
 ## Phase 2: Optimization & Features (PLANNED)
 
-### 2.1 Caching Layer
+### 2.1 Generalized 3-Block Pipeline
+
+**Current State (Phase 1)**: Direct pipeline with fixed components
+**Goal (Phase 2)**: Generalizable, extensible architecture for future improvements
+
+**The 3-Block Design**:
+
+```
+User Query
+    ↓
+[Block 1: Query Generator]  ← AI expands query with multiple strategies
+    ↓ (multiple refined queries)
+[Block 2: Skill Finder]     ← npx skills find gets top 5 per query
+    ↓ (all matching skills + scores)
+[Block 3: Reranker]         ← AI ranks to top 5
+    ↓
+Recommended Skills
+```
+
+**Block 1: Query Generator**
+- **Input:** Original user query + context (languages, repo info)
+- **Current Tool:** minimax-text-01 via OpenRouter
+- **Output:** 3 refined queries exploring different search angles
+- **Example:** "react testing" → ["react-testing-library", "testing React components", "component test patterns"]
+- **Future:** Swap to Claude or Mastra for different strategies
+
+**Block 2: Skill Finder**
+- **Input:** Refined queries from Block 1
+- **Tool:** `npx skills find [query]` (returns top 5 per query)
+- **Output:** Aggregated skill list with relevance scores (~25 unique skills)
+- **Future:** Replace with embedding-based search if CLI becomes bottleneck
+
+**Block 3: Reranker**
+- **Input:** Aggregated skills + original query
+- **Tool:** Options: minimax, Cohere AI (free), or cross-encoder
+- **Output:** Top 5 re-ranked skills
+- **Fallback:** Keyword match + alphabetical sort if any block fails
+- **Future:** Use custom ML model or user feedback signals
+
+**Why This Approach**:
+| Aspect | Benefit |
+|--------|---------|
+| **Generalizable** | Easy to swap components (Query Gen, Skill Finder, Reranker) |
+| **Exploratory** | Try different query strategies without rewriting the pipeline |
+| **Defensible** | Each block has clear input/output; testable independently |
+| **Scalable** | Works with any query length/complexity |
+| **Cheap** | Reranking is optional; can use free APIs (Cohere) |
+
+**Files to Create**:
+- `src/skill-recommendation/skill-reranker.ts` — Reranks top 30 → top 5
+
+---
+
+### 2.2 Caching Layer
 
 **Goal**: Reduce latency for repeated queries by 80%+
 
@@ -131,38 +184,6 @@ User Query
 **Files to Create**:
 - `src/skill-recommendation/query-cache.ts`
 - `src/skill-recommendation/skill-cache.ts`
-
----
-
-### 2.2 Reranker Block
-
-**Goal**: Improve ranking quality by re-scoring aggregated candidates
-
-**Current Problem**:
-- Aggregation only deduplicates + retains highest relevance
-- No semantic re-ranking of final candidates
-
-**Solution**:
-- Add reranker step after aggregation
-- Re-score top 30 candidates against original query
-- Return top 5 with improved ordering
-
-**Implementation**:
-```
-Aggregated Skills (30)
-    ↓
-[Reranker] → Score each skill against original query semantically
-    ↓
-Top 5 Skills (re-ranked)
-```
-
-**Model Options**:
-- minimax (fast, cheap)
-- Cross-encoder model via OpenRouter
-- Lightweight local model
-
-**Files to Create**:
-- `src/skill-recommendation/skill-reranker.ts`
 
 ---
 
@@ -378,8 +399,9 @@ cli/
 └── index.ts                    # Interactive CLI tool
 
 docs/plans/skill-recommendation/
-├── prd.md                      # This file
-├── PRODUCTION_SETUP.md         # How to run Phase 1
+├── prd.md                      # This file (requirements, phases, roadmap)
+├── diagrams.md                 # Visual architecture (Mermaid)
+├── PRODUCTION_SETUP.md         # How to run Phase 1 (setup, env vars)
 └── phase1-results-may13.md     # Phase 1 evaluation results
 
 test/
