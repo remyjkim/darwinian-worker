@@ -1,133 +1,269 @@
 {
-  "project": "Skill Recommendation Pipeline",
-  "branchName": "ralph/skill-recommendation-v1",
-  "description": "Build a generalizable 3-block skill recommendation pipeline (Phase 1: Query Generator + Skill Finder)",
+  "project": "Skill Recommendation System",
+  "branchName": "ralph/phase2-context-aware",
+  "description": "Phase 2: Context-Aware Query Generation - Extract project context (README, languages, frameworks, runtime, dependencies, session logs) for smarter skill recommendations without duplicates",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Define Query Generator interface and types",
-      "description": "As a developer, I need to define the input/output interfaces for the Query Generator block.",
-      "acceptanceCriteria": ["Create QueryGeneratorInput and QueryGeneratorOutput types", "Define Mastra config", "Typecheck passes"],
+      "title": "Create extractors directory and ProjectContext type",
+      "description": "As a developer, I need to set up the extractors module structure and define the ProjectContext interface.",
+      "acceptanceCriteria": [
+        "Create src/skill-recommendation/extractors/ directory",
+        "Add ProjectContext interface to src/skill-recommendation/types.ts with 6 fields: readmeSummary, languages, frameworks, runtimes, existingPackages, recentSessionThemes",
+        "All fields have proper TypeScript types",
+        "Typecheck passes"
+      ],
       "priority": 1,
-      "passes": true,
-      "notes": "Implemented in src/skill-recommendation/types.ts and prompts.ts; npm run typecheck passes."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-002",
-      "title": "Write Mastra AI system prompt for query expansion",
-      "description": "As a developer, I need to write a system prompt that generates 5 distinct query variations.",
-      "acceptanceCriteria": ["System prompt generates 5 distinct queries per input", "Variations explore different strategies", "Prevents query explosion", "Manually test with 3 queries"],
+      "title": "Implement README Parser extractor",
+      "description": "As a developer, I need to extract project summary from README.md file.",
+      "acceptanceCriteria": [
+        "Create src/skill-recommendation/extractors/readme-parser.ts",
+        "Parse README.md and extract title and description (first paragraph)",
+        "Return fallback to package.json description if README missing",
+        "Latency < 100ms",
+        "Handle missing/malformed README gracefully",
+        "Typecheck passes"
+      ],
       "priority": 2,
-      "passes": true,
-      "notes": "Implemented QUERY_GENERATOR_SYSTEM_PROMPT with five distinct strategies and query explosion constraints; covered by test/query-generator-evaluation.test.ts."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-003",
-      "title": "Implement Query Generator with Mastra AI",
-      "description": "As a developer, I need to implement the Query Generator function.",
-      "acceptanceCriteria": ["Function generateQueries() returns 5 refined queries", "Call Mastra AI with system prompt", "Handle errors gracefully", "Typecheck passes"],
-      "priority": 3,
-      "passes": true,
-      "notes": "Implemented generateQueries() with Mastra-compatible client call, JSON coercion, fallback behavior, and passing typecheck."
+      "title": "Implement Language Detector extractor",
+      "description": "As a developer, I need to detect language breakdown in repository.",
+      "acceptanceCriteria": [
+        "Create src/skill-recommendation/extractors/language-detector.ts",
+        "Scan repository and detect languages by file extension",
+        "Return GitHub-style percentages (e.g., TypeScript: 75%)",
+        "Latency < 200ms",
+        "Handle large repositories efficiently (sample if needed)",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-004",
-      "title": "Test Query Generator on 10 sample queries",
-      "description": "As a tester, I need to verify Query Generator produces diverse query variations.",
-      "acceptanceCriteria": ["Run on 10 diverse queries", "Manually verify different angles", "80%+ success rate", "Document results"],
-      "priority": 4,
-      "passes": true,
-      "notes": "Covered by test/sample-queries.json and query generator evaluation; 10/10 samples produce five unique query variants."
+      "title": "Implement Framework Detector extractor",
+      "description": "As a developer, I need to detect frameworks from dependencies.",
+      "acceptanceCriteria": [
+        "Create src/skill-recommendation/extractors/framework-detector.ts",
+        "Parse package.json, pyproject.toml, go.mod, Cargo.toml to find frameworks",
+        "Return array of detected frameworks: React, Vue, Angular, Express, Django, FastAPI, Flask, etc.",
+        "Latency < 50ms",
+        "Handle missing dependency files gracefully",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-005",
-      "title": "Define Skill Finder interface and types",
-      "description": "As a developer, I need to define types for Skill Finder block.",
-      "acceptanceCriteria": ["Create Skill, SkillFinderInput, SkillFinderOutput types", "Define relevance score field", "Typecheck passes"],
-      "priority": 5,
-      "passes": true,
-      "notes": "Implemented Skill, SkillFinderInput, and SkillFinderOutput in src/skill-recommendation/types.ts with relevanceScore."
+      "title": "Implement Runtime Detector extractor",
+      "description": "As a developer, I need to detect runtime environment.",
+      "acceptanceCriteria": [
+        "Create src/skill-recommendation/extractors/runtime-detector.ts",
+        "Detect runtimes: Node.js, Python, Bun, Deno, Go, Ruby, Rust from config files",
+        "Return object with runtimes array and packageManagers array",
+        "Latency < 50ms",
+        "Check for: package.json, .python-version, go.mod, Gemfile, Cargo.toml, deno.json",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-006",
-      "title": "Implement npx skills find wrapper",
-      "description": "As a developer, I need to wrap the npx skills find CLI command.",
-      "acceptanceCriteria": ["Function findSkills() shells out to npx command", "Parse JSON output", "Return top 5 with scores", "Handle errors"],
-      "priority": 6,
-      "passes": true,
-      "notes": "Implemented findSkills() wrapper for npx skills find <query> --json with JSON parsing, top-five sorting, and failure fallback; covered by test/skill-finder-evaluation.test.ts."
+      "title": "Implement Dependency Parser extractor",
+      "description": "As a developer, I need to get list of existing packages to avoid duplicates.",
+      "acceptanceCriteria": [
+        "Create src/skill-recommendation/extractors/dependency-parser.ts",
+        "Parse package.json (npm), pyproject.toml (pip), Gemfile (gem), Cargo.toml (cargo), go.mod (go)",
+        "Return flat array of package names from dependencies + devDependencies",
+        "Latency < 100ms",
+        "Handle missing manifest files gracefully",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-007",
-      "title": "Implement skill aggregation and deduplication",
-      "description": "As a developer, I need to aggregate skills from multiple queries.",
-      "acceptanceCriteria": ["Function aggregateSkills() deduplicates by ID", "Keep highest relevance score", "Sort by score descending", "Target 20-30 skills"],
-      "priority": 7,
-      "passes": true,
-      "notes": "Implemented aggregateSkills() with dedupe by id, highest-score retention, descending sort, and 30-candidate cap."
+      "title": "Implement Session Log Extractor",
+      "description": "As a developer, I need to extract recent work themes from Claude Code session logs.",
+      "acceptanceCriteria": [
+        "Create src/skill-recommendation/extractors/session-log-extractor.ts",
+        "Read last 5 session logs from ~/.claude/logs/ (JSONL format)",
+        "Extract user messages for keywords: test, react, database, auth, API, deploy, performance, etc.",
+        "Extract tool usage from assistant messages (count tool_use occurrences)",
+        "Aggregate into 2-5 distinct themes (e.g., 'React testing', 'DevOps')",
+        "Latency < 300ms",
+        "Handle missing/corrupt logs gracefully",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-008",
-      "title": "Test Skill Finder on Query Generator output",
-      "description": "As a tester, I need to verify Skill Finder produces relevant candidates.",
-      "acceptanceCriteria": ["Run on Query Generator outputs", "Verify 20-30 aggregated skills", "Verify scores are preserved", "Manual relevance check"],
-      "priority": 8,
-      "passes": true,
-      "notes": "Covered by skill finder and pipeline evaluation tests; deterministic Query Generator output aggregates to 25 candidates with scores preserved."
+      "title": "Create context aggregator utility",
+      "description": "As a developer, I need to aggregate all 6 extractors into one call.",
+      "acceptanceCriteria": [
+        "Create src/skill-recommendation/extractors/index.ts",
+        "Export async function extractProjectContext(repoPath: string): Promise<ProjectContext>",
+        "Call all 6 extractors in parallel using Promise.all()",
+        "Handle partial failures (some extractors may fail, others succeed)",
+        "Total latency < 350ms (parallel overhead)",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-009",
-      "title": "Wire up Query Generator → Skill Finder pipeline",
-      "description": "As a developer, I need to connect the two blocks into end-to-end pipeline.",
-      "acceptanceCriteria": ["Function recommendSkills() orchestrates blocks", "Call generateQueries() then findSkills()", "Aggregate and return", "Typecheck passes"],
-      "priority": 9,
-      "passes": true,
-      "notes": "Implemented recommendSkills() orchestration in src/skill-recommendation/pipeline.ts with inspectable intermediate outputs."
+      "title": "Update Query Generator to accept ProjectContext",
+      "description": "As a developer, I need to modify query generator to use project context.",
+      "acceptanceCriteria": [
+        "Update src/skill-recommendation/query-generator.ts signature to accept context: ProjectContext",
+        "Update generateQueries() function to take context parameter",
+        "Pass context to OpenRouter API call",
+        "Update TypeScript types for input/output",
+        "Maintain backward compatibility (context is optional, default to Phase 1 behavior)",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-010",
-      "title": "Add error handling and fallbacks",
-      "description": "As a developer, I need to handle failures gracefully.",
-      "acceptanceCriteria": ["Query Gen failure → keyword fallback", "Skill Finder failure → empty array", "Log all errors", "Test error scenarios"],
-      "priority": 10,
-      "passes": true,
-      "notes": "Implemented query-generation fallback, skill-finder empty-array fallback, warnings, and error logs; covered by pipeline tests."
+      "title": "Update Query Generator prompt with context",
+      "description": "As a developer, I need to enhance the prompt to use context for better queries.",
+      "acceptanceCriteria": [
+        "Update prompt in src/skill-recommendation/prompts.ts",
+        "Include languages, frameworks, runtime, existing packages, recent themes in prompt",
+        "Add instruction: 'NEVER recommend existing packages: [list]'",
+        "Add instruction: 'Consider recent work themes'",
+        "Request 3 diverse queries in JSON array format",
+        "Test with sample contexts",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-011",
-      "title": "Add logging and instrumentation",
-      "description": "As a developer, I need to instrument the pipeline for observability.",
-      "acceptanceCriteria": ["Log DEBUG: refined queries, candidates", "Log INFO: latency", "Log ERROR: full context", "Test output file"],
-      "priority": 11,
-      "passes": true,
-      "notes": "Implemented buffered logger with DEBUG refined queries/candidates, INFO latency, ERROR context, and JSONL flush coverage."
+      "title": "Add context extraction to pipeline",
+      "description": "As a developer, I need to wire up context extraction into the main pipeline.",
+      "acceptanceCriteria": [
+        "Update src/skill-recommendation/pipeline.ts",
+        "Call extractProjectContext() at pipeline start (parallel with other initialization)",
+        "Pass context to query generator",
+        "Handle extraction failures (log warning, continue with empty context)",
+        "Measure and log context extraction latency",
+        "E2E pipeline latency remains < 15 seconds",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-012",
-      "title": "Create test set with 10 diverse sample queries",
-      "description": "As a tester, I need to create a test set covering different use cases.",
-      "acceptanceCriteria": ["Define 10 diverse queries", "Store in test file", "Document expected behavior", "Cover different categories"],
-      "priority": 12,
-      "passes": true,
-      "notes": "Added test/sample-queries.json with 10 diverse queries and documented expected behavior for each."
+      "title": "Add duplicate filtering to skill aggregation",
+      "description": "As a developer, I need to filter out skills that already exist in the repo.",
+      "acceptanceCriteria": [
+        "Update src/skill-recommendation/skill-aggregator.ts",
+        "After aggregation, filter out skills whose name matches existingPackages",
+        "Use case-insensitive matching (react == React)",
+        "Log number of filtered skills",
+        "Verify filtering accuracy > 95%",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-013",
-      "title": "Run end-to-end evaluation on test set",
-      "description": "As a tester, I need to evaluate the full pipeline on the test set.",
-      "acceptanceCriteria": ["Run on 10 queries", "Measure latency (<2s)", "Count candidates (20-30)", "Manual relevance check (80%+)", "Document results"],
-      "priority": 13,
-      "passes": true,
-      "notes": "Covered by test/pipeline-evaluation.test.ts across all 10 sample queries: <2s latency, 25 candidates, and 80%+ relevance proxy."
+      "title": "Update CLI to extract and pass context",
+      "description": "As a user, I need CLI to automatically extract context without manual input.",
+      "acceptanceCriteria": [
+        "Update cli/index.ts main() function",
+        "Call extractProjectContext() from repo path (cwd or --repo flag)",
+        "Pass context to pipeline",
+        "Update usage messages to mention context is automatic",
+        "Handle context extraction errors gracefully (no breaking)",
+        "Verify CLI still works: bgng recommend skill \"query\"",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-014",
-      "title": "Document learnings and Phase 2 recommendations",
-      "description": "As a product manager, I need to document Phase 1 results.",
-      "acceptanceCriteria": ["Summarize results", "Identify improvements", "List blockers", "Phase 2 readiness assessment"],
-      "priority": 14,
-      "passes": true,
-      "notes": "Documented results, learnings, blockers, and Phase 2 readiness in docs/plans/skill-recommendation/phase1-results-may13.md."
+      "title": "Test context extraction with multiple repos",
+      "description": "As a developer, I need to verify context extraction works across different project types.",
+      "acceptanceCriteria": [
+        "Create test fixtures: TypeScript+React, Python+Django, Go, mixed monorepo, minimal project",
+        "Test each extractor independently on all fixtures",
+        "Test full context extraction (all 6 parallel) on all fixtures",
+        "Verify accuracy: languages > 90%, frameworks > 90%, runtime detection > 90%",
+        "Measure latencies (should be < 300ms total)",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "E2E verification: context-aware recommendations",
+      "description": "As a user, I need to verify that context makes recommendations better.",
+      "acceptanceCriteria": [
+        "Run bgng recommend skill \"testing\" on a TypeScript+React project",
+        "Verify top 5 does NOT include: jest (if already installed), react, typescript",
+        "Verify top 5 includes React-specific testing tools (e.g., React Testing Library variants)",
+        "Verify context extraction completed in < 300ms",
+        "Total latency < 15 seconds",
+        "Compare with Phase 1: Phase 2 should have better relevance",
+        "Verify in browser using dev-browser skill to see UI"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Update PRD and diagrams with Phase 2",
+      "description": "As a team member, I need documentation of Phase 2 implementation.",
+      "acceptanceCriteria": [
+        "Update docs/plans/skill-recommendation/prd.md with Phase 2 section",
+        "Update docs/plans/skill-recommendation/diagrams.md with new diagrams",
+        "Add context extraction pipeline diagram",
+        "Add session log extraction process diagram",
+        "Update latency breakdown diagram",
+        "Document all 6 extractors in PRD",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
     }
   ]
 }
