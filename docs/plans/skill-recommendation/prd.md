@@ -131,23 +131,20 @@ User Query
 
 ### 2.1 Context Extraction Pipeline
 
-**New Components to Implement**:
+**6 Context Inputs** (all local file extraction, no APIs):
 
 #### 2.1.1 README Parser
-- **Input**: Repository root
-- **Output**: Extracted summary (title, description, tech stack mentions)
-- **Method**: Parse README.md (or package.json description as fallback)
-- **Implementation**: Simple regex/markdown parsing or LLM-based summarization
-- **File**: `src/skill-recommendation/repo-context/readme-parser.ts`
+- **Input**: `README.md` file
+- **Output**: Extracted summary (title, description, tech stack)
+- **Method**: Regex pattern matching on markdown
+- **Latency**: <100ms
+- **File**: `src/skill-recommendation/extractors/readme-parser.ts`
 
 #### 2.1.2 Language Detector
-- **Input**: Repository root
+- **Input**: Repository directory structure
 - **Output**: Language breakdown (GitHub-style percentages)
-- **Method**:
-  - Scan common config files: `package.json`, `pyproject.toml`, `go.mod`, `Gemfile`, `pom.xml`, `cargo.toml`
-  - Detect primary language from file extensions (.ts, .py, .go, .rb, etc.)
-  - Calculate percentages by line count (or file count as approximation)
-- **Output Format**:
+- **Method**: Scan files by extension, calculate percentages
+- **Example Output**:
   ```json
   {
     "TypeScript": 75,
@@ -155,121 +152,138 @@ User Query
     "JSON": 10
   }
   ```
-- **File**: `src/skill-recommendation/repo-context/language-detector.ts`
+- **Latency**: <200ms (depends on repo size)
+- **File**: `src/skill-recommendation/extractors/language-detector.ts`
 
 #### 2.1.3 Runtime Environment Detector
-- **Input**: Repository files (package.json, Dockerfile, .python-version, etc.)
-- **Output**: Detected runtime(s)
-- **Detection Logic**:
-  - Node.js: `package.json`, `node_modules/`, `bun.lockb`
-  - Python: `requirements.txt`, `pyproject.toml`, `.python-version`
-  - Deno: `deno.json`, `deno.lock`
-  - Bun: `bun.lockb`, `bunfig.toml`
-  - Go: `go.mod`, `go.sum`
-  - Ruby: `Gemfile`, `Gemfile.lock`
-  - Rust: `Cargo.toml`, `Cargo.lock`
-- **Output Format**:
+- **Input**: Config files (package.json, pyproject.toml, go.mod, Cargo.toml, Gemfile)
+- **Output**: Detected runtimes + package managers
+- **Detection**: Check for presence of config files + installed packages
+- **Example Output**:
   ```json
   {
     "runtimes": ["Node.js", "TypeScript", "Bun"],
-    "package_managers": ["npm", "bun"]
+    "packageManagers": ["npm", "bun"]
   }
   ```
-- **File**: `src/skill-recommendation/repo-context/runtime-detector.ts`
+- **Latency**: <50ms
+- **File**: `src/skill-recommendation/extractors/runtime-detector.ts`
 
-#### 2.1.4 Existing Skills Inventory
-- **Input**: Repository (package.json, pyproject.toml, Gemfile, etc.)
-- **Output**: List of already-installed packages/skills
-- **Method**:
-  - Parse `package.json` → npm dependencies + devDependencies
-  - Parse `pyproject.toml` → pip dependencies
-  - Parse `Gemfile` → gem dependencies
-  - Parse `Cargo.toml` → crate dependencies
-  - Parse `go.mod` → go module dependencies
-- **Output Format**:
+#### 2.1.4 Framework Detector
+- **Input**: `package.json` or equivalent dependency files
+- **Output**: Detected frameworks (React, Vue, Angular, Express, Django, etc.)
+- **Method**: Check dependency list against known framework names
+- **Example Output**:
   ```json
   {
-    "existing_packages": [
-      "react",
-      "jest",
-      "webpack",
-      "typescript",
-      "eslint"
+    "frameworks": ["React", "Next.js"]
+  }
+  ```
+- **Latency**: <50ms
+- **File**: `src/skill-recommendation/extractors/framework-detector.ts`
+
+#### 2.1.5 Dependency Parser
+- **Input**: `package.json`, `pyproject.toml`, `Gemfile`, `Cargo.toml`, `go.mod`
+- **Output**: List of already-installed packages (to avoid duplicates)
+- **Method**: Parse config files, extract package names
+- **Example Output**:
+  ```json
+  {
+    "existingPackages": ["react", "jest", "webpack", "typescript", "eslint"]
+  }
+  ```
+- **Latency**: <100ms
+- **File**: `src/skill-recommendation/extractors/dependency-parser.ts`
+
+#### 2.1.6 Session Log Extractor (NEW)
+- **Input**: Recent Claude Code session logs (`~/.claude/logs/`)
+- **Output**: 2-5 distinct themes from recent work (e.g., "React testing", "CLI scripting")
+- **Method**:
+  1. Read last 5 session logs (JSONL format)
+  2. Extract user messages → identify keywords + intent
+  3. Extract assistant tool_use patterns → count tool usage
+  4. Aggregate into 2-5 themes
+- **Example Output**:
+  ```json
+  {
+    "recentSessionThemes": [
+      "React component refactoring",
+      "E2E test setup",
+      "DevOps/Deployment"
     ]
   }
   ```
-- **File**: `src/skill-recommendation/repo-context/dependency-parser.ts`
+- **Latency**: <300ms
+- **File**: `src/skill-recommendation/extractors/session-log-extractor.ts`
 
-#### 2.1.5 Context Aggregator
-- **Input**: All context extractors output
-- **Output**: Structured context object
-- **File**: `src/skill-recommendation/repo-context/context-aggregator.ts`
-
-**New Type**:
+**Updated Context Type**:
 ```typescript
 interface ProjectContext {
   readmeSummary?: string;
-  languages: { [name: string]: number }; // e.g. { "TypeScript": 75 }
-  runtimes: string[];
-  packageManagers: string[];
-  existingPackages: string[];
+  languages: Record<string, number>;        // e.g. { "TypeScript": 75 }
+  frameworks?: string[];                     // e.g. ["React", "Next.js"]
+  runtimes: string[];                        // e.g. ["Node.js", "Bun"]
+  existingPackages: string[];                // e.g. ["react", "jest"]
+  recentSessionThemes?: string[];            // e.g. ["React testing", "CLI scripting"]
 }
 ```
+
+**Total Context Extraction Latency**: ~700ms (parallel execution, ~300ms actual)
 
 ---
 
-### 2.2 Updated Query Generator
+### 2.2 Enhanced Query Generator
 
-**Changes to Query Generator**:
-
-**Old Input**:
-```typescript
-interface QueryGeneratorInput {
-  query: string;
-}
-```
-
-**New Input**:
-```typescript
-interface QueryGeneratorInput {
-  query: string;
-  context: ProjectContext; // NEW
-}
-```
+**Input**: User query + Full project context (6 extractors)
 
 **Updated Prompt**:
 ```
-Given the user's query and the project context below, generate 3 distinct search queries:
+Given the user's query and comprehensive project context, generate 3 distinct search queries 
+that are highly relevant and avoid duplicates.
 
 PROJECT CONTEXT:
-- Primary Language(s): {languages}
-- Runtime: {runtimes}
-- Existing Packages: {existingPackages}
-- README Summary: {readmeSummary}
+- Languages: {languages} (e.g., TypeScript 75%, JavaScript 15%)
+- Frameworks: {frameworks} (e.g., React, Next.js)
+- Runtime: {runtimes} (e.g., Node.js, Bun)
+- Existing Packages: {existingPackages} (MUST AVOID THESE)
+- README: {readmeSummary}
+- Recent Work: {recentSessionThemes} (e.g., "React testing", "E2E setup")
 
-USER QUERY: {query}
+USER QUERY: {userQuery}
 
-Generate 3 refined queries that:
-1. Avoid recommending existing packages
-2. Are specific to the detected languages/runtimes
-3. Consider the project's tech stack and README context
+Generate 3 refined search queries that:
+1. NEVER recommend existing packages: {existingPackages}
+2. Match the detected frameworks & languages
+3. Consider recent work themes (user likely working on that area)
+4. Provide diverse search angles
 
-Return ONLY 3 queries as a JSON array, no explanations.
+Return ONLY 3 queries as JSON array: ["query1", "query2", "query3"]
 ```
 
 **Example**:
 ```
-Project: TypeScript/React app using Jest
-Existing: react, jest, typescript, webpack
-Query: "testing utilities"
+Project Context:
+  - Languages: TypeScript 75%, JavaScript 25%
+  - Frameworks: React, Next.js
+  - Runtime: Node.js, Bun
+  - Existing: react, jest, typescript, webpack, eslint
+  - Recent themes: ["React component testing", "E2E test setup"]
+
+User Query: "testing utilities"
 
 Output:
 [
-  "react testing library",
-  "jest extensions hooks",
-  "testing accessibility tools"
+  "React Testing Library advanced patterns",
+  "E2E testing frameworks Cypress Playwright",
+  "Accessibility testing tools WCAG"
 ]
 ```
+
+**Changes**:
+- Input now includes all 6 context extractors (parallel execution)
+- Prompt explicitly mentions avoiding existing packages
+- Leverages recent work themes to suggest relevant skills
+- More specific, contextual queries
 
 **File**: Update `src/skill-recommendation/query-generator.ts`
 
@@ -277,22 +291,28 @@ Output:
 
 ### 2.3 CLI Updates
 
-**New Command**:
+**Command** (unchanged, behavior improved):
 ```bash
-# Recommend skills with project context
-bun run cli/index.ts recommend skill --query "testing" --repo /path/to/project
+# Recommend skills with full project context (automatic)
+bun run cli/index.ts recommend skill "testing utilities"
 
-# Or use current directory as default
-bun run cli/index.ts recommend skill --query "testing"  # infers repo = cwd
+# Explicit repo path
+bun run cli/index.ts recommend skill --query "testing" --repo /path/to/project
 ```
 
-**Flow**:
+**Updated Flow** (with context extraction):
 ```
 User Query + Repo Path
     ↓
-[Context Extractor] → README, languages, runtime, existing packages
+[Context Extraction] (parallel, ~300ms)
+  ├→ README Parser
+  ├→ Language Detector
+  ├→ Framework Detector
+  ├→ Runtime Detector
+  ├→ Dependency Parser
+  └→ Session Log Extractor
     ↓
-[Query Generator] → 3 context-aware queries
+[Enhanced Query Generator] → 3 context-aware queries (minimax API)
     ↓
 [Skill Finder] → Find skills (parallel, 5 per query)
     ↓
@@ -300,10 +320,17 @@ User Query + Repo Path
     ↓
 [Filter] → Remove already-installed packages
     ↓
-[Skill Enricher] → Generate summaries
+[Skill Enricher] → Generate summaries (gpt-3.5-turbo API)
     ↓
 [CLI Display] → Show top 5 with summaries
 ```
+
+**Latency Breakdown**:
+- Context extraction: ~300ms (parallel local I/O)
+- Query generation: ~2-3s (minimax API call)
+- Skill finding: ~3-5s (parallel `npx skills find` calls)
+- Skill enrichment: ~2-4s (parallel summary generation)
+- **Total**: ~8-12s (vs Phase 1: 7-10s)
 
 **File**: Update `cli/index.ts`
 
@@ -603,25 +630,33 @@ Return ONLY the summary sentences, no additional text or formatting.
 
 ```
 src/skill-recommendation/
-├── types.ts                    # Shared interfaces
-├── prompts.ts                  # System prompts & configs
-├── query-generator.ts          # Query refinement (3 queries)
-├── skill-finder.ts             # Wraps `npx skills find`
-├── skill-aggregator.ts         # Deduplicates & ranks
-├── skill-enricher.ts           # Generates summaries
-├── openrouter-client.ts        # OpenRouter API client
-├── pipeline.ts                 # Orchestrates all blocks
-├── logger.ts                   # Structured logging
-└── index.ts                    # Exports public API
+├── types.ts                              # Shared interfaces
+├── prompts.ts                            # System prompts & configs
+├── query-generator.ts                    # Enhanced query generation (with context)
+├── skill-finder.ts                       # Wraps `npx skills find`
+├── skill-aggregator.ts                   # Deduplicates & ranks
+├── skill-enricher.ts                     # Generates summaries
+├── openrouter-client.ts                  # OpenRouter API client
+├── pipeline.ts                           # Orchestrates all blocks
+├── logger.ts                             # Structured logging
+├── index.ts                              # Exports public API
+│
+└── extractors/                           # Phase 2: Context extraction (NEW)
+    ├── readme-parser.ts                  # Extracts README summary
+    ├── language-detector.ts              # Detects language breakdown
+    ├── framework-detector.ts             # Detects frameworks (React, Vue, etc.)
+    ├── runtime-detector.ts               # Detects runtime (Node.js, Python, etc.)
+    ├── dependency-parser.ts              # Parses existing packages
+    └── session-log-extractor.ts          # Extracts recent work themes
 
 cli/
-└── index.ts                    # Interactive CLI tool
+└── index.ts                              # Interactive CLI tool
 
 docs/plans/skill-recommendation/
-├── prd.md                      # This file (requirements, phases, roadmap)
-├── diagrams.md                 # Visual architecture (Mermaid)
-├── PRODUCTION_SETUP.md         # How to run Phase 1 (setup, env vars)
-└── phase1-results-may13.md     # Phase 1 evaluation results
+├── prd.md                                # This file (requirements, phases, roadmap)
+├── diagrams.md                           # Data flow & architecture diagrams
+├── PRODUCTION_SETUP.md                   # Setup & deployment guide
+└── phase1-results-may13.md               # Phase 1 evaluation results
 
 test/
 ├── pipeline-evaluation.test.ts

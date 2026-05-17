@@ -1,44 +1,65 @@
 ---
 title: Skill Recommendation System - Mermaid Diagrams
-date: 2026-05-14
+date: 2026-05-17
+version: 2.0 (Phase 2: Context-Aware Generation)
 ---
 
 # Skill Recommendation System - Diagrams
 
-## 1. Data Pipeline Flow
+## 1. Phase 2: End-to-End Data Flow (Context-Aware)
 
 ```mermaid
-graph LR
-    A["User Query<br/>(e.g., 'react testing')"] 
-    B["Query Generator<br/>(minimax/OpenRouter)"]
-    C["3 Refined Queries<br/>(library, problem, pattern)"]
-    D["Skill Finder<br/>(npx skills find)"]
-    E["Skills by Query<br/>(5 per query)"]
-    F["Skill Aggregator<br/>(dedupe, rank)"]
-    G["Top 30 Skills"]
-    H["Skill Enricher<br/>(gpt-3.5-turbo)"]
-    I["Top 5 + Summaries"]
-    J["CLI Display"]
-    K["User Selection<br/>(arrow keys)"]
-    L["npx skills add"]
+graph TB
+    A["User Query<br/>(e.g., 'react testing')"]
+    REPO["Repo Path<br/>(cwd or explicit)"]
     
-    A --> B
-    B --> C
-    C --> D
-    D --> E
-    E --> F
-    F --> G
-    G --> H
-    H --> I
-    I --> J
-    J --> K
-    K --> L
+    A --> CTX["Context Extraction<br/>(parallel, ~300ms)"]
+    REPO --> CTX
     
-    style B fill:#4a90e2
-    style D fill:#4a90e2
-    style F fill:#4a90e2
-    style H fill:#4a90e2
-    style K fill:#f5a623
+    CTX --> CE1["README Parser"]
+    CTX --> CE2["Language Detector"]
+    CTX --> CE3["Framework Detector"]
+    CTX --> CE4["Runtime Detector"]
+    CTX --> CE5["Dependency Parser"]
+    CTX --> CE6["Session Log Extractor"]
+    
+    CE1 --> AGG["ProjectContext"]
+    CE2 --> AGG
+    CE3 --> AGG
+    CE4 --> AGG
+    CE5 --> AGG
+    CE6 --> AGG
+    
+    AGG --> QG["Enhanced Query Generator<br/>(minimax/OpenRouter)"]
+    QG --> RQ["3 Context-Aware<br/>Refined Queries"]
+    
+    RQ --> SF1["Skill Finder<br/>(Query 1)"]
+    RQ --> SF2["Skill Finder<br/>(Query 2)"]
+    RQ --> SF3["Skill Finder<br/>(Query 3)"]
+    
+    SF1 --> SA["Skill Aggregator<br/>(dedupe, filter)"]
+    SF2 --> SA
+    SF3 --> SA
+    
+    SA --> TOP30["Top 30 Skills<br/>(existing removed)"]
+    TOP30 --> SE["Skill Enricher<br/>(gpt-3.5-turbo)"]
+    SE --> TOP5["Top 5 + Summaries"]
+    
+    TOP5 --> CLI["CLI Display"]
+    CLI --> USR["User Selection<br/>(arrow keys)"]
+    USR --> ADD["npx skills add"]
+    
+    style CTX fill:#ffdf1c
+    style CE1 fill:#4a90e2
+    style CE2 fill:#4a90e2
+    style CE3 fill:#4a90e2
+    style CE4 fill:#4a90e2
+    style CE5 fill:#4a90e2
+    style CE6 fill:#4a90e2
+    style QG fill:#4a90e2
+    style SA fill:#7ed321
+    style SE fill:#4a90e2
+    style USR fill:#f5a623
 ```
 
 ---
@@ -97,7 +118,102 @@ graph TB
 
 ---
 
-## 3. Query Generation Process
+## 3. Phase 2: Context Extraction Pipeline (New)
+
+```mermaid
+graph TB
+    REPO["Repository<br/>Root Path"]
+    
+    REPO --> RP["README Parser<br/>(readme-parser.ts)"]
+    REPO --> LD["Language Detector<br/>(language-detector.ts)"]
+    REPO --> FD["Framework Detector<br/>(framework-detector.ts)"]
+    REPO --> RD["Runtime Detector<br/>(runtime-detector.ts)"]
+    REPO --> DP["Dependency Parser<br/>(dependency-parser.ts)"]
+    REPO --> SLE["Session Log Extractor<br/>(session-log-extractor.ts)"]
+    
+    RP --> RP_OUT["README Summary<br/>string"]
+    LD --> LD_OUT["Languages<br/>Record&lt;string, number&gt;<br/>e.g. TypeScript: 75%"]
+    FD --> FD_OUT["Frameworks<br/>string[]<br/>e.g. [React, Next.js]"]
+    RD --> RD_OUT["Runtimes<br/>string[]<br/>e.g. [Node.js, Bun]"]
+    DP --> DP_OUT["Existing Packages<br/>string[]<br/>e.g. [react, jest, ...]"]
+    SLE --> SLE_OUT["Session Themes<br/>string[]<br/>e.g. [Testing, DevOps]"]
+    
+    RP_OUT --> PC["ProjectContext<br/>Aggregator"]
+    LD_OUT --> PC
+    FD_OUT --> PC
+    RD_OUT --> PC
+    SLE_OUT --> PC
+    DP_OUT --> PC
+    
+    PC --> CONTEXT["ProjectContext Object<br/>(ready for Query Gen)"]
+    
+    style RP fill:#4a90e2
+    style LD fill:#4a90e2
+    style FD fill:#4a90e2
+    style RD fill:#4a90e2
+    style DP fill:#4a90e2
+    style SLE fill:#4a90e2
+    style PC fill:#7ed321
+    style CONTEXT fill:#7ed321
+```
+
+**Latency Breakdown** (all parallel):
+- README Parser: ~100ms
+- Language Detector: ~200ms (depends on repo size)
+- Framework Detector: ~50ms
+- Runtime Detector: ~50ms
+- Dependency Parser: ~100ms
+- Session Log Extractor: ~300ms (reads 5 log files)
+- **Total (parallel)**: ~300ms (longest task dominates)
+
+---
+
+## 4. Session Log Extraction Process (New)
+
+```mermaid
+graph TB
+    LOGS["~/.claude/logs/"]
+    LOGS --> READ["Read last 5 session logs<br/>(JSONL format)"]
+    
+    READ --> SCAN["Scan each line<br/>(JSON object)"]
+    
+    SCAN --> USER["User Messages<br/>type: 'user'"]
+    SCAN --> ASST["Assistant Messages<br/>type: 'assistant'"]
+    
+    USER --> UKW["Keyword Extraction<br/>- test, react, database<br/>- auth, API, deploy<br/>- performance, etc"]
+    ASST --> TOOL["Tool Use Extraction<br/>- tool_use.name<br/>- Count occurrences"]
+    
+    UKW --> THEME["Theme Identification<br/>2-5 distinct themes"]
+    TOOL --> THEME
+    
+    THEME --> OUT["Output: string[]<br/>e.g. ['React testing',<br/>'DevOps', 'E2E tests']"]
+    
+    style READ fill:#4a90e2
+    style SCAN fill:#4a90e2
+    style UKW fill:#9013fe
+    style TOOL fill:#9013fe
+    style THEME fill:#7ed321
+    style OUT fill:#7ed321
+```
+
+**Example Session Processing**:
+```
+Session 1 messages:
+- user: "add testing for React components"  → Theme: "React testing"
+- user: "deploy pipeline setup"              → Theme: "DevOps"
+- assistant: tool_use: "Edit" (10 times)
+- assistant: tool_use: "Bash" (5 times)      → Dominant tools: Edit, Bash
+
+Session 2 messages:
+- user: "E2E test setup with Playwright"     → Theme: "E2E tests"
+- assistant: tool_use: "Bash" (8 times)
+
+Combined themes: ["React testing", "DevOps", "E2E tests"]
+```
+
+---
+
+## 5. Query Generation Process
 
 ```mermaid
 sequenceDiagram
@@ -116,7 +232,7 @@ sequenceDiagram
 
 ---
 
-## 4. Parallel Skill Finding & Enrichment
+## 6. Parallel Skill Finding & Enrichment
 
 ```mermaid
 graph TB
@@ -170,7 +286,7 @@ graph TB
 
 ---
 
-## 5. CLI User Interaction Flow
+## 7. CLI User Interaction Flow
 
 ```mermaid
 stateDiagram-v2
@@ -207,7 +323,7 @@ stateDiagram-v2
 
 ---
 
-## 6. Query Generation Strategies
+## 8. Query Generation Strategies
 
 ```mermaid
 graph LR
@@ -240,7 +356,7 @@ graph LR
 
 ---
 
-## 7. Error Handling & Fallbacks
+## 9. Error Handling & Fallbacks
 
 ```mermaid
 graph TB
@@ -276,30 +392,47 @@ graph TB
 
 ---
 
-## 8. Latency Breakdown
+## 10. Latency Breakdown (Phase 1 vs Phase 2)
 
 ```mermaid
 gantt
-    title Skill Recommendation Latency (Sequential View)
+    title Skill Recommendation Latency: Phase 1 vs Phase 2
     dateFormat YYYY-MM-DD
     
-    section Search
-    Query Gen :qg, 2026-05-14, 3s
-    Skill Find (parallel, 3 queries) :sf, after qg, 2s
-    Aggregation :agg, after sf, 0.5s
+    section Phase 1 (MVP)
+    Query Gen :q1, 2026-05-14, 3s
+    Skill Find (parallel) :s1, after q1, 2s
+    Aggregation :a1, after s1, 0.5s
+    Summary Gen (parallel) :e1, after a1, 3s
+    CLI Output :c1, after e1, 0.2s
+    Total Phase 1 :crit1, 2026-05-14, 8.7s
     
-    section Enrichment
-    Summary Gen (parallel, 5 skills) :en, after agg, 3s
-    
-    section Display
-    CLI Output :cli, after en, 0.2s
-    
-    Crit Total :total, 2026-05-14, 8.7s
+    section Phase 2 (Context)
+    Context Extraction (parallel) :ctx, 2026-05-17, 0.3s
+    Query Gen :q2, after ctx, 2.5s
+    Skill Find (parallel) :s2, after q2, 2s
+    Aggregation/Filter :a2, after s2, 0.5s
+    Summary Gen (parallel) :e2, after a2, 3s
+    CLI Output :c2, after e2, 0.2s
+    Total Phase 2 :crit2, 2026-05-17, 8.5s
 ```
+
+**Phase 1**: 8.7 seconds
+- Query Gen: 3s
+- Skill Find: 2s
+- Enrichment: 3s
+- Other: 0.7s
+
+**Phase 2**: 8.5 seconds (similar, context extraction is parallel with query gen)
+- Context Extraction: 0.3s (added but parallel)
+- Query Gen: 2.5s (slightly faster due to better prompting)
+- Skill Find: 2s
+- Enrichment: 3s
+- Other: 0.7s
 
 ---
 
-## 9. Data Structures
+## 11. Data Structures
 
 ```mermaid
 graph TB
@@ -332,7 +465,7 @@ graph TB
 
 ---
 
-## 10. Phase 2: Caching Architecture
+## 12. Phase 3: Caching Architecture
 
 ```mermaid
 graph TB
@@ -370,7 +503,7 @@ graph TB
 
 ---
 
-## 11. OpenRouter API Integration
+## 13. OpenRouter API Integration
 
 ```mermaid
 sequenceDiagram
@@ -393,7 +526,7 @@ sequenceDiagram
 
 ---
 
-## 12. Phase 3: Web UI Architecture
+## 14. Phase 4: Web UI Architecture
 
 ```mermaid
 graph TB
@@ -436,7 +569,7 @@ graph TB
 
 ---
 
-## 13. Cost Breakdown by Component
+## 15. Cost Breakdown by Component
 
 ```mermaid
 graph LR
@@ -461,7 +594,7 @@ graph LR
 
 ---
 
-## 14. Success Metrics Timeline
+## 16. Success Metrics Timeline
 
 ```mermaid
 timeline
@@ -469,14 +602,16 @@ timeline
     
     Phase 1 (Complete) : Query Gen < 2s : Skill Find < 3s : Enrichment < 3s : Total < 10s : Fallback works
     
-    Phase 2 (Planned) : Cache hit rate > 60% : Latency with cache < 5s : Reranker +20% quality : Rate limit 10 req/min
+    Phase 2 (Planned) : Context extraction < 300ms : Precision > 90% : No duplicates : Top 5 relevance improved
     
-    Phase 3 (Future) : IDE ext 1k+ installs : API 100 req/sec : Public dashboard : npm package available
+    Phase 3 (Planned) : Cache hit rate > 60% : Latency with cache < 5s : Reranker +20% quality : Rate limit 10 req/min
+    
+    Phase 4 (Future) : IDE ext 1k+ installs : API 100 req/sec : Public dashboard : npm package available
 ```
 
 ---
 
-## 15. Deployment & Environment
+## 17. Deployment & Environment
 
 ```mermaid
 graph TB
