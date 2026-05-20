@@ -37,6 +37,15 @@ async function addParallelSkills(repoRoot: string) {
   }
 }
 
+async function addMarkitdownSkill(repoRoot: string) {
+  const skillDir = join(repoRoot, "skills", "shared", "markitdown-document-conversion");
+  await mkdir(skillDir, { recursive: true });
+  await writeFile(
+    join(skillDir, "SKILL.md"),
+    "---\nname: markitdown-document-conversion\ndescription: Convert documents with MarkItDown\n---\n",
+  );
+}
+
 function cliEnv(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>, extra?: Record<string, string>) {
   return {
     AGENTS_REPO_ROOT: fixture.repoRoot,
@@ -59,7 +68,7 @@ describe("bgng extensions", () => {
     expect(show.exitCode).toBe(0);
     const listParsed = JSON.parse(list.stdout) as Array<{ id: string }>;
     const showParsed = JSON.parse(show.stdout) as { id: string; scopes: string[] };
-    expect(listParsed.map((extension) => extension.id)).toEqual(["beads", "parallel"]);
+    expect(listParsed.map((extension) => extension.id)).toEqual(["beads", "parallel", "markitdown"]);
     expect(showParsed.id).toBe("beads");
     expect(showParsed.scopes).toContain("project");
   });
@@ -122,6 +131,41 @@ describe("bgng extensions", () => {
     expect(parsed.mcpServers.find((server) => server.name === "parallel-search")?.active).toBe(true);
   });
 
+  test("status reports markitdown runtime and installer commands", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    await addMarkitdownSkill(fixture.repoRoot);
+    const binDir = join(fixture.root, "bin");
+    await mkdir(binDir, { recursive: true });
+    await createExecutable(binDir, "markitdown", 'if [ "$1" = "--version" ]; then echo "markitdown 0.1.5"; else /bin/cat; fi');
+    await createExecutable(binDir, "uv", "echo uv");
+
+    const result = await runAgentsCli(["extensions", "status", "markitdown", "--json"], cliEnv(fixture, { PATH: binDir }));
+
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout) as {
+      id: string;
+      available: boolean;
+      commands: Array<{ name: string; available: boolean }>;
+    };
+    expect(parsed.id).toBe("markitdown");
+    expect(parsed.available).toBe(true);
+    expect(parsed.commands.find((command) => command.name === "markitdown")?.available).toBe(true);
+    expect(parsed.commands.find((command) => command.name === "uv")?.available).toBe(true);
+  });
+
+  test("status marks markitdown unavailable when runtime is missing", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+
+    const result = await runAgentsCli(["extensions", "status", "markitdown", "--json"], cliEnv(fixture, { PATH: fixture.root }));
+
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout) as { available: boolean; warnings: string[] };
+    expect(parsed.available).toBe(false);
+    expect(parsed.warnings).toContain("missing required command: markitdown");
+  });
+
   test("doctor reports beads setup issues without mutating", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
@@ -164,6 +208,47 @@ describe("bgng extensions", () => {
     expect(result.exitCode).toBe(0);
     const parsed = JSON.parse(result.stdout) as { issues: string[] };
     expect(parsed.issues).toContain("enabled Parallel MCP server is missing from registry: parallel-task");
+  });
+
+  test("doctor reports missing MarkItDown runtime", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+
+    const result = await runAgentsCli(["extensions", "doctor", "markitdown", "--json"], cliEnv(fixture, { PATH: fixture.root }));
+
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout) as { issues: string[] };
+    expect(parsed.issues.some((issue) => issue.includes("markitdown command is not available"))).toBe(true);
+  });
+
+  test("doctor smoke-checks MarkItDown runtime", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    await addMarkitdownSkill(fixture.repoRoot);
+    const binDir = join(fixture.root, "bin");
+    await mkdir(binDir, { recursive: true });
+    await createExecutable(binDir, "markitdown", 'if [ "$1" = "--version" ]; then echo "markitdown 0.1.5"; else /bin/cat; fi');
+
+    const result = await runAgentsCli(["extensions", "doctor", "markitdown", "--json"], cliEnv(fixture, { PATH: binDir }));
+
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout) as { issues: string[] };
+    expect(parsed.issues).toEqual([]);
+  });
+
+  test("doctor reports MarkItDown smoke-check failures", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    await addMarkitdownSkill(fixture.repoRoot);
+    const binDir = join(fixture.root, "bin");
+    await mkdir(binDir, { recursive: true });
+    await createExecutable(binDir, "markitdown", "exit 9");
+
+    const result = await runAgentsCli(["extensions", "doctor", "markitdown", "--json"], cliEnv(fixture, { PATH: binDir }));
+
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout) as { issues: string[] };
+    expect(parsed.issues.some((issue) => issue.includes("markitdown --version failed"))).toBe(true);
   });
 
   test("setup beads dry-run prints planned commands without mutation", async () => {
@@ -264,5 +349,123 @@ describe("bgng extensions", () => {
     expect(parsed.projectConfigChange?.extensionName).toBe("parallel");
     expect(parsed.projectConfigChange?.config?.skills).toBe(false);
     expect(existsSync(join(projectDir, ".agents", "bgng", "config.json"))).toBe(false);
+  });
+
+  test("setup markitdown dry-run previews uv install without mutation", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const projectDir = join(fixture.root, "project");
+    await mkdir(projectDir, { recursive: true });
+    const binDir = join(fixture.root, "bin");
+    const logPath = join(fixture.root, "uv.log");
+    await mkdir(binDir, { recursive: true });
+    await createExecutable(binDir, "uv", `echo "$@" >> "${logPath}"`);
+
+    const result = await runAgentsCli(
+      ["extensions", "setup", "markitdown", "--dry-run", "--install"],
+      cliEnv(fixture, { PATH: binDir }),
+      projectDir,
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("uv tool install --python 3.12 markitdown[all]");
+    expect(existsSync(logPath)).toBe(false);
+    expect(existsSync(join(projectDir, ".agents", "bgng", "config.json"))).toBe(false);
+  });
+
+  test("setup markitdown skips install when runtime already exists", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const projectDir = join(fixture.root, "project");
+    await mkdir(projectDir, { recursive: true });
+    const binDir = join(fixture.root, "bin");
+    const logPath = join(fixture.root, "uv.log");
+    await mkdir(binDir, { recursive: true });
+    await createExecutable(binDir, "markitdown", 'if [ "$1" = "--version" ]; then echo "markitdown 0.1.5"; else /bin/cat; fi');
+    await createExecutable(binDir, "uv", `echo "$@" >> "${logPath}"`);
+
+    const result = await runAgentsCli(
+      ["extensions", "setup", "markitdown", "--install"],
+      cliEnv(fixture, { PATH: binDir }),
+      projectDir,
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(existsSync(logPath)).toBe(false);
+    const config = JSON.parse(await readFile(join(projectDir, ".agents", "bgng", "config.json"), "utf8")) as {
+      extensions?: { markitdown?: unknown };
+    };
+    expect(config.extensions?.markitdown).toEqual({ enabled: true, skills: true });
+  });
+
+  test("setup markitdown installs through uv when approved", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const projectDir = join(fixture.root, "project");
+    await mkdir(projectDir, { recursive: true });
+    const binDir = join(fixture.root, "bin");
+    const logPath = join(fixture.root, "uv.log");
+    await mkdir(binDir, { recursive: true });
+    await createExecutable(
+      binDir,
+      "uv",
+      [
+        `echo "$@" >> "${logPath}"`,
+        `/bin/cat > "${binDir}/markitdown" <<'EOF'`,
+        "#!/bin/sh",
+        'if [ "$1" = "--version" ]; then echo "markitdown 0.1.5"; else /bin/cat; fi',
+        "EOF",
+        `/bin/chmod +x "${binDir}/markitdown"`,
+      ].join("\n"),
+    );
+
+    const result = await runAgentsCli(
+      ["extensions", "setup", "markitdown", "--install"],
+      cliEnv(fixture, { PATH: binDir }),
+      projectDir,
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(await readFile(logPath, "utf8")).toContain("tool install --python 3.12 markitdown[all]");
+  });
+
+  test("setup markitdown requires explicit install decision without a TTY", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const projectDir = join(fixture.root, "project");
+    await mkdir(projectDir, { recursive: true });
+
+    const result = await runAgentsCli(["extensions", "setup", "markitdown"], cliEnv(fixture, { PATH: fixture.root }), projectDir);
+
+    expect(result.exitCode).not.toBe(0);
+    expect(`${result.stdout}\n${result.stderr}`).toContain("--install or --no-install");
+  });
+
+  test("setup markitdown reports missing uv when install is approved", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const projectDir = join(fixture.root, "project");
+    await mkdir(projectDir, { recursive: true });
+
+    const result = await runAgentsCli(["extensions", "setup", "markitdown", "--install"], cliEnv(fixture, { PATH: fixture.root }), projectDir);
+
+    expect(result.exitCode).not.toBe(0);
+    expect(`${result.stdout}\n${result.stderr}`).toContain("uv command is required");
+  });
+
+  test("setup markitdown can configure project while skipping install", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const projectDir = join(fixture.root, "project");
+    await mkdir(projectDir, { recursive: true });
+
+    const result = await runAgentsCli(["extensions", "setup", "markitdown", "--no-install"], cliEnv(fixture, { PATH: fixture.root }), projectDir);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("MarkItDown runtime is not available");
+    const config = JSON.parse(await readFile(join(projectDir, ".agents", "bgng", "config.json"), "utf8")) as {
+      extensions?: { markitdown?: unknown };
+    };
+    expect(config.extensions?.markitdown).toEqual({ enabled: true, skills: true });
   });
 });

@@ -3,11 +3,13 @@
 
 export type ExtensionScope = "global" | "project";
 export type ExtensionMode = "cli" | "skills" | "mcp" | "hooks";
+export type ExtensionCommandPurpose = "runtime" | "installer";
 
 export interface ExtensionCommandRequirement {
   name: string;
   required: boolean;
   installHints: string[];
+  purpose?: ExtensionCommandPurpose;
 }
 
 export interface ExtensionSkillReference {

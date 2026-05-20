@@ -63,6 +63,34 @@ const extensions: ExtensionDefinition[] = [
       { label: "Parallel MCP", url: "https://docs.parallel.ai/integrations/mcp/quickstart" },
     ],
   },
+  {
+    id: "markitdown",
+    displayName: "MarkItDown",
+    description: "Document-to-Markdown conversion through Microsoft's markitdown CLI.",
+    scopes: ["global", "project"],
+    defaultModes: ["cli", "skills"],
+    commands: [
+      {
+        name: "markitdown",
+        required: true,
+        purpose: "runtime",
+        installHints: ["uv tool install --python 3.12 'markitdown[all]'"],
+      },
+      {
+        name: "uv",
+        required: false,
+        purpose: "installer",
+        installHints: ["brew install uv", "curl -LsSf https://astral.sh/uv/install.sh | sh"],
+      },
+    ],
+    skills: [{ name: "markitdown-document-conversion", source: "repo", defaultIncluded: true }],
+    mcpServers: [],
+    docs: [
+      { label: "MarkItDown README", url: "https://github.com/microsoft/markitdown" },
+      { label: "MarkItDown PyPI", url: "https://pypi.org/project/markitdown/" },
+      { label: "uv tools", url: "https://docs.astral.sh/uv/concepts/tools/" },
+    ],
+  },
 ];
 
 export function listExtensions() {

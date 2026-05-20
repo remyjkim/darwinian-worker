@@ -25,4 +25,28 @@ describe("core interactivity", () => {
     expect(result.mode).toBe("error");
     expect(result.message).toContain("TTY");
   });
+
+  test("resolves install decision mode for explicit MarkItDown setup flags", async () => {
+    const { resolveInstallDecisionMode } = await import("../cli/core/interactivity");
+
+    expect(resolveInstallDecisionMode({ install: true, noInstall: false, stdinIsTTY: false, stdoutIsTTY: false }).mode).toBe("install");
+    expect(resolveInstallDecisionMode({ install: false, noInstall: true, stdinIsTTY: false, stdoutIsTTY: false }).mode).toBe("skip");
+  });
+
+  test("rejects conflicting install flags", async () => {
+    const { resolveInstallDecisionMode } = await import("../cli/core/interactivity");
+
+    const result = resolveInstallDecisionMode({ install: true, noInstall: true, stdinIsTTY: true, stdoutIsTTY: true });
+    expect(result.mode).toBe("error");
+    expect(result.message).toContain("Use either --install or --no-install");
+  });
+
+  test("prompts only when install decision needs a TTY", async () => {
+    const { resolveInstallDecisionMode } = await import("../cli/core/interactivity");
+
+    expect(resolveInstallDecisionMode({ install: false, noInstall: false, stdinIsTTY: true, stdoutIsTTY: true }).mode).toBe("prompt");
+    const result = resolveInstallDecisionMode({ install: false, noInstall: false, stdinIsTTY: false, stdoutIsTTY: false });
+    expect(result.mode).toBe("error");
+    expect(result.message).toContain("--install or --no-install");
+  });
 });

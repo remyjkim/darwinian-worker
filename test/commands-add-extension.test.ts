@@ -69,6 +69,37 @@ describe("bgng add extension", () => {
     expect(config.extensions?.beads).toEqual({ enabled: true, targets: ["codex"], includeSkill: true });
   });
 
+  test("adds MarkItDown semantic config without installing external tools", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const projectDir = join(fixture.root, "project");
+    await mkdir(projectDir, { recursive: true });
+
+    const result = await runAgentsCli(["add", "extension", "markitdown"], envFor(fixture), projectDir);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Added MarkItDown extension");
+    const config = JSON.parse(await readFile(join(projectDir, ".agents", "bgng", "config.json"), "utf8")) as {
+      extensions?: { markitdown?: unknown };
+    };
+    expect(config.extensions?.markitdown).toEqual({ enabled: true, skills: true });
+  });
+
+  test("adds MarkItDown extension with skills disabled", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const projectDir = join(fixture.root, "project");
+    await mkdir(projectDir, { recursive: true });
+
+    const result = await runAgentsCli(["add", "extension", "markitdown", "--skip-skills"], envFor(fixture), projectDir);
+
+    expect(result.exitCode).toBe(0);
+    const config = JSON.parse(await readFile(join(projectDir, ".agents", "bgng", "config.json"), "utf8")) as {
+      extensions?: { markitdown?: unknown };
+    };
+    expect(config.extensions?.markitdown).toEqual({ enabled: true, skills: false });
+  });
+
   test("fails for unknown extensions", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
