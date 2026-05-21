@@ -6,6 +6,7 @@ Use per-project config when one project should see a different effective `bgng` 
 
 This lets a project:
 
+- apply reusable Harness Cards
 - enable or disable MCP servers locally
 - add project-local MCP server definitions
 - enable extensions locally
@@ -70,6 +71,7 @@ Current schema:
 ```json
 {
   "version": 1,
+  "cards": ["@me/backend@^1.0.0"],
   "servers": {
     "server-name": { "enabled": false },
     "custom-server": {
@@ -94,6 +96,10 @@ Current schema:
       "enabled": true,
       "targets": ["codex", "claude"],
       "includeSkill": true
+    },
+    "markitdown": {
+      "enabled": true,
+      "skills": true
     }
   },
   "targets": {
@@ -106,10 +112,66 @@ Current schema:
 Supported top-level keys:
 
 - `version`
+- `cards`
 - `servers`
 - `skills`
 - `extensions`
 - `targets`
+
+## Cards
+
+`cards` is an ordered array of Harness Card refs. Supported refs include local
+store refs such as `@me/backend@^1.0.0`, exact refs such as
+`@me/backend@1.0.0`, and local development refs such as
+`file:../cards/backend`.
+
+Card refs are resolved into:
+
+```text
+<project>/.agents/bgng/card.lock
+```
+
+The lockfile is tracked with the project config. It records exact card versions,
+integrity, source paths, and the manifest used to compute effective state.
+
+Effective project state is:
+
+```text
+built-in defaults -> user library -> cards in declared order -> project overlay
+```
+
+Machine-only defaults from `~/.agents/bgng/machine.json` do not apply when a
+project config is present.
+
+## Project-local Materialization
+
+When `bgng write` runs inside a configured project, it writes downstream tool
+state under the project root:
+
+```text
+<project>/.claude/settings.json
+<project>/.claude/skills/
+<project>/.codex/config.toml
+<project>/.codex/skills/
+<project>/.cursor/mcp.json
+<project>/.agents/bgng/generated/cursor-mcp.json
+<project>/.agents/bgng/write-record.json
+```
+
+When `bgng write` runs outside a configured project, it writes machine-scope
+state under the home directory and store:
+
+```text
+~/.claude/
+~/.codex/
+~/.cursor/
+~/.agents/bgng/generated/
+~/.agents/bgng/global-write-record.json
+```
+
+The implementation verifies this with scope-isolation tests. External
+Claude/Codex/Cursor read behavior should still be rechecked before relying on a
+new downstream tool version in production.
 
 ## Merge Semantics
 
@@ -161,7 +223,7 @@ Resolution behavior:
 
 `extensions` stores semantic project intent for named capability families. Each extension owns how that intent maps to concrete write and setup behavior.
 
-Use `extensions.parallel` for project-scoped Parallel support. Use `extensions.beads` for project-scoped Beads support.
+Use `extensions.parallel` for project-scoped Parallel support, `extensions.beads` for project-scoped Beads support, and `extensions.markitdown` for project-scoped document conversion support.
 
 Parallel example:
 
@@ -205,6 +267,27 @@ Effects:
 - records that Beads is selected for the project
 - lets `bgng extensions status beads` and `doctor beads` report project activation state
 - derives `beads-task-tracking` only when `includeSkill` is `true`
+
+MarkItDown example:
+
+```json
+{
+  "version": 1,
+  "extensions": {
+    "markitdown": {
+      "enabled": true,
+      "skills": true
+    }
+  }
+}
+```
+
+Effects:
+
+- records that MarkItDown is selected for the project
+- lets `bgng extensions status markitdown` and `doctor markitdown` report runtime health
+- derives `markitdown-document-conversion` unless `skills` is `false`
+- does not install `markitdown` unless `bgng extensions setup markitdown --install` is used or an interactive setup prompt is accepted
 
 Lower-level `skills.include` and `skills.exclude` still work with extension-derived skill lists. If an extension derives a skill and `skills.exclude` names the same skill, `skills.exclude` wins.
 

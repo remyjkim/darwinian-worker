@@ -1,0 +1,114 @@
+---
+import { type CollectionEntry, getCollection } from "astro:content";
+import PageLayout from "@layouts/PageLayout.astro";
+import Container from "@components/Container.astro";
+import FormattedDate from "@components/FormattedDate.astro";
+import { readingTime } from "@lib/utils";
+import BackToPrev from "@components/BackToPrev.astro";
+
+export async function getStaticPaths() {
+  const docs = (await getCollection("docs"))
+    .filter((doc) => !doc.data.draft)
+    .sort((a, b) => a.data.order - b.data.order);
+  return docs.map((doc, index) => ({
+    params: { slug: doc.slug },
+    props: {
+      doc,
+      prevDoc: index > 0 ? docs[index - 1] : null,
+      nextDoc: index < docs.length - 1 ? docs[index + 1] : null,
+    },
+  }));
+}
+
+type Props = {
+  doc: CollectionEntry<"docs">;
+  prevDoc: CollectionEntry<"docs"> | null;
+  nextDoc: CollectionEntry<"docs"> | null;
+};
+
+const { doc, prevDoc, nextDoc } = Astro.props;
+const { Content } = await doc.render();
+---
+
+<PageLayout title={doc.data.title} description={doc.data.description}>
+  <Container>
+    <div class="animate">
+      <BackToPrev href="/">
+        Back to home
+      </BackToPrev>
+    </div>
+    <div class="space-y-1 my-10">
+      <div class="animate flex items-center gap-1.5">
+        <div class="font-base text-sm">
+          <FormattedDate date={doc.data.date} />
+        </div>
+        &bull;
+        <div class="font-base text-sm">
+          {readingTime(doc.body)}
+        </div>
+      </div>
+      <div class="animate text-2xl font-semibold text-black">
+        {doc.data.title}
+      </div>
+    </div>
+    <article class="animate">
+      <Content />
+    </article>
+    <div class="animate mt-12 pt-8 border-t border-black/10">
+      <div class="flex flex-wrap gap-4 justify-between items-center">
+        <div class="flex-1 min-w-0">
+          {prevDoc && (
+            <a
+              href={`/docs/${prevDoc.slug}`}
+              class="group flex items-center gap-2 text-sm hover:text-black transition-colors"
+            >
+              <svg
+                class="w-4 h-4 group-hover:-translate-x-1 transition-transform"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
+              <div class="flex flex-col">
+                <span class="text-xs opacity-75">Previous</span>
+                <span class="font-medium">{prevDoc.data.title}</span>
+              </div>
+            </a>
+          )}
+        </div>
+        <div class="flex-1 min-w-0 text-right">
+          {nextDoc && (
+            <a
+              href={`/docs/${nextDoc.slug}`}
+              class="group flex items-center justify-end gap-2 text-sm hover:text-black transition-colors"
+            >
+              <div class="flex flex-col">
+                <span class="text-xs opacity-75">Next</span>
+                <span class="font-medium">{nextDoc.data.title}</span>
+              </div>
+              <svg
+                class="w-4 h-4 group-hover:translate-x-1 transition-transform"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  </Container>
+</PageLayout>

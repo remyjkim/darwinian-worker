@@ -27,17 +27,18 @@ For focused subsystem docs, see:
 It operates on this model:
 
 - the packaged or checkout harness source provides built-in defaults
-- `~/.agents/library` is the reusable local inventory
-- `~/.agents/bgng/config.json` is the machine-wide harness baseline
+- `~/.agents/bgng` is the cards-era local store
+- `~/.agents/bgng/machine.json` is the machine-wide harness overlay
 - `<project>/.agents/bgng/config.json` is the project harness overlay
 - `~/.agents/skills` is the curated publication layer
-- package-backed skill bundles under `~/.agents/packages/skills` are optional extension sources
+- package-backed skill bundles under `~/.agents/bgng/skills` are optional extension sources after store migration
 - Claude/Codex/Cursor state is derived from that combined model
 
 The CLI is intentionally conservative:
 
 - write is non-destructive by default
-- stale state is reported, not silently removed
+- bgng-owned stale materialization is cleaned up through write records
+- user-owned stale state is reported, not silently removed
 - `doctor` is report-only
 - package-backed skills are made available first, then curated explicitly
 
@@ -81,6 +82,7 @@ Both modes execute the same command implementations.
 
 - the packaged or checkout harness source
 - `~/.agents`
+- `~/.agents/bgng`
 - `~/.claude`
 - `~/.codex`
 - `~/.cursor`
@@ -90,9 +92,11 @@ Important directories:
 
 - built-in shared skills: `skills/shared`
 - curated shared skills: `~/.agents/skills`
-- package-backed skill bundles: `~/.agents/packages/skills`
-- Claude downstream skills: `~/.claude/skills`
-- Codex downstream skills: `~/.codex/skills`
+- cards-era package-backed skill bundles: `~/.agents/bgng/skills`
+- pre-migration package-backed skill bundles: `~/.agents/packages/skills`
+- machine-scope Claude downstream skills: `~/.claude/skills`
+- machine-scope Codex downstream skills: `~/.codex/skills`
+- project-scope downstream state: `<project>/.claude`, `<project>/.codex`, and `<project>/.cursor`
 
 ## Recommended First-Run Sequence
 
@@ -124,6 +128,8 @@ Implemented groups:
 - `skills`
 - `mcp`
 - `extensions`
+- `card`
+- `store`
 - `status`
 - `doctor`
 
@@ -152,14 +158,62 @@ Use this when one project needs overrides without changing your central machine-
 `add` mutates the current project config. It does not make skills or MCP servers global defaults and does not silently mutate global target config.
 
 ```bash
-bgng add extension parallel
-bgng add extension parallel --mcp
-bgng add extension beads --target=codex,claude --include-skill
+bgng extensions add parallel
+bgng extensions add parallel --mcp
+bgng extensions add beads --target=codex,claude --include-skill
+bgng extensions add markitdown
 bgng add skill <skill-name-or-query>
 bgng add mcp <server-name>
 ```
 
 Use `--library` on skill and MCP adds to restrict lookup to local inventory only. Without `--library`, `add skill` can search configured npm skill catalogs and install an unambiguous result when `--yes` is supplied. `add mcp` can add from trusted MCP catalog files when configured and confirmed with `--yes`.
+
+## Card Commands
+
+Cards package reusable project harness intent. A project records card refs in
+`<project>/.agents/bgng/config.json`, exact resolutions in
+`<project>/.agents/bgng/card.lock`, and project-local materialized state under
+`<project>/.claude`, `<project>/.codex`, and `<project>/.cursor`.
+
+Authoring and publishing:
+
+```bash
+bgng card new @me/backend --no-git
+bgng card new backend --scope @me --no-git
+bgng card publish @me/backend
+bgng card show @me/backend@1.0.0
+bgng card diff @me/backend@1.0.0 @me/backend@1.1.0
+bgng card deprecate @me/backend@1.0.0
+```
+
+Project consumption:
+
+```bash
+bgng apply @me/backend@^1.0.0
+bgng card apply @me/backend@^1.0.0 --write
+bgng card add @me/observability@^1.0.0
+bgng card pin @me/backend@1.0.0
+bgng card remove @me/observability
+bgng card detach
+bgng card update
+bgng update
+bgng card outdated
+bgng card outdated --check
+bgng card list
+bgng card status --explain
+```
+
+Use `file:../path/to/card-source` refs for local card development.
+
+Machine-readable card output is available on inspection commands:
+
+```bash
+bgng card show @me/backend@1.0.0 --json
+bgng card list --json
+bgng card diff @me/backend@1.0.0 @me/backend@1.1.0 --json
+bgng card outdated --json
+bgng card status --json
+```
 
 ## Search Commands
 
@@ -194,11 +248,11 @@ bgng library defaults add mcp <server-name>
 bgng library defaults remove mcp <server-name>
 ```
 
-`library add skill` installs a package-backed skill bundle under `~/.agents/packages/skills`. It does not add the skill to the current project; use `bgng add skill <skill-name>` for that.
+`library add skill` installs a package-backed skill bundle under the active store (`~/.agents/bgng/skills` in the cards-era layout, or the legacy package cache before migration). It does not add the skill to the current project; use `bgng add skill <skill-name>` for that.
 
-`library add mcp` registers a reusable MCP definition under `~/.agents/library/mcp-servers.json`. It does not activate the MCP globally or for a project.
+`library add mcp` registers a reusable MCP definition in the active MCP library (`~/.agents/bgng/mcp-servers/<id>.json` in the cards-era layout, or the legacy MCP library before migration). It does not activate the MCP globally or for a project.
 
-`library defaults add` makes an available skill or MCP server active globally by writing user config under `~/.agents/bgng/config.json`. Use project `bgng add ...` when only the current project should use something.
+`library defaults add` makes an available skill or MCP server active globally by writing machine config under `~/.agents/bgng/machine.json` in the cards-era layout. Use project `bgng add ...` when only the current project should use something.
 
 ## Write Command
 
@@ -211,9 +265,61 @@ bgng write --json
 bgng write --target=claude
 bgng write --mcp-only
 bgng write --skills-only
+bgng write --force
 ```
 
-`write` is the primary one-way materialization command. It reads global config, project config, and local inventory, then writes effective state into downstream tools.
+`write` is the primary one-way materialization command. It reads global config, project config, card locks, and local inventory, then writes effective state into downstream tools.
+
+When run inside a project with `<project>/.agents/bgng/config.json`, `write`
+materializes project-local state under `<project>/.claude`,
+`<project>/.codex`, and `<project>/.cursor`. Outside a configured project, it
+materializes machine-scope state under `~/.claude`, `~/.codex`, and `~/.cursor`.
+
+Write records make cleanup explicit:
+
+- project writes use `<project>/.agents/bgng/write-record.json`
+- machine writes use `~/.agents/bgng/global-write-record.json`
+- bgng-owned paths that leave the effective state are removed on the next write
+- user-owned replacements are preserved and reported
+- `--force` is only for overwriting drift inside bgng-managed file regions
+
+## Store Commands
+
+The cards-era local store lives under `~/.agents/bgng`.
+
+Inspect store state:
+
+```bash
+bgng store status
+bgng store status --json
+```
+
+Migrate a pre-cards layout:
+
+```bash
+bgng store migrate
+bgng store migrate --json
+bgng store migrate --yes
+bgng store migrate --cleanup-legacy-orphans
+bgng store migrate --cleanup-legacy-orphans --yes
+```
+
+`store migrate` is explicit. Ordinary commands warn when they detect a
+pre-cards layout, but they do not silently migrate it. Migration stages the new
+store, validates it, archives the old layout, then activates
+`~/.agents/bgng`.
+
+Legacy-to-current path mapping:
+
+| Legacy path | Cards-era path |
+|---|---|
+| `~/.agents/bgng/config.json` | `~/.agents/bgng/machine.json` |
+| `~/.agents/library/mcp-servers.json` | `~/.agents/bgng/mcp-servers/<id>.json` |
+| `~/.agents/packages/skills/` | `~/.agents/bgng/skills/` |
+
+Use `--cleanup-legacy-orphans` when you want migration to remove bgng-owned
+legacy downstream skill symlinks that point into archived or migrated storage.
+It preserves non-owned symlinks and reports warnings instead of guessing.
 
 ## Scan Command
 
@@ -275,7 +381,7 @@ bgng skills packages show <package-name> --json
 
 Behavior:
 
-- a bundle is ingested into the managed cache under `~/.agents/packages/skills`
+- a bundle is ingested into the active managed cache (`~/.agents/bgng/skills` after store migration, legacy `~/.agents/packages/skills` before migration)
 - adding a bundle does not curate or write any skill automatically
 - bundles are content sources; `bgng` remains the only supported write and curation surface
 
@@ -305,8 +411,8 @@ This removes the skill from `~/.agents/skills`.
 
 Important:
 
-- it does not automatically prune downstream tool symlinks
-- downstream cleanup is intentionally not destructive by default
+- the next `bgng write` removes bgng-owned downstream links recorded in the write record
+- user-owned replacements are preserved and reported
 
 ### Write skills downstream
 
@@ -329,8 +435,8 @@ bgng write --skills-only --json
 Behavior:
 
 - installs missing downstream skill symlinks
-- reports stale downstream skill symlinks
-- does not prune stale symlinks automatically
+- removes bgng-owned symlinks that left the effective state
+- reports user-owned stale downstream skill paths instead of deleting them
 - respects per-project skill exclude lists
 - respects per-project skill include lists for repo-native and installed package-backed skills
 - respects project extension-derived skill includes, such as `extensions.parallel`
@@ -512,10 +618,40 @@ Safety constraints:
 - setup never runs `bd doctor --fix`
 - Beads MCP is optional and not enabled by setup
 
+### Set up MarkItDown
+
+Preview:
+
+```bash
+bgng extensions setup markitdown --dry-run
+```
+
+Run interactively:
+
+```bash
+bgng extensions setup markitdown
+```
+
+When `markitdown` is missing, interactive setup asks once before installing through uv. Scripts must choose explicitly:
+
+```bash
+bgng extensions setup markitdown --install
+bgng extensions setup markitdown --no-install
+```
+
+The guarded install command is:
+
+```bash
+uv tool install --python 3.12 'markitdown[all]'
+```
+
+Setup writes semantic project config under `extensions.markitdown`. When skills are enabled, write derives `markitdown-document-conversion` for the project without global skill curation.
+
 ### Current extensions
 
 - `beads`: project-scoped support for Beads issue tracking through the `bd` CLI, Beads setup recipes, and the repo-native `beads-task-tracking` skill
 - `parallel`: project-selectable support for Parallel through existing CLI-backed skills and optional `parallel-search` / `parallel-task` MCP servers
+- `markitdown`: project-selectable document conversion through Microsoft's `markitdown` CLI and the repo-native `markitdown-document-conversion` skill
 
 ## Status Command
 
@@ -524,6 +660,12 @@ Use:
 ```bash
 bgng status
 bgng status --json
+bgng status --explain
+bgng status --why skill:<name>
+bgng status --why server:<name>
+bgng status --why extension:<name>
+bgng status --why target:<name>
+bgng status --why card:<name>
 ```
 
 What it reports:
@@ -538,6 +680,13 @@ What it reports:
 - installed package-backed bundle counts
 - active project config path when one is in scope
 - project override summary when one is active
+- cards and locked versions when project cards are present
+- store status
+- write-record status
+
+Use `--explain` for provenance across cards, skills, MCP servers, targets, and
+write records. Use `--why <category>:<name>` when you need a focused answer for
+one active item.
 
 ## Doctor Command
 
@@ -554,13 +703,18 @@ What it reports:
 - stale skill symlinks
 - MCP drift indicators
 - unknown global default references
+- store and card lock issues
+- write-record ownership issues
 - project config issues
 
 Typical project-config issues include:
 
 - unknown server references
 - unknown skill references
+- unknown extension references
 - stale project skill overrides
+- card refs that cannot be resolved
+- card manifests that reference unavailable skills
 
 `doctor` is report-only. It does not auto-fix or auto-prune.
 
@@ -616,6 +770,7 @@ bgng doctor
 
 - `bd` for Beads project issue tracking
 - `parallel-cli` for Parallel-backed skills
+- `markitdown` for MarkItDown-backed document conversion
 - `markdownify-mcp` for local markdown extraction workflows
 
 These are optional and machine-dependent. Their absence should not block the baseline CLI and write model.
@@ -623,7 +778,7 @@ These are optional and machine-dependent. Their absence should not block the bas
 ## Current Limits
 
 - `doctor` is report-only
-- downstream stale symlinks are reported, not pruned
+- remote card registry fetching and bundle intersection resolution are not active command behavior yet
 - package-backed bundle update/remove lifecycle is not implemented yet
 - package-backed bundles are extension sources, not authoritative write CLIs
 - per-project `skills.include` requires skill names to resolve uniquely across repo-native and installed package-backed sources
