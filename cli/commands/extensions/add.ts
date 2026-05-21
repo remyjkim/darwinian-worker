@@ -1,4 +1,4 @@
-// ABOUTME: Implements project-first extension activation through `bgng add extension`.
+// ABOUTME: Implements project-first extension activation through `bgng extensions add`.
 // ABOUTME: Writes semantic project config without running external setup commands.
 
 import { Option, UsageError } from "clipanion";
@@ -10,8 +10,8 @@ import { projectConfigPath, setProjectExtensionConfig } from "../../core/project
 import { renderJson } from "../../core/output";
 import { BaseCommand } from "../base";
 
-export class AddExtensionCommand extends BaseCommand {
-  static override paths = [["add", "extension"]];
+export class ExtensionsAddCommand extends BaseCommand {
+  static override paths = [["extensions", "add"]];
 
   static override usage = BaseCommand.Usage({
     category: "Add",
@@ -26,9 +26,9 @@ export class AddExtensionCommand extends BaseCommand {
       --include-skill are Beads-oriented project settings.
     `,
     examples: [
-      ["Enable Parallel in this project", "bgng add extension parallel"],
-      ["Enable Beads with its project skill", "bgng add extension beads --include-skill"],
-      ["Preview a MarkItDown project config change", "bgng add extension markitdown --dry-run"],
+      ["Enable Parallel in this project", "bgng extensions add parallel"],
+      ["Enable Beads with its project skill", "bgng extensions add beads --include-skill"],
+      ["Preview a MarkItDown project config change", "bgng extensions add markitdown --dry-run"],
     ],
   });
 
