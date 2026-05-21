@@ -47,6 +47,10 @@ export class WriteCommand extends BaseCommand {
     description: "Limit write to one target.",
   });
 
+  force = Option.Boolean("--force", false, {
+    description: "Overwrite drift in bgng-managed regions.",
+  });
+
   async execute() {
     if (this.mcpOnly && this.skillsOnly) {
       throw new UsageError("Use either --mcp-only or --skills-only, not both.");
@@ -55,16 +59,23 @@ export class WriteCommand extends BaseCommand {
       throw new UsageError(`Unsupported target: ${this.target}`);
     }
 
-    const result = await syncRepository({
-      repoRoot: this.context.repoRoot,
-      agentsDir: this.context.agentsDir,
-      homeDir: this.context.homeDir,
-      cwd: this.context.cwd,
-      dryRun: this.dryRun,
-      mcpOnly: this.mcpOnly,
-      skillsOnly: this.skillsOnly,
-      target: this.target as "claude" | "codex" | "cursor" | undefined,
-    });
+    let result;
+    try {
+      result = await syncRepository({
+        repoRoot: this.context.repoRoot,
+        agentsDir: this.context.agentsDir,
+        homeDir: this.context.homeDir,
+        cwd: this.context.cwd,
+        dryRun: this.dryRun,
+        mcpOnly: this.mcpOnly,
+        skillsOnly: this.skillsOnly,
+        target: this.target as "claude" | "codex" | "cursor" | undefined,
+        force: this.force,
+      });
+    } catch (error) {
+      this.context.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
 
     this.context.stdout.write(this.json ? renderJson(result) : renderSyncResult(result));
     return 0;

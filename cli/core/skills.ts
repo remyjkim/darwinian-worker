@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { resolveSkillScopeDirs, resolveToolPaths } from "./paths";
 import { ensureParentDir, lstatSafe, realpathSafe } from "./fs";
 import type { NormalizedSyncOptions, SyncResult, TargetName } from "./types";
+import type { ManagedPath } from "./write-record";
 import { listInstalledSkillBundles } from "./skill-packages";
 
 export type SkillScope = "shared" | "claude-only" | "codex-only" | "experimental";
@@ -242,8 +243,9 @@ export async function findStaleSymlinks(dirPath: string, desiredNames: Set<strin
 }
 
 export async function syncSkills(options: NormalizedSyncOptions, overrides?: SkillSyncOverrides): Promise<SyncResult> {
-  const result: SyncResult = { changes: [], warnings: [] };
-  const toolPaths = resolveToolPaths(options.homeDir);
+  const managedPaths: ManagedPath[] = [];
+  const result: SyncResult = { changes: [], warnings: [], managedPaths };
+  const toolPaths = resolveToolPaths(options.toolRoot ?? options.homeDir);
   const scopeDirs = resolveSkillScopeDirs(options.repoRoot);
   const curatedDir = join(options.agentsDir, "skills");
   const excluded = new Set(overrides?.exclude ?? []);
@@ -275,11 +277,15 @@ export async function syncSkills(options: NormalizedSyncOptions, overrides?: Ski
       const sourcePath = join(curatedDir, entry.name);
       if (!options.target || options.target === "claude") {
         desiredClaude.add(entry.name);
-        ensureDirSymlink(join(toolPaths.claudeSkills, entry.name), sourcePath, options.dryRun, result);
+        const linkPath = join(toolPaths.claudeSkills, entry.name);
+        ensureDirSymlink(linkPath, sourcePath, options.dryRun, result);
+        managedPaths.push({ path: `.claude/skills/${entry.name}`, kind: "symlink", target: sourcePath });
       }
       if (!options.target || options.target === "codex") {
         desiredCodex.add(entry.name);
-        ensureDirSymlink(join(toolPaths.codexSkills, entry.name), sourcePath, options.dryRun, result);
+        const linkPath = join(toolPaths.codexSkills, entry.name);
+        ensureDirSymlink(linkPath, sourcePath, options.dryRun, result);
+        managedPaths.push({ path: `.codex/skills/${entry.name}`, kind: "symlink", target: sourcePath });
       }
     }
   }
@@ -294,7 +300,9 @@ export async function syncSkills(options: NormalizedSyncOptions, overrides?: Ski
         continue;
       }
       desiredClaude.add(entry.name);
-      ensureDirSymlink(join(toolPaths.claudeSkills, entry.name), join(scopeDirs.claudeOnly, entry.name), options.dryRun, result);
+      const targetPath = join(scopeDirs.claudeOnly, entry.name);
+      ensureDirSymlink(join(toolPaths.claudeSkills, entry.name), targetPath, options.dryRun, result);
+      managedPaths.push({ path: `.claude/skills/${entry.name}`, kind: "symlink", target: targetPath });
     }
   }
 
@@ -308,7 +316,9 @@ export async function syncSkills(options: NormalizedSyncOptions, overrides?: Ski
         continue;
       }
       desiredCodex.add(entry.name);
-      ensureDirSymlink(join(toolPaths.codexSkills, entry.name), join(scopeDirs.codexOnly, entry.name), options.dryRun, result);
+      const targetPath = join(scopeDirs.codexOnly, entry.name);
+      ensureDirSymlink(join(toolPaths.codexSkills, entry.name), targetPath, options.dryRun, result);
+      managedPaths.push({ path: `.codex/skills/${entry.name}`, kind: "symlink", target: targetPath });
     }
   }
 
@@ -320,12 +330,14 @@ export async function syncSkills(options: NormalizedSyncOptions, overrides?: Ski
       if (skill.scope === "shared" || skill.scope === "claude-only") {
         desiredClaude.add(skill.name);
         ensureDirSymlink(join(toolPaths.claudeSkills, skill.name), skill.path, options.dryRun, result);
+        managedPaths.push({ path: `.claude/skills/${skill.name}`, kind: "symlink", target: skill.path });
       }
     }
     if (!options.target || options.target === "codex") {
       if (skill.scope === "shared" || skill.scope === "codex-only") {
         desiredCodex.add(skill.name);
         ensureDirSymlink(join(toolPaths.codexSkills, skill.name), skill.path, options.dryRun, result);
+        managedPaths.push({ path: `.codex/skills/${skill.name}`, kind: "symlink", target: skill.path });
       }
     }
   }

@@ -138,11 +138,13 @@ export interface SyncOptions {
   mcpOnly?: boolean;
   skillsOnly?: boolean;
   target?: TargetName;
+  force?: boolean;
 }
 
 export interface SyncResult {
   changes: string[];
   warnings: string[];
+  managedPaths?: import("./write-record").ManagedPath[];
 }
 
 export interface NormalizedSyncOptions {
@@ -150,8 +152,12 @@ export interface NormalizedSyncOptions {
   agentsDir: string;
   homeDir: string;
   cwd?: string;
+  toolRoot?: string;
+  writeScope?: "machine" | "project";
+  generatedDir?: string;
   dryRun: boolean;
   mcpOnly: boolean;
   skillsOnly: boolean;
   target?: TargetName;
+  force?: boolean;
 }
