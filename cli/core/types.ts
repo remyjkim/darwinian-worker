@@ -68,6 +68,17 @@ export interface CanonicalConfig {
   optional: Record<string, boolean>;
 }
 
+export interface StoreMetadata {
+  schemaVersion: 1;
+  initAt: string;
+}
+
+export type MachineConfig = CanonicalConfig & {
+  authoring?: {
+    scope?: string;
+  };
+};
+
 export type ServerOverride =
   | { enabled: boolean }
   | RegistryServer;
@@ -83,6 +94,7 @@ export type ProjectExtensionConfig = {
 
 export interface ProjectConfig {
   version: number;
+  cards?: string[];
   servers?: Record<string, ServerOverride>;
   skills?: {
     include?: string[];
