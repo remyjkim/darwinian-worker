@@ -117,6 +117,8 @@ The user library is *not* the same as cards. It is the post-migration home of to
 
 The four novel properties — local-authoritative content, separate materialization, per-project overlay, materialization-state record — are what distinguish this from a pure package-manager analogy.
 
+The "uv/pnpm for harnesses" framing is the **user-facing analogy** because uv and pnpm are familiar entry points for "lockfile + immutable store + npm-style solver." Internally, the model is more precisely described as **Flox-style package management composed with dotfile-style materialization**. The Flox half — per-directory environments, local-authoritative content store, lockfile-pinned reproducibility, composable bundles — covers everything except how the resolved state reaches the consumer tools. The dotfile-manager half — symlinks, managed-field rewrites in mixed-ownership files, generated-file-plus-symlink — handles the materialization, which is fragmented across three mechanisms (§8.3) because the consumers (Claude Code, Codex, Cursor) don't share a single config convention. See `analyses/32_harness-cards-vs-flox-and-conda.md` §5 for the deep dive on the materialization mechanism and §6 for cards' position in the broader reproducible-environments stack.
+
 ### 4.3 Store layout
 
 ```text
@@ -987,6 +989,10 @@ These require a call during implementation but do not block the next iteration o
 | `mcpBundles` field on cards | Real demand for npm-distributed MCP server definitions |
 | Auto-migration on first invocation | Adoption metrics show users delaying `bgng store migrate` |
 | `bgng store repair` automated recovery | Migration failure rate justifies the surface |
+| Content-addressable store deduplication (`~/.agents/bgng/blobs/<sha256>/`) | Disk usage from many card versions with overlapping inline content becomes a real cost (per `analyses/32_…` R3) |
+| `--strict` flag for `bgng card apply` / `add` (escalate multi-card warnings to refusals) | Users running cards in CI want hard guarantees rather than warnings (per `analyses/32_…` R4) |
+| SLSA-style provenance attestation (`bgng card publish --with-provenance`, `bgng card apply --verify-provenance`) | Mixed-trust distribution environments need supply-chain assurance beyond `npm + sha256` (per `analyses/32_…` R7) |
+| Optional Flox bridge (`runtime.flox` manifest field, `bgng card apply --emit-flox`) | Adoption shows users layering Flox alongside cards and manually syncing `manifest.toml` (per `analyses/32_…` R10) |
 
 Principle: defer everything that can be added without breaking the v1 schema or store layout.
 

@@ -541,6 +541,36 @@ Project extension config is semantic:
 
 Lower-level `skills.include` and `skills.exclude` still work for repo-native and package-backed skills. If both extension-derived includes and explicit excludes mention the same skill, `skills.exclude` wins.
 
+## Layered Reproducibility
+
+bgng cards pin **harness state** — the skills, MCP servers, extensions, and downstream targets a project should run on. Cards do not pin the surrounding environment. For full environmental reproducibility, layer bgng with tools that own the other layers:
+
+```text
+Layer 8: bgng cards       — harness state (this tool)
+Layer 6: Docker / Compose — service stack (Postgres, Redis, etc.)
+Layer 4: Flox or Nix      — Node, Python, system libs, shell hooks
+Layer 3: asdf / mise / Flox — runtime / toolchain versions
+Layer 2: pnpm / Cargo / pip — app dependencies + lockfile
+```
+
+What cards pin:
+
+- card versions and integrity in `card.lock`
+- bundle versions (skill-bundle dependencies of cards)
+- inline content shipped in cards (skills, MCP server definitions) by sha256
+- the project overlay
+
+What cards do not pin:
+
+- agent tool versions (Claude Code, Codex, Cursor) — vendor-controlled distribution
+- MCP server runtime resolution if a card's `args` uses `npx -y <pkg>` without a version pin (the shipped registry pins these; card authors should too)
+- CLI dependencies of skills (`bd`, `markitdown`, `git`, etc.)
+- runtime, system libraries, or shell environment
+
+The recommended composition for a project that needs full reproducibility: use `bgng card apply` for the harness, and pair with Flox/Nix (or asdf/mise) at the shell layer to pin Node/Python/system libs, and Docker Compose at the service layer for runtime dependencies. Each tool pins what it owns.
+
+For background on the layered model and how cards composes with the broader landscape, see `.ai/knowledges/02_per-project-config-guide.md` and `.ai/analyses/32_harness-cards-vs-flox-and-conda.md`.
+
 ## Diagnostics
 
 Use `doctor` when local state looks wrong:

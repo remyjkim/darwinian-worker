@@ -433,6 +433,52 @@ bgng doctor
 bgng write
 ```
 
+## What Cards Pins And What Cards Does Not
+
+Harness Cards pin **harness state** — the skills, MCP server definitions, extensions, and downstream targets a project should run on. Cards do not pin the *surrounding* environment. Being explicit about this prevents the "partial pinning" trap where a lockfile creates the illusion of reproducibility without the substance.
+
+What cards pin (today):
+
+- Card versions in `card.lock` (byte-identical across machines via integrity hashes)
+- Bundle versions in `card.lock` (skill-bundle dependencies of cards)
+- Inline content shipped in a card (skills, MCP server definitions) by sha256
+- The project overlay (`servers`, `skills`, `extensions`, `targets` fields in `config.json`)
+
+What cards do not pin:
+
+- The bgng harness version itself (enforced loosely via `harness.minVersion`, not pinned exactly)
+- Claude Code / Codex / Cursor versions (vendor-controlled; not yet exposing a pin interface)
+- MCP server runtime resolution — `npx -y <pkg>` patterns pull the latest matching version at every invocation unless the version is pinned in `args`. The built-in `registry/mcp-servers.json` ships caret-pinned versions (e.g., `@upstash/context7-mcp@^2.0.0`) for this reason; card authors should do the same in their own `mcp-servers/<id>.json` definitions
+- CLI dependencies of skills (`bd` for Beads, `markitdown` for MarkItDown, etc.)
+- Operating-system-level dependencies of MCP servers
+- The shell environment, system libraries, or OS
+
+This is the same pinning surface a JavaScript project gets by committing `pnpm-lock.yaml` without pinning Node, system libs, or the host shell. The honest fix is to layer cards with a shell/toolchain manager (see Layered Reproducibility below).
+
+## Layered Reproducibility
+
+Reproducibility is best modeled as a stack of layers, with different tools owning different layers. Cards owns one layer; other tools own the others.
+
+```text
+Layer 8: Cards            (skills, MCP servers, extensions, downstream targets)
+Layer 6: Docker / Compose (service stack — Postgres, Redis, etc.)
+Layer 4: Flox or Nix      (Node, Python, system libs, shell hooks)
+Layer 3: implicit via Flox / asdf / mise (runtime versions)
+Layer 2: pnpm or Cargo    (app dependencies + lockfile)
+```
+
+Recommended composition for a project that needs full environmental reproducibility:
+
+- Pin app dependencies with `pnpm-lock.yaml` / `Cargo.lock` (Layer 2).
+- Pin runtime/toolchain versions with `asdf`, `mise`, or `Flox` (Layer 3 / 4).
+- Pin system libraries and the shell environment with `Flox` or `Nix` (Layer 4).
+- Pin service dependencies with `Docker Compose` (Layer 6).
+- Pin harness state with `bgng card apply` (Layer 8).
+
+Each layer's tool pins what it owns. Together they remove "works on my machine" friction across every typical dimension. Cards is the Layer-8 piece; it composes with — does not replace — the rest of the stack.
+
+For background on the layered-reproducibility model and where cards sits in the broader landscape, see `analyses/32_harness-cards-vs-flox-and-conda.md`.
+
 ## Anti-Patterns
 
 Avoid:
@@ -442,6 +488,7 @@ Avoid:
 - manually listing extension-owned skills when `extensions.<name>` is clearer
 - assuming `doctor` will auto-fix stale project state
 - using project config when a simple `bgng library defaults add ...` change would be clearer
+- assuming a card lockfile is full environmental reproducibility (see What Cards Pins above; layer with a Layer-3/4 tool for the rest)
 
 ## Relationship To Other Docs
 
