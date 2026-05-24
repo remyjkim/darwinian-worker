@@ -52,6 +52,7 @@ import { SkillsPackagesListCommand } from "./commands/skills/packages/list";
 import { SkillsPackagesShowCommand } from "./commands/skills/packages/show";
 import { SkillsUncurateCommand } from "./commands/skills/uncurate";
 import { WriteCommand } from "./commands/write";
+import { ExportSessionsCommand } from "./commands/export/sessions";
 import { detectLegacyLayout } from "./core/migration";
 
 const cli = new Cli({
@@ -105,6 +106,7 @@ cli.register(McpWriteCommand);
 cli.register(McpListCommand);
 cli.register(WriteCommand);
 cli.register(ScanCommand);
+cli.register(ExportSessionsCommand);
 cli.register(StoreMigrateCommand);
 cli.register(StoreStatusCommand);
 cli.register(StatusCommand);

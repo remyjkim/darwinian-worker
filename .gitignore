@@ -4,3 +4,4 @@ node_modules/
 .env
 .env.*
 *.tgz
+.agents/bgng/session-log-exports/

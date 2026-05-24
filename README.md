@@ -226,6 +226,10 @@ Skill commands:
 - `bgng skills packages list`
 - `bgng skills packages show <packageName>`
 
+Export commands:
+
+- `bgng export sessions [--dry-run] [--out <path>]`
+
 Most inspection commands support `--json`. Write commands support `--dry-run`.
 
 Use command help for the exact surface:
@@ -271,6 +275,14 @@ Limit write to one target:
 bgng write --target=claude
 bgng mcp write --target=cursor
 ```
+
+## How Export Works
+
+`bgng export sessions` discovers and archives all session log files (`.jsonl`) from Claude Code and Codex belonging to the current project. Sessions are discovered by matching project slug prefixes (derived by replacing every `/` in the project path with `-`); this automatically includes all git worktrees.
+
+The archive is written as an uncompressed `.tar` file with flat, source-prefixed paths: `claude/<file>.jsonl` for main Claude sessions, `claude/agents/<file>.jsonl` for Claude subagent logs, and `codex/<file>.jsonl` for Codex rollouts. The default destination path includes a timestamp: `.agents/bgng/session-log-exports/<timestamp>.tar`.
+
+Use `--dry-run` to preview files that would be archived without writing, or `--out <path>` to override the archive destination. Missing source roots like `~/.claude/projects/` or `~/.codex/sessions/` are skipped silently and do not produce an error.
 
 ## MCP Registry
 
