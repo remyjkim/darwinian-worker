@@ -5,3 +5,4 @@ node_modules/
 .env.*
 *.tgz
 .agents/bgng/session-log-exports/
+.DS_Store
