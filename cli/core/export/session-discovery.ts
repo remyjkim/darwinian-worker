@@ -37,7 +37,7 @@ export async function resolveProjectRoot(cwd: string): Promise<string> {
   }
 }
 
-// Leading dash is intentional: Claude encodes "/" as "-", so "/Users/..." → "-Users-..."
+// Leading dash is intentional: Claude encodes path separators as "-", so an absolute path like "/foo/bar" becomes "-foo-bar".
 export function deriveProjectSlug(projectRoot: string): string {
   return projectRoot.replaceAll("/", "-");
 }
