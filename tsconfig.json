@@ -29,5 +29,13 @@
   "exclude": [
     "skills/shared/systematic-debugging/condition-based-waiting-example.ts",
     "docs-astro"
+  ],
+  "include": [
+    "cli/**/*.ts",
+    "scripts/**/*.ts",
+    "sync-mcp.ts",
+    "test/**/*.ts",
+    "skills/shared/**/*.ts",
+    "skills/shared/**/*.js"
   ]
 }
