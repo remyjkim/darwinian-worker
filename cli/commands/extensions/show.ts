@@ -12,6 +12,16 @@ export class ExtensionsShowCommand extends BaseCommand {
   static override usage = BaseCommand.Usage({
     category: "Extensions",
     description: "Show one supported extension family.",
+    details: `
+      Shows one extension definition: id, description, scopes, default modes,
+      external command prerequisites, associated skills, MCP servers, and docs
+      links. This is metadata only; use extensions status or extensions doctor
+      to inspect local availability and project state.
+    `,
+    examples: [
+      ["Show Beads metadata", "bgng extensions show beads"],
+      ["Show Parallel metadata as JSON", "bgng extensions show parallel --json"],
+    ],
   });
 
   extensionName = Option.String({ required: true });

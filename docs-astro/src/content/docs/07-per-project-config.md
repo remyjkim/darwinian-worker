@@ -1,0 +1,114 @@
+---
+title: "Per-Project Config"
+description: "Repository-specific overrides for agent behavior."
+date: 2026-04-28
+order: 7
+---
+
+## Creating a Project Config
+
+Use per-project config when one project needs a different effective view than the global default.
+
+```bash
+cd /path/to/project
+bgng init
+```
+
+This creates:
+
+```text
+<project>/.agents/bgng/config.json
+```
+
+## Capabilities
+
+Project config can:
+
+- Apply reusable Harness Cards
+- Enable or disable MCP servers for one project
+- Add project-local MCP server definitions
+- Enable extensions such as Parallel, Beads, or MarkItDown for one project
+- Include or exclude skills during write
+- Enable or disable targets locally
+
+## Discovery
+
+Project config is applied by `bgng write`, `bgng mcp list`, `bgng mcp write`, `bgng status`, `bgng doctor`, and extension status/doctor/setup commands.
+
+Discovery walks upward from the current working directory and uses the nearest config file.
+
+## Example
+
+```json
+{
+  "version": 1,
+  "cards": ["@me/backend@^1.0.0"],
+  "extensions": {
+    "parallel": {
+      "enabled": true,
+      "skills": true,
+      "mcp": false
+    },
+    "beads": {
+      "enabled": true,
+      "targets": ["codex", "claude"],
+      "includeSkill": true
+    },
+    "markitdown": {
+      "enabled": true,
+      "skills": true
+    }
+  }
+}
+```
+
+## Cards And Lockfiles
+
+`cards` is an ordered array of Harness Card refs. The lockfile records exact
+resolved versions:
+
+```text
+<project>/.agents/bgng/card.lock
+```
+
+Track `config.json` and `card.lock` with the project. The write record is
+machine-local materialization state:
+
+```text
+<project>/.agents/bgng/write-record.json
+```
+
+When cards are present, effective state is:
+
+```text
+built-in defaults + user library + cards in lockfile order + project overlay
+```
+
+Machine-only defaults from `~/.agents/bgng/machine.json` do not apply inside a
+configured project.
+
+## Project-local Materialization
+
+When `bgng write` runs inside a configured project, it writes downstream state
+under the project root:
+
+```text
+<project>/.claude/settings.json
+<project>/.claude/skills/
+<project>/.codex/config.toml
+<project>/.codex/skills/
+<project>/.cursor/mcp.json
+<project>/.agents/bgng/generated/cursor-mcp.json
+```
+
+## Skill Include / Exclude
+
+Lower-level `skills.include` and `skills.exclude` work for repo-native and package-backed skills. If both extension-derived includes and explicit excludes mention the same skill, `skills.exclude` wins.
+
+## Useful Workflow
+
+```bash
+bgng status
+bgng write --dry-run
+bgng doctor
+```

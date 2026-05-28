@@ -43,6 +43,19 @@ export class LibraryAddMcpCommand extends BaseCommand {
   static override usage = BaseCommand.Usage({
     category: "Library",
     description: "Add an MCP server to the local library.",
+    details: `
+      Adds an MCP server definition, or one selected server from a multi-server
+      JSON file, to the local reusable MCP library. This does not activate the
+      server in global defaults or in the current project.
+
+      Use --as to name a single-server file or to select one entry from a
+      multi-server file. Use --replace to overwrite an existing local entry.
+    `,
+    examples: [
+      ["Add a single-server definition", "bgng library add mcp ./github-mcp.json --as github"],
+      ["Select one server from a multi-server file", "bgng library add mcp ./registry.json --as github"],
+      ["Preview a replacement", "bgng library add mcp ./github-mcp.json --as github --replace --dry-run"],
+    ],
   });
 
   spec = Option.String({ required: true });

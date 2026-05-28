@@ -12,6 +12,17 @@ export class SkillsListCommand extends BaseCommand {
   static override usage = BaseCommand.Usage({
     category: "Skills",
     description: "List repo skills with scope and curation status.",
+    details: `
+      Lists every skill bgng can see, including repo-native skills and
+      package-backed skills. Shows each skill's scope and whether it is curated
+      into ~/.agents/skills or linked into downstream tools.
+
+      This command is read-only.
+    `,
+    examples: [
+      ["List skills", "bgng skills list"],
+      ["List skills as JSON", "bgng skills list --json"],
+    ],
   });
 
   json = Option.Boolean("--json", false, {

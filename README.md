@@ -12,7 +12,7 @@ The package is `beginning-harness`. The command is `bgng`.
 
 - skills and instructions that guide agent behavior
 - MCP servers and tool definitions that control capability access
-- extensions such as Parallel and Beads that bundle project-level setup and diagnostics
+- extensions such as Parallel, Beads, and MarkItDown that bundle project-level setup and diagnostics
 - machine-wide defaults for reusable local capabilities
 - project overlays for repository-specific agent behavior
 - downstream state for Claude Code, Codex, Cursor, and `~/.agents`
@@ -39,7 +39,7 @@ If you only need a single MCP config file for one tool, this project is probably
 - Bun 1.2+
 - Node.js for MCP servers that use `node`
 - npm when installing the published package or adding npm skill bundles
-- optional local tools such as `parallel-cli` or `markdownify-mcp` only when you enable those integrations
+- optional local tools such as `parallel-cli`, `markitdown`, or `markdownify-mcp` only when you enable those integrations
 
 ## Install
 
@@ -106,7 +106,7 @@ For a project-specific setup, start in the project directory:
 
 ```bash
 bgng init
-bgng add extension parallel
+bgng extensions add parallel
 bgng add skill <skill-name-or-query>
 bgng add mcp <server-name>
 bgng write --dry-run
@@ -133,7 +133,7 @@ The normal write path is conservative:
 
 - `bgng write --dry-run` previews changes
 - write creates or replaces managed symlinks and generated MCP config
-- stale downstream skill symlinks are reported, not deleted
+- BGNG-owned stale downstream skill symlinks are removed on the next write; user-owned replacements are preserved and warned
 - `bgng doctor` reports issues without fixing them
 
 ## Usage Modes
@@ -170,7 +170,6 @@ General commands:
 - `bgng doctor`
 - `bgng scan`
 - `bgng init`
-- `bgng add extension <name>`
 - `bgng add skill [name-or-query]`
 - `bgng add mcp [name-or-query]`
 - `bgng search skill <query>`
@@ -182,6 +181,8 @@ General commands:
 - `bgng library defaults list`
 - `bgng library defaults add skill <skillName>`
 - `bgng library defaults add mcp <serverName>`
+- `bgng library defaults remove skill <skillName>`
+- `bgng library defaults remove mcp <serverName>`
 - `bgng write`
 - `bgng extensions list`
 - `bgng extensions show <extensionName>`
@@ -189,6 +190,27 @@ General commands:
 - `bgng extensions doctor [extensionName]`
 - `bgng extensions setup beads`
 - `bgng extensions setup parallel`
+- `bgng extensions setup markitdown`
+- `bgng extensions add <extensionName>`
+- `bgng apply <cardRef>`
+- `bgng update`
+
+Card commands:
+
+- `bgng card new <name> --scope @scope`
+- `bgng card publish <name>`
+- `bgng card apply <cardRef> [--write]`
+- `bgng card add <cardRef> [--write]`
+- `bgng card pin <cardRef> [--write]`
+- `bgng card remove <name> [--write]`
+- `bgng card update [--write]`
+- `bgng card outdated [--check]`
+- `bgng card detach [--write]`
+- `bgng card list`
+- `bgng card show <cardRef>`
+- `bgng card status [--explain]`
+- `bgng card diff <beforeRef> <afterRef>`
+- `bgng card deprecate <cardRef>`
 
 MCP commands:
 
@@ -203,6 +225,10 @@ Skill commands:
 - `bgng skills packages add <packageSpec>`
 - `bgng skills packages list`
 - `bgng skills packages show <packageName>`
+
+Export commands:
+
+- `bgng export sessions [--dry-run] [--gzip] [--out <path>]`
 
 Most inspection commands support `--json`. Write commands support `--dry-run`.
 
@@ -236,6 +262,13 @@ bgng write --dry-run
 bgng write
 ```
 
+Wave 1 card behavior:
+
+- card-bundled skill content is authoritative for materialization and writes from the immutable card store path
+- if a card and a non-card source provide the same skill name, the card copy wins
+- `bgng write --dry-run` annotates each planned skill symlink with the winning resolution layer
+- unresolved included skill names fail `bgng write` before any downstream mutation
+
 Run only one side when needed:
 
 ```bash
@@ -249,6 +282,34 @@ Limit write to one target:
 bgng write --target=claude
 bgng mcp write --target=cursor
 ```
+
+## How Export Works
+
+`bgng export sessions` discovers and archives all session log files (`.jsonl`) from Claude Code and Codex belonging to the current project. Sessions are discovered by matching project slug prefixes (derived by replacing every `/` in the project path with `-`); this automatically includes all git worktrees.
+
+### Archive layout
+
+Archives use flat, source-prefixed member paths:
+
+- `claude/<file>.jsonl` — main Claude sessions
+- `claude/agents/<file>.jsonl` — Claude subagent logs
+- `codex/<file>.jsonl` — Codex rollouts
+
+The default destination is `.agents/bgng/session-log-exports/<timestamp>.tar` (or `.tar.gz` with `--gzip`). Use `--out <path>` to override the destination, or `--dry-run` to preview files without writing.
+
+### Upload-ready archives
+
+Pass `--gzip` to produce a `.tar.gz` directly. The recommended artifact for web upload is the `.tar.gz` form because it is smaller and travels well over HTTP.
+
+The archiver enforces explicit cleanliness guarantees:
+
+- macOS metadata is suppressed (`COPYFILE_DISABLE=1`, `--no-mac-metadata`) so no AppleDouble (`._*`) companions are emitted
+- every archive is validated after write — entries outside the `claude/`/`codex/` namespace, AppleDouble entries, `__MACOSX/`, `.DS_Store`, or other hidden dotfiles cause the command to fail and the polluted archive to be removed
+- archive member count must match the discovered input count
+
+**Do not manually recompress archives** (e.g. by Finder-zipping `.agents/bgng/session-log-exports/`). Manual repackaging bypasses these guarantees and can introduce AppleDouble sidecars that break downstream analyzers. Upload the file BGNG produces as-is.
+
+Missing source roots like `~/.claude/projects/` or `~/.codex/sessions/` are skipped silently and do not produce an error.
 
 ## MCP Registry
 
@@ -353,6 +414,7 @@ Current extensions:
 
 - `beads`: project-scoped Beads issue tracking support
 - `parallel`: project-selectable Parallel support over CLI-backed skills and optional MCP overlay
+- `markitdown`: document-to-Markdown conversion through Microsoft's MarkItDown CLI, with guarded uv installation
 
 ### Parallel
 
@@ -367,16 +429,47 @@ bgng extensions setup parallel --dry-run
 Enable the Parallel skills for the current project:
 
 ```bash
-bgng add extension parallel
+bgng extensions add parallel
 ```
 
 Enable project-scoped Parallel MCP as well:
 
 ```bash
-bgng add extension parallel --mcp
+bgng extensions add parallel --mcp
 ```
 
 This does not install or authenticate `parallel-cli`. `bgng extensions status parallel` and `bgng extensions doctor parallel` report missing CLI or MCP prerequisites.
+
+### MarkItDown
+
+MarkItDown support is CLI+skills-first. Selecting the extension for one project writes semantic config under `<project>/.agents/bgng/config.json`; `bgng write` then derives the `markitdown-document-conversion` skill for that project.
+
+Preview setup:
+
+```bash
+bgng extensions setup markitdown --dry-run
+```
+
+Run setup and choose interactively whether to install the missing CLI:
+
+```bash
+bgng extensions setup markitdown
+```
+
+For scripts:
+
+```bash
+bgng extensions setup markitdown --install
+bgng extensions setup markitdown --no-install
+```
+
+The install path is:
+
+```bash
+uv tool install --python 3.12 'markitdown[all]'
+```
+
+If the command is installed but not on PATH, run `uv tool update-shell` and restart the shell.
 
 ### Beads
 
@@ -433,7 +526,7 @@ Project config can:
 
 - enable or disable MCP servers for one project
 - add project-local MCP server definitions
-- enable extensions such as Parallel or Beads for one project
+- enable extensions such as Parallel, Beads, or MarkItDown for one project
 - include or exclude skills during write
 - enable or disable targets locally
 
@@ -464,12 +557,46 @@ Project extension config is semantic:
       "enabled": true,
       "targets": ["codex", "claude"],
       "includeSkill": true
+    },
+    "markitdown": {
+      "enabled": true,
+      "skills": true
     }
   }
 }
 ```
 
 Lower-level `skills.include` and `skills.exclude` still work for repo-native and package-backed skills. If both extension-derived includes and explicit excludes mention the same skill, `skills.exclude` wins.
+
+## Layered Reproducibility
+
+bgng cards pin **harness state** — the skills, MCP servers, extensions, and downstream targets a project should run on. Cards do not pin the surrounding environment. For full environmental reproducibility, layer bgng with tools that own the other layers:
+
+```text
+Layer 8: bgng cards       — harness state (this tool)
+Layer 6: Docker / Compose — service stack (Postgres, Redis, etc.)
+Layer 4: Flox or Nix      — Node, Python, system libs, shell hooks
+Layer 3: asdf / mise / Flox — runtime / toolchain versions
+Layer 2: pnpm / Cargo / pip — app dependencies + lockfile
+```
+
+What cards pin:
+
+- card versions and content-tree integrity in `card.lock`
+- per-card bundled skill attribution in `card.lock`
+- inline content shipped in cards (skills, MCP server definitions) by sha256 content hashing
+- the project overlay
+
+What cards do not pin:
+
+- agent tool versions (Claude Code, Codex, Cursor) — vendor-controlled distribution
+- MCP server runtime resolution if a card's `args` uses `npx -y <pkg>` without a version pin (the shipped registry pins these; card authors should too)
+- CLI dependencies of skills (`bd`, `markitdown`, `git`, etc.)
+- runtime, system libraries, or shell environment
+
+The recommended composition for a project that needs full reproducibility: use `bgng card apply` for the harness, and pair with Flox/Nix (or asdf/mise) at the shell layer to pin Node/Python/system libs, and Docker Compose at the service layer for runtime dependencies. Each tool pins what it owns.
+
+For background on the layered model and how cards composes with the broader landscape, see `.ai/knowledges/02_per-project-config-guide.md` and `.ai/analyses/32_harness-cards-vs-flox-and-conda.md`.
 
 ## Diagnostics
 
@@ -488,7 +615,7 @@ It reports:
 - missing generated config files
 - project config issues
 
-It does not mutate local state.
+It does not mutate local state. Unresolved `skills.include` names are a separate write-time contract: `bgng write` fails before mutation, while `doctor` reports the same problem in diagnostics output.
 
 ## Optional Extensions
 
@@ -499,6 +626,7 @@ Optional extensions include:
 - Beads project issue tracking through `bd`
 - Parallel CLI-backed skills
 - Parallel MCP overlay
+- MarkItDown document conversion through `markitdown`
 - local `markdownify-mcp`
 
 ### Parallel
@@ -545,9 +673,38 @@ Then run:
 bgng mcp write
 ```
 
+### MarkItDown
+
+MarkItDown is represented as a CLI-backed extension with a project skill:
+
+- runtime command: `markitdown`
+- installer command: `uv`
+- derived skill: `markitdown-document-conversion`
+
+Setup previews first:
+
+```bash
+bgng extensions setup markitdown --dry-run
+```
+
+When `markitdown` is missing, interactive setup asks once before installing. Scripts must choose explicitly:
+
+```bash
+bgng extensions setup markitdown --install
+bgng extensions setup markitdown --no-install
+```
+
+The guarded install command is:
+
+```bash
+uv tool install --python 3.12 'markitdown[all]'
+```
+
 ### Markdownify
 
 `markdownify` is treated as an optional local MCP dependency.
+
+It is separate from the `markitdown` CLI extension.
 
 The registry entry uses:
 
@@ -584,9 +741,28 @@ bun run verify:release --json
 
 Then read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a pull request.
 
+## Documentation Site
+
+The public documentation site lives in [docs-astro](./docs-astro). It is an Astro app with its own lockfile and scripts:
+
+```bash
+cd docs-astro
+bun install
+bun run dev
+bun run build
+bun run preview
+```
+
+Deployment uses the docs app's Cloudflare Pages script:
+
+```bash
+bun run deploy:pages
+```
+
 ## Documentation Map
 
 - [CONTRIBUTING.md](./CONTRIBUTING.md): contributor setup, verification, and pull request expectations
+- [docs-astro](./docs-astro): public Astro documentation site source
 - [docs/maintainers/README.md](./docs/maintainers/README.md): release and operational documentation for maintainers
 - [.ai/knowledges/01_agents-cli-usage-guide.md](./.ai/knowledges/01_agents-cli-usage-guide.md): detailed operator guide
 - [.ai/knowledges/02_per-project-config-guide.md](./.ai/knowledges/02_per-project-config-guide.md): per-project config reference

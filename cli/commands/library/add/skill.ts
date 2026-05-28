@@ -13,6 +13,18 @@ export class LibraryAddSkillCommand extends BaseCommand {
   static override usage = BaseCommand.Usage({
     category: "Library",
     description: "Add a skill bundle to the local library.",
+    details: `
+      Adds a package-backed skill bundle to the local library using the same
+      ingestion path used by catalog installs. This makes the bundle's skills
+      available to bgng but does not activate them in any project.
+
+      After adding a bundle, use bgng add skill or bgng skills curate to opt in
+      to specific skills.
+    `,
+    examples: [
+      ["Add a bundle from npm", "bgng library add skill @acme/skill-bundle"],
+      ["Add a bundle from a local path", "bgng library add skill ./bundle.tgz"],
+    ],
   });
 
   packageSpec = Option.String({ required: true });

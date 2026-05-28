@@ -17,7 +17,23 @@ export class InitCommand extends BaseCommand {
 
   static override usage = BaseCommand.Usage({
     category: "General",
-    description: "Create per-project configuration.",
+    description: "Create per-project configuration. In a TTY this runs guided setup; prompt-free modes write a bare config and warn if .gitignore excludes .agents.",
+    details: `
+      Writes <project>/.agents/bgng/config.json.
+
+      In a TTY, runs guided setup that can configure Parallel and Beads project
+      options. Outside a TTY, use --non-interactive or --minimal to write the
+      minimal { "version": 1 } config. Warns if .gitignore appears to exclude
+      .agents.
+
+      Use --force to overwrite an existing config. Use --guided to force the
+      interactive flow when stdin and stdout are TTYs.
+    `,
+    examples: [
+      ["First-time setup in an interactive shell", "bgng init"],
+      ["Minimal config without prompts", "bgng init --non-interactive"],
+      ["Re-run setup over an existing config", "bgng init --force --guided"],
+    ],
   });
 
   force = Option.Boolean("--force", false, {
@@ -25,7 +41,7 @@ export class InitCommand extends BaseCommand {
   });
 
   guided = Option.Boolean("--guided", false, {
-    description: "Force guided interactive project setup.",
+    description: "Force guided interactive project setup (the default in a TTY).",
   });
 
   nonInteractive = Option.Boolean("--non-interactive", false, {

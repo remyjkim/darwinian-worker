@@ -12,6 +12,16 @@ export class SkillsPackagesShowCommand extends BaseCommand {
   static override usage = BaseCommand.Usage({
     category: "Skills",
     description: "Show one installed package-backed skill bundle.",
+    details: `
+      Shows metadata for one installed package-backed skill bundle, including
+      the active version and the skills shipped by the bundle.
+
+      This command is read-only.
+    `,
+    examples: [
+      ["Show a bundle", "bgng skills packages show @acme/skills-sample"],
+      ["Show a bundle as JSON", "bgng skills packages show @acme/skills-sample --json"],
+    ],
   });
 
   packageName = Option.String({ required: true });

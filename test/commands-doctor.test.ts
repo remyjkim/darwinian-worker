@@ -4,7 +4,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { cleanupTempRoots, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -181,5 +181,29 @@ describe("bgng doctor", () => {
     const parsed = JSON.parse(result.stdout) as { projectConfigIssues: string[] };
     expect(parsed.projectConfigIssues).toContain('Unknown default skill: "missing-skill"');
     expect(parsed.projectConfigIssues).toContain('Unknown default MCP server: "missing-mcp"');
+  });
+
+  test("does not falsely report card-bundled-only skills as unknown", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    await publishCardWithSkills(fixture, { name: "@me/frontend", skills: ["polish"] });
+    const projectDir = join(fixture.root, "project");
+    const projectConfigPath = join(projectDir, ".agents", "bgng", "config.json");
+    await mkdir(dirname(projectConfigPath), { recursive: true });
+    await writeFile(
+      projectConfigPath,
+      JSON.stringify({ version: 1, cards: ["@me/frontend@^1.0.0"] }, null, 2),
+    );
+    expect((await runAgentsCli(["card", "update"], envFor(fixture), projectDir)).exitCode).toBe(0);
+
+    const result = await runAgentsCli(["doctor", "--json"], envFor(fixture), projectDir);
+
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout) as {
+      projectConfigIssues: string[];
+      cards?: { warnings?: string[] };
+    };
+    expect(parsed.projectConfigIssues).not.toContain('Unknown skill reference: "polish"');
+    expect(parsed.cards?.warnings ?? []).not.toContain("Card @me/frontend@1.0.0 references unavailable skills");
   });
 });

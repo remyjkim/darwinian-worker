@@ -17,7 +17,21 @@ export class AddMcpCommand extends BaseCommand {
 
   static override usage = BaseCommand.Usage({
     category: "Add",
-    description: "Add an MCP server to the current project.",
+    description: "Add an MCP server to the current project. Prompts in a TTY when no name is given; re-adding an already-default server is a safe no-op.",
+    details: `
+      Activates a known MCP server in the current project without mutating
+      machine-wide defaults. Looks up the server in the local library first;
+      with --yes, falls back to an unambiguous configured catalog match.
+
+      Prompts in a TTY when no query or name is given. Re-adding a server that
+      is already active by global default is a safe no-op and does not write a
+      project override.
+    `,
+    examples: [
+      ["Add a registry server to this project", "bgng add mcp context7"],
+      ["Accept an unambiguous catalog match", "bgng add mcp github --yes"],
+      ["Preview without writing project config", "bgng add mcp context7 --dry-run"],
+    ],
   });
 
   queryOrName = Option.String({ required: false });

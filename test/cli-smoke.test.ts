@@ -29,7 +29,7 @@ describe("CLI entrypoint", () => {
     expect(stdout).toContain("bgng write");
     expect(stdout).toContain("bgng mcp write");
     expect(stdout).toContain("bgng scan");
-    expect(stdout).not.toContain("bgng apply");
+    expect(stdout).toContain("bgng apply");
     expect(stdout).not.toContain("bgng mcp apply");
     expect(stdout).not.toContain("bgng sync");
     expect(stdout).not.toContain("bgng mcp sync");

@@ -12,6 +12,19 @@ export class WriteCommand extends BaseCommand {
   static override usage = BaseCommand.Usage({
     category: "General",
     description: "Write effective bgng config to downstream local agent tools.",
+    details: `
+      Reads the effective config from machine defaults, project overlays, and
+      extension-derived settings, then materializes it into enabled downstream
+      targets such as Claude, Codex, and Cursor.
+
+      Use --dry-run to preview planned changes. Use --mcp-only or --skills-only
+      to limit materialization to one surface. Use --target to write one target.
+    `,
+    examples: [
+      ["Preview all writes", "bgng write --dry-run"],
+      ["Write only MCP configuration", "bgng write --mcp-only"],
+      ["Write only to Claude", "bgng write --target=claude"],
+    ],
   });
 
   dryRun = Option.Boolean("--dry-run", false, {
@@ -34,6 +47,10 @@ export class WriteCommand extends BaseCommand {
     description: "Limit write to one target.",
   });
 
+  force = Option.Boolean("--force", false, {
+    description: "Overwrite drift in bgng-managed regions.",
+  });
+
   async execute() {
     if (this.mcpOnly && this.skillsOnly) {
       throw new UsageError("Use either --mcp-only or --skills-only, not both.");
@@ -42,16 +59,23 @@ export class WriteCommand extends BaseCommand {
       throw new UsageError(`Unsupported target: ${this.target}`);
     }
 
-    const result = await syncRepository({
-      repoRoot: this.context.repoRoot,
-      agentsDir: this.context.agentsDir,
-      homeDir: this.context.homeDir,
-      cwd: this.context.cwd,
-      dryRun: this.dryRun,
-      mcpOnly: this.mcpOnly,
-      skillsOnly: this.skillsOnly,
-      target: this.target as "claude" | "codex" | "cursor" | undefined,
-    });
+    let result;
+    try {
+      result = await syncRepository({
+        repoRoot: this.context.repoRoot,
+        agentsDir: this.context.agentsDir,
+        homeDir: this.context.homeDir,
+        cwd: this.context.cwd,
+        dryRun: this.dryRun,
+        mcpOnly: this.mcpOnly,
+        skillsOnly: this.skillsOnly,
+        target: this.target as "claude" | "codex" | "cursor" | undefined,
+        force: this.force,
+      });
+    } catch (error) {
+      this.context.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
 
     this.context.stdout.write(this.json ? renderJson(result) : renderSyncResult(result));
     return 0;

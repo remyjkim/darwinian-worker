@@ -12,6 +12,17 @@ export class McpWriteCommand extends BaseCommand {
   static override usage = BaseCommand.Usage({
     category: "MCP",
     description: "Write effective MCP configuration into enabled targets.",
+    details: `
+      Writes only the effective MCP configuration into enabled downstream
+      targets. This is equivalent to bgng write --mcp-only and shares the same
+      materialization engine.
+
+      Use --dry-run to preview changes. Use --target to write one target.
+    `,
+    examples: [
+      ["Preview MCP writes", "bgng mcp write --dry-run"],
+      ["Write MCP config to Claude only", "bgng mcp write --target=claude"],
+    ],
   });
 
   dryRun = Option.Boolean("--dry-run", false, {

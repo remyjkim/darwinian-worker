@@ -1,7 +1,8 @@
 {
   "name": "beginning-harness",
   "bin": {
-    "bgng": "cli/index.ts"
+    "bgng": "cli/index.ts",
+    "bgng-hx": "cli/index.ts"
   },
   "type": "module",
   "description": "Local meta-harness CLI for managing AI agent skills, MCP servers, extensions, defaults, and project overlays.",
@@ -43,10 +44,12 @@
     "verify:release": "bun run scripts/verify-release-readiness.ts"
   },
   "devDependencies": {
-    "@types/bun": "1.3.13"
+    "@types/bun": "1.3.13",
+    "@types/semver": "^7.7.1"
   },
   "dependencies": {
     "clipanion": "4.0.0-rc.4",
+    "semver": "^7.8.0",
     "smol-toml": "^1.6.1"
   }
 }

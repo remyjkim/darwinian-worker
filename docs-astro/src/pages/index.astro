@@ -1,0 +1,121 @@
+---
+import { getCollection } from "astro:content";
+import { Code } from "astro:components";
+import Container from "@components/Container.astro";
+import PageLayout from "@layouts/PageLayout.astro";
+import ArrowCard from "@components/ArrowCard.astro";
+import { HOME } from "@consts";
+
+const allDocs = (await getCollection("docs"))
+  .filter((doc) => !doc.data.draft)
+  .sort((a, b) => a.data.order - b.data.order);
+
+const gettingStarted = allDocs.find((d) => d.slug === "01-getting-started");
+const howApplyWorks = allDocs.find((d) => d.slug === "02-how-apply-works");
+const cliReference = allDocs.find((d) => d.slug === "03-cli-reference");
+const perProjectConfig = allDocs.find((d) => d.slug === "07-per-project-config");
+
+const featuredSlugs = new Set([
+  "01-getting-started",
+  "02-how-apply-works",
+  "03-cli-reference",
+  "07-per-project-config",
+]);
+const moreDocs = allDocs.filter((d) => !featuredSlugs.has(d.slug));
+---
+
+<PageLayout title={HOME.TITLE} description={HOME.DESCRIPTION}>
+  <Container>
+    <div class="space-y-16">
+      <section>
+        <h4 class="animate font-semibold text-accent-hover">
+          beginning-harness
+        </h4>
+        <article class="space-y-4">
+          <p class="animate">
+            One CLI to organize your agent skills, MCP servers, extensions, defaults, project overlays, downstream tool configs, and diagnostics. The package is <code>beginning-harness</code>. The command is <code>bgng</code>.
+          </p>
+          <p class="animate">
+            Agents are only as reliable as the harness around them. <code>beginning-harness</code> makes that harness explicit, inspectable, reusable, and safe to apply across
+            <a href="https://docs.anthropic.com/en/docs/claude-code" target="_blank" rel="noopener noreferrer" class="text-accent-hover hover:underline">Claude Code</a>,
+            <a href="https://openai.com/index/introducing-codex/" target="_blank" rel="noopener noreferrer" class="text-accent-hover hover:underline">Codex</a>, and
+            <a href="https://www.cursor.com/" target="_blank" rel="noopener noreferrer" class="text-accent-hover hover:underline">Cursor</a>.
+          </p>
+        </article>
+      </section>
+
+      <section class="animate space-y-6">
+        <h5 class="font-semibold text-black">
+          Install
+        </h5>
+        <div class="space-y-4">
+          <div>
+            <div class="text-sm font-semibold text-black/70 mb-1">Published package</div>
+            <Code code={`npm install -g beginning-harness\nbgng status`} lang="bash" theme="github-dark" />
+          </div>
+          <div>
+            <div class="text-sm font-semibold text-black/70 mb-1">From source</div>
+            <Code code={`git clone https://github.com/remyjkim/beginning-harness.git\ncd beginning-harness && bun install\nbun run bgng -- status`} lang="bash" theme="github-dark" />
+          </div>
+          <div>
+            <div class="text-sm font-semibold text-black/70 mb-1">Point global install at a checkout</div>
+            <Code code={`export AGENTS_REPO_ROOT=/path/to/beginning-harness\nbgng status`} lang="bash" theme="github-dark" />
+          </div>
+        </div>
+      </section>
+
+      <section class="animate space-y-4">
+        <ul class="flex flex-col gap-4">
+          {gettingStarted && (
+            <li>
+              <ArrowCard entry={gettingStarted} />
+            </li>
+          )}
+          {howApplyWorks && (
+            <li>
+              <ArrowCard entry={howApplyWorks} />
+            </li>
+          )}
+          {cliReference && (
+            <li>
+              <ArrowCard entry={cliReference} />
+            </li>
+          )}
+          {perProjectConfig && (
+            <li>
+              <ArrowCard entry={perProjectConfig} />
+            </li>
+          )}
+        </ul>
+      </section>
+
+      <section class="animate space-y-4">
+        <h5 class="font-semibold text-black">
+          What It Harnesses
+        </h5>
+        <ul class="space-y-2 text-sm text-black/70">
+          <li><span class="font-semibold text-black">Skills</span> — instructions that guide agent behavior</li>
+          <li><span class="font-semibold text-black">MCP servers</span> — tool definitions that control capability access</li>
+          <li><span class="font-semibold text-black">Extensions</span> — capability families like Parallel and Beads</li>
+          <li><span class="font-semibold text-black">Defaults</span> — machine-wide baseline for reusable capabilities</li>
+          <li><span class="font-semibold text-black">Project overlays</span> — repository-specific agent behavior</li>
+          <li><span class="font-semibold text-black">Downstream state</span> — generated configs for Claude, Codex, Cursor</li>
+          <li><span class="font-semibold text-black">Diagnostics</span> — drift detection before mutating files</li>
+        </ul>
+      </section>
+
+      <section class="animate space-y-4">
+        <h5 class="font-semibold text-black">
+          More
+        </h5>
+        <ul class="flex flex-col gap-4">
+          {moreDocs.map((doc) => (
+            <li>
+              <ArrowCard entry={doc} />
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
+  </Container>
+</PageLayout>

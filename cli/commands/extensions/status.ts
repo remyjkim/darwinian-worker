@@ -13,6 +13,17 @@ export class ExtensionsStatusCommand extends BaseCommand {
   static override usage = BaseCommand.Usage({
     category: "Extensions",
     description: "Show non-mutating extension status.",
+    details: `
+      Shows whether supported extensions are enabled in the current project and
+      whether their expected commands, skills, and MCP servers are present.
+      Reports on all extensions if no name is given.
+
+      This command is read-only.
+    `,
+    examples: [
+      ["Show all extension statuses", "bgng extensions status"],
+      ["Show one extension as JSON", "bgng extensions status markitdown --json"],
+    ],
   });
 
   extensionName = Option.String({ required: false });

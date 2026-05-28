@@ -41,7 +41,7 @@
   },
   "optional": {
     "markdownify": false,
-    "notion": false,
+    "notion": true,
     "slack": false
   }
 }

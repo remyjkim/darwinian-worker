@@ -19,6 +19,17 @@ export class LibraryDefaultsListCommand extends BaseCommand {
   static override usage = BaseCommand.Usage({
     category: "Library",
     description: "List machine-wide default library items.",
+    details: `
+      Lists machine-wide default skills and MCP servers. These defaults are
+      included in every effective config unless a project overlay disables or
+      overrides them.
+
+      This command is read-only.
+    `,
+    examples: [
+      ["Show machine-wide defaults", "bgng library defaults list"],
+      ["Show defaults as JSON", "bgng library defaults list --json"],
+    ],
   });
 
   json = Option.Boolean("--json", false, {

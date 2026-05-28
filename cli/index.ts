@@ -3,12 +3,26 @@
 // ABOUTME: All command registration starts here; reusable logic lives outside the command layer.
 
 import { Builtins, Cli } from "clipanion";
-import { AddExtensionCommand } from "./commands/add/extension";
 import { AddMcpCommand } from "./commands/add/mcp";
 import { AddSkillCommand } from "./commands/add/skill";
+import { ApplyCommand, CardApplyCommand } from "./commands/card/apply";
+import { CardAddCommand } from "./commands/card/add";
+import { CardDeprecateCommand } from "./commands/card/deprecate";
+import { CardDetachCommand } from "./commands/card/detach";
+import { CardDiffCommand } from "./commands/card/diff";
+import { CardListCommand } from "./commands/card/list";
+import { CardNewCommand } from "./commands/card/new";
+import { CardOutdatedCommand } from "./commands/card/outdated";
+import { CardPinCommand } from "./commands/card/pin";
+import { CardPublishCommand } from "./commands/card/publish";
+import { CardRemoveCommand } from "./commands/card/remove";
+import { CardShowCommand } from "./commands/card/show";
+import { CardStatusCommand } from "./commands/card/status";
+import { CardUpdateCommand, UpdateCommand } from "./commands/card/update";
 import { DoctorCommand } from "./commands/doctor";
 import { InitCommand } from "./commands/init";
 import { createAgentsContext, validateRepoRoot } from "./context";
+import { ExtensionsAddCommand } from "./commands/extensions/add";
 import { ExtensionsDoctorCommand } from "./commands/extensions/doctor";
 import { ExtensionsListCommand } from "./commands/extensions/list";
 import { ExtensionsSetupCommand } from "./commands/extensions/setup";
@@ -29,6 +43,8 @@ import { SearchMcpCommand } from "./commands/search/mcp";
 import { SearchSkillCommand } from "./commands/search/skill";
 import { ScanCommand } from "./commands/scan";
 import { StatusCommand } from "./commands/status";
+import { StoreMigrateCommand } from "./commands/store/migrate";
+import { StoreStatusCommand } from "./commands/store/status";
 import { SkillsCurateCommand } from "./commands/skills/curate";
 import { SkillsListCommand } from "./commands/skills/list";
 import { SkillsPackagesAddCommand } from "./commands/skills/packages/add";
@@ -36,6 +52,8 @@ import { SkillsPackagesListCommand } from "./commands/skills/packages/list";
 import { SkillsPackagesShowCommand } from "./commands/skills/packages/show";
 import { SkillsUncurateCommand } from "./commands/skills/uncurate";
 import { WriteCommand } from "./commands/write";
+import { ExportSessionsCommand } from "./commands/export/sessions";
+import { detectLegacyLayout } from "./core/migration";
 
 const cli = new Cli({
   binaryLabel: "bgng",
@@ -49,9 +67,24 @@ cli.register(SkillsPackagesListCommand);
 cli.register(SkillsPackagesShowCommand);
 cli.register(SkillsCurateCommand);
 cli.register(SkillsUncurateCommand);
-cli.register(AddExtensionCommand);
 cli.register(AddSkillCommand);
 cli.register(AddMcpCommand);
+cli.register(CardNewCommand);
+cli.register(CardPublishCommand);
+cli.register(CardShowCommand);
+cli.register(CardListCommand);
+cli.register(CardDiffCommand);
+cli.register(CardDeprecateCommand);
+cli.register(CardApplyCommand);
+cli.register(CardAddCommand);
+cli.register(CardPinCommand);
+cli.register(CardRemoveCommand);
+cli.register(CardDetachCommand);
+cli.register(CardUpdateCommand);
+cli.register(CardOutdatedCommand);
+cli.register(CardStatusCommand);
+cli.register(ApplyCommand);
+cli.register(UpdateCommand);
 cli.register(LibraryAddSkillCommand);
 cli.register(LibraryAddMcpCommand);
 cli.register(LibraryDefaultsListCommand);
@@ -63,6 +96,7 @@ cli.register(LibraryListCommand);
 cli.register(LibraryShowCommand);
 cli.register(SearchSkillCommand);
 cli.register(SearchMcpCommand);
+cli.register(ExtensionsAddCommand);
 cli.register(ExtensionsListCommand);
 cli.register(ExtensionsShowCommand);
 cli.register(ExtensionsStatusCommand);
@@ -72,6 +106,9 @@ cli.register(McpWriteCommand);
 cli.register(McpListCommand);
 cli.register(WriteCommand);
 cli.register(ScanCommand);
+cli.register(ExportSessionsCommand);
+cli.register(StoreMigrateCommand);
+cli.register(StoreStatusCommand);
 cli.register(StatusCommand);
 cli.register(DoctorCommand);
 cli.register(InitCommand);
@@ -82,6 +119,9 @@ const context = createAgentsContext();
 
 try {
   validateRepoRoot(context.repoRoot);
+  if (detectLegacyLayout(context.agentsDir)) {
+    process.stderr.write("WARNING: pre-cards layout detected. Run `bgng store migrate` to upgrade.\n");
+  }
   await cli.runExit(process.argv.slice(2), context);
 } catch (error) {
   process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);

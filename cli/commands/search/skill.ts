@@ -33,6 +33,19 @@ export class SearchSkillCommand extends BaseCommand {
   static override usage = BaseCommand.Usage({
     category: "Search",
     description: "Search local and configured catalog skills.",
+    details: `
+      Searches the local skill library and configured npm-skill catalogs. Use
+      --library or --catalog to restrict the source; those flags are mutually
+      exclusive.
+
+      Results are grouped by source so operators can distinguish owned local
+      inventory from online catalog discovery.
+    `,
+    examples: [
+      ["Search all skill sources", "bgng search skill debug"],
+      ["Search only configured catalogs", "bgng search skill brainstorm --catalog"],
+      ["Return JSON results", "bgng search skill research --json"],
+    ],
   });
 
   query = Option.String({ required: true });
@@ -43,10 +56,6 @@ export class SearchSkillCommand extends BaseCommand {
 
   catalogOnly = Option.Boolean("--catalog", false, {
     description: "Only search configured online catalogs.",
-  });
-
-  project = Option.Boolean("--project", false, {
-    description: "Use current project context as a ranking hint.",
   });
 
   json = Option.Boolean("--json", false, {

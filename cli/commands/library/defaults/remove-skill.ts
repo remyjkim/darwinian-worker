@@ -17,6 +17,15 @@ export class LibraryDefaultsRemoveSkillCommand extends BaseCommand {
   static override usage = BaseCommand.Usage({
     category: "Library",
     description: "Remove a skill from machine-wide defaults.",
+    details: `
+      Removes a skill from machine-wide defaults. When not in --dry-run mode,
+      also removes the curated ~/.agents/skills link if it exists. The source
+      skill in the repo or package cache is left intact.
+    `,
+    examples: [
+      ["Remove a default skill", "bgng library defaults remove skill alpha"],
+      ["Preview removing a default skill", "bgng library defaults remove skill alpha --dry-run"],
+    ],
   });
 
   skillName = Option.String({ required: true });

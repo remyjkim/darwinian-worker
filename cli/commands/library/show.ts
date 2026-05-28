@@ -12,6 +12,15 @@ export class LibraryShowCommand extends BaseCommand {
   static override usage = BaseCommand.Usage({
     category: "Library",
     description: "Show one local library item.",
+    details: `
+      Shows one skill or MCP server from the local reusable inventory. Skills
+      include scope and source metadata; MCP servers include transport and
+      server definition details.
+    `,
+    examples: [
+      ["Show a skill", "bgng library show alpha"],
+      ["Show an MCP server as JSON", "bgng library show context7 --json"],
+    ],
   });
 
   id = Option.String({ required: true });

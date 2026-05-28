@@ -5,7 +5,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { cleanupTempRoots, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -196,7 +196,50 @@ describe("bgng write", () => {
     }, projectDir);
 
     expect(result.exitCode).toBe(0);
-    const settings = JSON.parse(await readFile(fixture.claudeSettings, "utf8")) as { mcpServers?: Record<string, { command?: string }> };
+    const settings = JSON.parse(await readFile(join(projectDir, ".claude", "settings.json"), "utf8")) as { mcpServers?: Record<string, { command?: string }> };
     expect(settings.mcpServers?.github?.command).toBe("npx");
+  });
+
+  test("write --dry-run annotates symlink intents with their winning layer", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    await publishCardWithSkills(fixture, { name: "@me/backend", skills: ["alpha"] });
+    const projectDir = join(fixture.root, "project");
+    await mkdir(join(projectDir, ".agents", "bgng"), { recursive: true });
+    await writeFile(
+      join(projectDir, ".agents", "bgng", "config.json"),
+      JSON.stringify({ version: 1, cards: ["@me/backend@^1.0.0"] }, null, 2),
+    );
+
+    const dryRun = await runAgentsCli(["write", "--dry-run", "--json"], envFor(fixture), projectDir);
+
+    expect(dryRun.exitCode).toBe(0);
+    const parsed = JSON.parse(dryRun.stdout) as { changes: string[] };
+    const symlinkLines = parsed.changes.filter((change) => change.startsWith("symlink ") && change.includes("alpha"));
+    expect(symlinkLines).toHaveLength(2);
+    for (const line of symlinkLines) {
+      expect(line).toContain("← card @me/backend@1.0.0");
+    }
+  });
+
+  test("write --dry-run dedupes when both user-default and card supply the same name", async () => {
+    const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
+    tempRoots.push(fixture.root);
+    await publishCardWithSkills(fixture, { name: "@me/backend", skills: ["alpha"] });
+    const projectDir = join(fixture.root, "project");
+    await mkdir(join(projectDir, ".agents", "bgng"), { recursive: true });
+    await writeFile(
+      join(projectDir, ".agents", "bgng", "config.json"),
+      JSON.stringify({ version: 1, cards: ["@me/backend@^1.0.0"] }, null, 2),
+    );
+
+    const dryRun = await runAgentsCli(["write", "--dry-run", "--json"], envFor(fixture), projectDir);
+
+    expect(dryRun.exitCode).toBe(0);
+    const parsed = JSON.parse(dryRun.stdout) as { changes: string[] };
+    const lines = parsed.changes.filter((change) => change.includes(".claude/skills/alpha"));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain("← card @me/backend@1.0.0");
+    expect(lines[0]).toContain("(also available: user-default)");
   });
 });

@@ -6,14 +6,14 @@
       "description": "Library and framework documentation lookup",
       "transport": "stdio",
       "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp"],
+      "args": ["-y", "@upstash/context7-mcp@^2.0.0"],
       "optional": false
     },
     "chrome-devtools": {
       "description": "Browser debugging via Chrome DevTools Protocol",
       "transport": "stdio",
       "command": "npx",
-      "args": ["-y", "chrome-devtools-mcp@latest"],
+      "args": ["-y", "chrome-devtools-mcp@^1.0.0"],
       "optional": false
     },
     "markdownify": {
@@ -39,11 +39,11 @@
       "optional": false
     },
     "notion": {
-      "description": "Notion workspace access",
-      "transport": "platform-provided",
-      "provider": "claude.ai",
+      "description": "Notion workspace access via the official hosted MCP server",
+      "transport": "http",
+      "url": "https://mcp.notion.com/mcp",
       "auth": "oauth",
-      "notes": "Requires Claude.ai OAuth flow. Other tools need a separate Notion MCP server.",
+      "notes": "OAuth per user. After sync, run /mcp in Claude Code or `codex mcp login notion` to authenticate.",
       "optional": true
     },
     "slack": {

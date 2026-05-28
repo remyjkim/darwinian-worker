@@ -33,6 +33,19 @@ export class SearchMcpCommand extends BaseCommand {
   static override usage = BaseCommand.Usage({
     category: "Search",
     description: "Search local and configured catalog MCP servers.",
+    details: `
+      Searches the local MCP library and configured trusted MCP catalogs. Use
+      --library or --catalog to restrict the source; those flags are mutually
+      exclusive.
+
+      Results are grouped by source so operators can distinguish owned local
+      inventory from online catalog discovery.
+    `,
+    examples: [
+      ["Search all MCP sources", "bgng search mcp github"],
+      ["Search only the local MCP library", "bgng search mcp github --library"],
+      ["Return JSON results", "bgng search mcp postgres --json"],
+    ],
   });
 
   query = Option.String({ required: true });
@@ -43,10 +56,6 @@ export class SearchMcpCommand extends BaseCommand {
 
   catalogOnly = Option.Boolean("--catalog", false, {
     description: "Only search configured online catalogs.",
-  });
-
-  project = Option.Boolean("--project", false, {
-    description: "Use current project context as a ranking hint.",
   });
 
   json = Option.Boolean("--json", false, {

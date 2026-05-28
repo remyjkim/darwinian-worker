@@ -15,7 +15,18 @@ export class LibraryDefaultsAddMcpCommand extends BaseCommand {
 
   static override usage = BaseCommand.Usage({
     category: "Library",
-    description: "Add an MCP server to machine-wide defaults.",
+    description: "Add an MCP server to machine-wide defaults. Re-adding an already-default server is a safe no-op.",
+    details: `
+      Promotes a built-in or local-library MCP server to machine-wide defaults.
+      Re-adding a server that is already a default is a safe no-op.
+
+      Use --dry-run to preview the default config change without writing it.
+    `,
+    examples: [
+      ["Add a default MCP server", "bgng library defaults add mcp context7"],
+      ["Preview a default change", "bgng library defaults add mcp context7 --dry-run"],
+      ["Add a default as JSON", "bgng library defaults add mcp context7 --json"],
+    ],
   });
 
   serverName = Option.String({ required: true });

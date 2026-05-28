@@ -1,20 +1,35 @@
-// ABOUTME: Implements project-first extension activation through `bgng add extension`.
+// ABOUTME: Implements project-first extension activation through `bgng extensions add`.
 // ABOUTME: Writes semantic project config without running external setup commands.
 
 import { Option, UsageError } from "clipanion";
 import { normalizeBeadsTargets } from "../../core/extensions/beads";
 import { getExtension } from "../../core/extensions/registry";
+import { buildMarkitdownProjectConfig } from "../../core/extensions/markitdown";
 import { buildParallelProjectConfig } from "../../core/extensions/parallel";
 import { projectConfigPath, setProjectExtensionConfig } from "../../core/project-writes";
 import { renderJson } from "../../core/output";
 import { BaseCommand } from "../base";
 
-export class AddExtensionCommand extends BaseCommand {
-  static override paths = [["add", "extension"]];
+export class ExtensionsAddCommand extends BaseCommand {
+  static override paths = [["extensions", "add"]];
 
   static override usage = BaseCommand.Usage({
     category: "Add",
     description: "Add an extension to the current project.",
+    details: `
+      Writes or merges the extension config into
+      <project>/.agents/bgng/config.json without running external setup
+      commands. Use bgng extensions setup <name> when an extension has CLI
+      prerequisites or project initialization work.
+
+      Some flags apply only to specific extensions. For example, --target and
+      --include-skill are Beads-oriented project settings.
+    `,
+    examples: [
+      ["Enable Parallel in this project", "bgng extensions add parallel"],
+      ["Enable Beads with its project skill", "bgng extensions add beads --include-skill"],
+      ["Preview a MarkItDown project config change", "bgng extensions add markitdown --dry-run"],
+    ],
   });
 
   extensionName = Option.String({ required: true });
@@ -36,11 +51,11 @@ export class AddExtensionCommand extends BaseCommand {
   });
 
   target = Option.String("--target", {
-    description: "Comma-separated Beads setup targets.",
+    description: "Comma-separated Beads setup targets. Beads only.",
   });
 
   includeSkill = Option.Boolean("--include-skill", false, {
-    description: "Include the extension's project skill when supported.",
+    description: "Include the extension's project skill when supported. Beads only today.",
   });
 
   async execute() {
@@ -56,6 +71,9 @@ export class AddExtensionCommand extends BaseCommand {
 
     if (this.extensionName === "parallel") {
       extensionConfig = buildParallelProjectConfig({ skills: !this.skipSkills, mcp: this.mcp });
+    } else if (this.extensionName === "markitdown") {
+      extensionConfig = buildMarkitdownProjectConfig({ skills: !this.skipSkills });
+      next.unshift("bgng extensions setup markitdown");
     } else if (this.extensionName === "beads") {
       let targets;
       try {

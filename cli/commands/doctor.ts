@@ -12,6 +12,19 @@ export class DoctorCommand extends BaseCommand {
   static override usage = BaseCommand.Usage({
     category: "General",
     description: "Report drift, stale state, and broken symlinks without mutating anything.",
+    details: `
+      Inspects local harness state for broken symlinks, stale generated files,
+      MCP drift, unknown defaults, and project config issues. This command is
+      read-only and never mutates files.
+
+      Reportable issues are rendered in the output; use --json if automation
+      needs to inspect issue counts or exact paths. For extension-specific
+      diagnostics, see bgng extensions doctor.
+    `,
+    examples: [
+      ["Run a health check", "bgng doctor"],
+      ["Inspect structured output", "bgng doctor --json"],
+    ],
   });
 
   json = Option.Boolean("--json", false, {

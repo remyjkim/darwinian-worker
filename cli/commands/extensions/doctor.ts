@@ -12,7 +12,18 @@ export class ExtensionsDoctorCommand extends BaseCommand {
 
   static override usage = BaseCommand.Usage({
     category: "Extensions",
-    description: "Report extension issues without mutating anything.",
+    description: "Report extension issues without mutating anything. Reports on all extensions when no name is given.",
+    details: `
+      Inspects extension prerequisites and project state for setup drift. If no
+      extension name is given, reports on all extensions. This command is
+      read-only and never mutates files.
+
+      For overall harness drift, see bgng doctor.
+    `,
+    examples: [
+      ["Doctor all extensions", "bgng extensions doctor"],
+      ["Doctor one extension as JSON", "bgng extensions doctor beads --json"],
+    ],
   });
 
   extensionName = Option.String({ required: false });

@@ -17,7 +17,19 @@ export class McpListCommand extends BaseCommand {
 
   static override usage = BaseCommand.Usage({
     category: "MCP",
-    description: "List harness MCP servers and their current active state.",
+    description: "List harness MCP servers and their current active state. Project-aware when run inside a configured repo.",
+    details: `
+      Lists MCP servers from the built-in registry merged with the local user
+      MCP library, then marks which servers are active in the effective config.
+      Project-aware output includes project overlay and extension-derived MCP
+      state when run inside a configured repo.
+
+      This command is read-only.
+    `,
+    examples: [
+      ["List MCP server state", "bgng mcp list"],
+      ["List MCP server state as JSON", "bgng mcp list --json"],
+    ],
   });
 
   json = Option.Boolean("--json", false, {

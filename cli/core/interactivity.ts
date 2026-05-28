@@ -2,6 +2,7 @@
 // ABOUTME: Keeps TTY safety rules testable for init and future guided add flows.
 
 export type InitMode = "guided" | "minimal" | "error";
+export type InstallDecisionMode = "prompt" | "install" | "skip" | "error";
 
 export function resolveInitMode(options: {
   guided: boolean;
@@ -29,4 +30,25 @@ export function resolveInitMode(options: {
   }
 
   return { mode: "error", message: "bgng init defaults to guided mode. Use --non-interactive for scripts." };
+}
+
+export function resolveInstallDecisionMode(options: {
+  install: boolean;
+  noInstall: boolean;
+  stdinIsTTY: boolean;
+  stdoutIsTTY: boolean;
+}): { mode: InstallDecisionMode; message?: string } {
+  if (options.install && options.noInstall) {
+    return { mode: "error", message: "Use either --install or --no-install, not both." };
+  }
+  if (options.install) {
+    return { mode: "install" };
+  }
+  if (options.noInstall) {
+    return { mode: "skip" };
+  }
+  if (options.stdinIsTTY && options.stdoutIsTTY) {
+    return { mode: "prompt" };
+  }
+  return { mode: "error", message: "MarkItDown setup needs an install decision. Use --install or --no-install for scripts." };
 }

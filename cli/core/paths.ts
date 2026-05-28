@@ -6,6 +6,10 @@ import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 import type { NormalizedSyncOptions, SyncOptions, TargetName } from "./types";
 
+export type ToolScope =
+  | { kind: "project"; projectRoot: string }
+  | { kind: "machine"; homeDir: string };
+
 export function inferRepoRootFromModulePath(modulePath: string) {
   return dirname(realpathSync(modulePath));
 }
@@ -52,13 +56,18 @@ export function expandHomePath(pathValue: string, homeDir: string) {
   return pathValue;
 }
 
-export function resolveToolPaths(homeDir: string) {
+export function resolveToolPaths(scope: string | ToolScope) {
+  const root = typeof scope === "string"
+    ? scope
+    : scope.kind === "project"
+      ? scope.projectRoot
+      : scope.homeDir;
   return {
-    claudeSkills: join(homeDir, ".claude", "skills"),
-    codexSkills: join(homeDir, ".codex", "skills"),
-    claudeSettings: join(homeDir, ".claude", "settings.json"),
-    codexConfig: join(homeDir, ".codex", "config.toml"),
-    cursorMcp: join(homeDir, ".cursor", "mcp.json"),
+    claudeSkills: join(root, ".claude", "skills"),
+    codexSkills: join(root, ".codex", "skills"),
+    claudeSettings: join(root, ".claude", "settings.json"),
+    codexConfig: join(root, ".codex", "config.toml"),
+    cursorMcp: join(root, ".cursor", "mcp.json"),
   };
 }
 
@@ -102,5 +111,6 @@ export function normalizeSyncPathOptions(
     mcpOnly: options.mcpOnly ?? false,
     skillsOnly: options.skillsOnly ?? false,
     target: options.target,
+    force: options.force ?? false,
   };
 }

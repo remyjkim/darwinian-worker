@@ -56,6 +56,9 @@ After a future Homebrew install, verify:
 - `bgng write --dry-run`
 - `bgng scan --json`
 - `bgng skills packages list --json`
+- `bgng store status --json`
+- `bgng card list --json`
+- `bgng status --explain`
 
 ## User Environment Assumptions
 

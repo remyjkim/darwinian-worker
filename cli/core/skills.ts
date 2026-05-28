@@ -4,9 +4,12 @@
 import { existsSync, mkdirSync, rmSync, symlinkSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
+import type { CardLockEntry } from "./card-lock";
+import { resolveSkillSource } from "./card-skill-resolver";
 import { resolveSkillScopeDirs, resolveToolPaths } from "./paths";
 import { ensureParentDir, lstatSafe, realpathSafe } from "./fs";
 import type { NormalizedSyncOptions, SyncResult, TargetName } from "./types";
+import type { ManagedPath } from "./write-record";
 import { listInstalledSkillBundles } from "./skill-packages";
 
 export type SkillScope = "shared" | "claude-only" | "codex-only" | "experimental";
@@ -44,7 +47,13 @@ function validateSkillName(name: string) {
   }
 }
 
-function ensureDirSymlink(linkPath: string, targetPath: string, dryRun: boolean, result: SyncResult) {
+function ensureDirSymlink(
+  linkPath: string,
+  targetPath: string,
+  dryRun: boolean,
+  result: SyncResult,
+  labelSuffix = "",
+) {
   const stats = lstatSafe(linkPath);
   if (stats) {
     if (stats.isSymbolicLink() && realpathSafe(linkPath) === realpathSafe(targetPath)) {
@@ -57,10 +66,38 @@ function ensureDirSymlink(linkPath: string, targetPath: string, dryRun: boolean,
   }
 
   ensureParentDir(linkPath, dryRun);
-  result.changes.push(`symlink ${linkPath} -> ${targetPath}`);
+  result.changes.push(`symlink ${linkPath} -> ${targetPath}${labelSuffix}`);
   if (!dryRun) {
     symlinkSync(targetPath, linkPath, "dir");
   }
+}
+
+interface SymlinkIntent {
+  linkPath: string;
+  targetPath: string;
+  managedPath: ManagedPath;
+  layerLabel: string;
+  alsoAvailable?: string[];
+}
+
+function mergeAlsoAvailable(values: string[]) {
+  return [...new Set(values)];
+}
+
+function recordIntent(map: Map<string, SymlinkIntent>, intent: SymlinkIntent) {
+  const prior = map.get(intent.linkPath);
+  if (!prior) {
+    map.set(intent.linkPath, intent);
+    return;
+  }
+  map.set(intent.linkPath, {
+    ...intent,
+    alsoAvailable: mergeAlsoAvailable([
+      ...(intent.alsoAvailable ?? []),
+      prior.layerLabel,
+      ...(prior.alsoAvailable ?? []),
+    ]),
+  });
 }
 
 async function listScopeSkills(scopeDir: string, scope: SkillScope): Promise<RepoSkill[]> {
@@ -241,27 +278,40 @@ export async function findStaleSymlinks(dirPath: string, desiredNames: Set<strin
     .map((entry) => join(dirPath, entry.name));
 }
 
-export async function syncSkills(options: NormalizedSyncOptions, overrides?: SkillSyncOverrides): Promise<SyncResult> {
-  const result: SyncResult = { changes: [], warnings: [] };
-  const toolPaths = resolveToolPaths(options.homeDir);
+export async function syncSkills(
+  options: NormalizedSyncOptions,
+  overrides?: SkillSyncOverrides,
+  lockedCards: CardLockEntry[] = [],
+): Promise<SyncResult> {
+  const managedPaths: ManagedPath[] = [];
+  const result: SyncResult = { changes: [], warnings: [], managedPaths };
+  const toolPaths = resolveToolPaths(options.toolRoot ?? options.homeDir);
   const scopeDirs = resolveSkillScopeDirs(options.repoRoot);
   const curatedDir = join(options.agentsDir, "skills");
   const excluded = new Set(overrides?.exclude ?? []);
-  const includedSkills = await Promise.all(
-    (overrides?.include ?? [])
-      .filter((name) => !excluded.has(name))
-      .map(async (name) => {
-        const skill = await findAvailableSkill(options.repoRoot, options.agentsDir, name);
-        if (!skill) {
-          result.warnings.push(`unknown skill override include: ${name}`);
-          return null;
-        }
-        return skill;
-      }),
-  );
+  type NonMissingResolvedSkillSource = Exclude<Awaited<ReturnType<typeof resolveSkillSource>>, { layer: "missing" }>;
+  const includes = (overrides?.include ?? []).filter((name) => !excluded.has(name));
+  const resolvedIncludes: Array<{
+    name: string;
+    source: NonMissingResolvedSkillSource;
+  }> = [];
+  const errors: string[] = [];
+  for (const name of includes) {
+    const source = await resolveSkillSource(name, lockedCards, options.repoRoot, options.agentsDir);
+    if (source.layer === "missing") {
+      errors.push(source.reason);
+      continue;
+    }
+    resolvedIncludes.push({ name, source });
+  }
+  if (errors.length > 0) {
+    throw new Error(`bgng write cannot resolve all skills:\n  - ${errors.join("\n  - ")}`);
+  }
 
   const desiredClaude = new Set<string>();
   const desiredCodex = new Set<string>();
+  const claudeIntents = new Map<string, SymlinkIntent>();
+  const codexIntents = new Map<string, SymlinkIntent>();
 
   if (existsSync(curatedDir)) {
     const curatedEntries = await readdir(curatedDir, { withFileTypes: true });
@@ -275,11 +325,21 @@ export async function syncSkills(options: NormalizedSyncOptions, overrides?: Ski
       const sourcePath = join(curatedDir, entry.name);
       if (!options.target || options.target === "claude") {
         desiredClaude.add(entry.name);
-        ensureDirSymlink(join(toolPaths.claudeSkills, entry.name), sourcePath, options.dryRun, result);
+        recordIntent(claudeIntents, {
+          linkPath: join(toolPaths.claudeSkills, entry.name),
+          targetPath: sourcePath,
+          managedPath: { path: `.claude/skills/${entry.name}`, kind: "symlink", target: sourcePath },
+          layerLabel: "user-default",
+        });
       }
       if (!options.target || options.target === "codex") {
         desiredCodex.add(entry.name);
-        ensureDirSymlink(join(toolPaths.codexSkills, entry.name), sourcePath, options.dryRun, result);
+        recordIntent(codexIntents, {
+          linkPath: join(toolPaths.codexSkills, entry.name),
+          targetPath: sourcePath,
+          managedPath: { path: `.codex/skills/${entry.name}`, kind: "symlink", target: sourcePath },
+          layerLabel: "user-default",
+        });
       }
     }
   }
@@ -294,7 +354,13 @@ export async function syncSkills(options: NormalizedSyncOptions, overrides?: Ski
         continue;
       }
       desiredClaude.add(entry.name);
-      ensureDirSymlink(join(toolPaths.claudeSkills, entry.name), join(scopeDirs.claudeOnly, entry.name), options.dryRun, result);
+      const targetPath = join(scopeDirs.claudeOnly, entry.name);
+      recordIntent(claudeIntents, {
+        linkPath: join(toolPaths.claudeSkills, entry.name),
+        targetPath,
+        managedPath: { path: `.claude/skills/${entry.name}`, kind: "symlink", target: targetPath },
+        layerLabel: "user-default",
+      });
     }
   }
 
@@ -308,26 +374,52 @@ export async function syncSkills(options: NormalizedSyncOptions, overrides?: Ski
         continue;
       }
       desiredCodex.add(entry.name);
-      ensureDirSymlink(join(toolPaths.codexSkills, entry.name), join(scopeDirs.codexOnly, entry.name), options.dryRun, result);
+      const targetPath = join(scopeDirs.codexOnly, entry.name);
+      recordIntent(codexIntents, {
+        linkPath: join(toolPaths.codexSkills, entry.name),
+        targetPath,
+        managedPath: { path: `.codex/skills/${entry.name}`, kind: "symlink", target: targetPath },
+        layerLabel: "user-default",
+      });
     }
   }
 
-  for (const skill of includedSkills) {
-    if (!skill) {
-      continue;
-    }
+  for (const { name, source } of resolvedIncludes) {
+    const targetPath = source.path;
+    const scope = source.layer === "card" ? "shared" : source.scope;
+    const layerLabel = source.layer === "card"
+      ? `card ${source.cardName}@${source.cardVersion}`
+      : "user-default";
     if (!options.target || options.target === "claude") {
-      if (skill.scope === "shared" || skill.scope === "claude-only") {
-        desiredClaude.add(skill.name);
-        ensureDirSymlink(join(toolPaths.claudeSkills, skill.name), skill.path, options.dryRun, result);
+      if (scope === "shared" || scope === "claude-only") {
+        desiredClaude.add(name);
+        recordIntent(claudeIntents, {
+          linkPath: join(toolPaths.claudeSkills, name),
+          targetPath,
+          managedPath: { path: `.claude/skills/${name}`, kind: "symlink", target: targetPath },
+          layerLabel,
+        });
       }
     }
     if (!options.target || options.target === "codex") {
-      if (skill.scope === "shared" || skill.scope === "codex-only") {
-        desiredCodex.add(skill.name);
-        ensureDirSymlink(join(toolPaths.codexSkills, skill.name), skill.path, options.dryRun, result);
+      if (scope === "shared" || scope === "codex-only") {
+        desiredCodex.add(name);
+        recordIntent(codexIntents, {
+          linkPath: join(toolPaths.codexSkills, name),
+          targetPath,
+          managedPath: { path: `.codex/skills/${name}`, kind: "symlink", target: targetPath },
+          layerLabel,
+        });
       }
     }
+  }
+
+  for (const intent of [...claudeIntents.values(), ...codexIntents.values()]) {
+    const labelSuffix = intent.alsoAvailable && intent.alsoAvailable.length > 0
+      ? ` ← ${intent.layerLabel} (also available: ${intent.alsoAvailable.join(", ")})`
+      : ` ← ${intent.layerLabel}`;
+    ensureDirSymlink(intent.linkPath, intent.targetPath, options.dryRun, result, labelSuffix);
+    managedPaths.push(intent.managedPath);
   }
 
   const staleClaude = !options.target || options.target === "claude"

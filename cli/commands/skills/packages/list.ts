@@ -12,6 +12,17 @@ export class SkillsPackagesListCommand extends BaseCommand {
   static override usage = BaseCommand.Usage({
     category: "Skills",
     description: "List installed package-backed skill bundles.",
+    details: `
+      Lists package-backed skill bundles installed in the managed local cache.
+      This is package inventory only; use bgng skills list to see individual
+      skills from those bundles.
+
+      This command is read-only.
+    `,
+    examples: [
+      ["List installed bundles", "bgng skills packages list"],
+      ["List installed bundles as JSON", "bgng skills packages list --json"],
+    ],
   });
 
   json = Option.Boolean("--json", false, {

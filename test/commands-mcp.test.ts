@@ -129,7 +129,7 @@ describe("bgng mcp", () => {
     }, projectDir);
 
     expect(result.exitCode).toBe(0);
-    const claudeSettings = JSON.parse(await readFile(fixture.claudeSettings, "utf8")) as {
+    const claudeSettings = JSON.parse(await readFile(join(projectDir, ".claude", "settings.json"), "utf8")) as {
       mcpServers: Record<string, unknown>;
     };
     expect(claudeSettings.mcpServers["parallel-search"]).toBeDefined();

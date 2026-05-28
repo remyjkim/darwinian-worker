@@ -12,6 +12,14 @@ export class ExtensionsListCommand extends BaseCommand {
   static override usage = BaseCommand.Usage({
     category: "Extensions",
     description: "List supported extension families.",
+    details: `
+      Lists the extension families registered in bgng. This command is
+      read-only and does not inspect project state or external CLI availability.
+    `,
+    examples: [
+      ["List supported extensions", "bgng extensions list"],
+      ["List supported extensions as JSON", "bgng extensions list --json"],
+    ],
   });
 
   json = Option.Boolean("--json", false, {

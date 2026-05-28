@@ -17,6 +17,16 @@ export class ScanCommand extends BaseCommand {
   static override usage = BaseCommand.Usage({
     category: "General",
     description: "Placeholder for future non-mutating local harness discovery.",
+    details: `
+      This command is intentionally a no-op today. Its planned role is to
+      inspect existing local agent tool config, report import candidates for
+      library/default/project promotion, and avoid writing files unless a
+      future explicit import step is added.
+    `,
+    examples: [
+      ["Show the current placeholder output", "bgng scan"],
+      ["Inspect placeholder status as JSON", "bgng scan --json"],
+    ],
   });
 
   json = Option.Boolean("--json", false, {

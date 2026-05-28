@@ -1,6 +1,8 @@
 // ABOUTME: Provides reusable temp-repo and temp-home fixtures for CLI and core integration tests.
 // ABOUTME: Centralizes CLI spawning with environment overrides so tests never touch the real machine state.
 
+import { expect } from "bun:test";
+import { existsSync } from "node:fs";
 import { mkdtemp, mkdir, writeFile, rm, symlink } from "node:fs/promises";
 import { chmod } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -103,6 +105,54 @@ export async function scaffoldCliFixture(options?: { parallelMcpEnabled?: boolea
   }
 
   return { root, repoRoot, homeDir, agentsDir, claudeSettings, codexConfig, cursorConfig };
+}
+
+export function envFor(fixture: { repoRoot: string; homeDir: string; agentsDir: string }) {
+  return {
+    AGENTS_REPO_ROOT: fixture.repoRoot,
+    AGENTS_HOME_DIR: fixture.homeDir,
+    AGENTS_DIR: fixture.agentsDir,
+  };
+}
+
+export async function publishCardWithSkills(
+  fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>,
+  options: {
+    name: string;
+    version?: string;
+    skills: string[];
+    servers?: Record<string, unknown>;
+  },
+): Promise<string> {
+  const version = options.version ?? "1.0.0";
+  const match = options.name.match(/^(@[^/]+)\/(.+)$/);
+  if (!match) {
+    throw new Error(`Use a scoped card name in tests: ${options.name}`);
+  }
+  const [, scope, cardName] = match;
+  const sourceRoot = join(fixture.agentsDir, "bgng", "sources", scope!, cardName!);
+  if (!existsSync(join(sourceRoot, "card.json"))) {
+    expect((await runAgentsCli(["card", "new", options.name, "--no-git"], envFor(fixture))).exitCode).toBe(0);
+  }
+
+  const manifestPath = join(sourceRoot, "card.json");
+  const manifest = JSON.parse(await Bun.file(manifestPath).text());
+  manifest.version = version;
+  manifest.skills = { include: options.skills };
+  if (options.servers) {
+    manifest.servers = options.servers;
+  }
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+  for (const skill of options.skills) {
+    const skillDir = join(sourceRoot, "skills", skill);
+    await mkdir(skillDir, { recursive: true });
+    await writeFile(join(skillDir, "SKILL.md"), `---\nname: ${skill}\ndescription: ${skill}\n---\n`);
+  }
+
+  const published = await runAgentsCli(["card", "publish", options.name], envFor(fixture));
+  expect(published.exitCode).toBe(0);
+  return join(fixture.agentsDir, "bgng", "cards", scope!, cardName!, version);
 }
 
 export async function createInstalledSkillBundle(

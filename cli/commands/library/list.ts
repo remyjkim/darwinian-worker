@@ -14,6 +14,17 @@ export class LibraryListCommand extends BaseCommand {
   static override usage = BaseCommand.Usage({
     category: "Library",
     description: "List local reusable inventory.",
+    details: `
+      Lists reusable items available through the local harness inventory under
+      ~/.agents and the repo. Optionally filter by kind: skills or mcp.
+
+      This command is read-only.
+    `,
+    examples: [
+      ["List all library items", "bgng library list"],
+      ["List only MCP servers", "bgng library list mcp"],
+      ["List skills as JSON", "bgng library list skills --json"],
+    ],
   });
 
   kind = Option.String({ required: false });

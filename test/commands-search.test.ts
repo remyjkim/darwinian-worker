@@ -115,4 +115,24 @@ describe("bgng search", () => {
     const parsed = JSON.parse(result.stdout) as { results: Array<{ id: string; sourceGroup: string }> };
     expect(parsed.results.some((item) => item.id === "github" && item.sourceGroup === "library")).toBe(true);
   });
+
+  test("search mcp rejects the removed --project flag", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+
+    const result = await runAgentsCli(["search", "mcp", "alpha", "--project", "--json"], envFor(fixture));
+
+    expect(result.exitCode).not.toBe(0);
+    expect(`${result.stdout}\n${result.stderr}`).toMatch(/unsupported|unknown|not allowed/i);
+  });
+
+  test("search skill rejects the removed --project flag", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+
+    const result = await runAgentsCli(["search", "skill", "alpha", "--project", "--json"], envFor(fixture));
+
+    expect(result.exitCode).not.toBe(0);
+    expect(`${result.stdout}\n${result.stderr}`).toMatch(/unsupported|unknown|not allowed/i);
+  });
 });

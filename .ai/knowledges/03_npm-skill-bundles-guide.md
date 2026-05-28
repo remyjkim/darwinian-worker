@@ -120,10 +120,10 @@ After packing, `bgng` extracts the tarball, normalizes the top-level `package/` 
 
 ## Local Storage Model
 
-Installed bundles live under:
+In the cards-era store, installed bundles live under:
 
 ```text
-~/.agents/packages/skills/<package-name>/<version>
+~/.agents/bgng/skills/<package-name>/<version>
 ```
 
 There is also a `current` symlink at the package root pointing to the active version.
@@ -131,12 +131,24 @@ There is also a `current` symlink at the package root pointing to the active ver
 Example:
 
 ```text
-~/.agents/packages/skills/@scope/example-bundle/
+~/.agents/bgng/skills/@scope/example-bundle/
   current -> 1.2.3
   1.2.3/
     bundle.json
     skills/
 ```
+
+Pre-migration installs used:
+
+```text
+~/.agents/packages/skills/<package-name>/<version>
+```
+
+`bgng store migrate` copies that legacy cache into
+`~/.agents/bgng/skills` and archives the old layout. The implementation chooses
+the active layout by checking whether `~/.agents/bgng/store.json` exists: if it
+does, package commands use the cards-era store; if it does not, they fall back
+to the legacy package cache for compatibility before migration.
 
 This storage model is intentionally separate from:
 
@@ -181,8 +193,9 @@ bgng write
 
 Important distinction:
 
-- available: the bundle exists in `~/.agents/packages/skills`
-- default: a shared skill is listed in `~/.agents/bgng/config.json` under `defaults.skills`
+- available: the bundle exists in the active bundle cache, normally `~/.agents/bgng/skills`
+- legacy available: before store migration, the bundle may exist in `~/.agents/packages/skills`
+- default: a shared skill is listed in `~/.agents/bgng/machine.json` under `defaults.skills`
 - compatibility publication: a default or curated shared skill is linked into `~/.agents/skills`
 - written: downstream tool symlinks exist in `~/.claude/skills` and `~/.codex/skills`
 

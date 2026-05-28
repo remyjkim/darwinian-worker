@@ -16,6 +16,15 @@ export class LibraryDefaultsRemoveMcpCommand extends BaseCommand {
   static override usage = BaseCommand.Usage({
     category: "Library",
     description: "Remove an MCP server from machine-wide defaults.",
+    details: `
+      Removes an MCP server from machine-wide defaults. This does not delete the
+      server definition from the built-in registry or local MCP library, and it
+      does not touch projects that explicitly added the server.
+    `,
+    examples: [
+      ["Remove a default MCP server", "bgng library defaults remove mcp context7"],
+      ["Preview removing a default MCP server", "bgng library defaults remove mcp context7 --dry-run"],
+    ],
   });
 
   serverName = Option.String({ required: true });

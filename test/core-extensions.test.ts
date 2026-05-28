@@ -8,7 +8,7 @@ import { getExtension, listExtensions } from "../cli/core/extensions/registry";
 
 describe("extension registry", () => {
   test("lists built-in extension definitions", () => {
-    expect(listExtensions().map((extension) => extension.id)).toEqual(["beads", "parallel"]);
+    expect(listExtensions().map((extension) => extension.id)).toEqual(["beads", "parallel", "markitdown"]);
   });
 
   test("defines beads as project-scoped CLI-first extension", () => {
@@ -31,6 +31,19 @@ describe("extension registry", () => {
     expect(parallel?.commands.some((command) => command.name === "parallel-cli")).toBe(true);
     expect(parallel?.skills.map((skill) => skill.name)).toContain("parallel-web-search");
     expect(parallel?.mcpServers.map((server) => server.name)).toEqual(["parallel-search", "parallel-task"]);
+  });
+
+  test("defines markitdown as a CLI-first document conversion extension", () => {
+    const markitdown = getExtension("markitdown");
+    expect(markitdown?.displayName).toBe("MarkItDown");
+    expect(markitdown?.scopes).toEqual(["global", "project"]);
+    expect(markitdown?.defaultModes).toEqual(["cli", "skills"]);
+    expect(markitdown?.commands.some((command) => command.name === "markitdown" && command.required)).toBe(true);
+    expect(markitdown?.commands.some((command) => command.name === "uv" && !command.required)).toBe(true);
+    expect(markitdown?.commands.find((command) => command.name === "markitdown")?.purpose).toBe("runtime");
+    expect(markitdown?.commands.find((command) => command.name === "uv")?.purpose).toBe("installer");
+    expect(markitdown?.skills.map((skill) => skill.name)).toEqual(["markitdown-document-conversion"]);
+    expect(markitdown?.mcpServers).toEqual([]);
   });
 
   test("returns null for unknown extensions", () => {

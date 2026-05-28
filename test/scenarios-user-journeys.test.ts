@@ -175,7 +175,7 @@ describe("user journeys", () => {
 
     result = await runAgentsCli(["write", "--dry-run"], env, projectDir);
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain(projectConfigPath);
+    expect(result.stdout).toContain(join(projectDir, ".claude", "settings.json"));
 
     result = await runAgentsCli(["write"], env, projectDir);
     expect(result.exitCode).toBe(0);
@@ -225,12 +225,12 @@ describe("user journeys", () => {
 
     const write = await runAgentsCli(["write"], env, projectDir);
     expect(write.exitCode).toBe(0);
-    expect(existsSync(join(fixture.homeDir, ".claude", "skills", "parallel-web-search"))).toBe(true);
-    expect(existsSync(join(fixture.homeDir, ".codex", "skills", "parallel-web-search"))).toBe(true);
-    expect(existsSync(join(fixture.homeDir, ".claude", "skills", "parallel-web-extract"))).toBe(false);
+    expect(existsSync(join(projectDir, ".claude", "skills", "parallel-web-search"))).toBe(true);
+    expect(existsSync(join(projectDir, ".codex", "skills", "parallel-web-search"))).toBe(true);
+    expect(existsSync(join(projectDir, ".claude", "skills", "parallel-web-extract"))).toBe(false);
   });
 
-  test("invalid project config references are ignored by write and surfaced by doctor", async () => {
+  test("invalid project skill references fail write and are surfaced by doctor", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     const projectDir = join(fixture.root, "project");
@@ -259,7 +259,8 @@ describe("user journeys", () => {
     };
 
     const writeResult = await runAgentsCli(["write", "--dry-run"], env, projectDir);
-    expect(writeResult.exitCode).toBe(0);
+    expect(writeResult.exitCode).not.toBe(0);
+    expect(writeResult.stderr).toContain("deleted-skill");
 
     const doctorResult = await runAgentsCli(["doctor"], env, projectDir);
     expect(doctorResult.exitCode).toBe(0);

@@ -5,11 +5,20 @@ import { existsSync, mkdirSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { resolveUserBgngDir, resolveUserConfigPath } from "./paths";
+import { resolveMachineConfigPath, resolveStoreMetadataPath } from "./store-paths";
 import { listCuratedSkills } from "./skills";
 import { resolveDefaultMcpNames } from "./defaults";
-import type { CanonicalConfig, CanonicalRegistry } from "./types";
+import type { CanonicalConfig, CanonicalRegistry, MachineConfig } from "./types";
 
 export { resolveUserBgngDir, resolveUserConfigPath };
+
+export { resolveMachineConfigPath };
+
+function resolveActiveUserConfigPath(agentsDir: string) {
+  return existsSync(resolveStoreMetadataPath(agentsDir))
+    ? resolveMachineConfigPath(agentsDir)
+    : resolveUserConfigPath(agentsDir);
+}
 
 export async function loadUserConfig(path: string): Promise<CanonicalConfig> {
   const parsed = JSON.parse(await readFile(path, "utf8")) as CanonicalConfig;
@@ -45,7 +54,7 @@ export async function loadOrInitializeUserConfig(options: {
   registry: CanonicalRegistry;
   agentsDir: string;
 }) {
-  const path = resolveUserConfigPath(options.agentsDir);
+  const path = resolveActiveUserConfigPath(options.agentsDir);
   if (existsSync(path)) {
     return { path, config: await loadUserConfig(path), created: false };
   }
@@ -54,9 +63,38 @@ export async function loadOrInitializeUserConfig(options: {
 }
 
 export async function loadEffectiveConfig(repoConfig: CanonicalConfig, agentsDir: string) {
-  const path = resolveUserConfigPath(agentsDir);
+  const path = resolveActiveUserConfigPath(agentsDir);
   if (!existsSync(path)) {
     return { config: repoConfig, userConfigPath: null };
   }
-  return { config: await loadUserConfig(path), userConfigPath: path };
+  const userConfig = await loadUserConfig(path) as MachineConfig;
+  const config = existsSync(resolveStoreMetadataPath(agentsDir))
+    ? mergeMachineConfig(repoConfig, userConfig)
+    : userConfig;
+  return { config, userConfigPath: path };
+}
+
+function mergeMachineConfig(repoConfig: CanonicalConfig, machineConfig: MachineConfig): CanonicalConfig {
+  const merged: CanonicalConfig = JSON.parse(JSON.stringify(repoConfig));
+  merged.targets = {
+    ...merged.targets,
+    ...(machineConfig.targets ?? {}),
+  };
+  merged.optional = {
+    ...(merged.optional ?? {}),
+    ...(machineConfig.optional ?? {}),
+  };
+  merged.defaults = {
+    ...(merged.defaults ?? {}),
+    ...(machineConfig.defaults ?? {}),
+  };
+  merged.catalogs = {
+    ...(merged.catalogs ?? {}),
+    ...(machineConfig.catalogs ?? {}),
+  };
+  merged.parallel = {
+    ...(merged.parallel ?? {}),
+    ...(machineConfig.parallel ?? {}),
+  };
+  return merged;
 }

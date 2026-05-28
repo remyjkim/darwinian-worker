@@ -48,6 +48,16 @@ export function applyProjectExtensionConfig(options: {
       options.include.add("beads-task-tracking");
     }
   }
+
+  const markitdown = options.extensions?.markitdown;
+  if (markitdown) {
+    const skills = extensionSkillNames("markitdown");
+    if (markitdown.enabled === false) {
+      addAll(options.exclude, skills);
+    } else {
+      addAll(markitdown.skills === false ? options.exclude : options.include, skills);
+    }
+  }
 }
 
 export function mergeProjectSkillOverrides(project: ProjectConfig) {

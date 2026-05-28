@@ -27,7 +27,20 @@ export class AddSkillCommand extends BaseCommand {
 
   static override usage = BaseCommand.Usage({
     category: "Add",
-    description: "Add a skill to the current project.",
+    description: "Add a skill to the current project. Prompts in a TTY when no name is given; --yes can install an unambiguous catalog bundle.",
+    details: `
+      Adds one skill to the current project overlay. Looks in the local library
+      first; with --yes, can install a missing skill bundle from the configured
+      npm-skill catalog before activating the requested skill.
+
+      Prompts in a TTY when no query or name is given. Use --all with a bundle
+      package name to add every skill from that installed bundle.
+    `,
+    examples: [
+      ["Add a local skill", "bgng add skill alpha"],
+      ["Install a catalog bundle and add one skill", "bgng add skill hello --yes"],
+      ["Add every skill from a bundle", "bgng add skill @acme/skill-bundle --yes --all"],
+    ],
   });
 
   queryOrName = Option.String({ required: false });
@@ -49,7 +62,7 @@ export class AddSkillCommand extends BaseCommand {
   });
 
   all = Option.Boolean("--all", false, {
-    description: "Add all skills from an installed catalog bundle.",
+    description: "Add all skills from an installed catalog bundle (use with a bundle package name).",
   });
 
   async execute() {

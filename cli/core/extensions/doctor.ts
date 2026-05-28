@@ -99,6 +99,36 @@ export async function buildExtensionDoctorReport(options: {
     }
   }
 
+  if (status.id === "markitdown") {
+    const markitdown = status.commands.find((command) => command.name === "markitdown");
+    const uv = status.commands.find((command) => command.name === "uv");
+
+    if (!markitdown?.available) {
+      issues.push("markitdown command is not available. Install with: uv tool install --python 3.12 'markitdown[all]'");
+      if (!uv?.available) {
+        issues.push("uv command is not available, so bgng cannot install MarkItDown. Install uv with: brew install uv OR curl -LsSf https://astral.sh/uv/install.sh | sh");
+      }
+    } else {
+      const version = await runExternalCommand({
+        cmd: ["markitdown", "--version"],
+        cwd: options.cwd,
+        env: options.env,
+      });
+      if (version.exitCode !== 0) {
+        issues.push(`markitdown --version failed with exit code ${version.exitCode}`);
+      }
+
+      const smoke = await runExternalCommand({
+        cmd: ["/bin/sh", "-c", "printf '# Smoke\\n\\nhello\\n' | markitdown -x md"],
+        cwd: options.cwd,
+        env: options.env,
+      });
+      if (smoke.exitCode !== 0) {
+        issues.push(`markitdown stdin smoke conversion failed with exit code ${smoke.exitCode}`);
+      }
+    }
+  }
+
   return {
     id: status.id,
     displayName: status.displayName,

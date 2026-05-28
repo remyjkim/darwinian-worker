@@ -158,6 +158,37 @@ describe("buildActiveServers", () => {
     expect(active["parallel-search"]).toBeDefined();
     expect(active["parallel-task"]).toBeDefined();
   });
+
+  test("real packaged registry exposes notion via the hosted Streamable HTTP endpoint", async () => {
+    const registry = JSON.parse(
+      await readFile(join(import.meta.dir, "..", "registry", "mcp-servers.json"), "utf8"),
+    ) as CanonicalRegistry;
+
+    expect(registry.servers["notion"]).toMatchObject({
+      transport: "http",
+      url: "https://mcp.notion.com/mcp",
+      optional: true,
+    });
+  });
+
+  test("notion is excluded by default and included only when opted in via optional config", async () => {
+    const registry = JSON.parse(
+      await readFile(join(import.meta.dir, "..", "registry", "mcp-servers.json"), "utf8"),
+    ) as CanonicalRegistry;
+
+    const baseline = buildActiveServers(registry, createConfig(false, false));
+    expect(baseline["notion"]).toBeUndefined();
+
+    const optedIn: CanonicalConfig = {
+      ...createConfig(false, false),
+      optional: { notion: true },
+    };
+    const active = buildActiveServers(registry, optedIn);
+    expect(active["notion"]).toMatchObject({
+      transport: "http",
+      url: "https://mcp.notion.com/mcp",
+    });
+  });
 });
 
 describe("renderCursorConfig", () => {
@@ -175,9 +206,22 @@ describe("renderCursorConfig", () => {
           args: ["-y", "@upstash/context7-mcp"],
         },
         slack: {
+          type: "http",
           url: "https://mcp.slack.com/mcp",
         },
       },
+    });
+  });
+
+  test("annotates http transports with type: 'http' for Claude Code-compatible clients", () => {
+    const json = renderCursorConfig({
+      slack: getServer(createRegistry(), "slack"),
+    });
+    const parsed = JSON.parse(json) as { mcpServers: Record<string, unknown> };
+
+    expect(parsed.mcpServers["slack"]).toEqual({
+      type: "http",
+      url: "https://mcp.slack.com/mcp",
     });
   });
 });
@@ -188,12 +232,14 @@ describe("Parallel MCP rendering", () => {
       "parallel-search": getServer(createRegistryWithParallelMcp(), "parallel-search"),
       "parallel-task": getServer(createRegistryWithParallelMcp(), "parallel-task"),
     });
-    const parsed = JSON.parse(json) as { mcpServers: Record<string, { url: string }> };
+    const parsed = JSON.parse(json) as { mcpServers: Record<string, { type: string; url: string }> };
 
     expect(parsed.mcpServers["parallel-search"]).toEqual({
+      type: "http",
       url: "https://search.parallel.ai/mcp",
     });
     expect(parsed.mcpServers["parallel-task"]).toEqual({
+      type: "http",
       url: "https://task-mcp.parallel.ai/mcp",
     });
   });
@@ -238,7 +284,7 @@ describe("mergeClaudeSettingsText", () => {
       },
     );
 
-    expect(JSON.parse(merged)).toEqual({
+    expect(JSON.parse(merged)).toMatchObject({
       env: { A: "1" },
       model: "sonnet",
       mcpServers: {
@@ -259,7 +305,7 @@ describe("mergeClaudeSettingsText", () => {
       },
     );
 
-    expect(JSON.parse(merged)).toEqual({
+    expect(JSON.parse(merged)).toMatchObject({
       model: "sonnet",
       mcpServers: {
         "parallel-search": {
@@ -269,6 +315,21 @@ describe("mergeClaudeSettingsText", () => {
           url: "https://task-mcp.parallel.ai/mcp",
         },
       },
+    });
+  });
+
+  test("annotates http transports with type: 'http' so Claude Code recognizes them", () => {
+    const merged = mergeClaudeSettingsText(
+      JSON.stringify({ model: "sonnet" }, null, 2),
+      {
+        slack: getServer(createRegistry(), "slack"),
+      },
+    );
+    const parsed = JSON.parse(merged) as { mcpServers: Record<string, unknown> };
+
+    expect(parsed.mcpServers["slack"]).toEqual({
+      type: "http",
+      url: "https://mcp.slack.com/mcp",
     });
   });
 });
@@ -326,9 +387,28 @@ describe("mergeCodexTomlText", () => {
     expect(parsed.mcp_servers).toEqual({
       "parallel-search": {
         url: "https://search.parallel.ai/mcp",
+        enabled: true,
       },
       "parallel-task": {
         url: "https://task-mcp.parallel.ai/mcp",
+        enabled: true,
+      },
+    });
+  });
+
+  test("marks http transports as enabled so Codex activates them", () => {
+    const merged = mergeCodexTomlText(
+      'personality = "pragmatic"\n',
+      {
+        slack: getServer(createRegistry(), "slack"),
+      },
+    );
+    const parsed = parseToml(merged) as Record<string, unknown>;
+
+    expect(parsed.mcp_servers).toEqual({
+      slack: {
+        url: "https://mcp.slack.com/mcp",
+        enabled: true,
       },
     });
   });

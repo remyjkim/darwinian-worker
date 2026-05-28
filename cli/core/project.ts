@@ -34,6 +34,10 @@ export function findProjectConfig(startDir: string): string | null {
   }
 }
 
+export function resolveProjectRootFromConfigPath(configPath: string) {
+  return dirname(dirname(dirname(configPath)));
+}
+
 export async function loadProjectConfig(configPath: string): Promise<ProjectConfig> {
   const parsed = JSON.parse(readFileSync(configPath, "utf8")) as ProjectConfig;
   if (parsed.version !== 1) {

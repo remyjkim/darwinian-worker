@@ -15,7 +15,20 @@ export class LibraryDefaultsAddSkillCommand extends BaseCommand {
 
   static override usage = BaseCommand.Usage({
     category: "Library",
-    description: "Add a skill to machine-wide defaults.",
+    description: "Add a shared skill to machine-wide defaults and curate it into the ~/.agents publication layer.",
+    details: `
+      Promotes a shared-scope skill to machine-wide defaults and curates it into
+      ~/.agents/skills so downstream tools can consume it. Non-shared skills are
+      rejected as global defaults.
+
+      Use --dry-run to preview the default change without writing config or
+      performing the curation side effect.
+    `,
+    examples: [
+      ["Add a default skill", "bgng library defaults add skill alpha"],
+      ["Preview the curation side effect", "bgng library defaults add skill alpha --dry-run"],
+      ["Add a package-backed skill as JSON", "bgng library defaults add skill hello-skill --json"],
+    ],
   });
 
   skillName = Option.String({ required: true });

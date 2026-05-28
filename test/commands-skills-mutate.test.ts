@@ -20,7 +20,37 @@ async function addParallelSkills(repoRoot: string) {
   }
 }
 
+function envFor(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
+  return {
+    AGENTS_REPO_ROOT: fixture.repoRoot,
+    AGENTS_HOME_DIR: fixture.homeDir,
+    AGENTS_DIR: fixture.agentsDir,
+  };
+}
+
 describe("bgng skills mutate", () => {
+  test("skills curate --json emits a curatedPath payload", async () => {
+    const fixture = await scaffoldCliFixture({ curatedSkillNames: [] });
+    tempRoots.push(fixture.root);
+
+    const result = await runAgentsCli(["skills", "curate", "alpha", "--json"], envFor(fixture));
+
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout) as { curatedPath: string };
+    expect(parsed.curatedPath).toContain("alpha");
+  });
+
+  test("skills uncurate --json emits an uncuratedPath payload", async () => {
+    const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
+    tempRoots.push(fixture.root);
+
+    const result = await runAgentsCli(["skills", "uncurate", "alpha", "--json"], envFor(fixture));
+
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout) as { uncuratedPath: string };
+    expect(parsed.uncuratedPath).toContain("alpha");
+  });
+
   test("curate creates the agents-layer symlink for a package-backed shared skill", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
@@ -123,8 +153,8 @@ describe("bgng skills mutate", () => {
     }, projectDir);
 
     expect(result.exitCode).toBe(0);
-    expect((await lstat(join(fixture.homeDir, ".claude", "skills", "parallel-web-search"))).isSymbolicLink()).toBe(true);
-    await expect(access(join(fixture.homeDir, ".claude", "skills", "parallel-web-extract"))).rejects.toThrow();
+    expect((await lstat(join(projectDir, ".claude", "skills", "parallel-web-search"))).isSymbolicLink()).toBe(true);
+    await expect(access(join(projectDir, ".claude", "skills", "parallel-web-extract"))).rejects.toThrow();
   });
 
   test("write --skills-only installs downstream symlinks for curated package-backed skills", async () => {
@@ -162,7 +192,7 @@ describe("bgng skills mutate", () => {
     expect((await lstat(join(fixture.homeDir, ".codex", "skills", "hello-skill"))).isSymbolicLink()).toBe(true);
   });
 
-  test("write --skills-only reports stale links but does not prune by default", async () => {
+  test("write --skills-only removes bgng-owned links that leave the effective state", async () => {
     const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
     tempRoots.push(fixture.root);
 
@@ -185,9 +215,8 @@ describe("bgng skills mutate", () => {
     });
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("Warnings:");
-    expect(result.stdout).toContain("stale skill symlink");
-    expect((await lstat(join(fixture.homeDir, ".claude", "skills", "alpha"))).isSymbolicLink()).toBe(true);
+    expect(result.stdout).toContain("remove");
+    await expect(access(join(fixture.homeDir, ".claude", "skills", "alpha"))).rejects.toThrow();
   });
 
   test("curate on an unknown skill exits non-zero", async () => {

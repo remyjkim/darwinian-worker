@@ -229,7 +229,7 @@ describe("core skills", () => {
     expect(result.changes.some((change) => change.includes("alpha"))).toBe(false);
   });
 
-  test("syncSkills warns when include references a nonexistent skill", async () => {
+  test("syncSkills fails when include references a nonexistent skill", async () => {
     const root = await createTempRoot();
     const homeDir = join(root, "home");
     const agentsDir = join(homeDir, ".agents");
@@ -237,12 +237,12 @@ describe("core skills", () => {
     await mkdir(join(agentsDir, "skills"), { recursive: true });
 
     const { syncSkills } = await import("../cli/core/skills");
-    const result = await syncSkills(
-      normalizeSyncPathOptions({ repoRoot: root, agentsDir, homeDir }, import.meta.path),
-      { include: ["missing-skill"] },
-    );
-
-    expect(result.warnings.some((warning) => warning.includes("missing-skill"))).toBe(true);
+    await expect(
+      syncSkills(
+        normalizeSyncPathOptions({ repoRoot: root, agentsDir, homeDir }, import.meta.path),
+        { include: ["missing-skill"] },
+      ),
+    ).rejects.toThrow("missing-skill");
   });
 
   test("syncSkills installs downstream links from a curated package-backed source", async () => {

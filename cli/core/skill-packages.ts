@@ -11,6 +11,13 @@ import {
   resolveSkillPackagesRoot,
   resolveSkillPackageVersionRoot,
 } from "./paths";
+import {
+  resolveStoreMetadataPath,
+  resolveStoreSkillPackageCurrentLink,
+  resolveStoreSkillPackageRoot,
+  resolveStoreSkillPackagesRoot,
+  resolveStoreSkillPackageVersionRoot,
+} from "./store-paths";
 import type { BundleManifest, InstalledSkillBundle } from "./types";
 
 export async function loadBundleManifest(bundleRoot: string): Promise<BundleManifest> {
@@ -19,6 +26,34 @@ export async function loadBundleManifest(bundleRoot: string): Promise<BundleMani
     throw new Error(`Missing bundle.json at ${bundleRoot}`);
   }
   return JSON.parse(readFileSync(manifestPath, "utf8")) as BundleManifest;
+}
+
+function useStoreSkillLayout(agentsDir: string) {
+  return existsSync(resolveStoreMetadataPath(agentsDir));
+}
+
+function activeSkillPackagesRoot(agentsDir: string) {
+  return useStoreSkillLayout(agentsDir)
+    ? resolveStoreSkillPackagesRoot(agentsDir)
+    : resolveSkillPackagesRoot(agentsDir);
+}
+
+function activeSkillPackageRoot(agentsDir: string, packageName: string) {
+  return useStoreSkillLayout(agentsDir)
+    ? resolveStoreSkillPackageRoot(agentsDir, packageName)
+    : resolveSkillPackageRoot(agentsDir, packageName);
+}
+
+function activeSkillPackageVersionRoot(agentsDir: string, packageName: string, version: string) {
+  return useStoreSkillLayout(agentsDir)
+    ? resolveStoreSkillPackageVersionRoot(agentsDir, packageName, version)
+    : resolveSkillPackageVersionRoot(agentsDir, packageName, version);
+}
+
+function activeSkillPackageCurrentLink(agentsDir: string, packageName: string) {
+  return useStoreSkillLayout(agentsDir)
+    ? resolveStoreSkillPackageCurrentLink(agentsDir, packageName)
+    : resolveSkillPackageCurrentLink(agentsDir, packageName);
 }
 
 function isWithinRoot(root: string, candidatePath: string) {
@@ -68,7 +103,7 @@ export async function validateBundleManifest(
 }
 
 export async function listInstalledSkillBundles(agentsDir: string): Promise<InstalledSkillBundle[]> {
-  const packagesRoot = resolveSkillPackagesRoot(agentsDir);
+  const packagesRoot = activeSkillPackagesRoot(agentsDir);
   if (!existsSync(packagesRoot)) {
     return [];
   }
@@ -103,14 +138,14 @@ export async function listInstalledSkillBundles(agentsDir: string): Promise<Inst
 }
 
 export async function getInstalledSkillBundle(agentsDir: string, packageName: string) {
-  const packageRoot = resolveSkillPackageRoot(agentsDir, packageName);
-  const currentPath = resolveSkillPackageCurrentLink(agentsDir, packageName);
+  const packageRoot = activeSkillPackageRoot(agentsDir, packageName);
+  const currentPath = activeSkillPackageCurrentLink(agentsDir, packageName);
   if (!existsSync(packageRoot) || !existsSync(currentPath)) {
     return null;
   }
 
   const activeVersion = basename(await readlink(currentPath));
-  const versionRoot = resolveSkillPackageVersionRoot(agentsDir, packageName, activeVersion);
+  const versionRoot = activeSkillPackageVersionRoot(agentsDir, packageName, activeVersion);
   const manifest = await loadBundleManifest(versionRoot);
   return {
     packageName,
@@ -162,9 +197,9 @@ export async function ingestSkillPackage(options: {
     const manifest = await loadBundleManifest(normalizedRoot);
     await validateBundleManifest(normalizedRoot, manifest, options.existingSkillNames, metadata.name, metadata.version);
 
-    const packageRoot = resolveSkillPackageRoot(options.agentsDir, metadata.name);
-    const versionRoot = resolveSkillPackageVersionRoot(options.agentsDir, metadata.name, metadata.version);
-    const currentPath = resolveSkillPackageCurrentLink(options.agentsDir, metadata.name);
+    const packageRoot = activeSkillPackageRoot(options.agentsDir, metadata.name);
+    const versionRoot = activeSkillPackageVersionRoot(options.agentsDir, metadata.name, metadata.version);
+    const currentPath = activeSkillPackageCurrentLink(options.agentsDir, metadata.name);
 
     mkdirSync(dirname(packageRoot), { recursive: true });
     mkdirSync(packageRoot, { recursive: true });

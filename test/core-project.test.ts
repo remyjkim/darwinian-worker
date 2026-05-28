@@ -236,6 +236,48 @@ describe("core project", () => {
     expect(merged.skills?.exclude).toContain("parallel-web-extract");
   });
 
+  test("mergeProjectConfig derives MarkItDown extension skill", async () => {
+    const config = createFixtureConfig({
+      claudeSettings: "/tmp/.claude/settings.json",
+      codexConfig: "/tmp/.codex/config.toml",
+      cursorConfig: "/tmp/.cursor/mcp.json",
+    });
+    const registry = createFixtureRegistry();
+
+    const { mergeProjectConfig } = await import("../cli/core/project");
+    const merged = mergeProjectConfig(config, registry, {
+      version: 1,
+      extensions: {
+        markitdown: { enabled: true, skills: true },
+      },
+    });
+
+    expect(merged.skills?.include).toContain("markitdown-document-conversion");
+  });
+
+  test("mergeProjectConfig lets explicit excludes override MarkItDown skill", async () => {
+    const config = createFixtureConfig({
+      claudeSettings: "/tmp/.claude/settings.json",
+      codexConfig: "/tmp/.codex/config.toml",
+      cursorConfig: "/tmp/.cursor/mcp.json",
+    });
+    const registry = createFixtureRegistry();
+
+    const { mergeProjectConfig } = await import("../cli/core/project");
+    const merged = mergeProjectConfig(config, registry, {
+      version: 1,
+      extensions: {
+        markitdown: { enabled: true, skills: true },
+      },
+      skills: {
+        exclude: ["markitdown-document-conversion"],
+      },
+    });
+
+    expect(merged.skills?.include ?? []).not.toContain("markitdown-document-conversion");
+    expect(merged.skills?.exclude).toContain("markitdown-document-conversion");
+  });
+
   test("mergeProjectConfig applies target enabled overrides", async () => {
     const config = createFixtureConfig({
       claudeSettings: "/tmp/.claude/settings.json",
