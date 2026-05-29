@@ -63,7 +63,7 @@ async function writeJson(pathValue: string, value: unknown) {
 
 function assertNoLegacyLayout(agentsDir: string) {
   if (detectLegacyLayout(agentsDir)) {
-    throw new Error("Legacy bgng layout detected. Run `bgng store migrate` before authoring or applying cards.");
+    throw new Error("Legacy drwn layout detected. Run `drwn store migrate` before authoring or applying cards.");
   }
 }
 
@@ -382,7 +382,7 @@ export async function resolveCard(agentsDir: string, ref: string): Promise<Resol
   const recordedEntry = index.versions.find((entry) => entry.version === version);
   if (recordedEntry && recordedEntry.integrity !== computedIntegrity) {
     console.info(
-      `[bgng] upgraded integrity hash for ${parsed.name}@${version}: was ${recordedEntry.integrity.slice(0, 20)}..., now ${computedIntegrity.slice(0, 20)}...`,
+      `[drwn] upgraded integrity hash for ${parsed.name}@${version}: was ${recordedEntry.integrity.slice(0, 20)}..., now ${computedIntegrity.slice(0, 20)}...`,
     );
     recordedEntry.integrity = computedIntegrity;
     await writeCardPackageIndex(agentsDir, index);

@@ -1,4 +1,4 @@
-// ABOUTME: Formats human-readable and JSON command output for the bgng harness CLI.
+// ABOUTME: Formats human-readable and JSON command output for the drwn harness CLI.
 // ABOUTME: Keeps presentation logic separate from filesystem and sync domain logic.
 
 export function renderJson(value: unknown) {

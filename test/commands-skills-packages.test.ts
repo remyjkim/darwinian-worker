@@ -1,4 +1,4 @@
-// ABOUTME: Verifies bgng skills packages add/list/show command behavior for package-backed skill bundles.
+// ABOUTME: Verifies drwn skills packages add/list/show command behavior for package-backed skill bundles.
 // ABOUTME: Locks in the package-backed extension source UX without conflating it with curation or write.
 
 import { afterEach, describe, expect, test } from "bun:test";
@@ -53,7 +53,7 @@ async function createBundleFixture(root: string, options?: { packageName?: strin
   return { bundleRoot, packageName, version, skillName };
 }
 
-describe("bgng skills packages", () => {
+describe("drwn skills packages", () => {
   test("add installs a bundle into the managed cache", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);

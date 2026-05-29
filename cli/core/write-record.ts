@@ -1,5 +1,5 @@
-// ABOUTME: Reads and writes bgng materialization records for drift detection and safe cleanup.
-// ABOUTME: Records only bgng-owned paths so cleanup never guesses ownership.
+// ABOUTME: Reads and writes drwn materialization records for drift detection and safe cleanup.
+// ABOUTME: Records only drwn-owned paths so cleanup never guesses ownership.
 
 import { closeSync, existsSync, fsyncSync, openSync, readFileSync, renameSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";

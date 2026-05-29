@@ -1,4 +1,4 @@
-// ABOUTME: Implements bgng skills packages show for displaying one installed package-backed skill bundle.
+// ABOUTME: Implements drwn skills packages show for displaying one installed package-backed skill bundle.
 // ABOUTME: Surfaces manifest and skill metadata so operators can inspect available extension content before curation.
 
 import { Option, UsageError } from "clipanion";
@@ -19,8 +19,8 @@ export class SkillsPackagesShowCommand extends BaseCommand {
       This command is read-only.
     `,
     examples: [
-      ["Show a bundle", "bgng skills packages show @acme/skills-sample"],
-      ["Show a bundle as JSON", "bgng skills packages show @acme/skills-sample --json"],
+      ["Show a bundle", "drwn skills packages show @acme/skills-sample"],
+      ["Show a bundle as JSON", "drwn skills packages show @acme/skills-sample --json"],
     ],
   });
 

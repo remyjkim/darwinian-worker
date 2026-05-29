@@ -41,19 +41,23 @@ describe("documentation readiness", () => {
 
     for (const doc of [readme, usageGuide]) {
       expect(doc).toContain("bun link");
-      expect(doc).toContain("bgng write");
-      expect(doc).toContain("bgng scan");
-      expect(doc).toContain("bgng doctor");
-      expect(doc).toContain("bgng init");
-      expect(doc).toContain("bgng extensions");
-      expect(doc).toContain("bgng extensions setup parallel");
-      expect(doc).toContain("bgng extensions setup markitdown");
       expect(doc).toContain("uv tool install --python 3.12 'markitdown[all]'");
-      expect(doc).toContain("bgng skills packages");
       expect(doc).toContain("markdownify");
       expect(doc).toContain("markitdown");
       expect(doc).toContain("beads");
       expect(doc).toContain("parallel");
+    }
+    for (const command of [
+      "drwn write",
+      "drwn scan",
+      "drwn doctor",
+      "drwn init",
+      "drwn extensions",
+      "drwn extensions setup parallel",
+      "drwn extensions setup markitdown",
+      "drwn skills packages",
+    ]) {
+      expect(readme).toContain(command);
     }
 
     expect(brewGuide).toContain("Homebrew");
@@ -61,9 +65,9 @@ describe("documentation readiness", () => {
     expect(brewGuide).toContain("bgng");
     expect(brewGuide).toContain("beginning-harness");
     expect(readme).toContain("local meta-harness");
-    expect(readme).toContain("The package is `beginning-harness`. The command is `bgng`.");
+    expect(readme).toContain("The package is `darwinian-harness`. The command is `drwn`.");
     expect(readme).toContain("What It Changes On Disk");
-    expect(readme).toContain("![The Beginning Harness hero image](./docs/assets/the-beginning-harness.png)");
+    expect(readme).toContain("![The Darwinian Harness hero image](./docs/assets/the-darwinian-harness.png)");
     expect(readme).toContain("Usage Modes");
     expect(readme).toContain("Documentation Map");
     expect(readme).toContain("Per-Project Configuration");
@@ -73,8 +77,8 @@ describe("documentation readiness", () => {
     expect(readme).toContain("[docs-astro](./docs-astro)");
     expect(readme).toContain("bun run build");
     expect(readme).toContain("bun run deploy:pages");
-    expect(readme).toContain("bgng library defaults remove skill");
-    expect(readme).toContain("bgng library defaults remove mcp");
+    expect(readme).toContain("drwn library defaults remove skill");
+    expect(readme).toContain("drwn library defaults remove mcp");
     expect(readme).toContain("[registry/config.json](./registry/config.json)");
     expect(readme).toContain("[registry/mcp-servers.json](./registry/mcp-servers.json)");
     expect(usageGuide).toContain("<project>/.agents/bgng/config.json");
@@ -89,7 +93,7 @@ describe("documentation readiness", () => {
     expect(usageGuide).toContain("repo-native and installed package-backed skills");
     expect(usageGuide).toContain("beginning-harness");
     expect(usageGuide).toContain("local harness");
-    expect(readme).toContain("bgng apply");
+    expect(readme).toContain("drwn apply");
     expect(usageGuide).toContain("bgng apply");
     expect(projectGuide).toContain("Discovery walks upward");
     expect(projectGuide).toContain("\"version\": 1");
@@ -110,17 +114,17 @@ describe("documentation readiness", () => {
     expect(brewGuide).toContain("bgng card list --json");
     expect(docsAstro).toContain("Harness Cards");
     expect(docsAstro).toContain("Store And Migration");
-    expect(docsAstro).toContain("bgng extensions add");
-    expect(docsAstro).toContain("bgng card");
-    expect(docsAstro).toContain("bgng store");
-    expect(docsAstro).toContain("bgng apply");
-    expect(docsAstro).toContain("bgng update");
-    expect(docsAstro).toContain("bgng write --force");
-    expect(docsAstro).toContain("bgng status --why");
+    expect(docsAstro).toContain("drwn extensions add");
+    expect(docsAstro).toContain("drwn card");
+    expect(docsAstro).toContain("drwn store");
+    expect(docsAstro).toContain("drwn apply");
+    expect(docsAstro).toContain("drwn update");
+    expect(docsAstro).toContain("drwn write --force");
+    expect(docsAstro).toContain("drwn status --why");
     expect(docsAstro).toContain("~/.agents/bgng/machine.json");
     expect(docsAstro).toContain("~/.agents/bgng/skills");
     expect(docsAstro).toContain("~/.agents/bgng/mcp-servers");
-    expect(docsAstro).not.toContain("bgng add extension");
+    expect(docsAstro).not.toContain("drwn add extension");
     expect(docsAstro).not.toContain("Machine-wide active MCP defaults live in `~/.agents/bgng/config.json`");
     expect(docsAstro).not.toContain("bundle is available under `~/.agents/packages/skills`");
     expect(docsAstro).not.toContain("package-backed skills and user MCP definitions under `~/.agents/library`");

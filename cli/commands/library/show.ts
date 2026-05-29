@@ -1,4 +1,4 @@
-// ABOUTME: Implements `bgng library show` for inspecting local inventory items.
+// ABOUTME: Implements `drwn library show` for inspecting local inventory items.
 // ABOUTME: Resolves exact skill and MCP ids with stable JSON output.
 
 import { Option, UsageError } from "clipanion";
@@ -18,8 +18,8 @@ export class LibraryShowCommand extends BaseCommand {
       server definition details.
     `,
     examples: [
-      ["Show a skill", "bgng library show alpha"],
-      ["Show an MCP server as JSON", "bgng library show context7 --json"],
+      ["Show a skill", "drwn library show alpha"],
+      ["Show an MCP server as JSON", "drwn library show context7 --json"],
     ],
   });
 

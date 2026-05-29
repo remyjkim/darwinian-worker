@@ -1,4 +1,4 @@
-// ABOUTME: Implements `bgng library add skill` for installing skill bundles into local inventory.
+// ABOUTME: Implements `drwn library add skill` for installing skill bundles into local inventory.
 // ABOUTME: Wraps the existing package-backed skill ingestion flow in the library mental model.
 
 import { Option, UsageError } from "clipanion";
@@ -16,14 +16,14 @@ export class LibraryAddSkillCommand extends BaseCommand {
     details: `
       Adds a package-backed skill bundle to the local library using the same
       ingestion path used by catalog installs. This makes the bundle's skills
-      available to bgng but does not activate them in any project.
+      available to drwn but does not activate them in any project.
 
-      After adding a bundle, use bgng add skill or bgng skills curate to opt in
+      After adding a bundle, use drwn add skill or drwn skills curate to opt in
       to specific skills.
     `,
     examples: [
-      ["Add a bundle from npm", "bgng library add skill @acme/skill-bundle"],
-      ["Add a bundle from a local path", "bgng library add skill ./bundle.tgz"],
+      ["Add a bundle from npm", "drwn library add skill @acme/skill-bundle"],
+      ["Add a bundle from a local path", "drwn library add skill ./bundle.tgz"],
     ],
   });
 
@@ -50,8 +50,8 @@ export class LibraryAddSkillCommand extends BaseCommand {
             `Added ${installed.packageName}@${installed.activeVersion} to the local library.`,
             "",
             "Next:",
-            "  bgng add skill <skill-name>",
-            "  bgng write --dry-run",
+            "  drwn add skill <skill-name>",
+            "  drwn write --dry-run",
           ].join("\n") + "\n",
         );
       }

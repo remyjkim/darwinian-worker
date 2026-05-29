@@ -11,7 +11,7 @@ Use per-project config when one project needs a different effective view than th
 
 ```bash
 cd /path/to/project
-bgng init
+drwn init
 ```
 
 This creates:
@@ -33,7 +33,7 @@ Project config can:
 
 ## Discovery
 
-Project config is applied by `bgng write`, `bgng mcp list`, `bgng mcp write`, `bgng status`, `bgng doctor`, and extension status/doctor/setup commands.
+Project config is applied by `drwn write`, `drwn mcp list`, `drwn mcp write`, `drwn status`, `drwn doctor`, and extension status/doctor/setup commands.
 
 Discovery walks upward from the current working directory and uses the nearest config file.
 
@@ -89,7 +89,7 @@ configured project.
 
 ## Project-local Materialization
 
-When `bgng write` runs inside a configured project, it writes downstream state
+When `drwn write` runs inside a configured project, it writes downstream state
 under the project root:
 
 ```text
@@ -108,7 +108,7 @@ Lower-level `skills.include` and `skills.exclude` work for repo-native and packa
 ## Useful Workflow
 
 ```bash
-bgng status
-bgng write --dry-run
-bgng doctor
+drwn status
+drwn write --dry-run
+drwn doctor
 ```

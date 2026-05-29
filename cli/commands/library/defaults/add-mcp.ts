@@ -23,9 +23,9 @@ export class LibraryDefaultsAddMcpCommand extends BaseCommand {
       Use --dry-run to preview the default config change without writing it.
     `,
     examples: [
-      ["Add a default MCP server", "bgng library defaults add mcp context7"],
-      ["Preview a default change", "bgng library defaults add mcp context7 --dry-run"],
-      ["Add a default as JSON", "bgng library defaults add mcp context7 --json"],
+      ["Add a default MCP server", "drwn library defaults add mcp context7"],
+      ["Preview a default change", "drwn library defaults add mcp context7 --dry-run"],
+      ["Add a default as JSON", "drwn library defaults add mcp context7 --json"],
     ],
   });
 
@@ -65,7 +65,7 @@ export class LibraryDefaultsAddMcpCommand extends BaseCommand {
       scope: "global-default",
       action: alreadyDefault ? "already-default" : "added",
       configPath: path,
-      next: ["bgng write --dry-run"],
+      next: ["drwn write --dry-run"],
     };
 
     if (this.json) {
@@ -81,7 +81,7 @@ export class LibraryDefaultsAddMcpCommand extends BaseCommand {
         ...(this.dryRun ? [`Would update ${path}`] : [`Updated ${path}`]),
         "",
         "Next:",
-        "  bgng write --dry-run",
+        "  drwn write --dry-run",
       ].join("\n") + "\n",
     );
     return 0;

@@ -1,4 +1,4 @@
-// ABOUTME: Implements bgng extensions show for inspecting one extension definition.
+// ABOUTME: Implements drwn extensions show for inspecting one extension definition.
 // ABOUTME: Keeps extension details discoverable before setup or write changes are made.
 
 import { Option, UsageError } from "clipanion";
@@ -19,8 +19,8 @@ export class ExtensionsShowCommand extends BaseCommand {
       to inspect local availability and project state.
     `,
     examples: [
-      ["Show Beads metadata", "bgng extensions show beads"],
-      ["Show Parallel metadata as JSON", "bgng extensions show parallel --json"],
+      ["Show Beads metadata", "drwn extensions show beads"],
+      ["Show Parallel metadata as JSON", "drwn extensions show parallel --json"],
     ],
   });
 

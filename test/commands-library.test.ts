@@ -1,4 +1,4 @@
-// ABOUTME: Verifies the user-facing `bgng library` command group.
+// ABOUTME: Verifies the user-facing `drwn library` command group.
 // ABOUTME: Protects the local reusable inventory mental model over lower-level package commands.
 
 import { afterEach, describe, expect, test } from "bun:test";
@@ -27,7 +27,7 @@ function envFor(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
   };
 }
 
-describe("bgng library", () => {
+describe("drwn library", () => {
   test("lists local skills and MCP servers", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);

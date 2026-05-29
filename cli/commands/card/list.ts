@@ -1,4 +1,4 @@
-// ABOUTME: Implements `bgng card list` for local card store inventory.
+// ABOUTME: Implements `drwn card list` for local card store inventory.
 // ABOUTME: Keeps authors and consumers able to discover published cards.
 
 import { Option } from "clipanion";
@@ -16,7 +16,7 @@ export class CardListCommand extends BaseCommand {
       Lists cards under ~/.agents/bgng/cards and their published versions.
       Use --json when automation needs stable structured output.
     `,
-    examples: [["List cards", "bgng card list"]],
+    examples: [["List cards", "drwn card list"]],
   });
 
   json = Option.Boolean("--json", false, {

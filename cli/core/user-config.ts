@@ -1,4 +1,4 @@
-// ABOUTME: Manages user-owned global bgng config under ~/.agents/bgng.
+// ABOUTME: Manages user-owned global drwn config under ~/.agents/bgng.
 // ABOUTME: Initializes defaults from packaged config while preserving existing compatibility state.
 
 import { existsSync, mkdirSync } from "node:fs";

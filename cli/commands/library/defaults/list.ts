@@ -27,8 +27,8 @@ export class LibraryDefaultsListCommand extends BaseCommand {
       This command is read-only.
     `,
     examples: [
-      ["Show machine-wide defaults", "bgng library defaults list"],
-      ["Show defaults as JSON", "bgng library defaults list --json"],
+      ["Show machine-wide defaults", "drwn library defaults list"],
+      ["Show defaults as JSON", "drwn library defaults list --json"],
     ],
   });
 

@@ -1,4 +1,4 @@
-// ABOUTME: Implements `bgng export sessions` — discovers and archives Claude/Codex session logs.
+// ABOUTME: Implements `drwn export sessions` — discovers and archives Claude/Codex session logs.
 // ABOUTME: Writes a .tar archive under .agents/bgng/session-log-exports/ for the current project and its worktrees.
 
 import { Option } from "clipanion";
@@ -21,10 +21,10 @@ export class ExportSessionsCommand extends BaseCommand {
       Use --dry-run to preview which files would be archived without writing anything.
     `,
     examples: [
-      ["Preview session files", "bgng export sessions --dry-run"],
-      ["Archive to default path", "bgng export sessions"],
-      ["Archive to a specific file", "bgng export sessions --out /tmp/my-sessions.tar"],
-      ["Archive as upload-ready .tar.gz", "bgng export sessions --gzip"],
+      ["Preview session files", "drwn export sessions --dry-run"],
+      ["Archive to default path", "drwn export sessions"],
+      ["Archive to a specific file", "drwn export sessions --out /tmp/my-sessions.tar"],
+      ["Archive as upload-ready .tar.gz", "drwn export sessions --gzip"],
     ],
   });
 

@@ -1,4 +1,4 @@
-// ABOUTME: Defines the shared domain types used by the bgng harness CLI core and compatibility wrapper.
+// ABOUTME: Defines the shared domain types used by the drwn harness CLI core and compatibility wrapper.
 // ABOUTME: Centralizes registry, config, target, and sync result types to avoid drift.
 
 export type Transport = "stdio" | "http" | "sse" | "platform-provided";

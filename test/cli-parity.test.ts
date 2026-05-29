@@ -1,4 +1,4 @@
-// ABOUTME: Verifies repo-local and globally linked `bgng` invocations behave the same for representative commands.
+// ABOUTME: Verifies repo-local and globally linked `drwn` invocations behave the same for representative commands.
 // ABOUTME: Protects the supported dual execution modes for future users and release workflows.
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";

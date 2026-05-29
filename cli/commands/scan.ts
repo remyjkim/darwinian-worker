@@ -1,4 +1,4 @@
-// ABOUTME: Reserves the future `bgng scan` command as a safe no-op placeholder.
+// ABOUTME: Reserves the future `drwn scan` command as a safe no-op placeholder.
 // ABOUTME: Keeps scan discoverable while import and recommendation semantics are designed separately.
 
 import { Option } from "clipanion";
@@ -24,8 +24,8 @@ export class ScanCommand extends BaseCommand {
       future explicit import step is added.
     `,
     examples: [
-      ["Show the current placeholder output", "bgng scan"],
-      ["Inspect placeholder status as JSON", "bgng scan --json"],
+      ["Show the current placeholder output", "drwn scan"],
+      ["Inspect placeholder status as JSON", "drwn scan --json"],
     ],
   });
 
@@ -38,7 +38,7 @@ export class ScanCommand extends BaseCommand {
       implemented: false,
       changes: [] as string[],
       plannedRole,
-      message: "bgng scan is not implemented yet.",
+      message: "drwn scan is not implemented yet.",
     };
 
     if (this.json) {
@@ -48,7 +48,7 @@ export class ScanCommand extends BaseCommand {
 
     this.context.stdout.write(
       [
-        "bgng scan is not implemented yet.",
+        "drwn scan is not implemented yet.",
         "",
         "Planned role:",
         ...plannedRole.map((item) => `- ${item}`),

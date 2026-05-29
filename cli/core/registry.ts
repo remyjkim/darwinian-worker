@@ -1,4 +1,4 @@
-// ABOUTME: Loads and saves the packaged MCP registry file for the bgng harness CLI.
+// ABOUTME: Loads and saves the packaged MCP registry file for the drwn harness CLI.
 // ABOUTME: Provides the single shared entrypoint for registry reads and future mutation commands.
 
 import { readFile, writeFile } from "node:fs/promises";

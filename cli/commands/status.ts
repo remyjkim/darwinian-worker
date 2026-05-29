@@ -1,4 +1,4 @@
-// ABOUTME: Implements the `bgng status` command for a concise system overview of repo and derived state.
+// ABOUTME: Implements the `drwn status` command for a concise system overview of repo and derived state.
 // ABOUTME: Provides both human-readable and JSON output for operators and automation.
 
 import { Option } from "clipanion";
@@ -21,8 +21,8 @@ export class StatusCommand extends BaseCommand {
       This command is read-only.
     `,
     examples: [
-      ["Quick status snapshot", "bgng status"],
-      ["JSON for tooling", "bgng status --json"],
+      ["Quick status snapshot", "drwn status"],
+      ["JSON for tooling", "drwn status --json"],
     ],
   });
 

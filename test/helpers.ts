@@ -263,7 +263,7 @@ export async function runAgentsCli(args: string[], env: Record<string, string>, 
 }
 
 export async function runGlobalAgentsCli(args: string[], env: Record<string, string>) {
-  const proc = Bun.spawn(["bgng", ...args], {
+  const proc = Bun.spawn(["drwn", ...args], {
     cwd: join(import.meta.dir, ".."),
     stdout: "pipe",
     stderr: "pipe",

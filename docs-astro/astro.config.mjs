@@ -4,6 +4,6 @@ import sitemap from "@astrojs/sitemap";
 import tailwind from "@astrojs/tailwind";
 
 export default defineConfig({
-  site: "https://thebeginningharness.com",
+  site: "https://thedarwinianharness.com",
   integrations: [mdx(), sitemap(), tailwind()],
 });

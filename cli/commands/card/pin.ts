@@ -1,4 +1,4 @@
-// ABOUTME: Implements `bgng card pin` for replacing one project card spec.
+// ABOUTME: Implements `drwn card pin` for replacing one project card spec.
 // ABOUTME: Useful for locking a project to an exact card version.
 
 import { Option } from "clipanion";
@@ -17,13 +17,13 @@ export class CardPinCommand extends BaseCommand {
       card is not already present. Exact versions are useful when a project
       needs reproducible behavior independent of newer local publishes.
     `,
-    examples: [["Pin a card", "bgng card pin @me/backend@1.0.0"]],
+    examples: [["Pin a card", "drwn card pin @me/backend@1.0.0"]],
   });
 
   spec = Option.String({ required: true });
 
   write = Option.Boolean("--write", false, {
-    description: "Run bgng write after updating project cards.",
+    description: "Run drwn write after updating project cards.",
   });
 
   async execute() {

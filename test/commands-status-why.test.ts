@@ -1,4 +1,4 @@
-// ABOUTME: Verifies `bgng status --why` and `--explain` provenance output.
+// ABOUTME: Verifies `drwn status --why` and `--explain` provenance output.
 // ABOUTME: Protects the cards-era diagnostics command surface.
 
 import { afterEach, expect, test } from "bun:test";

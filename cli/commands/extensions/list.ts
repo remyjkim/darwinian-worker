@@ -1,4 +1,4 @@
-// ABOUTME: Implements bgng extensions list for discovering supported extension families.
+// ABOUTME: Implements drwn extensions list for discovering supported extension families.
 // ABOUTME: Presents typed extension metadata without running external tools.
 
 import { Option } from "clipanion";
@@ -13,12 +13,12 @@ export class ExtensionsListCommand extends BaseCommand {
     category: "Extensions",
     description: "List supported extension families.",
     details: `
-      Lists the extension families registered in bgng. This command is
+      Lists the extension families registered in drwn. This command is
       read-only and does not inspect project state or external CLI availability.
     `,
     examples: [
-      ["List supported extensions", "bgng extensions list"],
-      ["List supported extensions as JSON", "bgng extensions list --json"],
+      ["List supported extensions", "drwn extensions list"],
+      ["List supported extensions as JSON", "drwn extensions list --json"],
     ],
   });
 

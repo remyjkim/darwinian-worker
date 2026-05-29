@@ -1,4 +1,4 @@
-// ABOUTME: Implements `bgng library list` for local reusable inventory.
+// ABOUTME: Implements `drwn library list` for local reusable inventory.
 // ABOUTME: Surfaces skills and MCP servers without implying online catalog ownership.
 
 import { Option, UsageError } from "clipanion";
@@ -21,9 +21,9 @@ export class LibraryListCommand extends BaseCommand {
       This command is read-only.
     `,
     examples: [
-      ["List all library items", "bgng library list"],
-      ["List only MCP servers", "bgng library list mcp"],
-      ["List skills as JSON", "bgng library list skills --json"],
+      ["List all library items", "drwn library list"],
+      ["List only MCP servers", "drwn library list mcp"],
+      ["List skills as JSON", "drwn library list skills --json"],
     ],
   });
 

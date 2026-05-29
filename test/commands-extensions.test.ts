@@ -1,4 +1,4 @@
-// ABOUTME: Verifies bgng extensions command behavior for Beads and Parallel.
+// ABOUTME: Verifies drwn extensions command behavior for Beads and Parallel.
 // ABOUTME: Uses fake external CLIs so extension workflows are deterministic and non-mutating unless tested.
 
 import { afterEach, describe, expect, test } from "bun:test";
@@ -55,7 +55,7 @@ function cliEnv(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>, extra?:
   };
 }
 
-describe("bgng extensions", () => {
+describe("drwn extensions", () => {
   test("list and show expose built-in extension definitions", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);

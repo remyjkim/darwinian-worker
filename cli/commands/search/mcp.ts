@@ -1,4 +1,4 @@
-// ABOUTME: Implements `bgng search mcp` across local registry and trusted MCP catalogs.
+// ABOUTME: Implements `drwn search mcp` across local registry and trusted MCP catalogs.
 // ABOUTME: Avoids arbitrary MCP package inference by using explicit configured sources.
 
 import { Option, UsageError } from "clipanion";
@@ -42,9 +42,9 @@ export class SearchMcpCommand extends BaseCommand {
       inventory from online catalog discovery.
     `,
     examples: [
-      ["Search all MCP sources", "bgng search mcp github"],
-      ["Search only the local MCP library", "bgng search mcp github --library"],
-      ["Return JSON results", "bgng search mcp postgres --json"],
+      ["Search all MCP sources", "drwn search mcp github"],
+      ["Search only the local MCP library", "drwn search mcp github --library"],
+      ["Return JSON results", "drwn search mcp postgres --json"],
     ],
   });
 

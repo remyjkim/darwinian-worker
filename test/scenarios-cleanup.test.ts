@@ -1,4 +1,4 @@
-// ABOUTME: Verifies write-record-backed cleanup removes only bgng-owned paths.
+// ABOUTME: Verifies write-record-backed cleanup removes only drwn-owned paths.
 // ABOUTME: Protects user content from accidental deletion during materialization changes.
 
 import { afterEach, expect, test } from "bun:test";

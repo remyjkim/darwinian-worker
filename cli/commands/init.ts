@@ -1,4 +1,4 @@
-// ABOUTME: Implements the bgng init command for creating per-project config scaffolding.
+// ABOUTME: Implements the drwn init command for creating per-project config scaffolding.
 // ABOUTME: Keeps project bootstrap simple and explicit without mutating gitignore or other repo state.
 
 import { Option } from "clipanion";
@@ -30,9 +30,9 @@ export class InitCommand extends BaseCommand {
       interactive flow when stdin and stdout are TTYs.
     `,
     examples: [
-      ["First-time setup in an interactive shell", "bgng init"],
-      ["Minimal config without prompts", "bgng init --non-interactive"],
-      ["Re-run setup over an existing config", "bgng init --force --guided"],
+      ["First-time setup in an interactive shell", "drwn init"],
+      ["Minimal config without prompts", "drwn init --non-interactive"],
+      ["Re-run setup over an existing config", "drwn init --force --guided"],
     ],
   });
 

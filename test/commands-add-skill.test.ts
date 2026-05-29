@@ -1,4 +1,4 @@
-// ABOUTME: Verifies project-first skill activation through `bgng add skill`.
+// ABOUTME: Verifies project-first skill activation through `drwn add skill`.
 // ABOUTME: Protects local library lookup and project config mutation behavior.
 
 import { afterEach, describe, expect, test } from "bun:test";
@@ -29,7 +29,7 @@ function envFor(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>, extra?:
   };
 }
 
-describe("bgng add skill", () => {
+describe("drwn add skill", () => {
   test("adds a repo-native skill to project config", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);

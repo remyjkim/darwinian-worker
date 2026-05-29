@@ -1,4 +1,4 @@
-// ABOUTME: Provides canonical hashing and drift checks for bgng-managed settings fields.
+// ABOUTME: Provides canonical hashing and drift checks for drwn-managed settings fields.
 // ABOUTME: Keeps drift detection independent from formatting and key ordering.
 
 import { createHash } from "node:crypto";

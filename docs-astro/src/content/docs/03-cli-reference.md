@@ -1,6 +1,6 @@
 ---
 title: "CLI Reference"
-description: "Complete command catalog for bgng."
+description: "Complete command catalog for drwn."
 date: 2026-04-28
 order: 3
 ---
@@ -9,120 +9,120 @@ order: 3
 
 | Command | Description |
 |---------|-------------|
-| `bgng status` | Summarize current effective state |
-| `bgng status --explain` | Show provenance for cards, skills, MCP servers, targets, and write records |
-| `bgng status --why <category>:<name>` | Explain why one skill, server, extension, target, or card is active |
-| `bgng doctor` | Diagnose problems without mutating |
-| `bgng scan` | Scan the current environment |
-| `bgng init` | Start or bootstrap project config |
-| `bgng write` | Write effective config to target tools |
-| `bgng write --force` | Overwrite drift in bgng-managed regions |
+| `drwn status` | Summarize current effective state |
+| `drwn status --explain` | Show provenance for cards, skills, MCP servers, targets, and write records |
+| `drwn status --why <category>:<name>` | Explain why one skill, server, extension, target, or card is active |
+| `drwn doctor` | Diagnose problems without mutating |
+| `drwn scan` | Scan the current environment |
+| `drwn init` | Start or bootstrap project config |
+| `drwn write` | Write effective config to target tools |
+| `drwn write --force` | Overwrite drift in drwn-managed regions |
 
 ## Card Commands
 
 | Command | Description |
 |---------|-------------|
-| `bgng apply <refs...>` | Alias for `bgng card apply` |
-| `bgng update` | Alias for `bgng card update` |
-| `bgng card new <name>` | Create an editable card source under `~/.agents/bgng/sources` |
-| `bgng card publish <name>` | Publish a card source into the immutable local store |
-| `bgng card show <ref>` | Show one resolved card version |
-| `bgng card list` | List published cards in the local store |
-| `bgng card diff <before> <after>` | Compare two published card versions |
-| `bgng card deprecate <ref>` | Mark a published version as deprecated |
-| `bgng card apply <refs...>` | Replace the current project's card set and write `card.lock` |
-| `bgng card add <ref>` | Add one card to the current project |
-| `bgng card pin <ref>` | Pin or replace one card ref |
-| `bgng card remove <name>` | Remove one card from the project |
-| `bgng card detach` | Remove all cards from the project |
-| `bgng card update` | Refresh `card.lock` from configured card refs |
-| `bgng card outdated` | Report cards with newer local versions available |
-| `bgng card status` | Show configured refs, lock entries, and outdated cards |
+| `drwn apply <refs...>` | Alias for `drwn card apply` |
+| `drwn update` | Alias for `drwn card update` |
+| `drwn card new <name>` | Create an editable card source under `~/.agents/bgng/sources` |
+| `drwn card publish <name>` | Publish a card source into the immutable local store |
+| `drwn card show <ref>` | Show one resolved card version |
+| `drwn card list` | List published cards in the local store |
+| `drwn card diff <before> <after>` | Compare two published card versions |
+| `drwn card deprecate <ref>` | Mark a published version as deprecated |
+| `drwn card apply <refs...>` | Replace the current project's card set and write `card.lock` |
+| `drwn card add <ref>` | Add one card to the current project |
+| `drwn card pin <ref>` | Pin or replace one card ref |
+| `drwn card remove <name>` | Remove one card from the project |
+| `drwn card detach` | Remove all cards from the project |
+| `drwn card update` | Refresh `card.lock` from configured card refs |
+| `drwn card outdated` | Report cards with newer local versions available |
+| `drwn card status` | Show configured refs, lock entries, and outdated cards |
 
 ## Store Commands
 
 | Command | Description |
 |---------|-------------|
-| `bgng store status` | Show cards-era store status |
-| `bgng store migrate` | Migrate the pre-cards layout to `~/.agents/bgng` |
+| `drwn store status` | Show cards-era store status |
+| `drwn store migrate` | Migrate the pre-cards layout to `~/.agents/bgng` |
 
 ## Add Commands
 
 | Command | Description |
 |---------|-------------|
-| `bgng add skill [name-or-query]` | Add a skill to the current project |
-| `bgng add mcp [name-or-query]` | Add an MCP server to the current project |
+| `drwn add skill [name-or-query]` | Add a skill to the current project |
+| `drwn add mcp [name-or-query]` | Add an MCP server to the current project |
 
 ## Search Commands
 
 | Command | Description |
 |---------|-------------|
-| `bgng search skill <query>` | Search for skills in the library and online catalogs |
-| `bgng search mcp <query>` | Search for MCP servers |
+| `drwn search skill <query>` | Search for skills in the library and online catalogs |
+| `drwn search mcp <query>` | Search for MCP servers |
 
 ## Library Commands
 
 | Command | Description |
 |---------|-------------|
-| `bgng library list [skills\|mcp\|tools]` | List library contents |
-| `bgng library show <id>` | Show details for a library item |
-| `bgng library add skill <packageSpec>` | Add a package-backed skill bundle |
-| `bgng library add mcp <jsonFile> --as <serverId>` | Register a user MCP server |
-| `bgng library defaults list` | List machine-wide defaults |
-| `bgng library defaults add skill <skillName>` | Add a skill to defaults |
-| `bgng library defaults remove skill <skillName>` | Remove a skill from defaults |
-| `bgng library defaults add mcp <serverName>` | Add an MCP server to defaults |
-| `bgng library defaults remove mcp <serverName>` | Remove an MCP server from defaults |
+| `drwn library list [skills\|mcp\|tools]` | List library contents |
+| `drwn library show <id>` | Show details for a library item |
+| `drwn library add skill <packageSpec>` | Add a package-backed skill bundle |
+| `drwn library add mcp <jsonFile> --as <serverId>` | Register a user MCP server |
+| `drwn library defaults list` | List machine-wide defaults |
+| `drwn library defaults add skill <skillName>` | Add a skill to defaults |
+| `drwn library defaults remove skill <skillName>` | Remove a skill from defaults |
+| `drwn library defaults add mcp <serverName>` | Add an MCP server to defaults |
+| `drwn library defaults remove mcp <serverName>` | Remove an MCP server from defaults |
 
 ## Extension Commands
 
 | Command | Description |
 |---------|-------------|
-| `bgng extensions list` | List available extensions |
-| `bgng extensions add <name>` | Enable an extension for the current project |
-| `bgng extensions show <name>` | Show extension details |
-| `bgng extensions status [name]` | Report extension status |
-| `bgng extensions doctor [name]` | Diagnose extension issues |
-| `bgng extensions setup beads` | Run Beads setup workflow |
-| `bgng extensions setup parallel` | Run Parallel setup workflow |
-| `bgng extensions setup markitdown` | Run MarkItDown setup workflow |
+| `drwn extensions list` | List available extensions |
+| `drwn extensions add <name>` | Enable an extension for the current project |
+| `drwn extensions show <name>` | Show extension details |
+| `drwn extensions status [name]` | Report extension status |
+| `drwn extensions doctor [name]` | Diagnose extension issues |
+| `drwn extensions setup beads` | Run Beads setup workflow |
+| `drwn extensions setup parallel` | Run Parallel setup workflow |
+| `drwn extensions setup markitdown` | Run MarkItDown setup workflow |
 
 ## MCP Commands
 
 | Command | Description |
 |---------|-------------|
-| `bgng mcp list` | List active MCP servers |
-| `bgng mcp write` | Write MCP config to targets |
+| `drwn mcp list` | List active MCP servers |
+| `drwn mcp write` | Write MCP config to targets |
 
 ## Skill Commands
 
 | Command | Description |
 |---------|-------------|
-| `bgng skills list` | List available skills |
-| `bgng skills curate <skillName>` | Curate a shared skill |
-| `bgng skills uncurate <skillName>` | Remove a skill from curation |
-| `bgng skills packages add <packageSpec>` | Add a package-backed skill bundle |
-| `bgng skills packages list` | List installed skill packages |
-| `bgng skills packages show <packageName>` | Show package details |
+| `drwn skills list` | List available skills |
+| `drwn skills curate <skillName>` | Curate a shared skill |
+| `drwn skills uncurate <skillName>` | Remove a skill from curation |
+| `drwn skills packages add <packageSpec>` | Add a package-backed skill bundle |
+| `drwn skills packages list` | List installed skill packages |
+| `drwn skills packages show <packageName>` | Show package details |
 
 ## Common Flags
 
 Most inspection commands support `--json` for machine-readable output. Write
 commands support `--dry-run` to preview changes. Card project mutation commands
-support `--write` to run `bgng write` after a successful mutation.
+support `--write` to run `drwn write` after a successful mutation.
 
 Use `--help` on any command for details:
 
 ```bash
-bgng --help
-bgng write --help
-bgng card --help
-bgng store --help
-bgng status --help
-bgng add skill --help
-bgng library list --help
-bgng search skill --help
-bgng extensions setup beads --help
-bgng extensions setup markitdown --help
-bgng skills packages add --help
+drwn --help
+drwn write --help
+drwn card --help
+drwn store --help
+drwn status --help
+drwn add skill --help
+drwn library list --help
+drwn search skill --help
+drwn extensions setup beads --help
+drwn extensions setup markitdown --help
+drwn skills packages add --help
 ```

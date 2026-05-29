@@ -1,4 +1,4 @@
-// ABOUTME: Provides generic write helpers for project-level bgng configuration.
+// ABOUTME: Provides generic write helpers for project-level drwn configuration.
 // ABOUTME: Keeps add/library/extension commands from duplicating config mutation code.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";

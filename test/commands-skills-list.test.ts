@@ -1,4 +1,4 @@
-// ABOUTME: Verifies the public `bgng skills list` command in human and JSON modes.
+// ABOUTME: Verifies the public `drwn skills list` command in human and JSON modes.
 // ABOUTME: Ensures Clipanion command registration and skill inventory output are correct.
 
 import { afterEach, describe, expect, test } from "bun:test";
@@ -12,7 +12,7 @@ afterEach(async () => {
   await cleanupTempRoots(tempRoots);
 });
 
-describe("bgng skills list", () => {
+describe("drwn skills list", () => {
   test("lists repo skills with scope and curated state", async () => {
     const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
     tempRoots.push(fixture.root);

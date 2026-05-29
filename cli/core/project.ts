@@ -1,4 +1,4 @@
-// ABOUTME: Discovers, loads, merges, and scaffolds per-project bgng configuration files.
+// ABOUTME: Discovers, loads, merges, and scaffolds per-project drwn configuration files.
 // ABOUTME: Keeps project override behavior centralized so sync, status, and doctor consume effective state cleanly.
 
 import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";

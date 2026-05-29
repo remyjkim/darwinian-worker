@@ -25,9 +25,9 @@ export class LibraryDefaultsAddSkillCommand extends BaseCommand {
       performing the curation side effect.
     `,
     examples: [
-      ["Add a default skill", "bgng library defaults add skill alpha"],
-      ["Preview the curation side effect", "bgng library defaults add skill alpha --dry-run"],
-      ["Add a package-backed skill as JSON", "bgng library defaults add skill hello-skill --json"],
+      ["Add a default skill", "drwn library defaults add skill alpha"],
+      ["Preview the curation side effect", "drwn library defaults add skill alpha --dry-run"],
+      ["Add a package-backed skill as JSON", "drwn library defaults add skill hello-skill --json"],
     ],
   });
 
@@ -71,7 +71,7 @@ export class LibraryDefaultsAddSkillCommand extends BaseCommand {
       scope: "global-default",
       action: alreadyDefault ? "already-default" : "added",
       configPath: path,
-      next: ["bgng write --dry-run"],
+      next: ["drwn write --dry-run"],
     };
 
     if (this.json) {
@@ -87,7 +87,7 @@ export class LibraryDefaultsAddSkillCommand extends BaseCommand {
         ...(this.dryRun ? [`Would update ${path}`] : [`Updated ${path}`]),
         "",
         "Next:",
-        "  bgng write --dry-run",
+        "  drwn write --dry-run",
       ].join("\n") + "\n",
     );
     return 0;

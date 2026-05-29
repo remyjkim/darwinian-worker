@@ -1,4 +1,4 @@
-// ABOUTME: Implements `bgng card status` for project card config and lockfile state.
+// ABOUTME: Implements `drwn card status` for project card config and lockfile state.
 // ABOUTME: Makes card consumption inspectable without mutating project files.
 
 import { Option } from "clipanion";
@@ -18,7 +18,7 @@ export class CardStatusCommand extends BaseCommand {
       available updates. Use --explain for provenance across cards, skills,
       MCP servers, targets, and write-record ownership.
     `,
-    examples: [["Show card status", "bgng card status"]],
+    examples: [["Show card status", "drwn card status"]],
   });
 
   json = Option.Boolean("--json", false, {

@@ -1,6 +1,6 @@
 # Publishing
 
-This document is the maintainer-facing manual for publishing `beginning-harness` to npm.
+This document is the maintainer-facing manual for publishing `darwinian-harness` to npm.
 
 It focuses on the verified working workflow. The deeper investigation notes remain in `.ai/knowledges/05_npm-publishing-analysis-and-manual.md`.
 
@@ -21,16 +21,16 @@ To avoid machine-state drift, use an explicit temporary npm config for manual pu
 From the repo root:
 
 ```bash
-cd /path/to/beginning-harness
+cd /path/to/darwinian-harness
 ```
 
 Check package-name state:
 
 ```bash
-npm view beginning-harness name version repository --json
+npm view darwinian-harness name version repository --json
 ```
 
-Expected before the first `beginning-harness` publish:
+Expected before the first `darwinian-harness` publish:
 
 - `E404 Not Found`
 
@@ -92,7 +92,7 @@ rm -f "$TMP_NPMRC"
 ## Safer Full Sequence
 
 ```bash
-cd /path/to/beginning-harness
+cd /path/to/darwinian-harness
 
 set -a
 source .env
@@ -121,5 +121,5 @@ rm -f "$TMP_NPMRC"
 - Do not rely on ambient `~/.npmrc` state for publishing.
 - Keep the package boundary explicit through `package.json.files`.
 - Publish from committed repo state, not from a half-edited worktree.
-- If `beginning-agents` remains published, deprecate it only after `beginning-harness` is published and installable.
+- If `beginning-agents` remains published, deprecate it only after `darwinian-harness` is published and installable.
 - If future CI publishing is added, prefer trusted publishing over long-lived tokens.

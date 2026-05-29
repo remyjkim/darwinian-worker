@@ -1,4 +1,4 @@
-// ABOUTME: Implements project-first extension activation through `bgng extensions add`.
+// ABOUTME: Implements project-first extension activation through `drwn extensions add`.
 // ABOUTME: Writes semantic project config without running external setup commands.
 
 import { Option, UsageError } from "clipanion";
@@ -19,16 +19,16 @@ export class ExtensionsAddCommand extends BaseCommand {
     details: `
       Writes or merges the extension config into
       <project>/.agents/bgng/config.json without running external setup
-      commands. Use bgng extensions setup <name> when an extension has CLI
+      commands. Use drwn extensions setup <name> when an extension has CLI
       prerequisites or project initialization work.
 
       Some flags apply only to specific extensions. For example, --target and
       --include-skill are Beads-oriented project settings.
     `,
     examples: [
-      ["Enable Parallel in this project", "bgng extensions add parallel"],
-      ["Enable Beads with its project skill", "bgng extensions add beads --include-skill"],
-      ["Preview a MarkItDown project config change", "bgng extensions add markitdown --dry-run"],
+      ["Enable Parallel in this project", "drwn extensions add parallel"],
+      ["Enable Beads with its project skill", "drwn extensions add beads --include-skill"],
+      ["Preview a MarkItDown project config change", "drwn extensions add markitdown --dry-run"],
     ],
   });
 
@@ -67,13 +67,13 @@ export class ExtensionsAddCommand extends BaseCommand {
     const projectDir = this.context.cwd;
     const configPath = projectConfigPath(projectDir);
     let extensionConfig;
-    const next: string[] = ["bgng write --dry-run"];
+    const next: string[] = ["drwn write --dry-run"];
 
     if (this.extensionName === "parallel") {
       extensionConfig = buildParallelProjectConfig({ skills: !this.skipSkills, mcp: this.mcp });
     } else if (this.extensionName === "markitdown") {
       extensionConfig = buildMarkitdownProjectConfig({ skills: !this.skipSkills });
-      next.unshift("bgng extensions setup markitdown");
+      next.unshift("drwn extensions setup markitdown");
     } else if (this.extensionName === "beads") {
       let targets;
       try {
@@ -82,7 +82,7 @@ export class ExtensionsAddCommand extends BaseCommand {
         throw new UsageError(error instanceof Error ? error.message : "Invalid Beads setup target.");
       }
       extensionConfig = { enabled: true, targets, includeSkill: this.includeSkill };
-      next.unshift(`bgng extensions setup beads --target=${targets.join(",")}`);
+      next.unshift(`drwn extensions setup beads --target=${targets.join(",")}`);
     } else {
       throw new UsageError(`Adding this extension is not implemented yet: ${this.extensionName}`);
     }

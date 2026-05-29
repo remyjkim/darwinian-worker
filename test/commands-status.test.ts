@@ -1,4 +1,4 @@
-// ABOUTME: Verifies the public `bgng status` command in human and JSON modes.
+// ABOUTME: Verifies the public `drwn status` command in human and JSON modes.
 // ABOUTME: Ensures the CLI can summarize repo, aggregation, target, and skill state consistently.
 
 import { afterEach, describe, expect, test } from "bun:test";
@@ -12,7 +12,7 @@ afterEach(async () => {
   await cleanupTempRoots(tempRoots);
 });
 
-describe("bgng status", () => {
+describe("drwn status", () => {
   test("reports repo root, agents dir, and counts", async () => {
     const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
     tempRoots.push(fixture.root);

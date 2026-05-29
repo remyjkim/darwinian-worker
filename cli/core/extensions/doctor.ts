@@ -58,7 +58,7 @@ export async function buildExtensionDoctorReport(options: {
 
   if (status.id === "beads") {
     if (!existsSync(join(options.cwd, ".beads"))) {
-      issues.push("Beads project state is missing: .beads directory not found. Run bgng extensions setup beads.");
+      issues.push("Beads project state is missing: .beads directory not found. Run drwn extensions setup beads.");
     }
 
     const bd = status.commands.find((command) => command.name === "bd");
@@ -106,7 +106,7 @@ export async function buildExtensionDoctorReport(options: {
     if (!markitdown?.available) {
       issues.push("markitdown command is not available. Install with: uv tool install --python 3.12 'markitdown[all]'");
       if (!uv?.available) {
-        issues.push("uv command is not available, so bgng cannot install MarkItDown. Install uv with: brew install uv OR curl -LsSf https://astral.sh/uv/install.sh | sh");
+        issues.push("uv command is not available, so drwn cannot install MarkItDown. Install uv with: brew install uv OR curl -LsSf https://astral.sh/uv/install.sh | sh");
       }
     } else {
       const version = await runExternalCommand({

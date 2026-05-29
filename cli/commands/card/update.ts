@@ -1,5 +1,5 @@
-// ABOUTME: Implements `bgng card update` for refreshing project card.lock.
-// ABOUTME: Also exposes a top-level `bgng update` alias.
+// ABOUTME: Implements `drwn card update` for refreshing project card.lock.
+// ABOUTME: Also exposes a top-level `drwn update` alias.
 
 import { Option } from "clipanion";
 import { updateProjectCardLock } from "../../core/card-project";
@@ -17,11 +17,11 @@ export class CardUpdateCommand extends BaseCommand {
       card.lock. Use this after publishing newer local versions that satisfy
       the configured ranges.
     `,
-    examples: [["Update card lockfile", "bgng card update"]],
+    examples: [["Update card lockfile", "drwn card update"]],
   });
 
   write = Option.Boolean("--write", false, {
-    description: "Run bgng write after updating project cards.",
+    description: "Run drwn write after updating project cards.",
   });
 
   async execute() {

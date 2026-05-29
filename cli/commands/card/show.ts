@@ -1,4 +1,4 @@
-// ABOUTME: Implements `bgng card show` for inspecting a resolved card version.
+// ABOUTME: Implements `drwn card show` for inspecting a resolved card version.
 // ABOUTME: Supports both human and JSON output for published card metadata.
 
 import { Option } from "clipanion";
@@ -17,8 +17,8 @@ export class CardShowCommand extends BaseCommand {
       exact version, store path, requested range, and integrity hash.
     `,
     examples: [
-      ["Show an exact card version", "bgng card show @me/backend@1.0.0"],
-      ["Show the latest satisfying version", "bgng card show @me/backend@^1.0.0"],
+      ["Show an exact card version", "drwn card show @me/backend@1.0.0"],
+      ["Show the latest satisfying version", "drwn card show @me/backend@^1.0.0"],
     ],
   });
 

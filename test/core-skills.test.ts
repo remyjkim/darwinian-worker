@@ -1,4 +1,4 @@
-// ABOUTME: Verifies the extracted skill curation and sync helpers for the bgng harness CLI core.
+// ABOUTME: Verifies the extracted skill curation and sync helpers for the drwn harness CLI core.
 // ABOUTME: Keeps shared-skill publication semantics stable while commands are added on top.
 
 import { afterEach, describe, expect, test } from "bun:test";

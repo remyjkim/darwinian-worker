@@ -1,4 +1,4 @@
-// ABOUTME: Implements the primary `bgng write` command over the materialization engine.
+// ABOUTME: Implements the primary `drwn write` command over the materialization engine.
 // ABOUTME: Provides the one-way operator vocabulary for writing effective state downstream.
 
 import { Option, UsageError } from "clipanion";
@@ -11,7 +11,7 @@ export class WriteCommand extends BaseCommand {
 
   static override usage = BaseCommand.Usage({
     category: "General",
-    description: "Write effective bgng config to downstream local agent tools.",
+    description: "Write effective drwn config to downstream local agent tools.",
     details: `
       Reads the effective config from machine defaults, project overlays, and
       extension-derived settings, then materializes it into enabled downstream
@@ -21,9 +21,9 @@ export class WriteCommand extends BaseCommand {
       to limit materialization to one surface. Use --target to write one target.
     `,
     examples: [
-      ["Preview all writes", "bgng write --dry-run"],
-      ["Write only MCP configuration", "bgng write --mcp-only"],
-      ["Write only to Claude", "bgng write --target=claude"],
+      ["Preview all writes", "drwn write --dry-run"],
+      ["Write only MCP configuration", "drwn write --mcp-only"],
+      ["Write only to Claude", "drwn write --target=claude"],
     ],
   });
 
@@ -48,7 +48,7 @@ export class WriteCommand extends BaseCommand {
   });
 
   force = Option.Boolean("--force", false, {
-    description: "Overwrite drift in bgng-managed regions.",
+    description: "Overwrite drift in drwn-managed regions.",
   });
 
   async execute() {

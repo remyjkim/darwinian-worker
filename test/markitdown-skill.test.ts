@@ -10,7 +10,7 @@ describe("markitdown document conversion skill", () => {
 
     expect(content).toContain("markitdown input.pdf -o output.md");
     expect(content).toContain("command -v markitdown");
-    expect(content).toContain("bgng extensions setup markitdown --install");
+    expect(content).toContain("drwn extensions setup markitdown --install");
     expect(content).toContain("--list-plugins");
     expect(content).toContain("Do not run with sudo");
   });

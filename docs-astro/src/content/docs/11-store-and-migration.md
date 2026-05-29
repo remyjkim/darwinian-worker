@@ -7,7 +7,7 @@ order: 11
 
 ## Store Layout
 
-Cards-era `bgng` stores local user-managed inventory under:
+Cards-era `drwn` stores local user-managed inventory under:
 
 ```text
 ~/.agents/bgng/
@@ -36,8 +36,8 @@ Cards-era `bgng` stores local user-managed inventory under:
 ## Inspect Store State
 
 ```bash
-bgng store status
-bgng store status --json
+drwn store status
+drwn store status --json
 ```
 
 Store status reports whether the cards-era store exists, its schema version,
@@ -56,19 +56,19 @@ Pre-cards versions used several paths:
 Run migration explicitly:
 
 ```bash
-bgng store migrate
+drwn store migrate
 ```
 
 For structured output:
 
 ```bash
-bgng store migrate --json
+drwn store migrate --json
 ```
 
 For unattended migration:
 
 ```bash
-bgng store migrate --yes
+drwn store migrate --yes
 ```
 
 Migration stages the new layout, validates it, archives the old layout, then
@@ -78,14 +78,14 @@ they warn when a pre-cards layout is detected.
 ## Legacy Orphan Cleanup
 
 After migration, old global downstream skill symlinks may still point into the
-legacy or archived store. Clean up bgng-owned legacy orphans explicitly:
+legacy or archived store. Clean up drwn-owned legacy orphans explicitly:
 
 ```bash
-bgng store migrate --cleanup-legacy-orphans
-bgng store migrate --cleanup-legacy-orphans --yes
+drwn store migrate --cleanup-legacy-orphans
+drwn store migrate --cleanup-legacy-orphans --yes
 ```
 
-Cleanup removes only symlinks whose targets are recognized as bgng-owned legacy
+Cleanup removes only symlinks whose targets are recognized as drwn-owned legacy
 paths. User-owned replacements and unrelated paths are preserved.
 
 ## Project Write Records
@@ -102,5 +102,5 @@ Machine-scope writes use:
 ~/.agents/bgng/global-write-record.json
 ```
 
-Write records let `bgng` remove old bgng-owned materialized paths while
+Write records let `drwn` remove old drwn-owned materialized paths while
 preserving user-owned edits and replacements.

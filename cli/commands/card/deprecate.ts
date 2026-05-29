@@ -1,4 +1,4 @@
-// ABOUTME: Implements `bgng card deprecate` for marking local card versions as deprecated.
+// ABOUTME: Implements `drwn card deprecate` for marking local card versions as deprecated.
 // ABOUTME: Stores deprecation metadata without mutating immutable version contents.
 
 import { Option } from "clipanion";
@@ -15,7 +15,7 @@ export class CardDeprecateCommand extends BaseCommand {
       Records deprecation metadata in versions.json without mutating the
       immutable published card directory.
     `,
-    examples: [["Deprecate a version", "bgng card deprecate @me/backend@1.0.0 --message replaced"]],
+    examples: [["Deprecate a version", "drwn card deprecate @me/backend@1.0.0 --message replaced"]],
   });
 
   ref = Option.String({ required: true });

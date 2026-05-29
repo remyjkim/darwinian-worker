@@ -1,4 +1,4 @@
-// ABOUTME: Implements `bgng mcp write` as the MCP-scoped alias for top-level write.
+// ABOUTME: Implements `drwn mcp write` as the MCP-scoped alias for top-level write.
 // ABOUTME: Keeps advanced MCP users in the MCP namespace while sharing the materialization engine.
 
 import { Option, UsageError } from "clipanion";
@@ -14,14 +14,14 @@ export class McpWriteCommand extends BaseCommand {
     description: "Write effective MCP configuration into enabled targets.",
     details: `
       Writes only the effective MCP configuration into enabled downstream
-      targets. This is equivalent to bgng write --mcp-only and shares the same
+      targets. This is equivalent to drwn write --mcp-only and shares the same
       materialization engine.
 
       Use --dry-run to preview changes. Use --target to write one target.
     `,
     examples: [
-      ["Preview MCP writes", "bgng mcp write --dry-run"],
-      ["Write MCP config to Claude only", "bgng mcp write --target=claude"],
+      ["Preview MCP writes", "drwn mcp write --dry-run"],
+      ["Write MCP config to Claude only", "drwn mcp write --target=claude"],
     ],
   });
 

@@ -1,4 +1,4 @@
-// ABOUTME: Implements `bgng search skill` across local library and configured catalogs.
+// ABOUTME: Implements `drwn search skill` across local library and configured catalogs.
 // ABOUTME: Labels sources clearly so users distinguish owned inventory from online discovery.
 
 import { Option, UsageError } from "clipanion";
@@ -42,9 +42,9 @@ export class SearchSkillCommand extends BaseCommand {
       inventory from online catalog discovery.
     `,
     examples: [
-      ["Search all skill sources", "bgng search skill debug"],
-      ["Search only configured catalogs", "bgng search skill brainstorm --catalog"],
-      ["Return JSON results", "bgng search skill research --json"],
+      ["Search all skill sources", "drwn search skill debug"],
+      ["Search only configured catalogs", "drwn search skill brainstorm --catalog"],
+      ["Return JSON results", "drwn search skill research --json"],
     ],
   });
 

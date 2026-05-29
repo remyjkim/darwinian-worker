@@ -1,4 +1,4 @@
-// ABOUTME: Verifies the target `bgng write` command surface over the materialization engine.
+// ABOUTME: Verifies the target `drwn write` command surface over the materialization engine.
 // ABOUTME: Protects the supported one-way write vocabulary for downstream tool updates.
 
 import { afterEach, describe, expect, test } from "bun:test";
@@ -13,7 +13,7 @@ afterEach(async () => {
   await cleanupTempRoots(tempRoots);
 });
 
-describe("bgng write", () => {
+describe("drwn write", () => {
   test("dry-run reports planned materialization changes", async () => {
     const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
     tempRoots.push(fixture.root);

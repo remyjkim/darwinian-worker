@@ -25,35 +25,35 @@ Curated shared skills are published to:
 Typical flow:
 
 ```bash
-bgng skills list
-bgng skills curate <skillName>
-bgng write --skills-only --dry-run
-bgng write --skills-only
+drwn skills list
+drwn skills curate <skillName>
+drwn write --skills-only --dry-run
+drwn write --skills-only
 ```
 
 Only shared skills can be curated into `~/.agents/skills`. Claude-only and Codex-only skills are written directly to their target-specific skill directories.
 
 ## Package-Backed Skill Bundles
 
-`beginning-harness` supports package-backed skill bundles for skills that should be available without being added to the built-in first-party tree.
+`darwinian-harness` supports package-backed skill bundles for skills that should be available without being added to the built-in first-party tree.
 
 Typical flow:
 
 ```bash
-bgng library add skill <npm-package-or-local-path>
-bgng library list skills
-bgng library show <skillName>
-bgng add skill <skillName>
-bgng write --dry-run
-bgng write
+drwn library add skill <npm-package-or-local-path>
+drwn library list skills
+drwn library show <skillName>
+drwn add skill <skillName>
+drwn write --dry-run
+drwn write
 ```
 
 Global curation remains useful when a shared skill should be available by default across projects:
 
 ```bash
-bgng skills packages add <npm-package-or-local-path>
-bgng skills curate <skillName>
-bgng write --skills-only
+drwn skills packages add <npm-package-or-local-path>
+drwn skills curate <skillName>
+drwn write --skills-only
 ```
 
 ## Added vs. Curated vs. Written
@@ -65,5 +65,5 @@ The distinction matters:
 - **Curated** — a shared skill is linked into `~/.agents/skills`
 - **Written** — the curated skill is linked into downstream tool directories
 
-`bgng store migrate` copies legacy package-backed bundles into
+`drwn store migrate` copies legacy package-backed bundles into
 `~/.agents/bgng/skills` and preserves the old layout in an archive.

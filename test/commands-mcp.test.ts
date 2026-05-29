@@ -1,4 +1,4 @@
-// ABOUTME: Verifies the public `bgng mcp list` and `bgng mcp write` command surfaces.
+// ABOUTME: Verifies the public `drwn mcp list` and `drwn mcp write` command surfaces.
 // ABOUTME: Protects harness MCP listing and write behavior while the CLI replaces ad hoc script usage.
 
 import { afterEach, describe, expect, test } from "bun:test";
@@ -12,7 +12,7 @@ afterEach(async () => {
   await cleanupTempRoots(tempRoots);
 });
 
-describe("bgng mcp", () => {
+describe("drwn mcp", () => {
   test("list shows harness servers and active state", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);

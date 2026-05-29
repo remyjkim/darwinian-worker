@@ -1,4 +1,4 @@
-// ABOUTME: Runs the release-readiness quality gate for the bgng CLI and beginning-harness package.
+// ABOUTME: Runs the release-readiness quality gate for the drwn CLI and darwinian-harness package.
 // ABOUTME: Combines automated checks and explicit warnings into a single non-mutating verification entrypoint.
 
 import { existsSync, readFileSync } from "node:fs";
@@ -149,16 +149,16 @@ function verifyPackageMetadata() {
   const metadataIssues: string[] = [];
   const warnings: string[] = [];
 
-  if (pkg.name !== "beginning-harness") {
-    metadataIssues.push("name must be beginning-harness");
+  if (pkg.name !== "darwinian-harness") {
+    metadataIssues.push("name must be darwinian-harness");
   }
 
-  if (typeof pkg.bin !== "object" || pkg.bin === null || (pkg.bin as Record<string, string>).bgng !== "cli/index.ts") {
-    metadataIssues.push("bin.bgng must point to cli/index.ts");
+  if (typeof pkg.bin !== "object" || pkg.bin === null || (pkg.bin as Record<string, string>).drwn !== "cli/index.ts") {
+    metadataIssues.push("bin.drwn must point to cli/index.ts");
   }
 
-  if (typeof pkg.scripts !== "object" || pkg.scripts === null || (pkg.scripts as Record<string, string>).bgng !== "bun run cli/index.ts") {
-    metadataIssues.push("scripts.bgng must be 'bun run cli/index.ts'");
+  if (typeof pkg.scripts !== "object" || pkg.scripts === null || (pkg.scripts as Record<string, string>).drwn !== "bun run cli/index.ts") {
+    metadataIssues.push("scripts.drwn must be 'bun run cli/index.ts'");
   }
 
   if (pkg.repository === undefined) {

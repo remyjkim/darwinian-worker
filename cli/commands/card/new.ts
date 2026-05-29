@@ -1,4 +1,4 @@
-// ABOUTME: Implements `bgng card new` for creating editable local card sources.
+// ABOUTME: Implements `drwn card new` for creating editable local card sources.
 // ABOUTME: Persists authoring scope so repeated card creation stays concise.
 
 import { Option } from "clipanion";
@@ -17,8 +17,8 @@ export class CardNewCommand extends BaseCommand {
       By default the source directory is initialized as a git repository.
     `,
     examples: [
-      ["Create a scoped card source", "bgng card new backend --scope @me"],
-      ["Create a fully-qualified card source", "bgng card new @me/backend --no-git"],
+      ["Create a scoped card source", "drwn card new backend --scope @me"],
+      ["Create a fully-qualified card source", "drwn card new @me/backend --no-git"],
     ],
   });
 

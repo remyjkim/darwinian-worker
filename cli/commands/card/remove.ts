@@ -1,4 +1,4 @@
-// ABOUTME: Implements `bgng card remove` for dropping one card from project config.
+// ABOUTME: Implements `drwn card remove` for dropping one card from project config.
 // ABOUTME: Rewrites the lockfile after removal to avoid stale locked cards.
 
 import { Option } from "clipanion";
@@ -17,13 +17,13 @@ export class CardRemoveCommand extends BaseCommand {
       card.lock. Unknown card names are rejected so scripts catch stale
       assumptions.
     `,
-    examples: [["Remove a card", "bgng card remove @me/backend"]],
+    examples: [["Remove a card", "drwn card remove @me/backend"]],
   });
 
   refOrName = Option.String({ required: true });
 
   write = Option.Boolean("--write", false, {
-    description: "Run bgng write after updating project cards.",
+    description: "Run drwn write after updating project cards.",
   });
 
   async execute() {

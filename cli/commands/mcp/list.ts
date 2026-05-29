@@ -1,4 +1,4 @@
-// ABOUTME: Implements `bgng mcp list` for inspecting harness MCP server state.
+// ABOUTME: Implements `drwn mcp list` for inspecting harness MCP server state.
 // ABOUTME: Surfaces whether each canonical server is active under the current config and target setup.
 
 import { Option } from "clipanion";
@@ -27,8 +27,8 @@ export class McpListCommand extends BaseCommand {
       This command is read-only.
     `,
     examples: [
-      ["List MCP server state", "bgng mcp list"],
-      ["List MCP server state as JSON", "bgng mcp list --json"],
+      ["List MCP server state", "drwn mcp list"],
+      ["List MCP server state as JSON", "drwn mcp list --json"],
     ],
   });
 

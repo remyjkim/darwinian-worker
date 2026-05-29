@@ -1,4 +1,4 @@
-// ABOUTME: Implements `bgng card outdated` for project card version checks.
+// ABOUTME: Implements `drwn card outdated` for project card version checks.
 // ABOUTME: Provides a --check mode suitable for CI gates.
 
 import { Option } from "clipanion";
@@ -18,8 +18,8 @@ export class CardOutdatedCommand extends BaseCommand {
       local versions, and optionally exits non-zero with --check.
     `,
     examples: [
-      ["Show outdated cards", "bgng card outdated"],
-      ["Fail when updates are available", "bgng card outdated --check"],
+      ["Show outdated cards", "drwn card outdated"],
+      ["Fail when updates are available", "drwn card outdated --check"],
     ],
   });
 

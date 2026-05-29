@@ -1,4 +1,4 @@
-// ABOUTME: Verifies project-first extension activation through `bgng extensions add`.
+// ABOUTME: Verifies project-first extension activation through `drwn extensions add`.
 // ABOUTME: Protects the higher-level UX over the lower-level extensions setup commands.
 
 import { afterEach, describe, expect, test } from "bun:test";
@@ -21,7 +21,7 @@ function envFor(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
   };
 }
 
-describe("bgng extensions add", () => {
+describe("drwn extensions add", () => {
   test("adds Parallel extension config to the current project", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);

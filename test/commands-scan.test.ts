@@ -10,7 +10,7 @@ afterEach(async () => {
   await cleanupTempRoots(tempRoots);
 });
 
-describe("bgng scan", () => {
+describe("drwn scan", () => {
   test("reports placeholder status without mutating", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);

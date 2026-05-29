@@ -1,5 +1,5 @@
-// ABOUTME: Implements card selection replacement through `bgng card apply`.
-// ABOUTME: Also exposes the top-level `bgng apply` alias.
+// ABOUTME: Implements card selection replacement through `drwn card apply`.
+// ABOUTME: Also exposes the top-level `drwn apply` alias.
 
 import { Option } from "clipanion";
 import { applyProjectCardSpecs } from "../../core/card-project";
@@ -17,13 +17,13 @@ export class CardApplyCommand extends BaseCommand {
       against the local card store or file sources, and writes card.lock.
       Use --write to materialize the resulting effective state immediately.
     `,
-    examples: [["Apply a card range", "bgng card apply @me/backend@^1.0.0"]],
+    examples: [["Apply a card range", "drwn card apply @me/backend@^1.0.0"]],
   });
 
   specs = Option.Rest({ required: 1 });
 
   write = Option.Boolean("--write", false, {
-    description: "Run bgng write after updating project cards.",
+    description: "Run drwn write after updating project cards.",
   });
 
   async execute() {

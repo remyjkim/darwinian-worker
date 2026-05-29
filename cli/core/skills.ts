@@ -305,7 +305,7 @@ export async function syncSkills(
     resolvedIncludes.push({ name, source });
   }
   if (errors.length > 0) {
-    throw new Error(`bgng write cannot resolve all skills:\n  - ${errors.join("\n  - ")}`);
+    throw new Error(`drwn write cannot resolve all skills:\n  - ${errors.join("\n  - ")}`);
   }
 
   const desiredClaude = new Set<string>();

@@ -1,4 +1,4 @@
-// ABOUTME: Implements bgng extensions doctor for report-only extension diagnostics.
+// ABOUTME: Implements drwn extensions doctor for report-only extension diagnostics.
 // ABOUTME: Surfaces Beads and Parallel setup gaps without mutating local state.
 
 import { Option, UsageError } from "clipanion";
@@ -18,11 +18,11 @@ export class ExtensionsDoctorCommand extends BaseCommand {
       extension name is given, reports on all extensions. This command is
       read-only and never mutates files.
 
-      For overall harness drift, see bgng doctor.
+      For overall harness drift, see drwn doctor.
     `,
     examples: [
-      ["Doctor all extensions", "bgng extensions doctor"],
-      ["Doctor one extension as JSON", "bgng extensions doctor beads --json"],
+      ["Doctor all extensions", "drwn extensions doctor"],
+      ["Doctor one extension as JSON", "drwn extensions doctor beads --json"],
     ],
   });
 

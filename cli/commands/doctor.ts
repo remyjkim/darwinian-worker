@@ -1,4 +1,4 @@
-// ABOUTME: Implements the `bgng doctor` command for report-only diagnostics over the current machine state.
+// ABOUTME: Implements the `drwn doctor` command for report-only diagnostics over the current machine state.
 // ABOUTME: Surfaces broken links, stale state, MCP drift, and missing generated files without mutating anything.
 
 import { Option } from "clipanion";
@@ -19,11 +19,11 @@ export class DoctorCommand extends BaseCommand {
 
       Reportable issues are rendered in the output; use --json if automation
       needs to inspect issue counts or exact paths. For extension-specific
-      diagnostics, see bgng extensions doctor.
+      diagnostics, see drwn extensions doctor.
     `,
     examples: [
-      ["Run a health check", "bgng doctor"],
-      ["Inspect structured output", "bgng doctor --json"],
+      ["Run a health check", "drwn doctor"],
+      ["Inspect structured output", "drwn doctor --json"],
     ],
   });
 

@@ -1,4 +1,4 @@
-// ABOUTME: Implements bgng skills packages list for inspecting installed package-backed skill bundles.
+// ABOUTME: Implements drwn skills packages list for inspecting installed package-backed skill bundles.
 // ABOUTME: Exposes the managed ~/.agents package cache without conflating it with curation or downstream write.
 
 import { Option } from "clipanion";
@@ -14,14 +14,14 @@ export class SkillsPackagesListCommand extends BaseCommand {
     description: "List installed package-backed skill bundles.",
     details: `
       Lists package-backed skill bundles installed in the managed local cache.
-      This is package inventory only; use bgng skills list to see individual
+      This is package inventory only; use drwn skills list to see individual
       skills from those bundles.
 
       This command is read-only.
     `,
     examples: [
-      ["List installed bundles", "bgng skills packages list"],
-      ["List installed bundles as JSON", "bgng skills packages list --json"],
+      ["List installed bundles", "drwn skills packages list"],
+      ["List installed bundles as JSON", "drwn skills packages list --json"],
     ],
   });
 

@@ -1,4 +1,4 @@
-// ABOUTME: Implements the `bgng skills curate` command for publishing shared skills to ~/.agents/skills.
+// ABOUTME: Implements the `drwn skills curate` command for publishing shared skills to ~/.agents/skills.
 // ABOUTME: Validates the requested skill and uses the core curation helper rather than ad hoc symlink logic.
 
 import { Option, UsageError } from "clipanion";
@@ -18,11 +18,11 @@ export class SkillsCurateCommand extends BaseCommand {
       remains in the repo or package cache.
 
       Only shared-scope skills can be curated. To remove the publication-layer
-      link, use bgng skills uncurate.
+      link, use drwn skills uncurate.
     `,
     examples: [
-      ["Curate a skill", "bgng skills curate alpha"],
-      ["Curate and print JSON", "bgng skills curate alpha --json"],
+      ["Curate a skill", "drwn skills curate alpha"],
+      ["Curate and print JSON", "drwn skills curate alpha --json"],
     ],
   });
 

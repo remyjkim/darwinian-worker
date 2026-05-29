@@ -52,9 +52,9 @@ export class LibraryAddMcpCommand extends BaseCommand {
       multi-server file. Use --replace to overwrite an existing local entry.
     `,
     examples: [
-      ["Add a single-server definition", "bgng library add mcp ./github-mcp.json --as github"],
-      ["Select one server from a multi-server file", "bgng library add mcp ./registry.json --as github"],
-      ["Preview a replacement", "bgng library add mcp ./github-mcp.json --as github --replace --dry-run"],
+      ["Add a single-server definition", "drwn library add mcp ./github-mcp.json --as github"],
+      ["Select one server from a multi-server file", "drwn library add mcp ./registry.json --as github"],
+      ["Preview a replacement", "drwn library add mcp ./github-mcp.json --as github --replace --dry-run"],
     ],
   });
 
@@ -104,7 +104,7 @@ export class LibraryAddMcpCommand extends BaseCommand {
       id: selected.id,
       action: library.servers[selected.id] ? "replaced" : "added",
       path,
-      next: [`bgng library defaults add mcp ${selected.id}`, `bgng add mcp ${selected.id}`],
+      next: [`drwn library defaults add mcp ${selected.id}`, `drwn add mcp ${selected.id}`],
     };
 
     if (this.json) {
@@ -117,8 +117,8 @@ export class LibraryAddMcpCommand extends BaseCommand {
         `${this.dryRun ? "Would add" : "Added"} ${selected.id} to the local library.`,
         "",
         "Next:",
-        `  bgng library defaults add mcp ${selected.id}`,
-        `  bgng add mcp ${selected.id}`,
+        `  drwn library defaults add mcp ${selected.id}`,
+        `  drwn add mcp ${selected.id}`,
       ].join("\n") + "\n",
     );
     return 0;

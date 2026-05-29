@@ -1,4 +1,4 @@
-// ABOUTME: Provides shared path resolution helpers for the bgng harness CLI and sync wrapper.
+// ABOUTME: Provides shared path resolution helpers for the drwn harness CLI and sync wrapper.
 // ABOUTME: Normalizes repo, home, tool, and skill-scope paths without command-layer dependencies.
 
 import { realpathSync } from "node:fs";

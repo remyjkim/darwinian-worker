@@ -1,4 +1,4 @@
-// ABOUTME: Verifies `bgng skills curate`, `uncurate`, and write behavior against temp fixtures.
+// ABOUTME: Verifies `drwn skills curate`, `uncurate`, and write behavior against temp fixtures.
 // ABOUTME: Locks in safe-by-default mutation semantics for the curated skill publication layer.
 
 import { afterEach, describe, expect, test } from "bun:test";
@@ -28,7 +28,7 @@ function envFor(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
   };
 }
 
-describe("bgng skills mutate", () => {
+describe("drwn skills mutate", () => {
   test("skills curate --json emits a curatedPath payload", async () => {
     const fixture = await scaffoldCliFixture({ curatedSkillNames: [] });
     tempRoots.push(fixture.root);
@@ -192,7 +192,7 @@ describe("bgng skills mutate", () => {
     expect((await lstat(join(fixture.homeDir, ".codex", "skills", "hello-skill"))).isSymbolicLink()).toBe(true);
   });
 
-  test("write --skills-only removes bgng-owned links that leave the effective state", async () => {
+  test("write --skills-only removes drwn-owned links that leave the effective state", async () => {
     const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
     tempRoots.push(fixture.root);
 

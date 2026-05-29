@@ -10,8 +10,8 @@ order: 8
 Use `doctor` when local state looks wrong:
 
 ```bash
-bgng doctor
-bgng doctor --json
+drwn doctor
+drwn doctor --json
 ```
 
 It reports:
@@ -31,10 +31,10 @@ It does not mutate local state.
 Use status when you need to understand why something is active:
 
 ```bash
-bgng status --explain
-bgng status --why skill:parallel-web-search
-bgng status --why server:context7
-bgng status --why card:@me/backend
+drwn status --explain
+drwn status --why skill:parallel-web-search
+drwn status --why server:context7
+drwn status --why card:@me/backend
 ```
 
 `--explain` includes cards, skills, MCP servers, targets, and write records.
@@ -50,8 +50,8 @@ The safety model is intentionally simple:
 - **Resolve managed drift intentionally** with `write --force`
 - **Curate** skills explicitly before writing them downstream
 - **Available, not exposed** — package-backed bundles are available content, not automatically active behavior
-- **Write-record cleanup** removes bgng-owned stale paths while preserving user-owned replacements
-- **Explicit migration cleanup** is available through `bgng store migrate --cleanup-legacy-orphans`
+- **Write-record cleanup** removes drwn-owned stale paths while preserving user-owned replacements
+- **Explicit migration cleanup** is available through `drwn store migrate --cleanup-legacy-orphans`
 
 ## Usage Modes
 
@@ -60,15 +60,15 @@ Baseline CLI usage does not require external tools beyond Bun, Node.js, and npm.
 ### Packaged harness
 
 ```bash
-npm install -g beginning-harness
-bgng write --dry-run
+npm install -g darwinian-harness
+drwn write --dry-run
 ```
 
 ### Editable harness source
 
 ```bash
-export AGENTS_REPO_ROOT=/path/to/beginning-harness
-bgng status
+export AGENTS_REPO_ROOT=/path/to/darwinian-harness
+drwn status
 ```
 
 In checkout mode, edit:

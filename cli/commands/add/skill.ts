@@ -1,4 +1,4 @@
-// ABOUTME: Implements project-first skill activation through `bgng add skill`.
+// ABOUTME: Implements project-first skill activation through `drwn add skill`.
 // ABOUTME: Adds local library skills to project config without global curation.
 
 import { Option, UsageError } from "clipanion";
@@ -37,9 +37,9 @@ export class AddSkillCommand extends BaseCommand {
       package name to add every skill from that installed bundle.
     `,
     examples: [
-      ["Add a local skill", "bgng add skill alpha"],
-      ["Install a catalog bundle and add one skill", "bgng add skill hello --yes"],
-      ["Add every skill from a bundle", "bgng add skill @acme/skill-bundle --yes --all"],
+      ["Add a local skill", "drwn add skill alpha"],
+      ["Install a catalog bundle and add one skill", "drwn add skill hello --yes"],
+      ["Add every skill from a bundle", "drwn add skill @acme/skill-bundle --yes --all"],
     ],
   });
 
@@ -130,7 +130,7 @@ export class AddSkillCommand extends BaseCommand {
       projectConfigPath: configPath,
       libraryChanges,
       projectChanges: skillIds.map((id) => ({ kind: "skill", id, action: "included" })),
-      next: ["bgng write --dry-run"],
+      next: ["drwn write --dry-run"],
     };
 
     if (!this.dryRun) {
@@ -150,7 +150,7 @@ export class AddSkillCommand extends BaseCommand {
         ...(this.dryRun ? [`Would update ${configPath}`] : [`Updated ${configPath}`]),
         "",
         "Next:",
-        "  bgng write --dry-run",
+        "  drwn write --dry-run",
       ].join("\n") + "\n",
     );
     return 0;

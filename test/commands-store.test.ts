@@ -1,4 +1,4 @@
-// ABOUTME: Verifies bgng store commands for migration and store inspection.
+// ABOUTME: Verifies drwn store commands for migration and store inspection.
 // ABOUTME: Protects JSON cleanliness and legacy warning behavior during the layout transition.
 
 import { afterEach, expect, test } from "bun:test";
@@ -77,7 +77,7 @@ test("store migrate reports no-op when no legacy layout exists", async () => {
   expect(result.stdout).toContain("No legacy layout detected");
 });
 
-test("store migrate cleanup removes only bgng-owned legacy symlinks", async () => {
+test("store migrate cleanup removes only drwn-owned legacy symlinks", async () => {
   const fixture = await scaffoldPreCardsCliFixture();
   tempRoots.push(fixture.root);
   const legacySkill = join(fixture.agentsDir, "packages", "skills", "sample", "1.0.0", "skills", "shared", "legacy");

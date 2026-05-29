@@ -1,4 +1,4 @@
-// ABOUTME: Provides the built-in extension definitions known to bgng.
+// ABOUTME: Provides the built-in extension definitions known to drwn.
 // ABOUTME: Models capability families such as Beads and Parallel without hard-coding command behavior.
 
 import type { ExtensionDefinition } from "./types";

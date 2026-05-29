@@ -1,4 +1,4 @@
-// ABOUTME: Verifies `bgng library defaults` commands for machine-wide activation.
+// ABOUTME: Verifies `drwn library defaults` commands for machine-wide activation.
 // ABOUTME: Protects the distinction between reusable inventory, global defaults, and project adds.
 
 import { afterEach, describe, expect, test } from "bun:test";
@@ -27,7 +27,7 @@ async function readUserConfig(fixture: Awaited<ReturnType<typeof scaffoldCliFixt
   };
 }
 
-describe("bgng library defaults", () => {
+describe("drwn library defaults", () => {
   test("lists default skills and MCP servers as json", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);

@@ -1,8 +1,8 @@
 {
-  "name": "beginning-harness",
+  "name": "darwinian-harness",
   "bin": {
-    "bgng": "cli/index.ts",
-    "bgng-hx": "cli/index.ts"
+    "drwn": "cli/index.ts",
+    "drwn-hx": "cli/index.ts"
   },
   "type": "module",
   "description": "Local meta-harness CLI for managing AI agent skills, MCP servers, extensions, defaults, and project overlays.",
@@ -22,13 +22,13 @@
     "registry",
     "skills",
     "README.md",
-    "docs/assets/the-beginning-harness.png",
+    "docs/assets/the-darwinian-harness.png",
     "LICENSE",
     "CONTRIBUTING.md"
   ],
   "keywords": [
-    "beginning-harness",
-    "bgng",
+    "darwinian-harness",
+    "drwn",
     "harness",
     "meta-harness",
     "agents",
@@ -38,7 +38,7 @@
     "configuration"
   ],
   "scripts": {
-    "bgng": "bun run cli/index.ts",
+    "drwn": "bun run cli/index.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "verify:release": "bun run scripts/verify-release-readiness.ts"

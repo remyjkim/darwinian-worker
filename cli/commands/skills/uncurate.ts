@@ -1,4 +1,4 @@
-// ABOUTME: Implements the `bgng skills uncurate` command for removing skills from ~/.agents/skills.
+// ABOUTME: Implements the `drwn skills uncurate` command for removing skills from ~/.agents/skills.
 // ABOUTME: Only removes the curated publication-layer link; downstream tool cleanup remains explicit.
 
 import { Option, UsageError } from "clipanion";
@@ -18,11 +18,11 @@ export class SkillsUncurateCommand extends BaseCommand {
       does not delete the source skill from the repo or package cache, and it
       does not directly clean downstream tool directories.
 
-      Run bgng write afterward to update downstream tool state.
+      Run drwn write afterward to update downstream tool state.
     `,
     examples: [
-      ["Uncurate a skill", "bgng skills uncurate alpha"],
-      ["Uncurate and print JSON", "bgng skills uncurate alpha --json"],
+      ["Uncurate a skill", "drwn skills uncurate alpha"],
+      ["Uncurate and print JSON", "drwn skills uncurate alpha --json"],
     ],
   });
 

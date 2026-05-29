@@ -1,4 +1,4 @@
-// ABOUTME: Asserts registered bgng commands render rich per-command help.
+// ABOUTME: Asserts registered drwn commands render rich per-command help.
 // ABOUTME: Protects against threadbare help and stale command-description regressions.
 
 import { describe, expect, test } from "bun:test";
@@ -19,11 +19,11 @@ function extractCommandPaths(topLevelHelp: string) {
   return topLevelHelp
     .split("\n")
     .map((line) => line.trim())
-    .filter((line) => line.startsWith("bgng "))
-    .filter((line) => !line.startsWith("bgng -"))
+    .filter((line) => line.startsWith("drwn "))
+    .filter((line) => !line.startsWith("drwn -"))
     .map((line) =>
       line
-        .replace(/^bgng\s+/, "")
+        .replace(/^drwn\s+/, "")
         .replace(/\[[^\]]+\]/g, "")
         .replace(/<[^>]+>/g, "")
         .replace(/\.\.\./g, "")
@@ -34,7 +34,7 @@ function extractCommandPaths(topLevelHelp: string) {
 }
 
 const REQUIRED_SNIPPETS: Record<string, string[]> = {
-  init: ["TTY", ".gitignore", "bgng init --non-interactive"],
+  init: ["TTY", ".gitignore", "drwn init --non-interactive"],
   "add mcp": ["Prompts in a TTY", "safe no-op"],
   "add skill": ["Prompts in a TTY", "--all", "bundle"],
   "extensions setup": ["Beads only", "MarkItDown only", "--no-install"],
@@ -44,7 +44,7 @@ const REQUIRED_SNIPPETS: Record<string, string[]> = {
   "library defaults add mcp": ["safe no-op"],
 };
 
-describe("bgng command help", () => {
+describe("drwn command help", () => {
   test("every registered command renders Details and Examples sections", async () => {
     const topLevel = await helpFor([]);
     expect(topLevel.exitCode).toBe(0);

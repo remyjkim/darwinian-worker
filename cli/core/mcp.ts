@@ -1,5 +1,5 @@
 // ABOUTME: Implements harness MCP filtering and target-specific rendering for all write surfaces.
-// ABOUTME: Shared by bgng commands and the legacy sync-mcp compatibility wrapper.
+// ABOUTME: Shared by drwn commands and the legacy sync-mcp compatibility wrapper.
 
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 import { buildBgngMetaBlock, detectManagedFieldDrift, readBgngMetaBlock } from "./managed-fields";
@@ -80,7 +80,7 @@ export function mergeClaudeSettingsText(currentText: string, servers: Record<str
   const driftedKeys = options?.force ? [] : detectManagedFieldDrift(parsed, managedKeys, recordedHashes);
   if (driftedKeys.length > 0) {
     throw new Error(
-      `Drift detected in Claude settings managed field(s): ${driftedKeys.join(", ")}. Move your change into .agents/bgng/config.json or rerun bgng write --force to overwrite.`,
+      `Drift detected in Claude settings managed field(s): ${driftedKeys.join(", ")}. Move your change into .agents/bgng/config.json or rerun drwn write --force to overwrite.`,
     );
   }
 

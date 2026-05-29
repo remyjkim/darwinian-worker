@@ -26,21 +26,21 @@ server:
 Add a user MCP server:
 
 ```bash
-bgng library add mcp my-server.json --as my-server
+drwn library add mcp my-server.json --as my-server
 ```
 
 Machine-wide active MCP defaults live in `~/.agents/bgng/machine.json` under
 `defaults.mcpServers`.
 
-Pre-cards installs used `~/.agents/library/mcp-servers.json`. `bgng store
+Pre-cards installs used `~/.agents/library/mcp-servers.json`. `drwn store
 migrate` explodes that legacy file into the cards-era `mcp-servers/` directory
 and archives the old layout.
 
 ## Inspecting MCP State
 
 ```bash
-bgng mcp list
-bgng mcp list --json
+drwn mcp list
+drwn mcp list --json
 ```
 
 ## Writing MCP Config
@@ -48,19 +48,19 @@ bgng mcp list --json
 Preview before writing:
 
 ```bash
-bgng mcp write --dry-run
+drwn mcp write --dry-run
 ```
 
 Write to all targets:
 
 ```bash
-bgng mcp write
+drwn mcp write
 ```
 
 Limit to one target:
 
 ```bash
-bgng mcp write --target=cursor
+drwn mcp write --target=cursor
 ```
 
 ## Notes

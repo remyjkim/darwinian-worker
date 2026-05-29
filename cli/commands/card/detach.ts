@@ -1,4 +1,4 @@
-// ABOUTME: Implements `bgng card detach` for clearing all project card selections.
+// ABOUTME: Implements `drwn card detach` for clearing all project card selections.
 // ABOUTME: Leaves an empty lockfile so downstream tooling sees the project as detached.
 
 import { Option } from "clipanion";
@@ -16,11 +16,11 @@ export class CardDetachCommand extends BaseCommand {
       Clears the project's cards array while preserving explicit project
       overlay fields such as skills, servers, extensions, and targets.
     `,
-    examples: [["Detach from cards", "bgng card detach"]],
+    examples: [["Detach from cards", "drwn card detach"]],
   });
 
   write = Option.Boolean("--write", false, {
-    description: "Run bgng write after updating project cards.",
+    description: "Run drwn write after updating project cards.",
   });
 
   async execute() {

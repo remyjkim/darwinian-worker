@@ -1,4 +1,4 @@
-// ABOUTME: Implements `bgng card add` for appending one card to project config.
+// ABOUTME: Implements `drwn card add` for appending one card to project config.
 // ABOUTME: Resolves immediately so card.lock stays aligned with config changes.
 
 import { Option } from "clipanion";
@@ -17,13 +17,13 @@ export class CardAddCommand extends BaseCommand {
       Duplicate card names are rejected so one project has a single constraint
       per card.
     `,
-    examples: [["Add a card", "bgng card add @me/backend@^1.0.0"]],
+    examples: [["Add a card", "drwn card add @me/backend@^1.0.0"]],
   });
 
   spec = Option.String({ required: true });
 
   write = Option.Boolean("--write", false, {
-    description: "Run bgng write after updating project cards.",
+    description: "Run drwn write after updating project cards.",
   });
 
   async execute() {

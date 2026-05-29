@@ -23,8 +23,8 @@ export class LibraryDefaultsRemoveSkillCommand extends BaseCommand {
       skill in the repo or package cache is left intact.
     `,
     examples: [
-      ["Remove a default skill", "bgng library defaults remove skill alpha"],
-      ["Preview removing a default skill", "bgng library defaults remove skill alpha --dry-run"],
+      ["Remove a default skill", "drwn library defaults remove skill alpha"],
+      ["Preview removing a default skill", "drwn library defaults remove skill alpha --dry-run"],
     ],
   });
 
@@ -67,7 +67,7 @@ export class LibraryDefaultsRemoveSkillCommand extends BaseCommand {
       scope: "global-default",
       action: wasDefault ? "removed" : "not-default",
       configPath: path,
-      next: ["bgng write --dry-run"],
+      next: ["drwn write --dry-run"],
     };
 
     if (this.json) {
@@ -83,7 +83,7 @@ export class LibraryDefaultsRemoveSkillCommand extends BaseCommand {
         ...(this.dryRun ? [`Would update ${path}`] : [`Updated ${path}`]),
         "",
         "Next:",
-        "  bgng write --dry-run",
+        "  drwn write --dry-run",
       ].join("\n") + "\n",
     );
     return 0;

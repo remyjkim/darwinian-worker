@@ -23,7 +23,7 @@ Exact resolved versions are written to:
 <project>/.agents/bgng/card.lock
 ```
 
-`bgng write` then materializes the resolved project state into project-local
+`drwn write` then materializes the resolved project state into project-local
 Claude, Codex, and Cursor files.
 
 ## Author A Card
@@ -31,8 +31,8 @@ Claude, Codex, and Cursor files.
 Create an editable source:
 
 ```bash
-bgng card new @me/backend --no-git
-bgng card new backend --scope @me --no-git
+drwn card new @me/backend --no-git
+drwn card new backend --scope @me --no-git
 ```
 
 Card sources live under:
@@ -46,7 +46,7 @@ Each source contains `card.json`, `skills/`, and `mcp-servers/`.
 Publish a version:
 
 ```bash
-bgng card publish @me/backend
+drwn card publish @me/backend
 ```
 
 Published card versions are immutable and live under:
@@ -58,15 +58,15 @@ Published card versions are immutable and live under:
 ## Inspect Cards
 
 ```bash
-bgng card list
-bgng card list --json
-bgng card show @me/backend@1.0.0
-bgng card show @me/backend@^1.0.0 --json
-bgng card diff @me/backend@1.0.0 @me/backend@1.1.0
-bgng card deprecate @me/backend@1.0.0 --message "use 1.1.0"
+drwn card list
+drwn card list --json
+drwn card show @me/backend@1.0.0
+drwn card show @me/backend@^1.0.0 --json
+drwn card diff @me/backend@1.0.0 @me/backend@1.1.0
+drwn card deprecate @me/backend@1.0.0 --message "use 1.1.0"
 ```
 
-Version ranges use normal semver range behavior. `bgng` resolves the highest
+Version ranges use normal semver range behavior. `drwn` resolves the highest
 published local version that satisfies the requested range.
 
 ## Apply Cards To A Project
@@ -74,32 +74,32 @@ published local version that satisfies the requested range.
 From the project root:
 
 ```bash
-bgng init
-bgng apply @me/backend@^1.0.0
-bgng write --dry-run
-bgng write
+drwn init
+drwn apply @me/backend@^1.0.0
+drwn write --dry-run
+drwn write
 ```
 
-`bgng apply` is an alias for `bgng card apply`. It replaces the current
+`drwn apply` is an alias for `drwn card apply`. It replaces the current
 project's card set and writes a fresh lockfile.
 
 Project mutation commands:
 
 ```bash
-bgng card apply @me/backend@^1.0.0
-bgng card add @me/observability@^1.0.0
-bgng card pin @me/backend@1.0.0
-bgng card remove @me/observability
-bgng card detach
-bgng card update
-bgng update
+drwn card apply @me/backend@^1.0.0
+drwn card add @me/observability@^1.0.0
+drwn card pin @me/backend@1.0.0
+drwn card remove @me/observability
+drwn card detach
+drwn card update
+drwn update
 ```
 
 Use `--write` with mutation commands when you want to materialize immediately:
 
 ```bash
-bgng card add @me/observability@^1.0.0 --write
-bgng update --write
+drwn card add @me/observability@^1.0.0 --write
+drwn update --write
 ```
 
 ## Local Development Refs
@@ -107,8 +107,8 @@ bgng update --write
 Use `file:` refs while developing a card before publishing it:
 
 ```bash
-bgng apply file:../cards/backend
-bgng write --dry-run
+drwn apply file:../cards/backend
+drwn write --dry-run
 ```
 
 File refs resolve from the local path and still write `card.lock` for the
@@ -119,8 +119,8 @@ project.
 Check for newer local versions:
 
 ```bash
-bgng card outdated
-bgng card outdated --check
+drwn card outdated
+drwn card outdated --check
 ```
 
 `--check` exits non-zero when updates are available, which makes it suitable
@@ -129,17 +129,17 @@ for CI.
 Update the lockfile within configured ranges:
 
 ```bash
-bgng card update
-bgng card update --write
+drwn card update
+drwn card update --write
 ```
 
 ## Status
 
 ```bash
-bgng card status
-bgng card status --json
-bgng card status --explain
-bgng status --why card:@me/backend
+drwn card status
+drwn card status --json
+drwn card status --explain
+drwn status --why card:@me/backend
 ```
 
 Use card status when you need the current configured refs, locked versions, and

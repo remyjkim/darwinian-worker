@@ -1,4 +1,4 @@
-// ABOUTME: Implements the `bgng skills list` command for listing repo and curated skills.
+// ABOUTME: Implements the `drwn skills list` command for listing repo and curated skills.
 // ABOUTME: Supports both human-readable and JSON output for operator and agent workflows.
 
 import { Option } from "clipanion";
@@ -13,15 +13,15 @@ export class SkillsListCommand extends BaseCommand {
     category: "Skills",
     description: "List repo skills with scope and curation status.",
     details: `
-      Lists every skill bgng can see, including repo-native skills and
+      Lists every skill drwn can see, including repo-native skills and
       package-backed skills. Shows each skill's scope and whether it is curated
       into ~/.agents/skills or linked into downstream tools.
 
       This command is read-only.
     `,
     examples: [
-      ["List skills", "bgng skills list"],
-      ["List skills as JSON", "bgng skills list --json"],
+      ["List skills", "drwn skills list"],
+      ["List skills as JSON", "drwn skills list --json"],
     ],
   });
 

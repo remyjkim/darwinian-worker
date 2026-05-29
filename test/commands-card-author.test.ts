@@ -132,5 +132,5 @@ test("card new fails on a legacy layout and points the user at store migrate", a
   const result = await runAgentsCli(["card", "new", "@me/backend", "--no-git"], envFor(fixture));
 
   expect(result.exitCode).not.toBe(0);
-  expect(result.stderr).toContain("bgng store migrate");
+  expect(result.stderr).toContain("drwn store migrate");
 });

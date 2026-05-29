@@ -1,4 +1,4 @@
-// ABOUTME: Verifies the bgng init command scaffolds per-project config in the caller's working directory.
+// ABOUTME: Verifies the drwn init command scaffolds per-project config in the caller's working directory.
 // ABOUTME: Protects the per-project bootstrap path and the safety semantics around overwriting config.
 
 import { afterEach, describe, expect, test } from "bun:test";
@@ -12,7 +12,7 @@ afterEach(async () => {
   await cleanupTempRoots(tempRoots);
 });
 
-describe("bgng init", () => {
+describe("drwn init", () => {
   test("creates .agents/bgng/config.json with version 1", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);

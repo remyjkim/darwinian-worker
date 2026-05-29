@@ -1,4 +1,4 @@
-// ABOUTME: Defines the domain types for bgng extension metadata and health reports.
+// ABOUTME: Defines the domain types for drwn extension metadata and health reports.
 // ABOUTME: Keeps extension concepts separate from MCP servers and skill bundles.
 
 export type ExtensionScope = "global" | "project";

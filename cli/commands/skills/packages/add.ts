@@ -1,4 +1,4 @@
-// ABOUTME: Implements bgng skills packages add for installing package-backed skill bundles into ~/.agents.
+// ABOUTME: Implements drwn skills packages add for installing package-backed skill bundles into ~/.agents.
 // ABOUTME: Keeps package-backed skills as available sources only; curation and write remain separate steps.
 
 import { Option, UsageError } from "clipanion";
@@ -18,12 +18,12 @@ export class SkillsPackagesAddCommand extends BaseCommand {
       ~/.agents. Installed package skills become visible to library and add
       commands, but are not automatically activated in any project.
 
-      Use bgng add skill, bgng skills curate, or library defaults commands to
+      Use drwn add skill, drwn skills curate, or library defaults commands to
       opt into installed skills.
     `,
     examples: [
-      ["Install a bundle from npm", "bgng skills packages add @acme/skill-bundle"],
-      ["Install a bundle from a local tarball", "bgng skills packages add ./bundle.tgz"],
+      ["Install a bundle from npm", "drwn skills packages add @acme/skill-bundle"],
+      ["Install a bundle from a local tarball", "drwn skills packages add ./bundle.tgz"],
     ],
   });
 

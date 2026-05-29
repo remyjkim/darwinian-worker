@@ -29,7 +29,7 @@ export function resolveInitMode(options: {
     return { mode: "guided" };
   }
 
-  return { mode: "error", message: "bgng init defaults to guided mode. Use --non-interactive for scripts." };
+  return { mode: "error", message: "drwn init defaults to guided mode. Use --non-interactive for scripts." };
 }
 
 export function resolveInstallDecisionMode(options: {

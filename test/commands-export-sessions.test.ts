@@ -1,4 +1,4 @@
-// ABOUTME: Integration tests for `bgng export sessions` command.
+// ABOUTME: Integration tests for `drwn export sessions` command.
 // ABOUTME: Verifies dry-run listing, archive writing, and no-files-found paths.
 
 import { afterEach, describe, expect, test } from "bun:test";
@@ -42,7 +42,7 @@ async function scaffoldExportFixture(options?: { withSessionFile?: boolean }) {
   return { fixture, slug, env };
 }
 
-describe("bgng export sessions", () => {
+describe("drwn export sessions", () => {
   test("--dry-run with real session files lists files and exits 0", async () => {
     const { fixture, slug, env } = await scaffoldExportFixture();
 

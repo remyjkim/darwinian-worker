@@ -21,7 +21,7 @@ function envFor(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>, extra?:
   };
 }
 
-describe("bgng search", () => {
+describe("drwn search", () => {
   test("search skill returns local and catalog results as json", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);

@@ -1,4 +1,4 @@
-// ABOUTME: Implements bgng extensions setup for explicit extension setup flows.
+// ABOUTME: Implements drwn extensions setup for explicit extension setup flows.
 // ABOUTME: Starts with Beads project setup while preserving dry-run and non-destructive defaults.
 
 import { Option, UsageError } from "clipanion";
@@ -30,9 +30,9 @@ export class ExtensionsSetupCommand extends BaseCommand {
       Parallel setup writes project config only.
     `,
     examples: [
-      ["Preview Beads setup", "bgng extensions setup beads --dry-run"],
-      ["Set up Beads with the project skill", "bgng extensions setup beads --include-skill"],
-      ["Install MarkItDown without prompting", "bgng extensions setup markitdown --install"],
+      ["Preview Beads setup", "drwn extensions setup beads --dry-run"],
+      ["Set up Beads with the project skill", "drwn extensions setup beads --include-skill"],
+      ["Install MarkItDown without prompting", "drwn extensions setup markitdown --install"],
     ],
   });
 

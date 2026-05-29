@@ -19,7 +19,7 @@ Use `markitdown` for local file-to-Markdown conversion when the user asks to ext
 2. If missing, surface this setup command:
 
    ```bash
-   bgng extensions setup markitdown --install
+   drwn extensions setup markitdown --install
    ```
 
 3. Convert files non-interactively:

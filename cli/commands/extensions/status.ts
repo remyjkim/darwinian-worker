@@ -1,4 +1,4 @@
-// ABOUTME: Implements bgng extensions status for non-mutating extension health inspection.
+// ABOUTME: Implements drwn extensions status for non-mutating extension health inspection.
 // ABOUTME: Reports local command, skill, MCP, and project state for supported extensions.
 
 import { Option, UsageError } from "clipanion";
@@ -21,8 +21,8 @@ export class ExtensionsStatusCommand extends BaseCommand {
       This command is read-only.
     `,
     examples: [
-      ["Show all extension statuses", "bgng extensions status"],
-      ["Show one extension as JSON", "bgng extensions status markitdown --json"],
+      ["Show all extension statuses", "drwn extensions status"],
+      ["Show one extension as JSON", "drwn extensions status markitdown --json"],
     ],
   });
 

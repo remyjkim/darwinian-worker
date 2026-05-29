@@ -1,4 +1,4 @@
-// ABOUTME: Verifies project-first MCP activation through `bgng add mcp`.
+// ABOUTME: Verifies project-first MCP activation through `drwn add mcp`.
 // ABOUTME: Protects project-local server toggles and dry-run safety.
 
 import { afterEach, describe, expect, test } from "bun:test";
@@ -21,7 +21,7 @@ function envFor(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
   };
 }
 
-describe("bgng add mcp", () => {
+describe("drwn add mcp", () => {
   test("adds a harness MCP server toggle to project config", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);

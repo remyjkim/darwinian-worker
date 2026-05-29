@@ -1,4 +1,4 @@
-// ABOUTME: Verifies the public `bgng doctor` command stays report-only while surfacing drift and stale state.
+// ABOUTME: Verifies the public `drwn doctor` command stays report-only while surfacing drift and stale state.
 // ABOUTME: Protects the safe-by-default diagnostics contract for the new CLI.
 
 import { afterEach, describe, expect, test } from "bun:test";
@@ -12,7 +12,7 @@ afterEach(async () => {
   await cleanupTempRoots(tempRoots);
 });
 
-describe("bgng doctor", () => {
+describe("drwn doctor", () => {
   test("reports stale downstream skill symlinks", async () => {
     const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
     tempRoots.push(fixture.root);

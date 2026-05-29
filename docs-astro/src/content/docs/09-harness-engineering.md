@@ -53,9 +53,9 @@ Birgitta Böckeler's framework identifies the two fundamental directions:
 
 Without both, you get either an agent repeating mistakes (feedback-only) or an agent encoding rules but never verifying them (feedforward-only).
 
-## Where beginning-harness Fits
+## Where darwinian-harness Fits
 
-`beginning-harness` occupies the local operator layer of harness engineering. Its job is to make scattered local agent configuration explicit and governable:
+`darwinian-harness` occupies the local operator layer of harness engineering. Its job is to make scattered local agent configuration explicit and governable:
 
 - Skills become feedforward guidance
 - MCP servers become controlled tool surfaces
@@ -67,7 +67,7 @@ Without both, you get either an agent repeating mistakes (feedback-only) or an a
 - Write records make materialization ownership inspectable
 - Apply, write, status, and doctor become the materialization and verification loop
 
-This is why the name is `beginning-harness` — it is the starting harness layer around every local agent setup, not a replacement for any one agent.
+This is why the name is `darwinian-harness` — it is the starting harness layer around every local agent setup, not a replacement for any one agent.
 
 ## Further Reading
 

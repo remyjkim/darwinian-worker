@@ -22,8 +22,8 @@ export class LibraryDefaultsRemoveMcpCommand extends BaseCommand {
       does not touch projects that explicitly added the server.
     `,
     examples: [
-      ["Remove a default MCP server", "bgng library defaults remove mcp context7"],
-      ["Preview removing a default MCP server", "bgng library defaults remove mcp context7 --dry-run"],
+      ["Remove a default MCP server", "drwn library defaults remove mcp context7"],
+      ["Preview removing a default MCP server", "drwn library defaults remove mcp context7 --dry-run"],
     ],
   });
 
@@ -63,7 +63,7 @@ export class LibraryDefaultsRemoveMcpCommand extends BaseCommand {
       scope: "global-default",
       action: wasDefault ? "removed" : "not-default",
       configPath: path,
-      next: ["bgng write --dry-run"],
+      next: ["drwn write --dry-run"],
     };
 
     if (this.json) {
@@ -79,7 +79,7 @@ export class LibraryDefaultsRemoveMcpCommand extends BaseCommand {
         ...(this.dryRun ? [`Would update ${path}`] : [`Updated ${path}`]),
         "",
         "Next:",
-        "  bgng write --dry-run",
+        "  drwn write --dry-run",
       ].join("\n") + "\n",
     );
     return 0;

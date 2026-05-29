@@ -1,4 +1,4 @@
-// ABOUTME: Verifies bgng write refuses managed-region drift unless forced.
+// ABOUTME: Verifies drwn write refuses managed-region drift unless forced.
 // ABOUTME: Protects user hand-edits and the explicit recovery path.
 
 import { afterEach, expect, test } from "bun:test";

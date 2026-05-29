@@ -1,5 +1,5 @@
 // ABOUTME: Creates .tar archives of session log files using source-prefixed paths.
-// ABOUTME: Provides timestamp generation and the core archiving function for bgng export.
+// ABOUTME: Provides timestamp generation and the core archiving function for drwn export.
 
 import { mkdir, mkdtemp, rm, link, copyFile, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -93,7 +93,7 @@ export async function archiveSessions(
   await mkdir(dirname(outputPath), { recursive: true });
 
   // Create a temporary staging directory to mirror archive paths via hardlinks
-  const stagingDir = await mkdtemp(join(tmpdir(), "bgng-archive-"));
+  const stagingDir = await mkdtemp(join(tmpdir(), "drwn-archive-"));
 
   try {
     for (const file of files) {

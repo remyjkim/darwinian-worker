@@ -1,5 +1,5 @@
 // ABOUTME: Computes report-only diagnostics for skill symlinks, MCP drift, and generated file expectations.
-// ABOUTME: Shared by `bgng doctor` and `bgng status` to keep reporting logic centralized and testable.
+// ABOUTME: Shared by `drwn doctor` and `drwn status` to keep reporting logic centralized and testable.
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";

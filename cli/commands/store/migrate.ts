@@ -1,4 +1,4 @@
-// ABOUTME: Implements bgng store migrate for explicit pre-cards layout migration.
+// ABOUTME: Implements drwn store migrate for explicit pre-cards layout migration.
 // ABOUTME: Keeps migration reportable and non-silent for operator confidence.
 
 import { Option } from "clipanion";
@@ -15,17 +15,17 @@ export class StoreMigrateCommand extends BaseCommand {
     details: `
       Builds a staging store, validates it, archives the old layout, then
       activates the new ~/.agents/bgng store. The migration is explicit and
-      recoverable; ordinary bgng commands only warn when a legacy layout exists.
+      recoverable; ordinary drwn commands only warn when a legacy layout exists.
     `,
     examples: [
-      ["Migrate the store", "bgng store migrate"],
-      ["Migrate as JSON", "bgng store migrate --json"],
-      ["Migrate and request orphan cleanup", "bgng store migrate --cleanup-legacy-orphans"],
+      ["Migrate the store", "drwn store migrate"],
+      ["Migrate as JSON", "drwn store migrate --json"],
+      ["Migrate and request orphan cleanup", "drwn store migrate --cleanup-legacy-orphans"],
     ],
   });
 
   cleanupLegacyOrphans = Option.Boolean("--cleanup-legacy-orphans", false, {
-    description: "After migration, scan for bgng-owned legacy orphan symlinks.",
+    description: "After migration, scan for drwn-owned legacy orphan symlinks.",
   });
 
   yes = Option.Boolean("--yes", false, {

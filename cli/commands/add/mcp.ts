@@ -1,4 +1,4 @@
-// ABOUTME: Implements project-first MCP activation through `bgng add mcp`.
+// ABOUTME: Implements project-first MCP activation through `drwn add mcp`.
 // ABOUTME: Adds known MCP servers to project config without mutating global defaults.
 
 import { Option, UsageError } from "clipanion";
@@ -28,9 +28,9 @@ export class AddMcpCommand extends BaseCommand {
       project override.
     `,
     examples: [
-      ["Add a registry server to this project", "bgng add mcp context7"],
-      ["Accept an unambiguous catalog match", "bgng add mcp github --yes"],
-      ["Preview without writing project config", "bgng add mcp context7 --dry-run"],
+      ["Add a registry server to this project", "drwn add mcp context7"],
+      ["Accept an unambiguous catalog match", "drwn add mcp github --yes"],
+      ["Preview without writing project config", "drwn add mcp context7 --dry-run"],
     ],
   });
 
@@ -99,7 +99,7 @@ export class AddMcpCommand extends BaseCommand {
       projectConfigPath: configPath,
       projectChanges: alreadyDefault ? [] : [{ kind: "mcp", id, action: "enabled" }],
       requiredEnv: [...requiredEnv],
-      next: ["bgng write --dry-run"],
+      next: ["drwn write --dry-run"],
     };
 
     if (!this.dryRun && !alreadyDefault) {
@@ -118,7 +118,7 @@ export class AddMcpCommand extends BaseCommand {
             "No project override needed.",
             "",
             "Next:",
-            "  bgng write --dry-run",
+            "  drwn write --dry-run",
           ].join("\n") + "\n"
         : [
             `Added ${id} to this project.`,
@@ -126,7 +126,7 @@ export class AddMcpCommand extends BaseCommand {
             ...([...requiredEnv].length > 0 ? [`Required environment: ${[...requiredEnv].join(", ")}`] : []),
             "",
             "Next:",
-            "  bgng write --dry-run",
+            "  drwn write --dry-run",
           ].join("\n") + "\n",
     );
     return 0;

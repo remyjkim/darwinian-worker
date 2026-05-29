@@ -37,7 +37,7 @@ export async function resolveSkillSource(
     if (!existsSync(path)) {
       return {
         layer: "missing",
-        reason: `card store is corrupt for ${card.name}@${card.version}: missing skills/${name}. Re-run \`bgng card update\` after republishing the card.`,
+        reason: `card store is corrupt for ${card.name}@${card.version}: missing skills/${name}. Re-run \`drwn card update\` after republishing the card.`,
       };
     }
     return {

@@ -56,8 +56,8 @@ import { ExportSessionsCommand } from "./commands/export/sessions";
 import { detectLegacyLayout } from "./core/migration";
 
 const cli = new Cli({
-  binaryLabel: "bgng",
-  binaryName: "bgng",
+  binaryLabel: "drwn",
+  binaryName: "drwn",
   binaryVersion: "0.1.0",
 });
 
@@ -120,7 +120,7 @@ const context = createAgentsContext();
 try {
   validateRepoRoot(context.repoRoot);
   if (detectLegacyLayout(context.agentsDir)) {
-    process.stderr.write("WARNING: pre-cards layout detected. Run `bgng store migrate` to upgrade.\n");
+    process.stderr.write("WARNING: pre-cards layout detected. Run `drwn store migrate` to upgrade.\n");
   }
   await cli.runExit(process.argv.slice(2), context);
 } catch (error) {

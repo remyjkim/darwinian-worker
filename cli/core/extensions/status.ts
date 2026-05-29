@@ -1,4 +1,4 @@
-// ABOUTME: Builds non-mutating status reports for bgng extensions.
+// ABOUTME: Builds non-mutating status reports for drwn extensions.
 // ABOUTME: Bridges extension metadata with local CLI availability, skills, MCP registry, and project state.
 
 import { existsSync } from "node:fs";

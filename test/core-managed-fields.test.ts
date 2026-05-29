@@ -1,4 +1,4 @@
-// ABOUTME: Verifies canonical managed-field hashing for bgng-owned settings regions.
+// ABOUTME: Verifies canonical managed-field hashing for drwn-owned settings regions.
 // ABOUTME: Protects drift detection from whitespace and key-order noise.
 
 import { expect, test } from "bun:test";

@@ -293,9 +293,9 @@ describe("archiveSessions", () => {
       },
     ];
 
-    // Capture bgng-archive-* entries in tmpdir before calling archiveSessions
+    // Capture drwn-archive-* entries in tmpdir before calling archiveSessions
     const before = new Set(
-      (await readdir(tmpdir())).filter((e) => e.startsWith("bgng-archive-")),
+      (await readdir(tmpdir())).filter((e) => e.startsWith("drwn-archive-")),
     );
 
     const outputPath = join(root, "out", "sessions.tar");
@@ -304,9 +304,9 @@ describe("archiveSessions", () => {
     // Verify output archive was created
     expect(existsSync(outputPath)).toBe(true);
 
-    // Verify no new bgng-archive-* entries exist in tmpdir after archiveSessions
+    // Verify no new drwn-archive-* entries exist in tmpdir after archiveSessions
     const after = (await readdir(tmpdir())).filter((e) =>
-      e.startsWith("bgng-archive-"),
+      e.startsWith("drwn-archive-"),
     );
     const newEntries = after.filter((e) => !before.has(e));
     expect(newEntries).toHaveLength(0);

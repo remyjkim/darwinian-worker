@@ -1,13 +1,13 @@
 ---
 title: "How Write Works"
-description: "How bgng resolves machine, project, card, and local-store state."
+description: "How drwn resolves machine, project, card, and local-store state."
 date: 2026-04-28
 order: 2
 ---
 
 ## Scope Detection
 
-`bgng write` first decides whether it is running in a configured project.
+`drwn write` first decides whether it is running in a configured project.
 Discovery walks upward from the current directory for:
 
 ```text
@@ -67,7 +67,7 @@ A project selects cards in:
 <project>/.agents/bgng/config.json
 ```
 
-`bgng apply`, `bgng card add`, `bgng card pin`, and `bgng card update` resolve
+`drwn apply`, `drwn card add`, `drwn card pin`, and `drwn card update` resolve
 those refs into:
 
 ```text
@@ -79,49 +79,49 @@ deterministic.
 
 ## Write Records
 
-Write records let `bgng` distinguish paths it owns from user-owned state.
+Write records let `drwn` distinguish paths it owns from user-owned state.
 
 On the next write:
 
-- bgng-owned paths that left the effective state are removed
+- drwn-owned paths that left the effective state are removed
 - user-owned replacements are preserved and reported
 - generated files are rewritten from the effective state
 
 Use `--force` only when you intentionally want to overwrite drift inside
-bgng-managed file regions.
+drwn-managed file regions.
 
 ## Running Write
 
 Preview before writing:
 
 ```bash
-bgng write --dry-run
+drwn write --dry-run
 ```
 
 Write everything:
 
 ```bash
-bgng write
+drwn write
 ```
 
 Run only one side when needed:
 
 ```bash
-bgng write --mcp-only
-bgng write --skills-only
+drwn write --mcp-only
+drwn write --skills-only
 ```
 
 Limit write to one target:
 
 ```bash
-bgng write --target=claude
-bgng mcp write --target=cursor
+drwn write --target=claude
+drwn mcp write --target=cursor
 ```
 
 Resolve managed-field drift intentionally:
 
 ```bash
-bgng write --force
+drwn write --force
 ```
 
 ## Usage Modes
@@ -131,8 +131,8 @@ bgng write --force
 Use the published package when you want the default config and CLI behavior:
 
 ```bash
-npm install -g beginning-harness
-bgng write --dry-run
+npm install -g darwinian-harness
+drwn write --dry-run
 ```
 
 ### Editable harness source
@@ -140,8 +140,8 @@ bgng write --dry-run
 Use a checkout when you want to own the source of truth:
 
 ```bash
-export AGENTS_REPO_ROOT=/path/to/beginning-harness
-bgng status
+export AGENTS_REPO_ROOT=/path/to/darwinian-harness
+drwn status
 ```
 
 In checkout mode, edit:

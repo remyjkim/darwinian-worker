@@ -37,7 +37,7 @@ test("cards bundle skills not in skills/shared/ and write symlinks into the card
   }
 });
 
-test("bgng write fails loud when a project skill include is not available from any layer", async () => {
+test("drwn write fails loud when a project skill include is not available from any layer", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   const projectDir = join(fixture.root, "project");

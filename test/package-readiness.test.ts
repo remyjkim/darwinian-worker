@@ -16,9 +16,10 @@ describe("package readiness", () => {
     expect(existsSync(join(process.cwd(), "LICENSE"))).toBe(true);
     expect(existsSync(join(process.cwd(), "README.md"))).toBe(true);
     expect(existsSync(join(process.cwd(), "CONTRIBUTING.md"))).toBe(true);
-    expect(pkg.name).toBe("beginning-harness");
-    expect((pkg.bin as Record<string, string>).bgng).toBe("cli/index.ts");
-    expect((pkg.scripts as Record<string, string>).bgng).toBe("bun run cli/index.ts");
+    expect(pkg.name).toBe("darwinian-harness");
+    expect((pkg.bin as Record<string, string>).drwn).toBe("cli/index.ts");
+    expect((pkg.bin as Record<string, string>)["drwn-hx"]).toBe("cli/index.ts");
+    expect((pkg.scripts as Record<string, string>).drwn).toBe("bun run cli/index.ts");
     expect((pkg.scripts as Record<string, string>).sync).toBeUndefined();
     expect(pkg.homepage).toBe("https://github.com/remyjkim/beginning-harness");
     expect(pkg.bugs).toEqual({ url: "https://github.com/remyjkim/beginning-harness/issues" });
@@ -74,7 +75,7 @@ describe("package readiness", () => {
     expect(paths).not.toContain("mcp-servers.json");
     expect(paths).toContain("registry/config.json");
     expect(paths).toContain("registry/mcp-servers.json");
-    expect(paths).toContain("docs/assets/the-beginning-harness.png");
+    expect(paths).toContain("docs/assets/the-darwinian-harness.png");
     expect(paths).toContain("skills/shared/frontend-design/SKILL.md");
   });
 });

@@ -1,12 +1,12 @@
-# beginning-harness
+# darwinian-harness
 
-![The Beginning Harness hero image](./docs/assets/the-beginning-harness.png)
+![The Darwinian Harness hero image](./docs/assets/the-darwinian-harness.png)
 
-`beginning-harness` is a local meta-harness for AI agent tools: one CLI to organize skills, MCP servers, extensions, defaults, project overlays, downstream tool configs, and diagnostics.
+`darwinian-harness` is a local meta-harness for AI agent tools: one CLI to organize skills, MCP servers, extensions, defaults, project overlays, downstream tool configs, and diagnostics.
 
-Agents are only as reliable as the harness around them. `beginning-harness` makes that harness explicit, inspectable, reusable, and safe to write into downstream tools.
+Agents are only as reliable as the harness around them. `darwinian-harness` makes that harness explicit, inspectable, reusable, and safe to write into downstream tools.
 
-The package is `beginning-harness`. The command is `bgng`.
+The package is `darwinian-harness`. The command is `drwn`.
 
 ## What It Harnesses
 
@@ -22,7 +22,7 @@ The package is `beginning-harness`. The command is `bgng`.
 
 Local agent setups tend to drift. One tool gets a new MCP server, another has an older skill directory, and a project needs a slightly different harness than the global baseline.
 
-The harness around an agent is usually scattered across dotfiles, skills, MCP configs, extension setup, local scripts, and project conventions. `beginning-harness` gives those pieces a local control plane you can inspect, version, dry-run, and write deliberately.
+The harness around an agent is usually scattered across dotfiles, skills, MCP configs, extension setup, local scripts, and project conventions. `darwinian-harness` gives those pieces a local control plane you can inspect, version, dry-run, and write deliberately.
 
 It is useful when you want:
 
@@ -46,11 +46,11 @@ If you only need a single MCP config file for one tool, this project is probably
 ### Install the published package
 
 ```bash
-npm install -g beginning-harness
-bgng status
+npm install -g darwinian-harness
+drwn status
 ```
 
-The published package includes built-in harness defaults. By default, global `bgng` uses that packaged harness source.
+The published package includes built-in harness defaults. By default, global `drwn` uses that packaged harness source.
 
 ### Work from a checkout
 
@@ -58,23 +58,23 @@ Use this mode if you want to edit the registry, maintain your own fork, add buil
 
 ```bash
 git clone https://github.com/remyjkim/beginning-harness.git
-cd beginning-harness
+cd darwinian-harness
 bun install
-bun run bgng -- status
+bun run drwn -- status
 ```
 
 You can also point a global install at a checkout:
 
 ```bash
-export AGENTS_REPO_ROOT=/path/to/beginning-harness
-bgng status
+export AGENTS_REPO_ROOT=/path/to/darwinian-harness
+drwn status
 ```
 
 For local development, link the package:
 
 ```bash
 bun link
-bgng --help
+drwn --help
 ```
 
 ## Quickstart
@@ -82,16 +82,16 @@ bgng --help
 Start by inspecting before writing:
 
 ```bash
-bgng status
-bgng skills list
-bgng mcp list
-bgng write --dry-run
+drwn status
+drwn skills list
+drwn mcp list
+drwn write --dry-run
 ```
 
 If the dry run looks right, write the generated state:
 
 ```bash
-bgng write
+drwn write
 ```
 
 That first run gives you:
@@ -105,23 +105,23 @@ That first run gives you:
 For a project-specific setup, start in the project directory:
 
 ```bash
-bgng init
-bgng extensions add parallel
-bgng add skill <skill-name-or-query>
-bgng add mcp <server-name>
-bgng write --dry-run
-bgng write
+drwn init
+drwn extensions add parallel
+drwn add skill <skill-name-or-query>
+drwn add mcp <server-name>
+drwn write --dry-run
+drwn write
 ```
 
 For scripts and CI-style setup, make init explicit:
 
 ```bash
-bgng init --non-interactive
+drwn init --non-interactive
 ```
 
 ## What It Changes On Disk
 
-`bgng` can read and write local agent configuration under:
+`drwn` can read and write local agent configuration under:
 
 - `~/.agents`
 - `~/.claude`
@@ -131,10 +131,10 @@ bgng init --non-interactive
 
 The normal write path is conservative:
 
-- `bgng write --dry-run` previews changes
+- `drwn write --dry-run` previews changes
 - write creates or replaces managed symlinks and generated MCP config
-- BGNG-owned stale downstream skill symlinks are removed on the next write; user-owned replacements are preserved and warned
-- `bgng doctor` reports issues without fixing them
+- DRWN-owned stale downstream skill symlinks are removed on the next write; user-owned replacements are preserved and warned
+- `drwn doctor` reports issues without fixing them
 
 ## Usage Modes
 
@@ -143,8 +143,8 @@ The normal write path is conservative:
 Use the published package when you want the default config and CLI behavior:
 
 ```bash
-npm install -g beginning-harness
-bgng write --dry-run
+npm install -g darwinian-harness
+drwn write --dry-run
 ```
 
 ### Editable Harness Source
@@ -152,8 +152,8 @@ bgng write --dry-run
 Use a checkout when you want to own the source of truth:
 
 ```bash
-export AGENTS_REPO_ROOT=/path/to/beginning-harness
-bgng status
+export AGENTS_REPO_ROOT=/path/to/darwinian-harness
+drwn status
 ```
 
 In checkout mode, edit:
@@ -166,83 +166,83 @@ In checkout mode, edit:
 
 General commands:
 
-- `bgng status`
-- `bgng doctor`
-- `bgng scan`
-- `bgng init`
-- `bgng add skill [name-or-query]`
-- `bgng add mcp [name-or-query]`
-- `bgng search skill <query>`
-- `bgng search mcp <query>`
-- `bgng library list [skills|mcp|tools]`
-- `bgng library show <id>`
-- `bgng library add skill <packageSpec>`
-- `bgng library add mcp <jsonFile> --as <serverId>`
-- `bgng library defaults list`
-- `bgng library defaults add skill <skillName>`
-- `bgng library defaults add mcp <serverName>`
-- `bgng library defaults remove skill <skillName>`
-- `bgng library defaults remove mcp <serverName>`
-- `bgng write`
-- `bgng extensions list`
-- `bgng extensions show <extensionName>`
-- `bgng extensions status [extensionName]`
-- `bgng extensions doctor [extensionName]`
-- `bgng extensions setup beads`
-- `bgng extensions setup parallel`
-- `bgng extensions setup markitdown`
-- `bgng extensions add <extensionName>`
-- `bgng apply <cardRef>`
-- `bgng update`
+- `drwn status`
+- `drwn doctor`
+- `drwn scan`
+- `drwn init`
+- `drwn add skill [name-or-query]`
+- `drwn add mcp [name-or-query]`
+- `drwn search skill <query>`
+- `drwn search mcp <query>`
+- `drwn library list [skills|mcp|tools]`
+- `drwn library show <id>`
+- `drwn library add skill <packageSpec>`
+- `drwn library add mcp <jsonFile> --as <serverId>`
+- `drwn library defaults list`
+- `drwn library defaults add skill <skillName>`
+- `drwn library defaults add mcp <serverName>`
+- `drwn library defaults remove skill <skillName>`
+- `drwn library defaults remove mcp <serverName>`
+- `drwn write`
+- `drwn extensions list`
+- `drwn extensions show <extensionName>`
+- `drwn extensions status [extensionName]`
+- `drwn extensions doctor [extensionName]`
+- `drwn extensions setup beads`
+- `drwn extensions setup parallel`
+- `drwn extensions setup markitdown`
+- `drwn extensions add <extensionName>`
+- `drwn apply <cardRef>`
+- `drwn update`
 
 Card commands:
 
-- `bgng card new <name> --scope @scope`
-- `bgng card publish <name>`
-- `bgng card apply <cardRef> [--write]`
-- `bgng card add <cardRef> [--write]`
-- `bgng card pin <cardRef> [--write]`
-- `bgng card remove <name> [--write]`
-- `bgng card update [--write]`
-- `bgng card outdated [--check]`
-- `bgng card detach [--write]`
-- `bgng card list`
-- `bgng card show <cardRef>`
-- `bgng card status [--explain]`
-- `bgng card diff <beforeRef> <afterRef>`
-- `bgng card deprecate <cardRef>`
+- `drwn card new <name> --scope @scope`
+- `drwn card publish <name>`
+- `drwn card apply <cardRef> [--write]`
+- `drwn card add <cardRef> [--write]`
+- `drwn card pin <cardRef> [--write]`
+- `drwn card remove <name> [--write]`
+- `drwn card update [--write]`
+- `drwn card outdated [--check]`
+- `drwn card detach [--write]`
+- `drwn card list`
+- `drwn card show <cardRef>`
+- `drwn card status [--explain]`
+- `drwn card diff <beforeRef> <afterRef>`
+- `drwn card deprecate <cardRef>`
 
 MCP commands:
 
-- `bgng mcp list`
-- `bgng mcp write`
+- `drwn mcp list`
+- `drwn mcp write`
 
 Skill commands:
 
-- `bgng skills list`
-- `bgng skills curate <skillName>`
-- `bgng skills uncurate <skillName>`
-- `bgng skills packages add <packageSpec>`
-- `bgng skills packages list`
-- `bgng skills packages show <packageName>`
+- `drwn skills list`
+- `drwn skills curate <skillName>`
+- `drwn skills uncurate <skillName>`
+- `drwn skills packages add <packageSpec>`
+- `drwn skills packages list`
+- `drwn skills packages show <packageName>`
 
 Export commands:
 
-- `bgng export sessions [--dry-run] [--gzip] [--out <path>]`
+- `drwn export sessions [--dry-run] [--gzip] [--out <path>]`
 
 Most inspection commands support `--json`. Write commands support `--dry-run`.
 
 Use command help for the exact surface:
 
 ```bash
-bgng --help
-bgng write --help
-bgng scan --help
-bgng add skill --help
-bgng library list --help
-bgng search skill --help
-bgng extensions setup beads --help
-bgng skills packages add --help
+drwn --help
+drwn write --help
+drwn scan --help
+drwn add skill --help
+drwn library list --help
+drwn search skill --help
+drwn extensions setup beads --help
+drwn skills packages add --help
 ```
 
 ## How Write Works
@@ -255,37 +255,37 @@ The core model has five layers:
 - project overlay: current-project overrides under `<project>/.agents/bgng/config.json`
 - downstream state: Claude, Codex, Cursor, and generated MCP config files
 
-`bgng write` resolves the effective harness state, then writes MCP configuration and skill links into downstream local agent tool config and skill directories. Use `--dry-run` to preview writes before mutating files:
+`drwn write` resolves the effective harness state, then writes MCP configuration and skill links into downstream local agent tool config and skill directories. Use `--dry-run` to preview writes before mutating files:
 
 ```bash
-bgng write --dry-run
-bgng write
+drwn write --dry-run
+drwn write
 ```
 
 Wave 1 card behavior:
 
 - card-bundled skill content is authoritative for materialization and writes from the immutable card store path
 - if a card and a non-card source provide the same skill name, the card copy wins
-- `bgng write --dry-run` annotates each planned skill symlink with the winning resolution layer
-- unresolved included skill names fail `bgng write` before any downstream mutation
+- `drwn write --dry-run` annotates each planned skill symlink with the winning resolution layer
+- unresolved included skill names fail `drwn write` before any downstream mutation
 
 Run only one side when needed:
 
 ```bash
-bgng write --mcp-only
-bgng write --skills-only
+drwn write --mcp-only
+drwn write --skills-only
 ```
 
 Limit write to one target:
 
 ```bash
-bgng write --target=claude
-bgng mcp write --target=cursor
+drwn write --target=claude
+drwn mcp write --target=cursor
 ```
 
 ## How Export Works
 
-`bgng export sessions` discovers and archives all session log files (`.jsonl`) from Claude Code and Codex belonging to the current project. Sessions are discovered by matching project slug prefixes (derived by replacing every `/` in the project path with `-`); this automatically includes all git worktrees.
+`drwn export sessions` discovers and archives all session log files (`.jsonl`) from Claude Code and Codex belonging to the current project. Sessions are discovered by matching project slug prefixes (derived by replacing every `/` in the project path with `-`); this automatically includes all git worktrees.
 
 ### Archive layout
 
@@ -307,7 +307,7 @@ The archiver enforces explicit cleanliness guarantees:
 - every archive is validated after write — entries outside the `claude/`/`codex/` namespace, AppleDouble entries, `__MACOSX/`, `.DS_Store`, or other hidden dotfiles cause the command to fail and the polluted archive to be removed
 - archive member count must match the discovered input count
 
-**Do not manually recompress archives** (e.g. by Finder-zipping `.agents/bgng/session-log-exports/`). Manual repackaging bypasses these guarantees and can introduce AppleDouble sidecars that break downstream analyzers. Upload the file BGNG produces as-is.
+**Do not manually recompress archives** (e.g. by Finder-zipping `.agents/bgng/session-log-exports/`). Manual repackaging bypasses these guarantees and can introduce AppleDouble sidecars that break downstream analyzers. Upload the file DRWN produces as-is.
 
 Missing source roots like `~/.claude/projects/` or `~/.codex/sessions/` are skipped silently and do not produce an error.
 
@@ -320,15 +320,15 @@ User-registered MCP servers live in `~/.agents/library/mcp-servers.json`. Machin
 Inspect active MCP state:
 
 ```bash
-bgng mcp list
-bgng mcp list --json
+drwn mcp list
+drwn mcp list --json
 ```
 
 Write active MCP state:
 
 ```bash
-bgng mcp write --dry-run
-bgng mcp write
+drwn mcp write --dry-run
+drwn mcp write
 ```
 
 Notes:
@@ -356,35 +356,35 @@ Curated shared skills are published through:
 Typical built-in skill flow:
 
 ```bash
-bgng skills list
-bgng skills curate <skillName>
-bgng write --skills-only --dry-run
-bgng write --skills-only
+drwn skills list
+drwn skills curate <skillName>
+drwn write --skills-only --dry-run
+drwn write --skills-only
 ```
 
 Only shared skills can be curated into `~/.agents/skills`. Claude-only and Codex-only skills are written directly to their target-specific skill directories.
 
 ## Extension Skill Bundles
 
-`beginning-harness` supports package-backed skill bundles for skills that should be available without being added to the built-in first-party tree.
+`darwinian-harness` supports package-backed skill bundles for skills that should be available without being added to the built-in first-party tree.
 
 Typical flow:
 
 ```bash
-bgng library add skill <npm-package-or-local-path>
-bgng library list skills
-bgng library show <skillName>
-bgng add skill <skillName>
-bgng write --dry-run
-bgng write
+drwn library add skill <npm-package-or-local-path>
+drwn library list skills
+drwn library show <skillName>
+drwn add skill <skillName>
+drwn write --dry-run
+drwn write
 ```
 
 Global curation remains useful when a shared skill should be available by default across projects:
 
 ```bash
-bgng skills packages add <npm-package-or-local-path>
-bgng skills curate <skillName>
-bgng write --skills-only
+drwn skills packages add <npm-package-or-local-path>
+drwn skills curate <skillName>
+drwn write --skills-only
 ```
 
 The distinction matters:
@@ -397,15 +397,15 @@ Current package-backed bundle support includes add, list, show, inventory, curat
 
 ## Extensions
 
-Extensions are named capability families that `bgng` can inspect, diagnose, and sometimes set up. They are distinct from skill bundles and MCP servers: an extension can combine CLI prerequisites, repo-native skills, optional MCP servers, project setup actions, and diagnostics under one user-facing name.
+Extensions are named capability families that `drwn` can inspect, diagnose, and sometimes set up. They are distinct from skill bundles and MCP servers: an extension can combine CLI prerequisites, repo-native skills, optional MCP servers, project setup actions, and diagnostics under one user-facing name.
 
 Inspect extension support:
 
 ```bash
-bgng extensions list
-bgng extensions show beads
-bgng extensions status
-bgng extensions doctor
+drwn extensions list
+drwn extensions show beads
+drwn extensions status
+drwn extensions doctor
 ```
 
 Machine-readable output is available with `--json`.
@@ -418,49 +418,49 @@ Current extensions:
 
 ### Parallel
 
-Parallel support is CLI+skills-first. Selecting the extension for one project writes semantic config under `<project>/.agents/bgng/config.json`; `bgng write` then derives the four Parallel skills for that project without requiring global skill curation.
+Parallel support is CLI+skills-first. Selecting the extension for one project writes semantic config under `<project>/.agents/bgng/config.json`; `drwn write` then derives the four Parallel skills for that project without requiring global skill curation.
 
 Preview setup:
 
 ```bash
-bgng extensions setup parallel --dry-run
+drwn extensions setup parallel --dry-run
 ```
 
 Enable the Parallel skills for the current project:
 
 ```bash
-bgng extensions add parallel
+drwn extensions add parallel
 ```
 
 Enable project-scoped Parallel MCP as well:
 
 ```bash
-bgng extensions add parallel --mcp
+drwn extensions add parallel --mcp
 ```
 
-This does not install or authenticate `parallel-cli`. `bgng extensions status parallel` and `bgng extensions doctor parallel` report missing CLI or MCP prerequisites.
+This does not install or authenticate `parallel-cli`. `drwn extensions status parallel` and `drwn extensions doctor parallel` report missing CLI or MCP prerequisites.
 
 ### MarkItDown
 
-MarkItDown support is CLI+skills-first. Selecting the extension for one project writes semantic config under `<project>/.agents/bgng/config.json`; `bgng write` then derives the `markitdown-document-conversion` skill for that project.
+MarkItDown support is CLI+skills-first. Selecting the extension for one project writes semantic config under `<project>/.agents/bgng/config.json`; `drwn write` then derives the `markitdown-document-conversion` skill for that project.
 
 Preview setup:
 
 ```bash
-bgng extensions setup markitdown --dry-run
+drwn extensions setup markitdown --dry-run
 ```
 
 Run setup and choose interactively whether to install the missing CLI:
 
 ```bash
-bgng extensions setup markitdown
+drwn extensions setup markitdown
 ```
 
 For scripts:
 
 ```bash
-bgng extensions setup markitdown --install
-bgng extensions setup markitdown --no-install
+drwn extensions setup markitdown --install
+drwn extensions setup markitdown --no-install
 ```
 
 The install path is:
@@ -473,7 +473,7 @@ If the command is installed but not on PATH, run `uv tool update-shell` and rest
 
 ### Beads
 
-Beads support is CLI-first and project-scoped. `bgng` checks for `bd`, reports whether the current project has `.beads/`, can run Beads setup recipes, and can record Beads extension config for the project.
+Beads support is CLI-first and project-scoped. `drwn` checks for `bd`, reports whether the current project has `.beads/`, can run Beads setup recipes, and can record Beads extension config for the project.
 
 Install `bd` through one of the upstream-supported paths:
 
@@ -486,13 +486,13 @@ curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/insta
 Preview setup:
 
 ```bash
-bgng extensions setup beads --dry-run
+drwn extensions setup beads --dry-run
 ```
 
 Run setup:
 
 ```bash
-bgng extensions setup beads
+drwn extensions setup beads
 ```
 
 Useful flags:
@@ -503,7 +503,7 @@ Useful flags:
 - `--skip-bd-setup` skips `bd setup`
 - `--include-skill` sets `extensions.beads.includeSkill: true` so write derives `beads-task-tracking`
 
-Setup never runs `bd init --force` or `bd doctor --fix` by default. Beads MCP remains optional and is not enabled by `bgng extensions setup beads`.
+Setup never runs `bd init --force` or `bd doctor --fix` by default. Beads MCP remains optional and is not enabled by `drwn extensions setup beads`.
 
 ## Per-Project Configuration
 
@@ -513,7 +513,7 @@ Create a project config:
 
 ```bash
 cd /path/to/project
-bgng init
+drwn init
 ```
 
 This creates:
@@ -530,16 +530,16 @@ Project config can:
 - include or exclude skills during write
 - enable or disable targets locally
 
-Project config is used by `bgng write`, `bgng mcp list`, `bgng mcp write`, `bgng status`, `bgng doctor`, and extension status/doctor/setup commands.
+Project config is used by `drwn write`, `drwn mcp list`, `drwn mcp write`, `drwn status`, `drwn doctor`, and extension status/doctor/setup commands.
 
 Discovery walks upward from the current working directory and uses the nearest config file.
 
 Useful workflow:
 
 ```bash
-bgng status
-bgng write --dry-run
-bgng doctor
+drwn status
+drwn write --dry-run
+drwn doctor
 ```
 
 Project extension config is semantic:
@@ -570,10 +570,10 @@ Lower-level `skills.include` and `skills.exclude` still work for repo-native and
 
 ## Layered Reproducibility
 
-bgng cards pin **harness state** — the skills, MCP servers, extensions, and downstream targets a project should run on. Cards do not pin the surrounding environment. For full environmental reproducibility, layer bgng with tools that own the other layers:
+drwn cards pin **harness state** — the skills, MCP servers, extensions, and downstream targets a project should run on. Cards do not pin the surrounding environment. For full environmental reproducibility, layer drwn with tools that own the other layers:
 
 ```text
-Layer 8: bgng cards       — harness state (this tool)
+Layer 8: drwn cards       — harness state (this tool)
 Layer 6: Docker / Compose — service stack (Postgres, Redis, etc.)
 Layer 4: Flox or Nix      — Node, Python, system libs, shell hooks
 Layer 3: asdf / mise / Flox — runtime / toolchain versions
@@ -594,7 +594,7 @@ What cards do not pin:
 - CLI dependencies of skills (`bd`, `markitdown`, `git`, etc.)
 - runtime, system libraries, or shell environment
 
-The recommended composition for a project that needs full reproducibility: use `bgng card apply` for the harness, and pair with Flox/Nix (or asdf/mise) at the shell layer to pin Node/Python/system libs, and Docker Compose at the service layer for runtime dependencies. Each tool pins what it owns.
+The recommended composition for a project that needs full reproducibility: use `drwn card apply` for the harness, and pair with Flox/Nix (or asdf/mise) at the shell layer to pin Node/Python/system libs, and Docker Compose at the service layer for runtime dependencies. Each tool pins what it owns.
 
 For background on the layered model and how cards composes with the broader landscape, see `.ai/knowledges/02_per-project-config-guide.md` and `.ai/analyses/32_harness-cards-vs-flox-and-conda.md`.
 
@@ -603,8 +603,8 @@ For background on the layered model and how cards composes with the broader land
 Use `doctor` when local state looks wrong:
 
 ```bash
-bgng doctor
-bgng doctor --json
+drwn doctor
+drwn doctor --json
 ```
 
 It reports:
@@ -615,7 +615,7 @@ It reports:
 - missing generated config files
 - project config issues
 
-It does not mutate local state. Unresolved `skills.include` names are a separate write-time contract: `bgng write` fails before mutation, while `doctor` reports the same problem in diagnostics output.
+It does not mutate local state. Unresolved `skills.include` names are a separate write-time contract: `drwn write` fails before mutation, while `doctor` reports the same problem in diagnostics output.
 
 ## Optional Extensions
 
@@ -670,7 +670,7 @@ To enable the optional Parallel MCP overlay, edit [registry/config.json](./regis
 Then run:
 
 ```bash
-bgng mcp write
+drwn mcp write
 ```
 
 ### MarkItDown
@@ -684,14 +684,14 @@ MarkItDown is represented as a CLI-backed extension with a project skill:
 Setup previews first:
 
 ```bash
-bgng extensions setup markitdown --dry-run
+drwn extensions setup markitdown --dry-run
 ```
 
 When `markitdown` is missing, interactive setup asks once before installing. Scripts must choose explicitly:
 
 ```bash
-bgng extensions setup markitdown --install
-bgng extensions setup markitdown --no-install
+drwn extensions setup markitdown --install
+drwn extensions setup markitdown --no-install
 ```
 
 The guarded install command is:
