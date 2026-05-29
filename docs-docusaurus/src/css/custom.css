@@ -1,0 +1,44 @@
+/**
+ * Darwinian Harness theme: direct, practical, and local-first.
+ * Final palette should be revisited alongside designed brand assets.
+ */
+
+:root {
+  --ifm-color-primary: #2e7d32;
+  --ifm-color-primary-dark: #266a2a;
+  --ifm-color-primary-darker: #235f27;
+  --ifm-color-primary-darkest: #1a4d1f;
+  --ifm-color-primary-light: #379139;
+  --ifm-color-primary-lighter: #3d9a3f;
+  --ifm-color-primary-lightest: #5cb360;
+  --ifm-code-font-size: 95%;
+  --ifm-navbar-shadow: 0 1px 0 rgba(16, 24, 20, 0.08);
+  --ifm-footer-background-color: #0f1f16;
+  --docusaurus-highlighted-code-line-bg: rgba(46, 125, 50, 0.12);
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #7bc77f;
+  --ifm-color-primary-dark: #5bbb60;
+  --ifm-color-primary-darker: #4eae53;
+  --ifm-color-primary-darkest: #3d8d41;
+  --ifm-color-primary-light: #94d397;
+  --ifm-color-primary-lighter: #a1d8a4;
+  --ifm-color-primary-lightest: #c3e6c5;
+  --ifm-background-color: #0b1210;
+  --ifm-navbar-background-color: #0e1713;
+  --ifm-footer-background-color: #08100d;
+  --docusaurus-highlighted-code-line-bg: rgba(123, 199, 127, 0.16);
+}
+
+.navbar__title {
+  font-weight: 750;
+}
+
+.theme-doc-sidebar-container {
+  border-right-color: rgba(46, 125, 50, 0.16);
+}
+
+.markdown h1:first-child {
+  letter-spacing: 0;
+}

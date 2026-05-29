@@ -1,0 +1,6 @@
+name = "darwiniantools-docs"
+compatibility_date = "2026-05-29"
+pages_build_output_dir = "./build"
+
+[env.production]
+name = "darwiniantools-docs"
