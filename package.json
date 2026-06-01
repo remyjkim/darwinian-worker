@@ -41,7 +41,10 @@
     "drwn": "bun run cli/index.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "verify:release": "bun run scripts/verify-release-readiness.ts"
+    "verify:release": "bun run scripts/verify-release-readiness.ts",
+    "docs:dev": "cd docs-docusaurus && bun run start",
+    "docs:build": "cd docs-docusaurus && bun run build",
+    "docs:deploy": "cd docs-docusaurus && bun run deploy:pages"
   },
   "devDependencies": {
     "@types/bun": "1.3.13",

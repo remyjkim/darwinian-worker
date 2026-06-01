@@ -6,3 +6,7 @@ node_modules/
 *.tgz
 .agents/bgng/session-log-exports/
 .DS_Store
+docs-docusaurus/node_modules/
+docs-docusaurus/build/
+docs-docusaurus/.docusaurus/
+docs-docusaurus/.wrangler/
