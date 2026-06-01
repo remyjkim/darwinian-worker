@@ -132,13 +132,19 @@ Card refs are resolved into:
 ```
 
 The lockfile is tracked with the project config. It records exact card versions,
-integrity, source paths, and the manifest used to compute effective state.
+content-tree integrity, source paths, per-card bundled skill attribution, and
+the manifest used to compute effective state.
 
 Effective project state is:
 
 ```text
 built-in defaults -> user library -> cards in declared order -> project overlay
 ```
+
+For skill materialization specifically, bundled card content is authoritative.
+If an applied card ships a skill with the same name as a repo-native or
+package-backed source, the card copy wins and downstream symlinks point into
+the immutable card store.
 
 Machine-only defaults from `~/.agents/bgng/machine.json` do not apply when a
 project config is present.
@@ -217,7 +223,9 @@ Resolution behavior:
 
 - repo-native shared skills can be included by skill name
 - installed package-backed shared skills can be included by skill name when the name resolves uniquely
-- unknown or ambiguous skill names are reported by `bgng doctor`
+- applied-card bundled skills resolve before non-card sources
+- if multiple applied cards ship the same skill name, lockfile order decides the winner
+- unknown or ambiguous skill names fail `bgng write` before mutation and are also reported by `bgng doctor`
 
 ### Extensions
 
@@ -419,7 +427,7 @@ This initializes Beads through `bd` and records semantic extension config:
 - unknown extension references
 - stale project skill overrides
 
-This is report-only. `doctor` does not rewrite or repair project config.
+This is report-only. `doctor` does not rewrite or repair project config. Wave 1 also makes unresolved `skills.include` names a write-time hard failure, so `doctor` is complementary diagnostics, not the only enforcement path.
 
 ## Recommended Workflow
 
@@ -439,9 +447,9 @@ Harness Cards pin **harness state** — the skills, MCP server definitions, exte
 
 What cards pin (today):
 
-- Card versions in `card.lock` (byte-identical across machines via integrity hashes)
-- Bundle versions in `card.lock` (skill-bundle dependencies of cards)
-- Inline content shipped in a card (skills, MCP server definitions) by sha256
+- Card versions in `card.lock` (byte-identical across machines via content-tree integrity hashes)
+- Per-card bundled skill attribution in `card.lock`
+- Inline content shipped in a card (skills, MCP server definitions) by sha256 content hashing
 - The project overlay (`servers`, `skills`, `extensions`, `targets` fields in `config.json`)
 
 What cards do not pin:

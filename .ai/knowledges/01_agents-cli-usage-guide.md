@@ -718,6 +718,8 @@ Typical project-config issues include:
 
 `doctor` is report-only. It does not auto-fix or auto-prune.
 
+Wave 1 note: unresolved project `skills.include` names do not wait for `doctor`. `bgng write` now fails before mutating downstream state, and `doctor` reports the same issue for diagnosis.
+
 ## Common Workflows
 
 ### Global machine write
@@ -781,7 +783,7 @@ These are optional and machine-dependent. Their absence should not block the bas
 - remote card registry fetching and bundle intersection resolution are not active command behavior yet
 - package-backed bundle update/remove lifecycle is not implemented yet
 - package-backed bundles are extension sources, not authoritative write CLIs
-- per-project `skills.include` requires skill names to resolve uniquely across repo-native and installed package-backed sources
+- per-project `skills.include` requires skill names to resolve across the active card set and non-card sources; unresolved names fail write before mutation and are also surfaced by doctor
 
 ## Further Reading
 

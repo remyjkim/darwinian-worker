@@ -13,6 +13,10 @@ This directory holds internal operator and maintainer knowledge that is more spe
 - [04_homebrew-release-checklist.md](./04_homebrew-release-checklist.md): future-facing Homebrew readiness checklist
 - [05_npm-publishing-analysis-and-manual.md](./05_npm-publishing-analysis-and-manual.md): npm publish failure analysis and the verified manual publish workflow
 
+## Manual Validation
+
+- [09_harness-cards-manual-test-guide.md](./09_harness-cards-manual-test-guide.md): sandbox-first end-to-end manual for authoring, publishing, applying, writing, and diagnosing Harness Cards locally
+
 ## Scope
 
 Keep material here when it is:
