@@ -200,6 +200,7 @@ General commands:
 Card commands:
 
 - `drwn card new <name> --scope @scope`
+- `drwn card new <name> --from-project [projectPath]`
 - `drwn card publish <name>`
 - `drwn card apply <cardRef> [--write]`
 - `drwn card add <cardRef> [--write]`
@@ -213,6 +214,7 @@ Card commands:
 - `drwn card status [--explain]`
 - `drwn card diff <beforeRef> <afterRef>`
 - `drwn card deprecate <cardRef>`
+- `drwn card validate <cardRef>`
 
 MCP commands:
 

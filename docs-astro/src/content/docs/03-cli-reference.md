@@ -25,7 +25,8 @@ order: 3
 | `drwn apply <refs...>` | Alias for `drwn card apply` |
 | `drwn update` | Alias for `drwn card update` |
 | `drwn card new <name>` | Create an editable card source under `~/.agents/drwn/sources` |
-| `drwn card publish <name>` | Publish a card source into the immutable local store |
+| `drwn card new <name> --from-project [path]` | Capture a project's effective harness as a card source |
+| `drwn card publish <name>` | Publish a card source into the Git-backed local store |
 | `drwn card show <ref>` | Show one resolved card version |
 | `drwn card list` | List published cards in the local store |
 | `drwn card diff <before> <after>` | Compare two published card versions |
@@ -38,6 +39,7 @@ order: 3
 | `drwn card update` | Refresh `card.lock` from configured card refs |
 | `drwn card outdated` | Report cards with newer local versions available |
 | `drwn card status` | Show configured refs, lock entries, and outdated cards |
+| `drwn card validate <ref>` | Resolve and validate one card ref without mutating project config |
 
 ## Store Commands
 
@@ -45,6 +47,10 @@ order: 3
 |---------|-------------|
 | `drwn store status` | Show cards-era store status |
 | `drwn store migrate` | Migrate the pre-cards layout to `~/.agents/drwn` |
+| `drwn store migrate-to-git` | Convert legacy per-version card directories into bare Git repos |
+| `drwn store verify` | Verify Git-backed store health |
+| `drwn store gc` | Run Git maintenance in card repos |
+| `drwn store export --out <tar>` | Export the local store as a tar archive |
 
 ## Add Commands
 

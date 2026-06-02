@@ -21,6 +21,7 @@ Cards-era `drwn` stores local user-managed inventory under:
 |-- extracted/
 |-- catalogs/
 |-- catalogs.json
+|-- url-card-map.json
 `-- global-write-record.json
 ```
 
@@ -36,6 +37,7 @@ Cards-era `drwn` stores local user-managed inventory under:
 | `extracted/` | Content-addressed card materializations keyed by Git tree SHA |
 | `catalogs/` | Local clones of Git-backed card catalogs |
 | `catalogs.json` | Registered card catalog index |
+| `url-card-map.json` | Cached Git URL to card-name mappings for repeat resolution |
 | `global-write-record.json` | Machine-scope materialization ownership record |
 
 ## Inspect Store State
