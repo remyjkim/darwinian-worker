@@ -152,7 +152,8 @@ export async function publishCardWithSkills(
 
   const published = await runAgentsCli(["card", "publish", options.name], envFor(fixture));
   expect(published.exitCode).toBe(0);
-  return join(fixture.agentsDir, "drwn", "cards", scope!, cardName!, version);
+  const { resolveCard } = await import("../cli/core/card-store");
+  return (await resolveCard(fixture.agentsDir, `${scope}/${cardName}@${version}`)).dir;
 }
 
 export async function createInstalledSkillBundle(

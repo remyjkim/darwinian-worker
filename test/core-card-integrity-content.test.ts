@@ -2,7 +2,7 @@
 // ABOUTME: Protects the Wave 1 promise that the integrity field detects content drift.
 
 import { afterEach, expect, test } from "bun:test";
-import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { computeCardIntegrity, resolveCard } from "../cli/core/card-store";
@@ -74,24 +74,16 @@ test("computeCardIntegrity detects added or removed files", async () => {
   expect(afterRemove).toBe(before);
 });
 
-test("resolveCard recomputes and rewrites stale .integrity from a v1.1 manifest hash", async () => {
+test("resolveCard returns extracted tree integrity without legacy metadata files", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
-  await publishCardWithSkills(fixture, { name: "@me/legacy", skills: ["polish"] });
-  const versionDir = join(fixture.agentsDir, "drwn", "cards", "@me", "legacy", "1.0.0");
-  const manifest = JSON.parse(await Bun.file(join(versionDir, "card.json")).text());
-  const legacyHash = `sha256-${createHash("sha256").update(JSON.stringify(manifest)).digest("hex")}`;
-  await writeFile(join(versionDir, ".integrity"), `${legacyHash}\n`);
-  const pkgIndexPath = join(fixture.agentsDir, "drwn", "cards", "@me", "legacy", "versions.json");
-  const pkgIndex = JSON.parse(await Bun.file(pkgIndexPath).text());
-  pkgIndex.versions[0].integrity = legacyHash;
-  await writeFile(pkgIndexPath, JSON.stringify(pkgIndex, null, 2));
+  const versionDir = await publishCardWithSkills(fixture, { name: "@me/legacy", skills: ["polish"] });
 
   const resolved = await resolveCard(fixture.agentsDir, "@me/legacy@^1.0.0");
 
   expect(resolved.integrity.startsWith("sha256-")).toBe(true);
-  expect(resolved.integrity).not.toBe(legacyHash);
-  expect((await Bun.file(join(versionDir, ".integrity")).text()).trim()).toBe(resolved.integrity);
-  const reparsed = JSON.parse(await Bun.file(pkgIndexPath).text());
-  expect(reparsed.versions[0].integrity).toBe(resolved.integrity);
+  expect(resolved.dir).toBe(versionDir);
+  expect(existsSync(join(versionDir, "card.json"))).toBe(true);
+  expect(existsSync(join(versionDir, ".integrity"))).toBe(false);
+  expect(existsSync(join(fixture.agentsDir, "drwn", "cards", "@me", "legacy", "versions.json"))).toBe(false);
 });

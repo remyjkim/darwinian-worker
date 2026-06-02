@@ -2,14 +2,14 @@
 // ABOUTME: Uses staging and archive directories so failures leave recoverable state.
 
 import { existsSync, lstatSync, mkdirSync, readlinkSync, renameSync, rmSync } from "node:fs";
-import { cp, mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
+import { cp, mkdir, readdir, readFile, rename } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { writeAtomically } from "./fs";
 import { resolveLibraryDir, resolveSkillPackagesRoot, resolveUserConfigPath } from "./paths";
 import {
   resolveCardsRoot,
   resolveMachineConfigPath,
   resolveSourcesRoot,
-  resolveStoreCacheDir,
   resolveStoreGeneratedDir,
   resolveStoreMcpServersDir,
   resolveStoreMetadataPath,
@@ -43,8 +43,7 @@ export function detectLegacyLayout(agentsDir: string): boolean {
 }
 
 async function writeJson(pathValue: string, value: unknown) {
-  mkdirSync(dirname(pathValue), { recursive: true });
-  await writeFile(pathValue, `${JSON.stringify(value, null, 2)}\n`);
+  await writeAtomically(pathValue, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 async function copyIfExists(from: string, to: string) {
@@ -74,7 +73,7 @@ async function explodeMcpLibrary(agentsDir: string, stagingRoot: string, steps: 
 }
 
 async function validateStaging(stagingRoot: string) {
-  const required = ["store.json", "machine.json", "cards", "sources", "skills", "mcp-servers", "generated", "cache"];
+  const required = ["store.json", "machine.json", "cards", "sources", "skills", "mcp-servers", "generated", "extracted", "catalogs"];
   for (const entry of required) {
     if (!existsSync(join(stagingRoot, entry))) {
       throw new Error(`Migration staging missing ${entry}`);
@@ -123,8 +122,9 @@ export async function migrateStore(options: MigrationOptions): Promise<Migration
 
   await mkdir(join(stagingPath, "cards"), { recursive: true });
   await mkdir(join(stagingPath, "sources"), { recursive: true });
-  await mkdir(join(stagingPath, "cache"), { recursive: true });
   await mkdir(join(stagingPath, "generated"), { recursive: true });
+  await mkdir(join(stagingPath, "extracted"), { recursive: true });
+  await mkdir(join(stagingPath, "catalogs"), { recursive: true });
   await writeJson(join(stagingPath, "store.json"), {
     schemaVersion: 1,
     initAt: new Date().toISOString(),

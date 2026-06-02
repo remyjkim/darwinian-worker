@@ -35,6 +35,8 @@ export async function resolveProjectCards(agentsDir: string, specs: string[]): P
       manifest: card.manifest,
       skills: card.manifest.skills?.include ?? [],
       registry: null as null,
+      origin: card.origin,
+      ...(card.git ? { git: card.git } : {}),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -96,7 +98,7 @@ export async function writeProjectCards(projectRoot: string, agentsDir: string, 
   config.cards = [...specs];
   const configPath = writeProjectConfigForWrite(projectRoot, config);
   const locked = await resolveProjectCards(agentsDir, config.cards);
-  const lockPath = writeCardLock(projectRoot, locked);
+  const lockPath = await writeCardLock(projectRoot, locked);
   return { projectConfigPath: configPath, lockPath, cards: config.cards, locked };
 }
 

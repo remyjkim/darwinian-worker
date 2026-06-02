@@ -2,9 +2,22 @@
 // ABOUTME: Keeps store layout decisions separate from legacy path helpers.
 
 import { join } from "node:path";
+import { DrwnError } from "./errors";
 
 export function resolveStoreRoot(agentsDir: string) {
   return join(agentsDir, "drwn");
+}
+
+/**
+ * Refuses any store mutation when DRWN_STORE_READONLY is set. Every helper
+ * that touches the local store calls this at entry. Centralized here so it
+ * can be enforced uniformly across card-store, card-catalog, store-migrate,
+ * and install paths.
+ */
+export function assertStoreWritable() {
+  if (process.env.DRWN_STORE_READONLY === "1" || process.env.DRWN_STORE_READONLY === "true") {
+    throw new DrwnError("STORE_READONLY", "drwn store is read-only; mutation refused");
+  }
 }
 
 export function resolveStoreMetadataPath(agentsDir: string) {
@@ -48,6 +61,49 @@ export function resolveCardVersionDir(agentsDir: string, name: string, version: 
   return join(resolveCardPackageDir(agentsDir, name), version);
 }
 
+export function resolveCardBareRepoPath(agentsDir: string, name: string) {
+  const parts = splitCardName(name);
+  if (parts.length === 1) {
+    return join(resolveCardsRoot(agentsDir), `${parts[0]}.git`);
+  }
+  return join(resolveCardsRoot(agentsDir), parts[0]!, `${parts[1]}.git`);
+}
+
+export function resolveExtractedPath(agentsDir: string, treeSha: string) {
+  validateTreeSha(treeSha);
+  return join(resolveStoreRoot(agentsDir), "extracted", treeSha);
+}
+
+export function resolveExtractedRoot(agentsDir: string) {
+  return join(resolveStoreRoot(agentsDir), "extracted");
+}
+
+export function resolveCatalogsDir(agentsDir: string) {
+  return join(resolveStoreRoot(agentsDir), "catalogs");
+}
+
+export function resolveCatalogPath(agentsDir: string, url: string) {
+  return join(resolveCatalogsDir(agentsDir), slugifyUrl(url));
+}
+
+export function resolveCatalogsIndexPath(agentsDir: string) {
+  return join(resolveStoreRoot(agentsDir), "catalogs.json");
+}
+
+function validateTreeSha(sha: string) {
+  if (!/^[a-f0-9]{40}$/.test(sha)) {
+    throw new Error(`invalid tree sha: ${sha}`);
+  }
+}
+
+function slugifyUrl(url: string) {
+  return url
+    .replace(/^.*?:\/\//, "")
+    .replace(/\.git$/, "")
+    .replace(/[/:]/g, "_")
+    .toLowerCase();
+}
+
 export function resolveSourcesRoot(agentsDir: string) {
   return join(resolveStoreRoot(agentsDir), "sources");
 }
@@ -89,10 +145,6 @@ export function resolveStoreMcpServerFile(agentsDir: string, serverId: string) {
 
 export function resolveStoreGeneratedDir(agentsDir: string) {
   return join(resolveStoreRoot(agentsDir), "generated");
-}
-
-export function resolveStoreCacheDir(agentsDir: string) {
-  return join(resolveStoreRoot(agentsDir), "cache");
 }
 
 export function resolveGlobalWriteRecordPath(agentsDir: string) {
