@@ -1,5 +1,5 @@
 // ABOUTME: Verifies catalog configuration and catalog adapter behavior.
-// ABOUTME: Keeps online discovery policy explicit and backward-compatible.
+// ABOUTME: Keeps online discovery policy explicit and default-safe.
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -13,7 +13,7 @@ afterEach(async () => {
 });
 
 describe("core catalogs", () => {
-  test("treats missing catalog config as backward-compatible defaults", async () => {
+  test("treats missing catalog config as default catalog settings", async () => {
     const { isNpmSkillCatalogEnabled } = await import("../cli/core/catalogs");
     const config = createFixtureConfig({ claudeSettings: "a", codexConfig: "b", cursorConfig: "c" });
     delete config.catalogs;
