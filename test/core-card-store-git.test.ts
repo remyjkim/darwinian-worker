@@ -14,6 +14,7 @@ import {
   resolveExtractedRoot,
   resolveStoreRoot,
 } from "../cli/core/store-paths";
+import { readUrlCardName, writeUrlCardName } from "../cli/core/url-card-map";
 import { cleanupTempRoots, createTempRoot } from "./helpers";
 import { createLocalCardRepo, tagAdditionalVersion } from "./fixtures/git-helpers";
 
@@ -115,6 +116,34 @@ describe("Git-backed card store", () => {
     });
     expect(existsSync(resolveCardBareRepoPath(agentsDir, "@team/backend"))).toBe(true);
     expect(resolved.dir).toStartWith(resolveExtractedRoot(agentsDir));
+  });
+
+  test("resolveCard records git URL name mappings after successful discovery", async () => {
+    const root = await createTempRoot("card-store-git-");
+    tempRoots.push(root);
+    const agentsDir = join(root, ".agents");
+    const remote = await createLocalCardRepo({ name: "@team/backend", version: "1.0.0" });
+    tempRoots.push(remote.tempDir);
+
+    await resolveCard(agentsDir, `git+${remote.url}#v1.0.0`);
+
+    const cached = await readUrlCardName(agentsDir, remote.url);
+    expect(cached?.name).toBe("@team/backend");
+  });
+
+  test("resolveCard corrects stale git URL name mappings without keeping the wrong repo path", async () => {
+    const root = await createTempRoot("card-store-git-");
+    tempRoots.push(root);
+    const agentsDir = join(root, ".agents");
+    const remote = await createLocalCardRepo({ name: "@team/backend", version: "1.0.0" });
+    tempRoots.push(remote.tempDir);
+    await writeUrlCardName(agentsDir, remote.url, "@wrong/name");
+
+    const resolved = await resolveCard(agentsDir, `git+${remote.url}#v1.0.0`);
+
+    expect(resolved.name).toBe("@team/backend");
+    expect(existsSync(resolveCardBareRepoPath(agentsDir, "@wrong/name"))).toBe(false);
+    expect((await readUrlCardName(agentsDir, remote.url))?.name).toBe("@team/backend");
   });
 
   test("resolveCard selects highest matching version from git-origin tag ranges", async () => {

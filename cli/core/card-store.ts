@@ -12,6 +12,7 @@ import { compareVersions, gt, isStrictSemver, maxSatisfying, validRange } from "
 import { writeAtomically } from "./fs";
 import * as git from "./git";
 import { DrwnError } from "./errors";
+import { readUrlCardName, writeUrlCardName } from "./url-card-map";
 import {
   assertStoreWritable,
   resolveCardBareRepoPath,
@@ -436,7 +437,17 @@ async function resolveFromGit(agentsDir: string, parsed: ParsedCardRef): Promise
   const existing = await findBareRepoByOriginUrl(agentsDir, parsed.gitUrl);
   if (existing) {
     await git.fetch(existing.path, "origin", ["refs/heads/*:refs/heads/*", "refs/tags/*:refs/tags/*"]);
-    return await resolveGitRepoAtParsedRef(agentsDir, existing.path, parsed, existing.name);
+    const resolved = await resolveGitRepoAtParsedRef(agentsDir, existing.path, parsed, existing.name);
+    await writeUrlCardName(agentsDir, parsed.gitUrl, resolved.name);
+    return resolved;
+  }
+
+  const cached = await readUrlCardName(agentsDir, parsed.gitUrl);
+  if (cached) {
+    const resolved = await tryResolveFromCachedGitName(agentsDir, parsed, cached.name);
+    if (resolved) {
+      return resolved;
+    }
   }
 
   const tempRepo = join(resolveCardsRoot(agentsDir), `.tmp-${randomBytes(8).toString("hex")}.git`);
@@ -460,9 +471,50 @@ async function resolveFromGit(agentsDir: string, parsed: ParsedCardRef): Promise
     }
     await git.configSet(targetPath, "drwn.cardName", discovered.name);
     await git.configSet(targetPath, "drwn.originUrl", parsed.gitUrl);
+    await writeUrlCardName(agentsDir, parsed.gitUrl, discovered.name);
     return { ...discovered, git: { ...discovered.git!, url: parsed.gitUrl } };
   } catch (error) {
     await rm(tempRepo, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+async function tryResolveFromCachedGitName(
+  agentsDir: string,
+  parsed: ParsedCardRef,
+  cachedName: string,
+): Promise<ResolvedCard | null> {
+  if (!parsed.gitUrl) {
+    throw new Error("git ref requires git URL");
+  }
+  const targetPath = resolveCardBareRepoPath(agentsDir, cachedName);
+  if (existsSync(targetPath)) {
+    const existingOrigin = await git.configGet(targetPath, "drwn.originUrl");
+    if (existingOrigin !== parsed.gitUrl) {
+      throw new DrwnError(
+        "CARD_NAME_COLLISION",
+        `${cachedName} is already bound to ${existingOrigin ?? "a local store repo"}; cannot bind ${parsed.gitUrl}`,
+      );
+    }
+    await git.fetch(targetPath, "origin", ["refs/heads/*:refs/heads/*", "refs/tags/*:refs/tags/*"]);
+    const resolved = await resolveGitRepoAtParsedRef(agentsDir, targetPath, parsed, cachedName);
+    await writeUrlCardName(agentsDir, parsed.gitUrl, resolved.name);
+    return { ...resolved, git: { ...resolved.git!, url: parsed.gitUrl } };
+  }
+
+  await mkdir(dirname(targetPath), { recursive: true });
+  await git.cloneBare(parsed.gitUrl, targetPath);
+  try {
+    const resolved = await resolveGitRepoAtParsedRef(agentsDir, targetPath, parsed, cachedName);
+    await git.configSet(targetPath, "drwn.cardName", resolved.name);
+    await git.configSet(targetPath, "drwn.originUrl", parsed.gitUrl);
+    await writeUrlCardName(agentsDir, parsed.gitUrl, resolved.name);
+    return { ...resolved, git: { ...resolved.git!, url: parsed.gitUrl } };
+  } catch (error) {
+    await rm(targetPath, { recursive: true, force: true });
+    if (error instanceof DrwnError && error.code === "CARD_NAME_MISMATCH") {
+      return null;
+    }
     throw error;
   }
 }
