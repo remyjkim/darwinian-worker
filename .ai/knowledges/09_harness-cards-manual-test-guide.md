@@ -189,7 +189,33 @@ Verify:
 - the bare repo exists at `"$AGENTS_DIR/drwn/cards/@me/frontend.git"`
 - `drwn card show @me/frontend@1.0.0 --json` reports an extracted path under `"$AGENTS_DIR/drwn/extracted/"`
 
-### 5. Apply the card to the project
+### 5. Capture the project as a card
+
+```bash
+cd "$PROJECT"
+drwn card new @me/frontend-captured --from-project . --no-git
+export CAPTURED_SRC="$AGENTS_DIR/drwn/sources/@me/frontend-captured"
+cat "$CAPTURED_SRC/card.json"
+```
+
+Verify:
+
+- `"$CAPTURED_SRC/skills"` contains the effective project skills
+- `card.json` has `"version": "0.1.0"`
+- active MCP servers, extensions, and targets are represented when present
+- no host secret values are inlined into the captured manifest
+
+Optional quality-signal check:
+
+```bash
+jq '.stability = "stable" | .lastValidatedWith = "0.1.0" | .testStatusBadge = "https://example.com/status.svg"' \
+  "$CAPTURED_SRC/card.json" > "$CAPTURED_SRC/card.json.tmp"
+mv "$CAPTURED_SRC/card.json.tmp" "$CAPTURED_SRC/card.json"
+drwn card publish @me/frontend-captured
+drwn card show @me/frontend-captured@0.1.0
+```
+
+### 6. Apply the card to the project
 
 ```bash
 cd "$PROJECT"
@@ -206,7 +232,7 @@ Verify that `card.lock` contains:
 - `skills`
 - `registry: null`
 
-### 6. Preview materialization
+### 7. Preview materialization
 
 ```bash
 drwn write --dry-run

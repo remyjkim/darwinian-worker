@@ -193,12 +193,34 @@ Authoring and publishing:
 ```bash
 drwn card new @me/backend --no-git
 drwn card new backend --scope @me --no-git
+drwn card new @me/project-harness --from-project .
 drwn card publish @me/backend
 drwn card show @me/backend@1.0.0
 drwn card diff @me/backend@1.0.0 @me/backend@1.1.0
 drwn card deprecate @me/backend@1.0.0
 drwn card validate @me/backend@1.0.0
 ```
+
+`card new --from-project` snapshots the current project's effective harness
+into a self-contained source under `~/.agents/drwn/sources/<scope>/<name>/`.
+It copies active skill content, records active MCP server definitions, and
+preserves effective extension and target intent. It never reads host environment
+variable values into the captured card.
+
+Card manifests may include optional quality signals:
+
+```json
+{
+  "stability": "stable",
+  "lastValidatedWith": "0.1.0",
+  "testStatusBadge": "https://example.com/status.svg"
+}
+```
+
+These fields are informational and appear in `drwn card show` and
+`drwn card show --json`. `skills.shared` remains reserved; cards should continue
+to bundle skills through `skills.include` until a later registry wave activates
+shared registry references.
 
 Project consumption:
 
@@ -235,6 +257,9 @@ drwn add gitlab:owner/repo@^1.0.0
 Use `file:../path/to/card-source` refs for local card development. Use `git+`,
 `github:`, or `gitlab:` refs when a project should consume a card from a Git
 remote. Git credentials are handled by Git itself; `drwn` does not store them.
+When drwn discovers a card name from a Git URL, it records the mapping in
+`~/.agents/drwn/url-card-map.json`. This cache is an optimization only; stale
+or corrupt entries are corrected or ignored during resolution.
 
 Team sharing:
 
@@ -380,6 +405,7 @@ The local store lives under `~/.agents/drwn`. Card content is Git-backed:
 - extracted trees: `~/.agents/drwn/extracted/<tree-sha>`
 - catalogs: `~/.agents/drwn/catalogs`
 - machine config: `~/.agents/drwn/machine.json`
+- Git URL name cache: `~/.agents/drwn/url-card-map.json`
 
 Inspect store state:
 
