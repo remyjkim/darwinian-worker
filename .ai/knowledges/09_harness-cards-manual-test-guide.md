@@ -21,11 +21,11 @@ This avoids polluting or breaking your real `~/.agents`, `.claude`, `.codex`, an
 The current codebase guarantees these behaviors:
 
 - card-bundled skill content is authoritative for downstream skill materialization
-- downstream card-provided skills symlink into the immutable card store under `~/.agents/bgng/cards/...`
+- downstream card-provided skills symlink into the immutable card store under `~/.agents/drwn/cards/...`
 - if a card and a non-card source provide the same skill name, the card copy wins
-- `bgng write --dry-run --json` annotates the winning layer for skill symlink intents
-- unresolved `skills.include` names fail `bgng write` before any downstream mutation
-- `bgng doctor` is report-only and surfaces related issues without fixing them
+- `drwn write --dry-run --json` annotates the winning layer for skill symlink intents
+- unresolved `skills.include` names fail `drwn write` before any downstream mutation
+- `drwn doctor` is report-only and surfaces related issues without fixing them
 - `card.lock` records card versions, content-tree integrity, source path, manifest, and bundled skill attribution
 - legacy pre-cards layouts must be migrated before card authoring or apply flows proceed
 
@@ -72,16 +72,16 @@ Recommended shell setup:
 ```bash
 set -euo pipefail
 
-export HARNESS_REPO=/Users/pureicis/dev/beginning-harness
+export HARNESS_REPO=/Users/pureicis/dev/darwinian-harness
 export ENTRYPOINT="$HARNESS_REPO/cli/index.ts"
-export SANDBOX="$(mktemp -d /tmp/bgng-cards-XXXXXX)"
+export SANDBOX="$(mktemp -d /tmp/drwn-cards-XXXXXX)"
 export AGENTS_HOME_DIR="$SANDBOX/home"
 export AGENTS_DIR="$AGENTS_HOME_DIR/.agents"
 export AGENTS_REPO_ROOT="$HARNESS_REPO"
 
 mkdir -p "$AGENTS_HOME_DIR" "$AGENTS_DIR"
 
-bgng() {
+drwn() {
   AGENTS_HOME_DIR="$AGENTS_HOME_DIR" \
   AGENTS_DIR="$AGENTS_DIR" \
   AGENTS_REPO_ROOT="$AGENTS_REPO_ROOT" \
@@ -92,9 +92,9 @@ bgng() {
 Sanity check:
 
 ```bash
-bgng status
-bgng write --help
-bgng card new -h=0
+drwn status
+drwn write --help
+drwn card new -h=0
 ```
 
 ## Full Sandbox Walkthrough
@@ -106,19 +106,19 @@ export PROJECT="$SANDBOX/project"
 mkdir -p "$PROJECT"
 cd "$PROJECT"
 git init
-bgng init --non-interactive
+drwn init --non-interactive
 ```
 
 Verify:
 
-- `.agents/bgng/config.json` exists
-- `bgng status` shows project context when run inside the directory
+- `.agents/drwn/config.json` exists
+- `drwn status` shows project context when run inside the directory
 
 ### 2. Create a card source
 
 ```bash
-bgng card new @me/frontend --no-git
-export CARD_SRC="$AGENTS_DIR/bgng/sources/@me/frontend"
+drwn card new @me/frontend --no-git
+export CARD_SRC="$AGENTS_DIR/drwn/sources/@me/frontend"
 ```
 
 Verify:
@@ -177,25 +177,25 @@ MD
 ### 4. Publish the card
 
 ```bash
-bgng card publish @me/frontend
-bgng card list
-bgng card show @me/frontend@1.0.0
-bgng card show @me/frontend@1.0.0 --json
+drwn card publish @me/frontend
+drwn card list
+drwn card show @me/frontend@1.0.0
+drwn card show @me/frontend@1.0.0 --json
 ```
 
 Verify:
 
 - publish succeeds
-- the published version exists at `"$AGENTS_DIR/bgng/cards/@me/frontend/1.0.0"`
-- `.integrity` exists in the published version directory
+- the bare repo exists at `"$AGENTS_DIR/drwn/cards/@me/frontend.git"`
+- `drwn card show @me/frontend@1.0.0 --json` reports an extracted path under `"$AGENTS_DIR/drwn/extracted/"`
 
 ### 5. Apply the card to the project
 
 ```bash
 cd "$PROJECT"
-bgng apply @me/frontend@^1.0.0
-cat .agents/bgng/config.json
-cat .agents/bgng/card.lock
+drwn apply @me/frontend@^1.0.0
+cat .agents/drwn/config.json
+cat .agents/drwn/card.lock
 ```
 
 Verify that `card.lock` contains:
@@ -209,20 +209,20 @@ Verify that `card.lock` contains:
 ### 6. Preview materialization
 
 ```bash
-bgng write --dry-run
-bgng write --dry-run --json
+drwn write --dry-run
+drwn write --dry-run --json
 ```
 
 Verify:
 
 - planned skill links for `polish` and `animate`
 - planned MCP config for `card-server`
-- skill targets point into `"$AGENTS_DIR/bgng/cards/@me/frontend/1.0.0/skills/..."`
+- skill targets point into `"$AGENTS_DIR/drwn/extracted/<tree-sha>/skills/..."`
 
 ### 7. Materialize the project
 
 ```bash
-bgng write
+drwn write
 readlink .claude/skills/polish
 readlink .claude/skills/animate
 cat .claude/settings.json
@@ -237,11 +237,11 @@ Verify:
 ### 8. Inspect provenance and diagnostics
 
 ```bash
-bgng status --explain
-bgng status --why skill:polish
-bgng card status --explain
-bgng doctor
-bgng doctor --json
+drwn status --explain
+drwn status --why skill:polish
+drwn card status --explain
+drwn doctor
+drwn doctor --json
 ```
 
 Verify:
@@ -253,7 +253,7 @@ Verify:
 ### 9. Verify idempotency
 
 ```bash
-bgng write --json
+drwn write --json
 ```
 
 Verify:
@@ -267,12 +267,12 @@ Verify:
 Create a fake pre-cards layout:
 
 ```bash
-export SANDBOX_LEGACY="$(mktemp -d /tmp/bgng-legacy-XXXXXX)"
+export SANDBOX_LEGACY="$(mktemp -d /tmp/drwn-legacy-XXXXXX)"
 export LEGACY_HOME="$SANDBOX_LEGACY/home"
 export LEGACY_AGENTS="$LEGACY_HOME/.agents"
 
-mkdir -p "$LEGACY_AGENTS/bgng" "$LEGACY_AGENTS/library" "$LEGACY_AGENTS/packages/skills/@acme/skills/1.0.0"
-printf '{"version":1,"optional":{}}\n' > "$LEGACY_AGENTS/bgng/config.json"
+mkdir -p "$LEGACY_AGENTS/drwn" "$LEGACY_AGENTS/library" "$LEGACY_AGENTS/packages/skills/@acme/skills/1.0.0"
+printf '{"version":1,"optional":{}}\n' > "$LEGACY_AGENTS/drwn/config.json"
 printf '{"version":1,"servers":{}}\n' > "$LEGACY_AGENTS/library/mcp-servers.json"
 ```
 
@@ -280,19 +280,19 @@ Attempt authoring:
 
 ```bash
 AGENTS_HOME_DIR="$LEGACY_HOME" AGENTS_DIR="$LEGACY_AGENTS" AGENTS_REPO_ROOT="$HARNESS_REPO" \
-  bash -lc 'cd "$HARNESS_REPO" && bun run bgng -- card new @me/test --no-git'
+  bash -lc 'cd "$HARNESS_REPO" && bun run drwn -- card new @me/test --no-git'
 ```
 
 Verify:
 
 - command fails
-- error directs you to `bgng store migrate`
+- error directs you to `drwn store migrate`
 
 Then migrate:
 
 ```bash
 AGENTS_HOME_DIR="$LEGACY_HOME" AGENTS_DIR="$LEGACY_AGENTS" AGENTS_REPO_ROOT="$HARNESS_REPO" \
-  bash -lc 'cd "$HARNESS_REPO" && bun run bgng -- store migrate'
+  bash -lc 'cd "$HARNESS_REPO" && bun run drwn -- store migrate'
 ```
 
 Verify:
@@ -322,7 +322,7 @@ readlink .claude/skills/animate
 
 Expected:
 
-- both point into `"$AGENTS_DIR/bgng/cards/..."`
+- both point into `"$AGENTS_DIR/drwn/cards/..."`
 - neither points into the checkout’s built-in `skills/` tree
 
 ### D. Dry-run must dedupe and show which layer wins
@@ -340,10 +340,10 @@ description: repo polish
 Repo-native polish
 MD
 
-bgng skills curate polish
+drwn skills curate polish
 ```
 
-Use a fresh applied-but-unwritten project for this check. `bgng write --dry-run
+Use a fresh applied-but-unwritten project for this check. `drwn write --dry-run
 --json` only lists pending mutations in `changes`, so re-running it against an
 already materialized project will usually return `changes: []`.
 
@@ -352,9 +352,9 @@ export DEDUPE_PROJECT="$SANDBOX/dedupe-project"
 mkdir -p "$DEDUPE_PROJECT"
 cd "$DEDUPE_PROJECT"
 git init
-bgng init --non-interactive
-bgng apply @me/frontend@^1.0.0
-bgng write --dry-run --json
+drwn init --non-interactive
+drwn apply @me/frontend@^1.0.0
+drwn write --dry-run --json
 ```
 
 Verify:
@@ -366,7 +366,7 @@ Verify:
 Cleanup:
 
 ```bash
-bgng skills uncurate polish
+drwn skills uncurate polish
 rm -rf "$HARNESS_REPO/skills/shared/polish"
 ```
 
@@ -380,7 +380,7 @@ Inject a bad include:
 ```bash
 python3 - <<'PY'
 import json
-p = ".agents/bgng/config.json"
+p = ".agents/drwn/config.json"
 with open(p) as f:
     data = json.load(f)
 data["skills"] = {"include": ["ghost-skill"]}
@@ -393,15 +393,15 @@ PY
 Then run:
 
 ```bash
-bgng write --dry-run
-bgng doctor
+drwn write --dry-run
+drwn doctor
 ```
 
 Verify:
 
-- `bgng write --dry-run` exits non-zero
+- `drwn write --dry-run` exits non-zero
 - the error mentions `ghost-skill`
-- `bgng doctor` remains read-only and surfaces the issue diagnostically
+- `drwn doctor` remains read-only and surfaces the issue diagnostically
 
 Restore the config or re-apply your card set before continuing.
 
@@ -442,15 +442,15 @@ MD
 Publish and inspect:
 
 ```bash
-bgng card publish @me/frontend
-bgng card diff @me/frontend@1.0.0 @me/frontend@1.1.0
+drwn card publish @me/frontend
+drwn card diff @me/frontend@1.0.0 @me/frontend@1.1.0
 ```
 
 ### 2. Create a second card
 
 ```bash
-bgng card new @me/observability --no-git
-export OBS_SRC="$AGENTS_DIR/bgng/sources/@me/observability"
+drwn card new @me/observability --no-git
+export OBS_SRC="$AGENTS_DIR/drwn/sources/@me/observability"
 
 cat > "$OBS_SRC/card.json" <<'JSON'
 {
@@ -472,58 +472,52 @@ description: trace
 Trace skill body.
 MD
 
-bgng card publish @me/observability
+drwn card publish @me/observability
 ```
 
 ### 3. Exercise project mutation commands
 
 ```bash
 cd "$PROJECT"
-bgng card outdated
-bgng card update
-bgng card pin @me/frontend@1.0.0
-bgng card outdated --check || true
-bgng card add @me/observability@^1.0.0
-bgng card remove @me/observability
-bgng card detach
+drwn card outdated
+drwn card update
+drwn card pin @me/frontend@1.0.0
+drwn card outdated --check || true
+drwn card add @me/observability@^1.0.0
+drwn card remove @me/observability
+drwn card detach
 ```
 
 Verify:
 
-- on a ranged spec such as `@me/frontend@^1.0.0`, `bgng card outdated` prints `No outdated cards.` because it refreshes the lock to the latest compatible version before comparing
+- on a ranged spec such as `@me/frontend@^1.0.0`, `drwn card outdated` prints `No outdated cards.` because it refreshes the lock to the latest compatible version before comparing
 - `card update` refreshes `card.lock` to the latest compatible version for ranged specs
 - `card pin` writes an exact ref into project config
 - after pinning to `@me/frontend@1.0.0`, `card outdated --check` exits non-zero because `1.1.0` exists locally and the exact pin stays on `1.0.0`
 - `card add`, `remove`, and `detach` mutate project state as expected
 
-## Integrity Upgrade Test
+## Integrity Verification Test
 
-This validates the one-time Wave 1 upgrade from manifest-only integrity to
-content-tree integrity.
+This validates Wave 1 content-tree integrity for extracted Git trees.
 
-1. publish and apply a card so a version exists in the store
-2. replace the stored `.integrity` and `versions.json` integrity with a
-   manifest-only hash
-3. run `bgng card update` or `bgng apply ...` again
+1. publish and apply a card so a lockfile entry exists
+2. replace that lockfile entry's `integrity` with a bogus `sha256-...` value
+3. run `drwn install --no-apply`
 
 Expected:
 
-- BGNG prints an integrity upgrade message
-- `.integrity` is rewritten
-- `versions.json` is rewritten
-- subsequent runs stop printing the upgrade
-
-If you want to script this, copy the same shape used in
-`test/core-card-integrity-content.test.ts`.
+- DRWN reports an integrity mismatch
+- the lockfile remains unchanged
+- subsequent runs still fail until the lockfile integrity is corrected
 
 ## Corruption Detection Test
 
 In the sandbox only:
 
 ```bash
-rm -rf "$AGENTS_DIR/bgng/cards/@me/frontend/1.0.0/skills/polish"
+rm -rf "$AGENTS_DIR/drwn/extracted/<tree-sha>/skills/polish"
 cd "$PROJECT"
-bgng write
+drwn write
 ```
 
 Expected:
@@ -537,12 +531,12 @@ For a real project, use the shorter consumption-focused workflow:
 
 ```bash
 cd /path/to/real/project
-bgng init --non-interactive   # only if .agents/bgng/config.json does not exist
-bgng apply @me/frontend@^1.0.0
-bgng write --dry-run
-bgng doctor
-bgng status --why skill:polish
-bgng write
+drwn init --non-interactive   # only if .agents/drwn/config.json does not exist
+drwn apply @me/frontend@^1.0.0
+drwn write --dry-run
+drwn doctor
+drwn status --why skill:polish
+drwn write
 ```
 
 Recommended safety rules:
@@ -559,5 +553,5 @@ When done:
 rm -rf "$SANDBOX" "${SANDBOX_LEGACY:-}"
 unset HARNESS_REPO SANDBOX SANDBOX_LEGACY AGENTS_HOME_DIR AGENTS_DIR AGENTS_REPO_ROOT
 unset PROJECT CARD_SRC OBS_SRC LEGACY_HOME LEGACY_AGENTS
-unset -f bgng
+unset -f drwn
 ```

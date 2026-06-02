@@ -1,8 +1,8 @@
-# BGNG CLI Usage Guide
+# DRWN CLI Usage Guide
 
 ## Purpose
 
-This is the operator-facing guide for the `bgng` CLI.
+This is the operator-facing guide for the `drwn` CLI.
 
 Use it for:
 
@@ -18,26 +18,26 @@ For focused subsystem docs, see:
 - [04_homebrew-release-checklist.md](./04_homebrew-release-checklist.md)
 - [05_npm-publishing-analysis-and-manual.md](./05_npm-publishing-analysis-and-manual.md)
 
-## What `bgng` Is
+## What `drwn` Is
 
-`bgng` is the operator CLI for `beginning-harness`.
+`drwn` is the operator CLI for `darwinian-harness`.
 
-`beginning-harness` is the local meta-harness control plane around the agent tools you already use. It organizes reusable inventory, machine-wide defaults, project overlays, downstream tool state, and diagnostics into one local harness.
+`darwinian-harness` is the local meta-harness control plane around the agent tools you already use. It organizes reusable inventory, machine-wide defaults, project overlays, downstream tool state, and diagnostics into one local harness.
 
 It operates on this model:
 
 - the packaged or checkout harness source provides built-in defaults
-- `~/.agents/bgng` is the cards-era local store
-- `~/.agents/bgng/machine.json` is the machine-wide harness overlay
-- `<project>/.agents/bgng/config.json` is the project harness overlay
+- `~/.agents/drwn` is the Git-backed local store
+- `~/.agents/drwn/machine.json` is the machine-wide harness overlay
+- `<project>/.agents/drwn/config.json` is the project harness overlay
 - `~/.agents/skills` is the curated publication layer
-- package-backed skill bundles under `~/.agents/bgng/skills` are optional extension sources after store migration
+- package-backed skill bundles under `~/.agents/drwn/skills` are optional extension sources
 - Claude/Codex/Cursor state is derived from that combined model
 
 The CLI is intentionally conservative:
 
 - write is non-destructive by default
-- bgng-owned stale materialization is cleaned up through write records
+- drwn-owned stale materialization is cleaned up through write records
 - user-owned stale state is reported, not silently removed
 - `doctor` is report-only
 - package-backed skills are made available first, then curated explicitly
@@ -49,11 +49,11 @@ The CLI is intentionally conservative:
 Use this while developing inside the repo:
 
 ```bash
-bun run bgng -- --help
-bun run bgng -- status
-bun run bgng -- write --dry-run
-bun run bgng -- skills list
-bun run bgng -- mcp list
+bun run drwn -- --help
+bun run drwn -- status
+bun run drwn -- write --dry-run
+bun run drwn -- skills list
+bun run drwn -- mcp list
 ```
 
 ### Global usage
@@ -67,33 +67,36 @@ bun link
 Then use:
 
 ```bash
-bgng --help
-bgng status
-bgng write --dry-run
-bgng skills list
-bgng mcp write --dry-run
+drwn --help
+drwn status
+drwn write --dry-run
+drwn skills list
+drwn mcp write --dry-run
 ```
 
 Both modes execute the same command implementations.
 
 ## Local State Model
 
-`bgng` can read and write:
+`drwn` can read and write:
 
 - the packaged or checkout harness source
 - `~/.agents`
-- `~/.agents/bgng`
+- `~/.agents/drwn`
 - `~/.claude`
 - `~/.codex`
 - `~/.cursor`
-- `<project>/.agents/bgng/config.json`
+- `<project>/.agents/drwn/config.json`
 
 Important directories:
 
 - built-in shared skills: `skills/shared`
 - curated shared skills: `~/.agents/skills`
-- cards-era package-backed skill bundles: `~/.agents/bgng/skills`
-- pre-migration package-backed skill bundles: `~/.agents/packages/skills`
+- package-backed skill bundles: `~/.agents/drwn/skills`
+- card bare repositories: `~/.agents/drwn/cards/@scope/name.git`
+- card extracted trees: `~/.agents/drwn/extracted/<tree-sha>`
+- card catalogs: `~/.agents/drwn/catalogs`
+- card catalog index: `~/.agents/drwn/catalogs.json`
 - machine-scope Claude downstream skills: `~/.claude/skills`
 - machine-scope Codex downstream skills: `~/.codex/skills`
 - project-scope downstream state: `<project>/.claude`, `<project>/.codex`, and `<project>/.cursor`
@@ -101,18 +104,18 @@ Important directories:
 ## Recommended First-Run Sequence
 
 ```bash
-bgng status
-bgng skills list
-bgng mcp list
-bgng write --dry-run
-bgng write
+drwn status
+drwn skills list
+drwn mcp list
+drwn write --dry-run
+drwn write
 ```
 
 If you want project-local overrides, scaffold them before writing from that project:
 
 ```bash
-bgng init
-bgng init --non-interactive
+drwn init
+drwn init --non-interactive
 ```
 
 ## Command Groups
@@ -121,6 +124,7 @@ Implemented groups:
 
 - `init`
 - `add`
+- `install`
 - `search`
 - `library`
 - `write`
@@ -138,15 +142,15 @@ Implemented groups:
 Use:
 
 ```bash
-bgng init
-bgng init --non-interactive
-bgng init --minimal
-bgng init --force
+drwn init
+drwn init --non-interactive
+drwn init --minimal
+drwn init --force
 ```
 
 What it does:
 
-- creates `<project>/.agents/bgng/config.json`
+- creates `<project>/.agents/drwn/config.json`
 - defaults to guided setup in interactive terminals
 - writes a minimal config with `{ "version": 1 }` when `--non-interactive` or `--minimal` is used
 - warns if `.gitignore` appears to exclude `.agents`
@@ -158,176 +162,278 @@ Use this when one project needs overrides without changing your central machine-
 `add` mutates the current project config. It does not make skills or MCP servers global defaults and does not silently mutate global target config.
 
 ```bash
-bgng extensions add parallel
-bgng extensions add parallel --mcp
-bgng extensions add beads --target=codex,claude --include-skill
-bgng extensions add markitdown
-bgng add skill <skill-name-or-query>
-bgng add mcp <server-name>
+drwn extensions add parallel
+drwn extensions add parallel --mcp
+drwn extensions add beads --target=codex,claude --include-skill
+drwn extensions add markitdown
+drwn add <card-ref>
+drwn add skill <skill-name-or-query>
+drwn add mcp <server-name>
 ```
+
+`drwn add <card-ref>` is the top-level card add path. It resolves the card immediately, writes the card ref to the current project config, and refreshes `<project>/.agents/drwn/card.lock`.
 
 Use `--library` on skill and MCP adds to restrict lookup to local inventory only. Without `--library`, `add skill` can search configured npm skill catalogs and install an unambiguous result when `--yes` is supplied. `add mcp` can add from trusted MCP catalog files when configured and confirmed with `--yes`.
 
 ## Card Commands
 
 Cards package reusable project harness intent. A project records card refs in
-`<project>/.agents/bgng/config.json`, exact resolutions in
-`<project>/.agents/bgng/card.lock`, and project-local materialized state under
+`<project>/.agents/drwn/config.json`, exact resolutions in
+`<project>/.agents/drwn/card.lock`, and project-local materialized state under
 `<project>/.claude`, `<project>/.codex`, and `<project>/.cursor`.
+
+Published cards are stored as per-card bare Git repositories under
+`~/.agents/drwn/cards/@scope/name.git`. Version tags identify releases, and
+materialized content is extracted under `~/.agents/drwn/extracted/<tree-sha>`.
+The project lockfile is forward-only `lockfileVersion: 2`; store and Git-origin
+entries include `git.commit` as the integrity anchor.
 
 Authoring and publishing:
 
 ```bash
-bgng card new @me/backend --no-git
-bgng card new backend --scope @me --no-git
-bgng card publish @me/backend
-bgng card show @me/backend@1.0.0
-bgng card diff @me/backend@1.0.0 @me/backend@1.1.0
-bgng card deprecate @me/backend@1.0.0
+drwn card new @me/backend --no-git
+drwn card new backend --scope @me --no-git
+drwn card publish @me/backend
+drwn card show @me/backend@1.0.0
+drwn card diff @me/backend@1.0.0 @me/backend@1.1.0
+drwn card deprecate @me/backend@1.0.0
+drwn card validate @me/backend@1.0.0
 ```
 
 Project consumption:
 
 ```bash
-bgng apply @me/backend@^1.0.0
-bgng card apply @me/backend@^1.0.0 --write
-bgng card add @me/observability@^1.0.0
-bgng card pin @me/backend@1.0.0
-bgng card remove @me/observability
-bgng card detach
-bgng card update
-bgng update
-bgng card outdated
-bgng card outdated --check
-bgng card list
-bgng card status --explain
+drwn apply @me/backend@^1.0.0
+drwn add @me/backend@^1.0.0
+drwn card apply @me/backend@^1.0.0 --write
+drwn card add @me/observability@^1.0.0
+drwn card pin @me/backend@1.0.0
+drwn card remove @me/observability
+drwn card detach
+drwn card update
+drwn update
+drwn card outdated
+drwn card outdated --check
+drwn card outdated --fetch
+drwn card list
+drwn card status --explain
 ```
 
-Use `file:../path/to/card-source` refs for local card development.
+Supported card refs:
+
+```bash
+drwn add @me/backend@^1.0.0
+drwn add file:../path/to/card-source
+drwn add git+https://github.com/owner/repo.git#v1.0.0
+drwn add git+https://github.com/owner/repo.git@^1.0.0
+drwn add github:owner/repo#v1.0.0
+drwn add github:owner/repo@^1.0.0
+drwn add gitlab:owner/repo#v1.0.0
+drwn add gitlab:owner/repo@^1.0.0
+```
+
+Use `file:../path/to/card-source` refs for local card development. Use `git+`,
+`github:`, or `gitlab:` refs when a project should consume a card from a Git
+remote. Git credentials are handled by Git itself; `drwn` does not store them.
+
+Team sharing:
+
+```bash
+drwn card remote add @team/backend <git-url>
+drwn card remote list @team/backend
+drwn card remote set @team/backend <git-url>
+drwn card remote remove @team/backend
+drwn card push @team/backend
+drwn card fetch @team/backend
+drwn card clone git+<git-url>#v1.0.0
+drwn card clone git+<git-url>@^1.0.0 --json
+```
+
+The default remote name is `origin`. Use `--name <remote>` with `card remote`
+commands and `--remote <remote>` with `card push` / `card fetch` when a card has
+more than one remote.
 
 Machine-readable card output is available on inspection commands:
 
 ```bash
-bgng card show @me/backend@1.0.0 --json
-bgng card list --json
-bgng card diff @me/backend@1.0.0 @me/backend@1.1.0 --json
-bgng card outdated --json
-bgng card status --json
+drwn card show @me/backend@1.0.0 --json
+drwn card list --json
+drwn card diff @me/backend@1.0.0 @me/backend@1.1.0 --json
+drwn card outdated --json
+drwn card status --json
+drwn card validate @me/backend@1.0.0 --json
 ```
+
+`card show --json` includes recent Git history for Git-backed cards. `card diff`
+combines the semantic card-change classification with the real Git diff between
+the selected versions.
+
+## Install Command
+
+Use `install` after cloning a project that already has
+`<project>/.agents/drwn/card.lock`.
+
+```bash
+drwn install
+drwn install --no-apply
+drwn install --frozen
+drwn install --json
+```
+
+Behavior:
+
+- reads the project card lockfile
+- ensures every locked store/Git-origin card is present locally
+- clones or fetches Git-backed card repos when needed
+- refreshes extracted paths if the lockfile points at content not yet materialized
+- runs `drwn write` unless `--no-apply` is passed
+- fails with `--frozen` instead of cloning, fetching, or changing `card.lock`
 
 ## Search Commands
 
 `search` discovers candidates from the local library and configured catalogs by default.
 
 ```bash
-bgng search skill <query>
-bgng search skill <query> --library
-bgng search skill <query> --catalog
-bgng search skill <query> --json
-bgng search mcp <query>
-bgng search mcp <query> --json
+drwn search skill <query>
+drwn search skill <query> --library
+drwn search skill <query> --catalog
+drwn search skill <query> --json
+drwn search mcp <query>
+drwn search mcp <query> --json
+drwn search card <query>
+drwn search card <query> --json
 ```
 
 `--library` means the user's local inventory only. Online sources are catalogs, not the local library.
+
+`search card` searches registered Git-backed card catalogs. Catalog repos expose
+cards through a `cards.json` file and must be registered locally before their
+entries appear.
 
 ## Library Commands
 
 `library` manages and inspects local reusable inventory. `library defaults` manages the machine-wide active set.
 
 ```bash
-bgng library list
-bgng library list skills
-bgng library list mcp
-bgng library show <id>
-bgng library add skill <npm-package-or-local-path>
-bgng library add mcp <json-file> --as <server-id>
-bgng library defaults list
-bgng library defaults add skill <skill-name>
-bgng library defaults remove skill <skill-name>
-bgng library defaults add mcp <server-name>
-bgng library defaults remove mcp <server-name>
+drwn library list
+drwn library list skills
+drwn library list mcp
+drwn library show <id>
+drwn library add skill <npm-package-or-local-path>
+drwn library add mcp <json-file> --as <server-id>
+drwn library catalog list
+drwn library catalog add <name> <git-url>
+drwn library catalog remove <name>
+drwn library defaults list
+drwn library defaults add skill <skill-name>
+drwn library defaults remove skill <skill-name>
+drwn library defaults add mcp <server-name>
+drwn library defaults remove mcp <server-name>
 ```
 
-`library add skill` installs a package-backed skill bundle under the active store (`~/.agents/bgng/skills` in the cards-era layout, or the legacy package cache before migration). It does not add the skill to the current project; use `bgng add skill <skill-name>` for that.
+`library add skill` installs a package-backed skill bundle under the active store (`~/.agents/drwn/skills`). It does not add the skill to the current project; use `drwn add skill <skill-name>` for that.
 
-`library add mcp` registers a reusable MCP definition in the active MCP library (`~/.agents/bgng/mcp-servers/<id>.json` in the cards-era layout, or the legacy MCP library before migration). It does not activate the MCP globally or for a project.
+`library add mcp` registers a reusable MCP definition in the active MCP library (`~/.agents/drwn/mcp-servers/<id>.json`). It does not activate the MCP globally or for a project.
 
-`library defaults add` makes an available skill or MCP server active globally by writing machine config under `~/.agents/bgng/machine.json` in the cards-era layout. Use project `bgng add ...` when only the current project should use something.
+`library catalog` manages Git-backed card catalogs used by `drwn search card`.
+The default community catalog is pre-registered but not fetched automatically.
+`library catalog add` clones the catalog and records it in
+`~/.agents/drwn/catalogs.json`; `library catalog remove` removes non-default
+catalog registrations and local clones.
+
+`library defaults add` makes an available skill or MCP server active globally by writing machine config under `~/.agents/drwn/machine.json`. Use project `drwn add ...` when only the current project should use something.
 
 ## Write Command
 
 Use:
 
 ```bash
-bgng write
-bgng write --dry-run
-bgng write --json
-bgng write --target=claude
-bgng write --mcp-only
-bgng write --skills-only
-bgng write --force
+drwn write
+drwn write --dry-run
+drwn write --json
+drwn write --target=claude
+drwn write --mcp-only
+drwn write --skills-only
+drwn write --force
 ```
 
 `write` is the primary one-way materialization command. It reads global config, project config, card locks, and local inventory, then writes effective state into downstream tools.
 
-When run inside a project with `<project>/.agents/bgng/config.json`, `write`
+When run inside a project with `<project>/.agents/drwn/config.json`, `write`
 materializes project-local state under `<project>/.claude`,
 `<project>/.codex`, and `<project>/.cursor`. Outside a configured project, it
 materializes machine-scope state under `~/.claude`, `~/.codex`, and `~/.cursor`.
 
 Write records make cleanup explicit:
 
-- project writes use `<project>/.agents/bgng/write-record.json`
-- machine writes use `~/.agents/bgng/global-write-record.json`
-- bgng-owned paths that leave the effective state are removed on the next write
+- project writes use `<project>/.agents/drwn/write-record.json`
+- machine writes use `~/.agents/drwn/global-write-record.json`
+- drwn-owned paths that leave the effective state are removed on the next write
 - user-owned replacements are preserved and reported
-- `--force` is only for overwriting drift inside bgng-managed file regions
+- `--force` is only for overwriting drift inside drwn-managed file regions
 
 ## Store Commands
 
-The cards-era local store lives under `~/.agents/bgng`.
+The local store lives under `~/.agents/drwn`. Card content is Git-backed:
+
+- per-card bare repos: `~/.agents/drwn/cards/@scope/name.git`
+- extracted trees: `~/.agents/drwn/extracted/<tree-sha>`
+- catalogs: `~/.agents/drwn/catalogs`
+- machine config: `~/.agents/drwn/machine.json`
 
 Inspect store state:
 
 ```bash
-bgng store status
-bgng store status --json
+drwn store status
+drwn store status --json
+drwn store verify
+drwn store verify --json
 ```
 
-Migrate a pre-cards layout:
+Migrate a pre-card-store layout:
 
 ```bash
-bgng store migrate
-bgng store migrate --json
-bgng store migrate --yes
-bgng store migrate --cleanup-legacy-orphans
-bgng store migrate --cleanup-legacy-orphans --yes
+drwn store migrate
+drwn store migrate --json
+drwn store migrate --yes
 ```
 
 `store migrate` is explicit. Ordinary commands warn when they detect a
-pre-cards layout, but they do not silently migrate it. Migration stages the new
+pre-card-store layout, but they do not silently migrate it. Migration stages the new
 store, validates it, archives the old layout, then activates
-`~/.agents/bgng`.
+`~/.agents/drwn`.
 
-Legacy-to-current path mapping:
+Migrate legacy per-version card directories to Git-backed card repos:
 
-| Legacy path | Cards-era path |
-|---|---|
-| `~/.agents/bgng/config.json` | `~/.agents/bgng/machine.json` |
-| `~/.agents/library/mcp-servers.json` | `~/.agents/bgng/mcp-servers/<id>.json` |
-| `~/.agents/packages/skills/` | `~/.agents/bgng/skills/` |
+```bash
+drwn store migrate-to-git
+drwn store migrate-to-git --dry-run --json
+```
 
-Use `--cleanup-legacy-orphans` when you want migration to remove bgng-owned
-legacy downstream skill symlinks that point into archived or migrated storage.
-It preserves non-owned symlinks and reports warnings instead of guessing.
+`store migrate-to-git` converts `cards/<scope>/<name>/<version>/` directories
+into one bare Git repo per card with version tags. It verifies each legacy
+version's `.integrity` when present, removes stale temporary repos before retry,
+and is idempotent after a successful migration.
+
+Maintenance:
+
+```bash
+drwn store gc
+drwn store export --out /tmp/drwn-store.tar
+DRWN_STORE_READONLY=1 drwn card publish @me/backend
+```
+
+`store gc` runs `git gc` in each local card repo. `store export` writes a tar
+archive of `~/.agents/drwn`. `DRWN_STORE_READONLY=1` refuses store mutations,
+which is useful for validation workflows against mounted or unpacked snapshots.
 
 ## Scan Command
 
 Use:
 
 ```bash
-bgng scan
-bgng scan --json
+drwn scan
+drwn scan --json
 ```
 
 `scan` is currently a placeholder. Its planned role is non-mutating local harness discovery: inspect existing local agent tool config, report candidates for library/default/project config, and avoid writing files unless a future explicit import/write step is added.
@@ -339,13 +445,13 @@ bgng scan --json
 Human-readable:
 
 ```bash
-bgng skills list
+drwn skills list
 ```
 
 JSON:
 
 ```bash
-bgng skills list --json
+drwn skills list --json
 ```
 
 What it shows:
@@ -362,35 +468,35 @@ What it shows:
 Add a bundle:
 
 ```bash
-bgng skills packages add <npm-package-or-local-path>
+drwn skills packages add <npm-package-or-local-path>
 ```
 
 List installed bundles:
 
 ```bash
-bgng skills packages list
-bgng skills packages list --json
+drwn skills packages list
+drwn skills packages list --json
 ```
 
 Inspect one installed bundle:
 
 ```bash
-bgng skills packages show <package-name>
-bgng skills packages show <package-name> --json
+drwn skills packages show <package-name>
+drwn skills packages show <package-name> --json
 ```
 
 Behavior:
 
-- a bundle is ingested into the active managed cache (`~/.agents/bgng/skills` after store migration, legacy `~/.agents/packages/skills` before migration)
+- a bundle is ingested into the active managed cache (`~/.agents/drwn/skills`)
 - adding a bundle does not curate or write any skill automatically
-- bundles are content sources; `bgng` remains the only supported write and curation surface
+- bundles are content sources; `drwn` remains the only supported write and curation surface
 
 See [03_npm-skill-bundles-guide.md](./03_npm-skill-bundles-guide.md) for the full bundle model.
 
 ### Curate a shared skill
 
 ```bash
-bgng skills curate <name>
+drwn skills curate <name>
 ```
 
 This adds the skill into `~/.agents/skills`, which is the curated publication layer.
@@ -398,44 +504,44 @@ This adds the skill into `~/.agents/skills`, which is the curated publication la
 Important:
 
 - this does not automatically write tool directories
-- curate first, then run `bgng write --skills-only`
+- curate first, then run `drwn write --skills-only`
 - this works for built-in shared skills and package-backed shared skills when the skill name is unique
 
 ### Uncurate a shared skill
 
 ```bash
-bgng skills uncurate <name>
+drwn skills uncurate <name>
 ```
 
 This removes the skill from `~/.agents/skills`.
 
 Important:
 
-- the next `bgng write` removes bgng-owned downstream links recorded in the write record
+- the next `drwn write` removes drwn-owned downstream links recorded in the write record
 - user-owned replacements are preserved and reported
 
 ### Write skills downstream
 
 ```bash
-bgng write --skills-only
+drwn write --skills-only
 ```
 
 Dry-run:
 
 ```bash
-bgng write --skills-only --dry-run
+drwn write --skills-only --dry-run
 ```
 
 JSON:
 
 ```bash
-bgng write --skills-only --json
+drwn write --skills-only --json
 ```
 
 Behavior:
 
 - installs missing downstream skill symlinks
-- removes bgng-owned symlinks that left the effective state
+- removes drwn-owned symlinks that left the effective state
 - reports user-owned stale downstream skill paths instead of deleting them
 - respects per-project skill exclude lists
 - respects per-project skill include lists for repo-native and installed package-backed skills
@@ -448,13 +554,13 @@ Behavior:
 Human-readable:
 
 ```bash
-bgng mcp list
+drwn mcp list
 ```
 
 JSON:
 
 ```bash
-bgng mcp list --json
+drwn mcp list --json
 ```
 
 What it shows:
@@ -469,25 +575,25 @@ This is the quickest way to inspect the effect of toggles like `parallel.mcp.ena
 ### Write MCP into enabled targets
 
 ```bash
-bgng mcp write
+drwn mcp write
 ```
 
 Dry-run:
 
 ```bash
-bgng mcp write --dry-run
+drwn mcp write --dry-run
 ```
 
 Target-specific:
 
 ```bash
-bgng mcp write --target=claude
+drwn mcp write --target=claude
 ```
 
 JSON:
 
 ```bash
-bgng mcp write --json
+drwn mcp write --json
 ```
 
 Behavior:
@@ -500,20 +606,20 @@ Behavior:
 
 ## Extensions Commands
 
-Extensions are named capability families managed by `bgng`. They can combine CLI prerequisites, repo-native skills, optional MCP servers, project setup actions, and diagnostics. They are not the same thing as package-backed skill bundles: bundles provide skill content, while extensions describe operational support around a tool or workflow.
+Extensions are named capability families managed by `drwn`. They can combine CLI prerequisites, repo-native skills, optional MCP servers, project setup actions, and diagnostics. They are not the same thing as package-backed skill bundles: bundles provide skill content, while extensions describe operational support around a tool or workflow.
 
 ### List extensions
 
 Human-readable:
 
 ```bash
-bgng extensions list
+drwn extensions list
 ```
 
 JSON:
 
 ```bash
-bgng extensions list --json
+drwn extensions list --json
 ```
 
 What it shows:
@@ -525,8 +631,8 @@ What it shows:
 ### Show one extension
 
 ```bash
-bgng extensions show beads
-bgng extensions show beads --json
+drwn extensions show beads
+drwn extensions show beads --json
 ```
 
 What it shows:
@@ -540,9 +646,9 @@ What it shows:
 ### Check extension status
 
 ```bash
-bgng extensions status
-bgng extensions status beads
-bgng extensions status beads --json
+drwn extensions status
+drwn extensions status beads
+drwn extensions status beads --json
 ```
 
 Status is read-only. It reports command availability, skill presence, MCP state, and project-local details such as whether `.beads/` exists in the current project.
@@ -550,9 +656,9 @@ Status is read-only. It reports command availability, skill presence, MCP state,
 ### Run extension diagnostics
 
 ```bash
-bgng extensions doctor
-bgng extensions doctor parallel
-bgng extensions doctor --json
+drwn extensions doctor
+drwn extensions doctor parallel
+drwn extensions doctor --json
 ```
 
 Doctor is report-only. It surfaces missing commands, missing skills, inactive MCP entries, and project setup gaps with actionable hints.
@@ -562,13 +668,13 @@ Doctor is report-only. It surfaces missing commands, missing skills, inactive MC
 Preview:
 
 ```bash
-bgng extensions setup parallel --dry-run
+drwn extensions setup parallel --dry-run
 ```
 
 Run:
 
 ```bash
-bgng extensions setup parallel
+drwn extensions setup parallel
 ```
 
 Common flags:
@@ -577,7 +683,7 @@ Common flags:
 - `--skip-skills` records the extension without deriving the Parallel skills
 - `--json` returns structured output
 
-Setup writes semantic project config under `extensions.parallel` in `<project>/.agents/bgng/config.json`. It does not install or authenticate `parallel-cli`; use status and doctor to inspect those prerequisites.
+Setup writes semantic project config under `extensions.parallel` in `<project>/.agents/drwn/config.json`. It does not install or authenticate `parallel-cli`; use status and doctor to inspect those prerequisites.
 
 ### Set up Beads
 
@@ -592,13 +698,13 @@ curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/insta
 Preview:
 
 ```bash
-bgng extensions setup beads --dry-run
+drwn extensions setup beads --dry-run
 ```
 
 Run:
 
 ```bash
-bgng extensions setup beads
+drwn extensions setup beads
 ```
 
 Common flags:
@@ -623,20 +729,20 @@ Safety constraints:
 Preview:
 
 ```bash
-bgng extensions setup markitdown --dry-run
+drwn extensions setup markitdown --dry-run
 ```
 
 Run interactively:
 
 ```bash
-bgng extensions setup markitdown
+drwn extensions setup markitdown
 ```
 
 When `markitdown` is missing, interactive setup asks once before installing through uv. Scripts must choose explicitly:
 
 ```bash
-bgng extensions setup markitdown --install
-bgng extensions setup markitdown --no-install
+drwn extensions setup markitdown --install
+drwn extensions setup markitdown --no-install
 ```
 
 The guarded install command is:
@@ -658,14 +764,14 @@ Setup writes semantic project config under `extensions.markitdown`. When skills 
 Use:
 
 ```bash
-bgng status
-bgng status --json
-bgng status --explain
-bgng status --why skill:<name>
-bgng status --why server:<name>
-bgng status --why extension:<name>
-bgng status --why target:<name>
-bgng status --why card:<name>
+drwn status
+drwn status --json
+drwn status --explain
+drwn status --why skill:<name>
+drwn status --why server:<name>
+drwn status --why extension:<name>
+drwn status --why target:<name>
+drwn status --why card:<name>
 ```
 
 What it reports:
@@ -693,8 +799,8 @@ one active item.
 Use:
 
 ```bash
-bgng doctor
-bgng doctor --json
+drwn doctor
+drwn doctor --json
 ```
 
 What it reports:
@@ -718,25 +824,25 @@ Typical project-config issues include:
 
 `doctor` is report-only. It does not auto-fix or auto-prune.
 
-Wave 1 note: unresolved project `skills.include` names do not wait for `doctor`. `bgng write` now fails before mutating downstream state, and `doctor` reports the same issue for diagnosis.
+Wave 1 note: unresolved project `skills.include` names do not wait for `doctor`. `drwn write` now fails before mutating downstream state, and `doctor` reports the same issue for diagnosis.
 
 ## Common Workflows
 
 ### Global machine write
 
 ```bash
-bgng write --dry-run
-bgng write
+drwn write --dry-run
+drwn write
 ```
 
 ### Add reusable inventory and make it global
 
 ```bash
-bgng library add skill <bundle>
-bgng library defaults add skill <skill-name>
-bgng library add mcp ./github-mcp.json --as github
-bgng library defaults add mcp github
-bgng write --dry-run
+drwn library add skill <bundle>
+drwn library defaults add skill <skill-name>
+drwn library add mcp ./github-mcp.json --as github
+drwn library defaults add mcp github
+drwn write --dry-run
 ```
 
 Use this when every project should inherit the item unless a project disables it.
@@ -745,30 +851,71 @@ Use this when every project should inherit the item unless a project disables it
 
 ```bash
 cd /path/to/project
-bgng init
-bgng status
-bgng write --dry-run
+drwn init
+drwn status
+drwn write --dry-run
 ```
 
 ### Add extension skill bundle and expose one skill
 
 ```bash
-bgng skills packages add <bundle>
-bgng skills packages show <package-name>
-bgng add skill <skill-name>
-bgng write
+drwn skills packages add <bundle>
+drwn skills packages show <package-name>
+drwn add skill <skill-name>
+drwn write
 ```
 
 ### Inspect project issues before writing
 
 ```bash
-bgng status
-bgng doctor
+drwn status
+drwn doctor
+```
+
+### Bootstrap a cloned project with locked cards
+
+```bash
+cd /path/to/project
+drwn install --no-apply
+drwn write --dry-run
+drwn install
+```
+
+Use `--frozen` in CI when `card.lock` must already contain everything needed:
+
+```bash
+drwn install --frozen
+```
+
+### Share a card with a team Git remote
+
+```bash
+drwn card new @team/backend --no-git
+drwn card publish @team/backend
+drwn card remote add @team/backend <git-url>
+drwn card push @team/backend
+```
+
+Another machine can import it with:
+
+```bash
+drwn card clone git+<git-url>#v1.0.0
+drwn add git+<git-url>#v1.0.0
+drwn install
+```
+
+### Discover cards from a catalog
+
+```bash
+drwn library catalog list
+drwn library catalog add team <catalog-git-url>
+drwn search card backend
+drwn add git+<card-git-url>#v1.0.0
 ```
 
 ## Optional Extensions
 
-`beginning-harness` supports optional local extensions, including:
+`darwinian-harness` supports optional local extensions, including:
 
 - `bd` for Beads project issue tracking
 - `parallel-cli` for Parallel-backed skills
@@ -780,7 +927,8 @@ These are optional and machine-dependent. Their absence should not block the bas
 ## Current Limits
 
 - `doctor` is report-only
-- remote card registry fetching and bundle intersection resolution are not active command behavior yet
+- live hosted Git authentication, credential prompts, and slow-network behavior depend on the user's Git configuration and should be smoke-tested against disposable remotes before release
+- card catalogs are Git-backed local clones; there is no registry service
 - package-backed bundle update/remove lifecycle is not implemented yet
 - package-backed bundles are extension sources, not authoritative write CLIs
 - per-project `skills.include` requires skill names to resolve across the active card set and non-card sources; unresolved names fail write before mutation and are also surfaced by doctor
@@ -791,3 +939,4 @@ These are optional and machine-dependent. Their absence should not block the bas
 - [03_npm-skill-bundles-guide.md](./03_npm-skill-bundles-guide.md)
 - [04_homebrew-release-checklist.md](./04_homebrew-release-checklist.md)
 - [05_npm-publishing-analysis-and-manual.md](./05_npm-publishing-analysis-and-manual.md)
+- [09_harness-cards-manual-test-guide.md](./09_harness-cards-manual-test-guide.md)

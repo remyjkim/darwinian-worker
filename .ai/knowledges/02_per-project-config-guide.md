@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Use per-project config when one project should see a different effective `bgng` configuration than your machine-wide default.
+Use per-project config when one project should see a different effective `drwn` configuration than your machine-wide default.
 
 This lets a project:
 
@@ -13,47 +13,47 @@ This lets a project:
 - enable or disable targets locally
 - include or exclude skills during write
 
-Without per-project config, `bgng` uses the packaged or checkout harness defaults plus the current machine state.
+Without per-project config, `drwn` uses the packaged or checkout harness defaults plus the current machine state.
 
 ## Config Path And Discovery
 
 The config file path is:
 
 ```text
-<project>/.agents/bgng/config.json
+<project>/.agents/drwn/config.json
 ```
 
 Discovery walks upward from the current working directory and stops at the first matching file.
 
 This means:
 
-- running `bgng` from a nested directory inside a project still finds the project config
+- running `drwn` from a nested directory inside a project still finds the project config
 - the nearest matching config wins
 - commands outside a configured project fall back to the machine-wide harness view
 
 Commands affected by project discovery include:
 
-- `bgng write`
-- `bgng mcp list`
-- `bgng mcp write`
-- `bgng status`
-- `bgng doctor`
-- `bgng extensions status`
-- `bgng extensions doctor`
-- `bgng extensions setup`
+- `drwn write`
+- `drwn mcp list`
+- `drwn mcp write`
+- `drwn status`
+- `drwn doctor`
+- `drwn extensions status`
+- `drwn extensions doctor`
+- `drwn extensions setup`
 
 ## Scaffolding
 
 Create a project config with:
 
 ```bash
-bgng init
+drwn init
 ```
 
 Overwrite an existing one with:
 
 ```bash
-bgng init --force
+drwn init --force
 ```
 
 The scaffolded file is:
@@ -128,7 +128,7 @@ store refs such as `@me/backend@^1.0.0`, exact refs such as
 Card refs are resolved into:
 
 ```text
-<project>/.agents/bgng/card.lock
+<project>/.agents/drwn/card.lock
 ```
 
 The lockfile is tracked with the project config. It records exact card versions,
@@ -146,12 +146,12 @@ If an applied card ships a skill with the same name as a repo-native or
 package-backed source, the card copy wins and downstream symlinks point into
 the immutable card store.
 
-Machine-only defaults from `~/.agents/bgng/machine.json` do not apply when a
+Machine-only defaults from `~/.agents/drwn/machine.json` do not apply when a
 project config is present.
 
 ## Project-local Materialization
 
-When `bgng write` runs inside a configured project, it writes downstream tool
+When `drwn write` runs inside a configured project, it writes downstream tool
 state under the project root:
 
 ```text
@@ -160,19 +160,19 @@ state under the project root:
 <project>/.codex/config.toml
 <project>/.codex/skills/
 <project>/.cursor/mcp.json
-<project>/.agents/bgng/generated/cursor-mcp.json
-<project>/.agents/bgng/write-record.json
+<project>/.agents/drwn/generated/cursor-mcp.json
+<project>/.agents/drwn/write-record.json
 ```
 
-When `bgng write` runs outside a configured project, it writes machine-scope
+When `drwn write` runs outside a configured project, it writes machine-scope
 state under the home directory and store:
 
 ```text
 ~/.claude/
 ~/.codex/
 ~/.cursor/
-~/.agents/bgng/generated/
-~/.agents/bgng/global-write-record.json
+~/.agents/drwn/generated/
+~/.agents/drwn/global-write-record.json
 ```
 
 The implementation verifies this with scope-isolation tests. External
@@ -225,7 +225,7 @@ Resolution behavior:
 - installed package-backed shared skills can be included by skill name when the name resolves uniquely
 - applied-card bundled skills resolve before non-card sources
 - if multiple applied cards ship the same skill name, lockfile order decides the winner
-- unknown or ambiguous skill names fail `bgng write` before mutation and are also reported by `bgng doctor`
+- unknown or ambiguous skill names fail `drwn write` before mutation and are also reported by `drwn doctor`
 
 ### Extensions
 
@@ -273,7 +273,7 @@ Beads example:
 Effects:
 
 - records that Beads is selected for the project
-- lets `bgng extensions status beads` and `doctor beads` report project activation state
+- lets `drwn extensions status beads` and `doctor beads` report project activation state
 - derives `beads-task-tracking` only when `includeSkill` is `true`
 
 MarkItDown example:
@@ -293,9 +293,9 @@ MarkItDown example:
 Effects:
 
 - records that MarkItDown is selected for the project
-- lets `bgng extensions status markitdown` and `doctor markitdown` report runtime health
+- lets `drwn extensions status markitdown` and `doctor markitdown` report runtime health
 - derives `markitdown-document-conversion` unless `skills` is `false`
-- does not install `markitdown` unless `bgng extensions setup markitdown --install` is used or an interactive setup prompt is accepted
+- does not install `markitdown` unless `drwn extensions setup markitdown --install` is used or an interactive setup prompt is accepted
 
 Lower-level `skills.include` and `skills.exclude` still work with extension-derived skill lists. If an extension derives a skill and `skills.exclude` names the same skill, `skills.exclude` wins.
 
@@ -364,7 +364,7 @@ Lower-level `skills.include` and `skills.exclude` still work with extension-deri
 Use the command:
 
 ```bash
-bgng extensions setup parallel
+drwn extensions setup parallel
 ```
 
 Or write config directly:
@@ -387,7 +387,7 @@ Or write config directly:
 Use the command:
 
 ```bash
-bgng extensions setup beads --include-skill
+drwn extensions setup beads --include-skill
 ```
 
 This initializes Beads through `bd` and records semantic extension config:
@@ -418,9 +418,9 @@ This initializes Beads through `bd` and records semantic extension config:
 
 ## Status And Doctor Behavior
 
-`bgng status` reflects whether a project config is active and summarizes its override counts.
+`drwn status` reflects whether a project config is active and summarizes its override counts.
 
-`bgng doctor` reports project-config-specific issues such as:
+`drwn doctor` reports project-config-specific issues such as:
 
 - unknown server references
 - unknown skill references
@@ -433,12 +433,12 @@ This is report-only. `doctor` does not rewrite or repair project config. Wave 1 
 
 ```bash
 cd /path/to/project
-bgng init
-$EDITOR .agents/bgng/config.json
-bgng status
-bgng write --dry-run
-bgng doctor
-bgng write
+drwn init
+$EDITOR .agents/drwn/config.json
+drwn status
+drwn write --dry-run
+drwn doctor
+drwn write
 ```
 
 ## What Cards Pins And What Cards Does Not
@@ -454,7 +454,7 @@ What cards pin (today):
 
 What cards do not pin:
 
-- The bgng harness version itself (enforced loosely via `harness.minVersion`, not pinned exactly)
+- The drwn harness version itself (enforced loosely via `harness.minVersion`, not pinned exactly)
 - Claude Code / Codex / Cursor versions (vendor-controlled; not yet exposing a pin interface)
 - MCP server runtime resolution — `npx -y <pkg>` patterns pull the latest matching version at every invocation unless the version is pinned in `args`. The built-in `registry/mcp-servers.json` ships caret-pinned versions (e.g., `@upstash/context7-mcp@^2.0.0`) for this reason; card authors should do the same in their own `mcp-servers/<id>.json` definitions
 - CLI dependencies of skills (`bd` for Beads, `markitdown` for MarkItDown, etc.)
@@ -481,7 +481,7 @@ Recommended composition for a project that needs full environmental reproducibil
 - Pin runtime/toolchain versions with `asdf`, `mise`, or `Flox` (Layer 3 / 4).
 - Pin system libraries and the shell environment with `Flox` or `Nix` (Layer 4).
 - Pin service dependencies with `Docker Compose` (Layer 6).
-- Pin harness state with `bgng card apply` (Layer 8).
+- Pin harness state with `drwn card apply` (Layer 8).
 
 Each layer's tool pins what it owns. Together they remove "works on my machine" friction across every typical dimension. Cards is the Layer-8 piece; it composes with — does not replace — the rest of the stack.
 
@@ -492,10 +492,10 @@ For background on the layered-reproducibility model and where cards sits in the 
 Avoid:
 
 - treating project config as a second full baseline registry
-- using `skills.include` for broad global defaults when `bgng library defaults add skill <name>` would be clearer
+- using `skills.include` for broad global defaults when `drwn library defaults add skill <name>` would be clearer
 - manually listing extension-owned skills when `extensions.<name>` is clearer
 - assuming `doctor` will auto-fix stale project state
-- using project config when a simple `bgng library defaults add ...` change would be clearer
+- using project config when a simple `drwn library defaults add ...` change would be clearer
 - assuming a card lockfile is full environmental reproducibility (see What Cards Pins above; layer with a Layer-3/4 tool for the rest)
 
 ## Relationship To Other Docs

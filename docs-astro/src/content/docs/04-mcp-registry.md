@@ -32,9 +32,8 @@ drwn library add mcp my-server.json --as my-server
 Machine-wide active MCP defaults live in `~/.agents/drwn/machine.json` under
 `defaults.mcpServers`.
 
-Pre-cards installs used `~/.agents/library/mcp-servers.json`. `drwn store
-migrate` explodes that legacy file into the cards-era `mcp-servers/` directory
-and archives the old layout.
+Reusable MCP definitions use the current `~/.agents/drwn/mcp-servers/`
+directory.
 
 ## Inspecting MCP State
 

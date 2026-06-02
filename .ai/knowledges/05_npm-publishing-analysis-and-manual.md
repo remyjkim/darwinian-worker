@@ -6,7 +6,7 @@ This document records the publishing failure analysis from the first npm publish
 
 It exists to prevent repeated confusion around npm token precedence, 2FA behavior, and local machine config leakage.
 
-The current package name is `beginning-harness`. Earlier notes may refer to `beginning-agents` because that was the package name during the first publishing attempt.
+The current package name is `darwinian-harness`. Earlier notes may refer to `beginning-agents` because that was the package name during the first publishing attempt.
 
 ## Outcome
 
@@ -111,7 +111,7 @@ Use this exact flow for manual npm publishing from this repo.
 ### 1. Move to the repo
 
 ```bash
-cd /path/to/beginning-harness
+cd /path/to/darwinian-harness
 ```
 
 ### 2. Load the token from `.env`
@@ -172,7 +172,7 @@ rm -f "$TMP_NPMRC"
 If you want a more explicit manual checklist, use this:
 
 ```bash
-cd /path/to/beginning-harness
+cd /path/to/darwinian-harness
 
 set -a
 source .env
@@ -241,7 +241,7 @@ The release hardening pass also uncovered several package-quality issues that ha
 3. `test/` was being included in `npm pack`
 4. `skills/shared/frontend-design` was a local symlink instead of repo-owned content
 5. the README was still written primarily as an internal operator document
-6. `bgng` needed to fall back to the packaged repo root when run outside a checkout
+6. `drwn` needed to fall back to the packaged repo root when run outside a checkout
 7. npm normalized some package metadata during publish-facing operations
 8. internal operator docs expanded as per-project config and package-backed skill bundles became real supported subsystems
 

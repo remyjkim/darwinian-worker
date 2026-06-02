@@ -84,7 +84,7 @@ Practical consequence observed in this repo: when the Notion connector was first
 
 ## Why our harness's `~/.claude/settings.json mcpServers` entry was silently ignored
 
-The bgng harness writes MCP server definitions into `~/.claude/settings.json` under `mcpServers`. Observed behavior in current Claude Code: `claude mcp list` and `claude mcp get <name>` do **not** see entries from that path. They see only:
+The drwn harness writes MCP server definitions into `~/.claude/settings.json` under `mcpServers`. Observed behavior in current Claude Code: `claude mcp list` and `claude mcp get <name>` do **not** see entries from that path. They see only:
 
 - Connectors (from the claude.ai layer above)
 - Servers added via `claude mcp add` (stored in `~/.claude.json`, keyed by scope and project)
@@ -127,7 +127,7 @@ For Notion specifically, in order of friction:
 | claude.ai Notion **connector** | None | Yes | claude.ai | No | No |
 | `claude mcp add --scope user` | None | Yes (per machine) | Claude Code (local) | No | No |
 | `.mcp.json` (project scope) | Committed | No (per repo) | Claude Code (local, prompted) | No | No |
-| bgng harness sync | Registry edit | Per-repo | Each client | No | No |
+| drwn harness sync | Registry edit | Per-repo | Each client | No | No |
 | Manual REST API calls | App code | App-defined | App | Yes | Yes |
 | Open-source local Notion MCP server | App code + server install | Per-machine | Integration token | Yes | Yes |
 

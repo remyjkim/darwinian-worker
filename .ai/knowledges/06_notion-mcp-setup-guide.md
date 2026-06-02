@@ -20,7 +20,7 @@ There are three valid setup paths. Pick the one that matches the coworker's stac
 | --- | --- | --- | --- |
 | **A. Claude.ai connector** | Claude Code users on a Claude.ai plan | No | Yes (per Claude.ai account) |
 | **B. Direct CLI install** | Claude Code or Codex without harness | No (user scope) or `.mcp.json` (project scope) | Configurable |
-| **C. bgng harness sync** | Repos using `bgng` / `sync-mcp.ts` | Yes (`registry/mcp-servers.json` + `optional.notion`) | Per-repo |
+| **C. drwn harness sync** | Repos using `drwn` / `sync-mcp.ts` | Yes (`registry/mcp-servers.json` + `optional.notion`) | Per-repo |
 
 ---
 
@@ -41,7 +41,7 @@ If the coworker uses Claude Code and has a Claude.ai account, this is the lowest
 3. Confirm in the browser OAuth flow as the correct Notion account.
 4. Restart Claude Code in any session you want the connector active in.
 
-That path is what's currently working in `beginning-harness`. The harness's own `notion` registry entry (Path C) does not drive Claude Code's MCP runtime in current versions — `claude mcp list` reads from `~/.claude.json` and platform connectors, not `~/.claude/settings.json mcpServers`. For Claude Code, the connector is the supported path. The harness entry remains useful for Codex and Cursor.
+That path is what's currently working in `darwinian-harness`. The harness's own `notion` registry entry (Path C) does not drive Claude Code's MCP runtime in current versions — `claude mcp list` reads from `~/.claude.json` and platform connectors, not `~/.claude/settings.json mcpServers`. For Claude Code, the connector is the supported path. The harness entry remains useful for Codex and Cursor.
 
 **Skip Paths B and C if Path A meets the need.**
 
@@ -114,9 +114,9 @@ Restart Cursor, then trigger the OAuth flow from Cursor's MCP UI.
 
 ---
 
-## Path C — bgng harness sync (only if the target repo uses bgng)
+## Path C — drwn harness sync (only if the target repo uses drwn)
 
-If the coworker's repo already uses the `bgng` harness (i.e., has `registry/mcp-servers.json`, `sync-mcp.ts`, and `registry/config.json`):
+If the coworker's repo already uses the `drwn` harness (i.e., has `registry/mcp-servers.json`, `sync-mcp.ts`, and `registry/config.json`):
 
 1. **Confirm the registry entry exists.** In `registry/mcp-servers.json`:
 
@@ -252,7 +252,7 @@ In Codex this can be enforced via `enabled_tools` in the TOML block. In Claude C
 For the coworker setting this up in a new repo:
 
 - [ ] Decide which client(s) need Notion MCP: Claude Code, Codex, Cursor.
-- [ ] Pick a path: A (Claude.ai connector), B (direct CLI), or C (bgng harness).
+- [ ] Pick a path: A (Claude.ai connector), B (direct CLI), or C (drwn harness).
 - [ ] Confirm correct Notion account is logged in in the OAuth browser.
 - [ ] Run the install command(s) for the chosen path.
 - [ ] Trigger OAuth in each client.

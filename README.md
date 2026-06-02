@@ -59,7 +59,7 @@ The published package includes built-in harness defaults. By default, global `dr
 Use this mode if you want to edit the registry, maintain your own fork, add built-in skills, or develop the CLI:
 
 ```bash
-git clone https://github.com/remyjkim/beginning-harness.git
+git clone https://github.com/remyjkim/darwinian-harness.git
 cd darwinian-harness
 bun install
 bun run drwn -- status
@@ -391,7 +391,7 @@ drwn write --skills-only
 
 The distinction matters:
 
-- added means the bundle is available under `~/.agents/packages/skills`
+- added means the bundle is available under `~/.agents/drwn/skills`
 - curated means a shared skill is linked into `~/.agents/skills`
 - written means the curated skill is linked into downstream tool directories
 

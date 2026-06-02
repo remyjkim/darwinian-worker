@@ -51,7 +51,7 @@ The safety model is intentionally simple:
 - **Curate** skills explicitly before writing them downstream
 - **Available, not exposed** — package-backed bundles are available content, not automatically active behavior
 - **Write-record cleanup** removes drwn-owned stale paths while preserving user-owned replacements
-- **Explicit migration cleanup** is available through `drwn store migrate --cleanup-legacy-orphans`
+- **Write-record cleanup** removes drwn-owned stale paths while preserving user-owned replacements
 
 ## Usage Modes
 

@@ -4,7 +4,7 @@ This directory holds internal operator and maintainer knowledge that is more spe
 
 ## Operator Docs
 
-- [01_agents-cli-usage-guide.md](./01_agents-cli-usage-guide.md): day-to-day `bgng` usage, local state model, and command workflows
+- [01_agents-cli-usage-guide.md](./01_agents-cli-usage-guide.md): day-to-day `drwn` usage, local state model, and command workflows
 - [02_per-project-config-guide.md](./02_per-project-config-guide.md): per-project config discovery, schema, merge rules, and diagnostics
 - [03_npm-skill-bundles-guide.md](./03_npm-skill-bundles-guide.md): package-backed skill bundle model, ingestion, storage, and constraints
 
