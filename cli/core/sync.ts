@@ -4,20 +4,12 @@
 import { existsSync, readlinkSync, renameSync, rmSync, symlinkSync, writeFileSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { expandHomePath, normalizeSyncPathOptions, resolveToolPaths } from "./paths";
-import { loadConfig } from "./config";
-import { loadRegistry } from "./registry";
-import { buildActiveServers, mergeClaudeSettingsText, mergeCodexTomlText, renderCursorConfig } from "./mcp";
+import { expandHomePath, resolveToolPaths } from "./paths";
+import { mergeClaudeSettingsText, mergeCodexTomlText, renderCursorConfig } from "./mcp";
 import { syncSkills as syncSkillsCore } from "./skills";
-import type { CardLockEntry } from "./card-lock";
-import { mergeCardManifestsIntoProjectConfig, resolveProjectCards } from "./card-project";
-import { loadEffectiveConfig } from "./user-config";
-import { loadMcpLibrary } from "./mcp-library";
-import { mergeUserMcpLibrary } from "./defaults";
 import { ensureParentDir, lstatSafe, realpathSafe } from "./fs";
-import { findProjectConfig, loadProjectConfig, mergeProjectConfig, resolveProjectRootFromConfigPath } from "./project";
-import { diffWriteRecord, loadWriteRecord, resolveProjectWriteRecordPath, saveWriteRecord, type ManagedPath } from "./write-record";
-import { resolveGlobalWriteRecordPath, resolveStoreGeneratedDir } from "./store-paths";
+import { diffWriteRecord, loadWriteRecord, saveWriteRecord, type ManagedPath } from "./write-record";
+import { buildEffectiveState } from "./effective-state";
 import type {
   CanonicalConfig,
   NormalizedSyncOptions,
@@ -188,65 +180,19 @@ export async function syncMcp(
 }
 
 export async function syncRepository(options: SyncOptions = {}): Promise<SyncResult> {
-  const normalized = normalizeSyncPathOptions(options, options.repoRoot ? undefined : import.meta.path);
-  const repoConfig = await loadConfig(normalized.repoRoot);
-  const registry = mergeUserMcpLibrary(
-    await loadRegistry(normalized.repoRoot),
-    await loadMcpLibrary(normalized.agentsDir),
-  );
-  const { config } = await loadEffectiveConfig(repoConfig, normalized.agentsDir);
+  const state = await buildEffectiveState(options);
   const result: SyncResult = { changes: [], warnings: [], managedPaths: [] };
-  const projectConfigPath = findProjectConfig(normalized.cwd ?? process.cwd());
-  const projectRoot = projectConfigPath ? resolveProjectRootFromConfigPath(projectConfigPath) : null;
-  const baseConfig = projectConfigPath ? repoConfig : config;
-  let effectiveConfig = baseConfig;
-  let effectiveRegistry = registry;
-  let skillOverrides: ReturnType<typeof mergeProjectConfig>["skills"] = baseConfig.defaults?.skills
-    ? { include: [...baseConfig.defaults.skills] }
-    : undefined;
-  const recordPath = projectRoot
-    ? resolveProjectWriteRecordPath(projectRoot)
-    : resolveGlobalWriteRecordPath(normalized.agentsDir);
-  const scopeRoot = projectRoot ?? normalized.homeDir;
-  const scopedOptions: NormalizedSyncOptions = {
-    ...normalized,
-    toolRoot: scopeRoot,
-    writeScope: projectRoot ? "project" : "machine",
-    generatedDir: projectRoot ? join(projectRoot, ".agents", "drwn", "generated") : resolveStoreGeneratedDir(normalized.agentsDir),
-  };
-  const previousRecord = loadWriteRecord(recordPath);
-  let lockedCards: CardLockEntry[] = [];
+  const previousRecord = loadWriteRecord(state.recordPath);
 
-  if (projectConfigPath) {
-    const projectConfig = await loadProjectConfig(projectConfigPath);
-    lockedCards = projectConfig.cards ? await resolveProjectCards(normalized.agentsDir, projectConfig.cards) : [];
-    const projectWithCards = mergeCardManifestsIntoProjectConfig(
-      projectConfig,
-      lockedCards.map((card) => card.manifest),
-    );
-    const merged = mergeProjectConfig(baseConfig, registry, projectWithCards);
-    effectiveConfig = merged.config;
-    effectiveRegistry = merged.registry;
-    skillOverrides = {
-      include: [
-        ...(baseConfig.defaults?.skills ?? []),
-        ...(merged.skills?.include ?? []),
-      ],
-      exclude: merged.skills?.exclude,
-    };
-  }
-
-  const activeServers = buildActiveServers(effectiveRegistry, effectiveConfig);
-
-  if (!normalized.skillsOnly) {
-    const mcpResult = await syncMcp(scopedOptions, effectiveConfig, activeServers);
+  if (!state.normalized.skillsOnly) {
+    const mcpResult = await syncMcp(state.scopedOptions, state.effectiveConfig, state.activeServers);
     result.changes.push(...mcpResult.changes);
     result.warnings.push(...mcpResult.warnings);
     result.managedPaths?.push(...(mcpResult.managedPaths ?? []));
   }
 
-  if (!normalized.mcpOnly) {
-    const skillsResult = await syncSkillsCore(scopedOptions, skillOverrides, lockedCards);
+  if (!state.normalized.mcpOnly) {
+    const skillsResult = await syncSkillsCore(state.scopedOptions, state.skillSelection, state.lockedCards);
     result.changes.push(...skillsResult.changes);
     result.warnings.push(...skillsResult.warnings);
     result.managedPaths?.push(...(skillsResult.managedPaths ?? []));
@@ -254,10 +200,10 @@ export async function syncRepository(options: SyncOptions = {}): Promise<SyncRes
 
   const desiredManagedPaths = uniqueManagedPaths(result.managedPaths ?? []);
   const { toRemove } = diffWriteRecord(previousRecord, desiredManagedPaths);
-  cleanupRemovedManagedPaths(scopeRoot, toRemove, normalized.dryRun, result);
+  cleanupRemovedManagedPaths(state.scopeRoot, toRemove, state.normalized.dryRun, result);
   result.managedPaths = desiredManagedPaths;
-  if (!normalized.dryRun) {
-    saveWriteRecord(recordPath, {
+  if (!state.normalized.dryRun) {
+    saveWriteRecord(state.recordPath, {
       writeRecordVersion: 1,
       lastWriteAt: new Date().toISOString(),
       lastWriteHarnessVersion: "0.1.0",
