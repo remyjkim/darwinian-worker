@@ -2,7 +2,7 @@
 
 > Historical note: this is the old pre-rebrand registry-pinning Wave 2 plan. It is not the current Task 34 Wave 2 plan and must not be executed against the current drwn codebase. Use `.ai/tasks/34_drwn-git-distribution-wave-2-implementation-plan.md` for the active Wave 2 implementation.
 
-**Status**: Ready For T1 Start (blocked on Wave 1 complete)
+**Status**: Historical / superseded by Task 34; do not execute
 **Created**: 2026-05-26
 **Updated**: 2026-05-26
 **Assigned**: Unassigned
