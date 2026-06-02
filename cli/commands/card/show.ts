@@ -3,7 +3,9 @@
 
 import { Option } from "clipanion";
 import { resolveCard } from "../../core/card-store";
+import * as git from "../../core/git";
 import { renderJson, renderTable } from "../../core/output";
+import { resolveCardBareRepoPath } from "../../core/store-paths";
 import { BaseCommand } from "../base";
 
 export class CardShowCommand extends BaseCommand {
@@ -30,8 +32,11 @@ export class CardShowCommand extends BaseCommand {
 
   async execute() {
     const card = await resolveCard(this.context.agentsDir, this.ref);
+    const history = card.git
+      ? await git.log(resolveCardBareRepoPath(this.context.agentsDir, card.name), { maxCount: 10, ref: card.git.commit })
+      : [];
     if (this.json) {
-      this.context.stdout.write(renderJson(card));
+      this.context.stdout.write(renderJson({ ...card, history }));
       return 0;
     }
     this.context.stdout.write(
@@ -43,6 +48,7 @@ export class CardShowCommand extends BaseCommand {
           ["requested", card.requested],
           ["path", card.dir],
           ["integrity", card.integrity],
+          ["history", history.map((entry) => `${entry.commit.slice(0, 12)} ${entry.subject}`).join("; ")],
         ],
       ),
     );

@@ -5,6 +5,7 @@ import { afterEach, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { resolveCardBareRepoPath, resolveExtractedRoot } from "../cli/core/store-paths";
 import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture } from "./helpers";
 
 const tempRoots: string[] = [];
@@ -38,8 +39,10 @@ test("card new fails for unscoped non-interactive names without authoring scope"
 test("card publish creates immutable version and card show displays it", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
-  await publishCardWithSkills(fixture, { name: "@me/backend", skills: ["alpha"] });
-  expect(existsSync(join(fixture.agentsDir, "drwn", "cards", "@me", "backend", "1.0.0", "card.json"))).toBe(true);
+  const versionDir = await publishCardWithSkills(fixture, { name: "@me/backend", skills: ["alpha"] });
+  expect(existsSync(resolveCardBareRepoPath(fixture.agentsDir, "@me/backend"))).toBe(true);
+  expect(versionDir).toStartWith(resolveExtractedRoot(fixture.agentsDir));
+  expect(existsSync(join(versionDir, "card.json"))).toBe(true);
 
   const show = await runAgentsCli(["card", "show", "@me/backend@1.0.0"], envFor(fixture));
   expect(show.exitCode).toBe(0);

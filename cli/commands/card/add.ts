@@ -35,3 +35,7 @@ export class CardAddCommand extends BaseCommand {
     return 0;
   }
 }
+
+export class AddCardCommand extends CardAddCommand {
+  static override paths = [["add"]];
+}
