@@ -6,6 +6,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
+import { ensureDefaultCommunityCatalog } from "../core/card-catalog";
 import { ensureBeadsProjectExtensionConfig, normalizeBeadsTargets } from "../core/extensions/beads";
 import { ensureParallelProjectExtensionConfig } from "../core/extensions/parallel";
 import { resolveInitMode } from "../core/interactivity";
@@ -52,6 +53,10 @@ export class InitCommand extends BaseCommand {
     description: "Alias for prompt-free minimal project config creation.",
   });
 
+  noDefaultCatalogs = Option.Boolean("--no-default-catalogs", false, {
+    description: "Skip pre-registering the default community card catalog.",
+  });
+
   async execute() {
     const projectDir = process.cwd();
     const mode = resolveInitMode({
@@ -76,6 +81,10 @@ export class InitCommand extends BaseCommand {
       if (gitignore.includes(".agents")) {
         messages.push("Warning: .gitignore appears to exclude .agents; this config may not be shared with collaborators.");
       }
+    }
+
+    if (!this.noDefaultCatalogs) {
+      await ensureDefaultCommunityCatalog(this.context.agentsDir);
     }
 
     this.context.stdout.write(`${messages.join("\n")}\n`);
