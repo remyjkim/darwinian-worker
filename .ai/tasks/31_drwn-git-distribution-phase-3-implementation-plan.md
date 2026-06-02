@@ -2,14 +2,28 @@
 
 > **For Claude/Codex:** REQUIRED SUB-SKILL: Use `superpowers:executing-plans` to implement this plan task-by-task. Use `superpowers:test-driven-development` for code-touching tasks where tests are the spec. Do not commit unless explicitly instructed.
 
-**Status**: Ready For T1 Start After Phase 2 Merges
+**Status**: Ready For T1 Start After Phase 2 Merges (revised 2026-06-01 — see Revision History)
 **Created**: 2026-06-01
 **Updated**: 2026-06-01
 **Assigned**: Unassigned
-**Priority**: Medium
-**Estimated Effort**: 1 PR (3–5 sessions; smaller than Phases 1 and 2)
-**Dependencies**: Task 30 (Phase 2) merged, task 29 (Phase 1) merged, task 28 (rebrand) merged, analyses 47, 48, 49
-**References**: [analyses/49_drwn-target-architecture-after-phase-3.md, analyses/48_drwn-target-architecture-after-phase-2.md, analyses/47_drwn-target-architecture-after-phase-1.md, analyses/44_drwn-git-storage-backend-options.md, tasks/30_drwn-git-distribution-phase-2-implementation-plan.md, cli/core/git.ts, cli/core/card-store.ts, cli/core/card-lock.ts]
+**Priority**: Medium-High (raised from Medium because R6 is the flywheel entry point per analysis 51)
+**Estimated Effort**: 1 PR (5–8 sessions; revised from 3–5 to absorb R6 and R12)
+**Dependencies**: Task 30 (Phase 2) merged, task 29 (Phase 1) merged, task 28 (rebrand) merged, analyses 47, 48, 49, 51
+**References**: [analyses/49_drwn-target-architecture-after-phase-3.md, analyses/51_drwn-vs-claude-code-plugin-marketplace-comparative-analysis.md, analyses/48_drwn-target-architecture-after-phase-2.md, analyses/47_drwn-target-architecture-after-phase-1.md, analyses/44_drwn-git-storage-backend-options.md, tasks/30_drwn-git-distribution-phase-2-implementation-plan.md, cli/core/git.ts, cli/core/card-store.ts, cli/core/card-lock.ts]
+
+---
+
+## Revision History
+
+**v2 (2026-06-01)** — Amendments from analysis 51 (Claude Code marketplace comparison):
+
+- **R6 added as new Sub-Phase E (`drwn card new --from-project`):** the flywheel entry point. Captures the current project's effective state as a self-contained card source. Most users won't author cards from scratch; they'll snapshot what they already have. This single change is the highest-leverage adoption ergonomic in the whole rollout per analysis 51.
+- **R12 added as a small task in Sub-Phase D:** add optional `stability`, `lastValidatedWith`, `testStatusBadge` fields to the `card.json` schema. Surface in `drwn card show`. Schema bump from `manifestVersion: 1` to `manifestVersion: 2` with read-compat for v1.
+- **Long-term CLI-as-kernel architecture noted:** the post-Phase-3 Electron desktop app will read filesystem state and shell CLI commands. Phase 3 work — especially the unified resolver — should keep `cli/core/*` modules import-clean (no Clipanion-specific deps), so a future Electron embedding could `import { resolveCard, ... }` directly without re-implementing.
+
+The original 4 sub-phases (A: Unified Resolver, B: Migration, C: Affordances, D: Final Verification) are preserved. New Sub-Phase E (Capture from Project) inserts before D. R12 lands as a small task within C.
+
+Phase 3 effort moves from 3–5 sessions to 5–8 sessions because R6 is non-trivial.
 
 ---
 
@@ -76,6 +90,25 @@ Same as Phase 2: Bun, Clipanion 4, `git`, `tar`. No new dependencies.
 - [ ] `drwn outdated --fetch` works uniformly for store-origin and git-origin cards.
 - [ ] Re-adding a previously-installed `git+url#ref` is fast (no network, no archive re-download).
 - [ ] After first install, all subsequent operations against a git-origin card work offline.
+
+### Capture from project (R6)
+
+- [ ] `drwn card new --from-project [<project-path>]` captures the current (or named) project's effective state.
+- [ ] The captured source includes resolved skills, MCP defs, and extensions from the project's cards + overlay.
+- [ ] The user is prompted for the new card's name with a sensible default (`@me/<basename-of-project>-harness`).
+- [ ] The user is prompted for the new card's scope if not specified.
+- [ ] After capture, `drwn card source doctor` on the captured source passes.
+- [ ] After capture, `drwn card publish` on the captured source works.
+- [ ] Tests cover: multi-card project, project-local skill content, project with extensions.
+
+### Manifest schema v2 (R12)
+
+- [ ] `card.json` accepts optional `stability` field with values `experimental` | `stable` | `production`.
+- [ ] `card.json` accepts optional `lastValidatedWith` field (drwn version string).
+- [ ] `card.json` accepts optional `testStatusBadge` field (URL string).
+- [ ] `drwn card show` surfaces these fields when present.
+- [ ] Manifests without these fields continue to work (read-compat).
+- [ ] Schema documentation updated.
 
 ### Gates
 
@@ -566,14 +599,402 @@ test("drwn outdated --fetch reports new versions for git-origin cards", async ()
 });
 ```
 
+### Task 12.5: Add quality-signal manifest fields (R12)
+
+**Files:**
+- Modify: `cli/core/card-manifest.ts`
+- Modify: `cli/commands/card/show.ts`
+
+Extend the manifest schema:
+
+```typescript
+// cli/core/card-manifest.ts
+
+export type CardStability = "experimental" | "stable" | "production";
+
+export interface CardManifest {
+  // ... existing fields ...
+
+  // NEW in manifestVersion 2 (optional, read-compat with v1):
+  manifestVersion?: 1 | 2;     // default 1 if absent
+  stability?: CardStability;
+  lastValidatedWith?: string;   // drwn version, e.g., "0.7.0"
+  testStatusBadge?: string;     // URL to a badge image
+}
+
+const VALID_STABILITIES: ReadonlyArray<CardStability> = ["experimental", "stable", "production"];
+
+export function validateCardManifest(input: unknown): { ok: boolean; errors: string[] } {
+  // ... existing validation ...
+
+  if (m.stability !== undefined) {
+    if (typeof m.stability !== "string" || !VALID_STABILITIES.includes(m.stability as CardStability)) {
+      errors.push(`stability must be one of: ${VALID_STABILITIES.join(", ")}`);
+    }
+  }
+
+  if (m.lastValidatedWith !== undefined) {
+    if (typeof m.lastValidatedWith !== "string" || !semver.valid(m.lastValidatedWith)) {
+      errors.push("lastValidatedWith must be a valid semver string");
+    }
+  }
+
+  if (m.testStatusBadge !== undefined) {
+    if (typeof m.testStatusBadge !== "string" || !/^https?:\/\//.test(m.testStatusBadge)) {
+      errors.push("testStatusBadge must be an http(s) URL");
+    }
+  }
+
+  // ...
+}
+```
+
+Surface in `drwn card show`:
+
+```typescript
+// cli/commands/card/show.ts (additions)
+
+if (manifest.stability) {
+  output.write(`Stability: ${manifest.stability}\n`);
+}
+if (manifest.lastValidatedWith) {
+  output.write(`Last validated with: drwn ${manifest.lastValidatedWith}\n`);
+}
+if (manifest.testStatusBadge) {
+  output.write(`Test status: ${manifest.testStatusBadge}\n`);
+}
+```
+
+Test:
+
+```typescript
+// test/core-card-manifest-quality-signals.test.ts
+
+test("validates stability values", () => {
+  expect(validateCardManifest({ name: "x", version: "1.0.0", stability: "stable" }).ok).toBe(true);
+  expect(validateCardManifest({ name: "x", version: "1.0.0", stability: "foo" }).ok).toBe(false);
+});
+
+test("drwn card show surfaces stability when present", async () => {
+  // ... publish a card with stability: production ...
+  const result = await fixture.runCli(["card", "show", "@me/foo@1.0.0"]);
+  expect(result.stdout).toMatch(/Stability: production/);
+});
+```
+
 ### Task 13: Commit Sub-Phase C
 
 ```bash
 bun test
 bun run typecheck
 
-git add test/commands-card-*.test.ts test/scenarios-*.test.ts
-git commit -m "[test:phase3] verify history/fetch/diff work for git-origin cards"
+git add cli/core/card-manifest.ts cli/commands/card/show.ts test/commands-card-*.test.ts test/scenarios-*.test.ts test/core-card-manifest-quality-signals.test.ts
+git commit -m "[test:phase3] verify history/fetch/diff for git-origin cards; add manifest quality fields (R12)"
+```
+
+---
+
+## Sub-Phase E: Capture from Project (R6, NEW in v2)
+
+> **Note on positioning:** Sub-Phase E lands **before** Sub-Phase D (Final Verification) but after Sub-Phase C. The original sub-phase naming is preserved for continuity with v1 of this plan.
+
+The single highest-leverage adoption ergonomic in the entire Git-rollout per analysis 51. `drwn card new --from-project` lets a user snapshot their current working harness as a self-contained card, ready to publish.
+
+Most users won't author cards from scratch. They'll have a working `<project>/.agents/drwn/` setup and want to share it. Without capture, they have to manually transcribe their config into a new card source — high friction, error-prone. With capture, it's one command.
+
+### Task 13.1: Design — what gets captured?
+
+The decision (per analysis 51 §12 open question #6): **flatten to effective state**, not preserve bundle dependencies. The captured card becomes a self-contained snapshot. The user can edit afterwards if they want to introduce bundle deps.
+
+What lives in the captured source:
+
+```text
+~/.agents/drwn/sources/@me/<new-card-name>/
+├── card.json                       # author = current user; version = 0.1.0; description = "Captured from <project>"
+├── skills/
+│   ├── <every skill from effective state>/
+│   │   └── (content copied from wherever it resolved from: built-in, library bundle, card extraction, project-local)
+└── mcp-servers/
+    └── <every MCP server from effective state>.json
+```
+
+Cards' extensions config is captured into the `card.json`'s `extensions` field. Targets are captured into `targets`.
+
+### Task 13.2: Implement `cli/commands/card/new.ts` --from-project flag
+
+**Files:**
+- Modify: `cli/commands/card/new.ts`
+- Create: `cli/core/card-capture.ts` (new module for the capture logic)
+
+```typescript
+// cli/commands/card/new.ts (extended)
+
+export class CardNewCommand extends Command {
+  static paths = [["card", "new"]];
+
+  name = Option.String({ required: false });
+  scope = Option.String("--scope", { required: false });
+  noGit = Option.Boolean("--no-git", false);
+  fromProject = Option.String("--from-project", { required: false, tolerateBoolean: true });
+  // tolerateBoolean: true means --from-project (no value) uses cwd; --from-project <path> uses the path
+
+  async execute(): Promise<number> {
+    const ctx = await getContext();
+
+    if (this.fromProject !== undefined) {
+      return await this.executeFromProject(ctx);
+    }
+    return await this.executeBlankNew(ctx);
+  }
+
+  async executeFromProject(ctx: Context): Promise<number> {
+    const projectPath = typeof this.fromProject === "string" && this.fromProject !== "true"
+      ? this.fromProject
+      : process.cwd();
+
+    // Confirm the path is a drwn-managed project
+    const projectConfigPath = join(projectPath, ".agents/drwn/config.json");
+    if (!existsSync(projectConfigPath)) {
+      this.context.stderr.write(`Not a drwn project: ${projectPath} (no .agents/drwn/config.json)\n`);
+      return 1;
+    }
+
+    // Determine the new card name
+    let cardName = this.name;
+    if (!cardName) {
+      const projectBase = basename(projectPath);
+      const scope = this.scope ?? "@me";
+      cardName = `${scope}/${projectBase}-harness`;
+      this.context.stdout.write(`Using default name: ${cardName} (override with --name)\n`);
+    }
+
+    // Capture
+    const result = await captureProjectAsCard(ctx.agentsDir, projectPath, cardName);
+
+    this.context.stdout.write(`\nCapture complete.\n`);
+    this.context.stdout.write(`Source: ${result.sourceDir}\n`);
+    this.context.stdout.write(`Skills captured: ${result.skillCount}\n`);
+    this.context.stdout.write(`MCP servers captured: ${result.mcpCount}\n`);
+    this.context.stdout.write(`Extensions captured: ${result.extensionCount}\n`);
+    this.context.stdout.write(`\nNext steps:\n`);
+    this.context.stdout.write(`  1. Edit ${result.sourceDir}/card.json to fine-tune\n`);
+    this.context.stdout.write(`  2. Run \`drwn card source doctor ${cardName}\`\n`);
+    this.context.stdout.write(`  3. Run \`drwn card publish ${cardName} --version 0.1.0\`\n`);
+    this.context.stdout.write(`  4. Push to a Git remote: \`drwn card remote add ${cardName} <url>\` then \`drwn card push ${cardName}\`\n`);
+    return 0;
+  }
+
+  async executeBlankNew(ctx: Context): Promise<number> {
+    // ... existing card new logic ...
+  }
+}
+```
+
+```typescript
+// cli/core/card-capture.ts (NEW)
+
+export interface CaptureResult {
+  sourceDir: string;
+  skillCount: number;
+  mcpCount: number;
+  extensionCount: number;
+}
+
+export async function captureProjectAsCard(
+  agentsDir: string,
+  projectPath: string,
+  newCardName: string,
+): Promise<CaptureResult> {
+  assertStoreWritable(); // R10 guard
+
+  // 1. Read project config + lockfile
+  const projectConfig = await loadProjectConfig(projectPath);
+  const projectLock = await loadCardLock(projectPath);
+
+  // 2. Resolve effective state — what cards are active, what overlay applies
+  const effectiveState = await resolveEffectiveState(agentsDir, projectPath, projectConfig, projectLock);
+  // effectiveState contains: skills (Map<name, path-to-content>), servers, extensions, targets
+
+  // 3. Determine the new source directory
+  const sourceDir = resolveCardSourceDir(agentsDir, newCardName);
+  if (existsSync(sourceDir)) {
+    throw new Error(`source already exists: ${sourceDir}; remove or pick a different name`);
+  }
+
+  // 4. Create the source directory structure
+  await mkdir(sourceDir, { recursive: true });
+  await mkdir(join(sourceDir, "skills"), { recursive: true });
+  await mkdir(join(sourceDir, "mcp-servers"), { recursive: true });
+
+  // 5. Copy each active skill into the new source
+  let skillCount = 0;
+  for (const [skillName, skillContentPath] of effectiveState.skills) {
+    const destPath = join(sourceDir, "skills", skillName);
+    await cp(skillContentPath, destPath, { recursive: true, verbatimSymlinks: false });
+    skillCount++;
+  }
+
+  // 6. Copy each active MCP server definition
+  let mcpCount = 0;
+  for (const [serverId, serverDef] of effectiveState.servers) {
+    const destPath = join(sourceDir, "mcp-servers", `${serverId}.json`);
+    await writeFile(destPath, JSON.stringify(serverDef, null, 2));
+    mcpCount++;
+  }
+
+  // 7. Build card.json from effective state
+  const cardManifest: CardManifest = {
+    name: newCardName,
+    version: "0.1.0",
+    description: `Captured from project at ${projectPath}`,
+    skills: {
+      include: Array.from(effectiveState.skills.keys()),
+    },
+    servers: Object.fromEntries(effectiveState.servers),
+    extensions: effectiveState.extensions,
+    targets: effectiveState.targets,
+    manifestVersion: 2, // per R12
+    stability: "experimental",  // self-declared; user can edit
+    lastValidatedWith: getCurrentDrwnVersion(),
+  };
+
+  await writeFile(
+    join(sourceDir, "card.json"),
+    JSON.stringify(cardManifest, null, 2),
+  );
+
+  // 8. (Optional, per --no-git flag handled at the command layer) git init the source
+
+  return {
+    sourceDir,
+    skillCount,
+    mcpCount,
+    extensionCount: Object.keys(effectiveState.extensions).length,
+  };
+}
+
+async function resolveEffectiveState(
+  agentsDir: string,
+  projectPath: string,
+  config: ProjectConfig,
+  lock: CardLockfile | null,
+): Promise<EffectiveState> {
+  // For each card in the lock, gather skills/servers/extensions/targets
+  // Apply project overlay last (last-wins per cards arch)
+  // Return the merged effective view
+  // (Detailed implementation: this is essentially what `drwn apply` does to determine downstream materialization)
+}
+```
+
+### Task 13.3: Test capture flow
+
+**Files:**
+- Create: `test/commands-card-new-from-project.test.ts`
+
+```typescript
+test("captures a single-card project", async () => {
+  const fixture = await scaffoldCliFixture();
+  const repo = await createLocalCardRepo({ name: "@test/baseline", skills: ["alpha"] });
+  await fixture.runCli(["card", "clone", repo.url]);
+
+  // Initialize a project that uses the card
+  await fixture.runCli(["init"]);
+  await fixture.runCli(["add", "@test/baseline@1.0.0"]);
+  await fixture.runCli(["apply"]);
+
+  // Capture
+  const result = await fixture.runCli([
+    "card", "new",
+    "--from-project",
+    fixture.projectRoot,
+    "--name", "@me/captured",
+  ]);
+  expect(result.exitCode).toBe(0);
+
+  // Verify source was created
+  const sourceDir = join(fixture.agentsDir, "drwn/sources/@me/captured");
+  expect(existsSync(sourceDir)).toBe(true);
+  expect(existsSync(join(sourceDir, "card.json"))).toBe(true);
+  expect(existsSync(join(sourceDir, "skills/alpha"))).toBe(true);
+
+  // The captured manifest reflects the effective state
+  const manifest = JSON.parse(await readFile(join(sourceDir, "card.json"), "utf8"));
+  expect(manifest.skills.include).toContain("alpha");
+});
+
+test("captures a multi-card project with last-wins merge", async () => {
+  // Two cards both contribute a skill named "shared"; the later one's content wins
+  // Verify captured "shared" matches the second card's version
+});
+
+test("captures project-local skill content (per analysis 43 §4.3)", async () => {
+  // A skill at <project>/.agents/drwn/skills/<name>/ gets captured
+});
+
+test("captured source passes `drwn card source doctor`", async () => {
+  // After capture, run doctor on the new source; expect ok
+});
+
+test("captured source can be published", async () => {
+  // After capture + edit, run publish; verify success
+});
+
+test("captures extensions config", async () => {
+  // A project with extensions.beads.enabled = true captures it into card.json
+});
+
+test("--from-project without --name uses default <scope>/<basename>-harness", async () => {
+  // ...
+});
+
+test("--from-project with no path uses cwd", async () => {
+  // ...
+});
+
+test("refuses to overwrite an existing source", async () => {
+  // ...
+});
+```
+
+### Task 13.4: Document the capture flow
+
+**Files:**
+- Modify: docs site cards / authoring page (per task 27 layout)
+
+Add a section titled "Capture your current setup":
+
+```markdown
+### Capture your current setup as a card
+
+If you already have a working harness in a project, you can snapshot it as a card with one command:
+
+```bash
+cd your-project
+drwn card new --from-project
+```
+
+This creates a self-contained card source at `~/.agents/drwn/sources/@me/<your-project>-harness/` containing all the skills, MCP servers, and extensions currently active in your project. You can then edit, publish, and share it.
+
+Three follow-up commands after capture:
+
+```bash
+drwn card source doctor @me/<your-project>-harness   # validate
+drwn card publish @me/<your-project>-harness --version 0.1.0
+drwn card remote add @me/<your-project>-harness <git-url>
+drwn card push @me/<your-project>-harness
+```
+
+This is the most common path to your first card. Most people don't author cards from scratch — they snapshot what already works.
+```
+
+### Task 13.5: Commit Sub-Phase E
+
+```bash
+bun test test/commands-card-new-from-project.test.ts
+bun run typecheck
+
+git add cli/commands/card/new.ts cli/core/card-capture.ts cli/index.ts test/commands-card-new-from-project.test.ts docs-docusaurus/docs/
+git commit -m "[feat:capture] drwn card new --from-project flow (R6 from analysis 51)"
 ```
 
 ---
@@ -686,7 +1107,8 @@ EOF
 - [ ] Branch created.
 - [ ] Sub-phase A: unified resolver shipped.
 - [ ] Sub-phase B: migration shipped.
-- [ ] Sub-phase C: affordances verified.
+- [ ] Sub-phase C: affordances verified; manifest quality fields shipped (R12).
+- [ ] Sub-phase E: `drwn card new --from-project` capture flow shipped (R6).
 - [ ] Sub-phase D: full verification green.
 - [ ] All gates pass.
 - [ ] Smoke tests pass manually.

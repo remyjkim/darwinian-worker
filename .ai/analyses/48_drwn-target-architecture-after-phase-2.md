@@ -1,5 +1,7 @@
 # drwn Target Architecture — After Phase 2 (Per-Card Bare Repos + Team Sharing)
 
+> **⚠ SUPERSEDED on 2026-06-01** by **[analysis 52](52_drwn-target-architecture-post-wave-1.md)**, which collapses Phase 1 and Phase 2 into a single "Wave 1" target. The canonical end-state for Wave 1 is largely identical to what this doc described as "after Phase 2" — but with Phase 1's `~/.agents/drwn/cache/` layer eliminated entirely (never built). This doc remains as historical record. See analysis 52 §15 for the rationale.
+
 **Date**: 2026-06-01
 **Author**: Claude + Remy
 **Status**: Draft

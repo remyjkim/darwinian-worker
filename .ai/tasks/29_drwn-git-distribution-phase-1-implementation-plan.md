@@ -1,15 +1,30 @@
 # Task 29: drwn Git Distribution Phase 1 — Implementation Plan
 
+> **⚠ SUPERSEDED on 2026-06-01.** This plan is preserved as historical record of the three-phase rollout that was considered (and amended in v2). The canonical Wave 1 plan is **[task 33](33_drwn-git-distribution-wave-1-implementation-plan.md)**, which collapses Phase 1 and Phase 2 into one PR. See analysis 52 §15 for the rationale.
+>
+> **Do not execute this plan.** It builds a `~/.agents/drwn/cache/` archive layer that Wave 1 deliberately skips. Use task 33 instead.
+
 > **For Claude/Codex:** REQUIRED SUB-SKILL: Use `superpowers:executing-plans` to implement this plan task-by-task. Use `superpowers:test-driven-development` for code-touching tasks where tests are the spec. Do not commit unless explicitly instructed.
 
-**Status**: Ready For T1 Start After Prerequisites
+**Status**: Ready For T1 Start After Prerequisites (revised 2026-06-01 — see Revision History)
 **Created**: 2026-06-01
 **Updated**: 2026-06-01
 **Assigned**: Unassigned
 **Priority**: High
-**Estimated Effort**: 1 PR (3–5 sessions)
-**Dependencies**: Task 28 (rebrand to `drwn`/`darwinian-harness` must be merged first), analyses 42 v2, 44, 46, 47
-**References**: [analyses/47_drwn-target-architecture-after-phase-1.md, analyses/46_drwn-card-team-sharing-flow.md, analyses/44_drwn-git-storage-backend-options.md, analyses/42_drwn-cli-vocabulary-and-multi-env-design.md, cli/core/card-store.ts, cli/core/card-lock.ts, cli/core/card-manifest.ts, cli/core/store-paths.ts, cli/commands/card/add.ts]
+**Estimated Effort**: 1 PR (4–6 sessions; revised from 3–5 to absorb R1/R8/R11 amendments)
+**Dependencies**: Task 28 (rebrand to `drwn`/`darwinian-harness` must be merged first), analyses 42 v2, 44, 46, 47, 51
+**References**: [analyses/47_drwn-target-architecture-after-phase-1.md, analyses/51_drwn-vs-claude-code-plugin-marketplace-comparative-analysis.md, analyses/46_drwn-card-team-sharing-flow.md, analyses/44_drwn-git-storage-backend-options.md, analyses/42_drwn-cli-vocabulary-and-multi-env-design.md, cli/core/card-store.ts, cli/core/card-lock.ts, cli/core/card-manifest.ts, cli/core/store-paths.ts, cli/commands/card/add.ts]
+
+---
+
+## Revision History
+
+**v2 (2026-06-01)** — Amendments from analysis 51 (Claude Code marketplace comparison):
+
+- **R1 added to Phase 4 (Ref Parsing):** support `github:user/repo#ref` and `gitlab:user/repo#ref` as syntactic sugar over `git+https://...` forms. Same parsing function; ~25 extra lines. The Notion doc specifically calls out shorthand as a v1 priority.
+- **R8 added to Phase 8 (Docs):** establish `drwn-card` as the official GitHub topic convention. Document in the operator guide.
+- **R11 added to Phase 8 (Docs):** lock the six public-facing terms (Card / Store / Catalog / Project / Apply / Install) in any docs touched by Phase 1.
+- **JSON output audit added to Phase 7 (Status):** as part of long-term CLI-as-kernel architecture, audit all status/list/show commands to ensure stable `--json` output. This is preparation for the future Electron desktop app, which will read filesystem state and parse CLI JSON output.
 
 ---
 
@@ -60,9 +75,24 @@ What's NOT in Phase 1: no per-card bare repos, no `drwn card publish` rewrite, n
 - [ ] `drwn add @scope/name@^1.0.0` works (existing path, unchanged).
 - [ ] `drwn add file:./path` works (existing path, unchanged).
 - [ ] `drwn add git+https://github.com/owner/repo.git#v1.0.0` works (NEW).
+- [ ] `drwn add github:owner/repo#v1.0.0` works as shorthand for the above (NEW per R1).
+- [ ] `drwn add gitlab:owner/repo#v1.0.0` works as shorthand for the GitLab equivalent (NEW per R1).
 - [ ] `drwn add git+file:///path/to/bare-repo.git#v1.0.0` works against a local `file://` Git remote (NEW, for tests).
 - [ ] `drwn add git+url` without an explicit `#<ref>` is rejected with a clear error.
+- [ ] `drwn add github:owner/repo` (without `#ref`) is rejected with a clear error.
 - [ ] Tag rewriting (remote changes `v1.0.0` to point at a different commit) is detected by integrity-hash mismatch.
+
+### Documentation conventions (R8 + R11)
+
+- [ ] Operator-guide section produced by Phase 1 uses only the six public-facing terms: Card, Store, Catalog, Project, Apply, Install.
+- [ ] Operator-guide section mentions the `drwn-card` GitHub topic convention for card source repos.
+- [ ] No use of pre-rebrand terms (`bgng`, `beginning-harness`) outside historical-context boxes.
+
+### JSON-output completeness (long-term CLI-as-kernel architecture)
+
+- [ ] `drwn status --json` includes `origin`, `git.url`, `git.ref`, `git.commit` for each card.
+- [ ] `drwn install --json` outputs structured success/error per card.
+- [ ] `drwn add --json` returns the resolved card name, version, and origin.
 
 ### Storage
 
@@ -945,6 +975,12 @@ export function parseCardRef(ref: string): ParsedCardRef {
   if (ref.startsWith("git+")) {
     return parseGitRef(ref);
   }
+  if (ref.startsWith("github:")) {
+    return parseGithubRef(ref);
+  }
+  if (ref.startsWith("gitlab:")) {
+    return parseGitlabRef(ref);
+  }
   if (ref.startsWith("file:")) {
     return parseFileRef(ref);
   }
@@ -954,21 +990,57 @@ export function parseCardRef(ref: string): ParsedCardRef {
 function parseGitRef(ref: string): ParsedCardRef {
   // "git+<url>#<gitRef>" — fragment is required
   const withoutPrefix = ref.slice("git+".length);
-  const hashIndex = withoutPrefix.lastIndexOf("#");
+  return parseGitRefBody(ref, withoutPrefix);
+}
+
+/**
+ * R1: github:user/repo#ref shorthand → rewrites to git+https://github.com/user/repo.git#ref
+ */
+function parseGithubRef(ref: string): ParsedCardRef {
+  const withoutPrefix = ref.slice("github:".length);
+  const [path, ...refParts] = withoutPrefix.split("#");
+  if (!refParts.length || !refParts[0]) {
+    throw new Error(
+      `github: refs require an explicit version fragment: "${ref}". ` +
+      `Example: github:owner/repo#v1.0.0`,
+    );
+  }
+  const rewritten = `https://github.com/${path}.git`;
+  return parseGitRefBody(ref, `${rewritten}#${refParts.join("#")}`);
+}
+
+/**
+ * R1: gitlab:user/repo#ref shorthand → rewrites to git+https://gitlab.com/user/repo.git#ref
+ */
+function parseGitlabRef(ref: string): ParsedCardRef {
+  const withoutPrefix = ref.slice("gitlab:".length);
+  const [path, ...refParts] = withoutPrefix.split("#");
+  if (!refParts.length || !refParts[0]) {
+    throw new Error(
+      `gitlab: refs require an explicit version fragment: "${ref}". ` +
+      `Example: gitlab:owner/repo#v1.0.0`,
+    );
+  }
+  const rewritten = `https://gitlab.com/${path}.git`;
+  return parseGitRefBody(ref, `${rewritten}#${refParts.join("#")}`);
+}
+
+function parseGitRefBody(originalRef: string, body: string): ParsedCardRef {
+  const hashIndex = body.lastIndexOf("#");
   if (hashIndex < 0) {
     throw new Error(
-      `git+ refs require an explicit version fragment: "${ref}". ` +
+      `git refs require an explicit version fragment: "${originalRef}". ` +
       `Example: git+https://github.com/owner/repo.git#v1.0.0`,
     );
   }
-  const url = withoutPrefix.slice(0, hashIndex);
-  const gitRef = withoutPrefix.slice(hashIndex + 1);
+  const url = body.slice(0, hashIndex);
+  const gitRef = body.slice(hashIndex + 1);
 
   if (!url) {
-    throw new Error(`invalid git+ ref (empty URL): "${ref}"`);
+    throw new Error(`invalid git ref (empty URL): "${originalRef}"`);
   }
   if (!gitRef) {
-    throw new Error(`invalid git+ ref (empty ref after #): "${ref}"`);
+    throw new Error(`invalid git ref (empty ref after #): "${originalRef}"`);
   }
 
   return {
@@ -978,7 +1050,7 @@ function parseGitRef(ref: string): ParsedCardRef {
     range: "*",
     gitUrl: url,
     gitRef,
-    original: ref,
+    original: originalRef,
   };
 }
 
@@ -1055,6 +1127,36 @@ describe("parseCardRef", () => {
 
   test("rejects git+ ref with empty URL", () => {
     expect(() => parseCardRef("git+#v1.0.0")).toThrow();
+  });
+
+  // R1: shorthand parsers
+
+  test("parses github: shorthand", () => {
+    const parsed = parseCardRef("github:owner/repo#v1.0.0");
+    expect(parsed.origin).toBe("git");
+    expect(parsed.gitUrl).toBe("https://github.com/owner/repo.git");
+    expect(parsed.gitRef).toBe("v1.0.0");
+  });
+
+  test("parses gitlab: shorthand", () => {
+    const parsed = parseCardRef("gitlab:owner/repo#v1.0.0");
+    expect(parsed.origin).toBe("git");
+    expect(parsed.gitUrl).toBe("https://gitlab.com/owner/repo.git");
+    expect(parsed.gitRef).toBe("v1.0.0");
+  });
+
+  test("rejects github: shorthand without # fragment", () => {
+    expect(() => parseCardRef("github:owner/repo")).toThrow(/fragment/);
+  });
+
+  test("rejects gitlab: shorthand without # fragment", () => {
+    expect(() => parseCardRef("gitlab:owner/repo")).toThrow(/fragment/);
+  });
+
+  test("github: shorthand preserves the original ref string", () => {
+    const ref = "github:owner/repo#v1.0.0";
+    const parsed = parseCardRef(ref);
+    expect(parsed.original).toBe(ref);
   });
 
   test("preserves the original ref string", () => {
@@ -1752,6 +1854,61 @@ git add cli/commands/install.ts cli/commands/card/add.ts test/commands-card-git-
 git commit -m "[fix:install] translate git errors to actionable messages"
 ```
 
+### Task 8.5: Document the `drwn-card` GitHub topic convention (R8)
+
+**Files:**
+- Modify: the operator-guide section of the docs (typically `docs-docusaurus/docs/concepts/cards.md` or equivalent per task 27 layout)
+
+Add a "Conventions" sub-section to the cards concept page:
+
+```markdown
+### GitHub topic convention
+
+Card source repos hosted on GitHub should use the `drwn-card` topic. This enables:
+
+- Discovery via [github.com/topics/drwn-card](https://github.com/topics/drwn-card)
+- Future aggregator tools that index card sources
+- A community signal that the repo follows the drwn card format
+
+To add the topic to a repo:
+
+```bash
+gh repo edit owner/repo --add-topic drwn-card
+```
+```
+
+### Task 8.6: Lock the six-term public vocabulary (R11)
+
+**Files:**
+- Modify: the operator-guide introduction in the docs site (per task 27)
+
+Add to the docs site's introduction/overview:
+
+```markdown
+### Six terms to learn
+
+The drwn CLI is organized around six public-facing concepts. The internal implementation has more nuance, but most users only need to know these:
+
+| Term | What it means |
+|---|---|
+| **Card** | A reusable, versioned bundle of harness intent (skills, MCP servers, extensions). Created by authors; consumed by projects. |
+| **Store** | Your local cache of cards on this machine. Lives in `~/.agents/drwn/`. |
+| **Catalog** | A Git repo listing cards in a scope; used for discovery. Optional. |
+| **Project** | A working directory that uses drwn. Has its own `cards[]` and overlay. |
+| **Apply** | The materialization verb. Writes your effective harness state into Claude, Codex, and Cursor config dirs. |
+| **Install** | Bootstrap a project on a fresh machine. Fetches missing cards from the lockfile, then applies. |
+
+Deeper terms (manifest, lockfile, source, preset, profile, write-record) appear in advanced docs.
+```
+
+### Task 8.7: Commit docs work
+
+```bash
+bun test test/docs-readiness.test.ts
+git add docs-docusaurus/docs/
+git commit -m "[doc:concepts] document drwn-card topic and six-term vocabulary"
+```
+
 ---
 
 ## Phase 9: Final Verification
@@ -1873,11 +2030,12 @@ EOF
 - [ ] Phase 1: cache path helpers added.
 - [ ] Phase 2: lockfile v2 schema + read-compat shipped.
 - [ ] Phase 3: `card-git.ts` plumbing wrapper shipped.
-- [ ] Phase 4: `parseCardRef` extended for `git+url#ref`.
+- [ ] Phase 4: `parseCardRef` extended for `git+url#ref`, `github:` and `gitlab:` shorthand (R1).
 - [ ] Phase 5: `resolveFromGit` shipped.
 - [ ] Phase 6: `drwn install` command shipped.
-- [ ] Phase 7: `drwn status` shows `origin: git`.
+- [ ] Phase 7: `drwn status` shows `origin: git`; JSON output completeness audit done (long-term CLI-as-kernel).
 - [ ] Phase 8: friendly error paths.
+- [ ] Phase 8.5: `drwn-card` GitHub topic documented (R8); six-term vocabulary lock published (R11).
 - [ ] Phase 9: full verification green.
 - [ ] `bun test` passes.
 - [ ] `bun run typecheck` passes.

@@ -1,5 +1,7 @@
 # drwn Target Architecture — After Phase 1 (Git URL Refs)
 
+> **⚠ SUPERSEDED on 2026-06-01** by **[analysis 52](52_drwn-target-architecture-post-wave-1.md)**, which collapses Phase 1 and Phase 2 into a single "Wave 1" target. The `~/.agents/drwn/cache/` archive layer described here is never built in the collapsed plan. This doc remains as historical record of the three-phase rollout that was considered. See analysis 52 §15 for the rationale.
+
 **Date**: 2026-06-01
 **Author**: Claude + Remy
 **Status**: Draft

@@ -1,15 +1,34 @@
 # Task 30: drwn Git Distribution Phase 2 — Implementation Plan
 
+> **⚠ SUPERSEDED on 2026-06-01.** This plan is preserved as historical record of the three-phase rollout that was considered (and amended in v2). The canonical Wave 1 plan is **[task 33](33_drwn-git-distribution-wave-1-implementation-plan.md)**, which absorbs this plan's full scope plus Phase 1's bare-repo-relevant work into a single PR. See analysis 52 §15 for the rationale.
+>
+> **Do not execute this plan.** Use task 33 instead. Task 33 includes everything here plus the Phase 1 foundation work (lockfile v2, parseCardRef extension, install command) that Phase 2 originally assumed was already in place.
+
 > **For Claude/Codex:** REQUIRED SUB-SKILL: Use `superpowers:executing-plans` to implement this plan task-by-task. Use `superpowers:test-driven-development` for code-touching tasks where tests are the spec. Do not commit unless explicitly instructed.
 
-**Status**: Ready For T1 Start After Phase 1 Merges
+**Status**: Ready For T1 Start After Phase 1 Merges (revised 2026-06-01 — see Revision History)
 **Created**: 2026-06-01
 **Updated**: 2026-06-01
 **Assigned**: Unassigned
 **Priority**: High
-**Estimated Effort**: 1 PR (8–14 sessions; the largest of the three Git phases)
-**Dependencies**: Task 29 (Phase 1) merged, task 28 (rebrand) merged, analyses 42 v2, 44, 46, 48
-**References**: [analyses/48_drwn-target-architecture-after-phase-2.md, analyses/47_drwn-target-architecture-after-phase-1.md, analyses/46_drwn-card-team-sharing-flow.md, analyses/44_drwn-git-storage-backend-options.md, tasks/29_drwn-git-distribution-phase-1-implementation-plan.md, cli/core/card-store.ts, cli/core/card-lock.ts]
+**Estimated Effort**: 1 PR + 1 companion PR (10–17 sessions; revised from 8–14 to absorb R2/R3/R4/R5/R10 amendments)
+**Dependencies**: Task 29 (Phase 1) merged, task 28 (rebrand) merged, analyses 42 v2, 44, 46, 48, 51
+**References**: [analyses/48_drwn-target-architecture-after-phase-2.md, analyses/51_drwn-vs-claude-code-plugin-marketplace-comparative-analysis.md, analyses/47_drwn-target-architecture-after-phase-1.md, analyses/46_drwn-card-team-sharing-flow.md, analyses/44_drwn-git-storage-backend-options.md, tasks/29_drwn-git-distribution-phase-1-implementation-plan.md, cli/core/card-store.ts, cli/core/card-lock.ts]
+
+---
+
+## Revision History
+
+**v2 (2026-06-01)** — Amendments from analysis 51 (Claude Code marketplace comparison):
+
+- **R2 added to Sub-Phase A:** support `git+url@^semver-range` resolution (in addition to existing `git+url#ref`). When a semver range is provided against a Git URL, drwn lists tags via the bare repo, picks highest matching. Cheap in Phase 2 because tags are locally available after first fetch.
+- **R3 added to Sub-Phase D:** establish a pre-configured default community catalog under `darwinian-harness/cards-catalog` (or operator-preferred org). Auto-registered on `drwn init`. Empty initially; populated as community cards emerge.
+- **R5 added to Sub-Phase E:** new `drwn card validate <git-url-ref>` consumer-side validation. Resolves a remote URL, runs `drwn card source doctor`-equivalent checks against the resolved tree without installing into the project.
+- **R10 added to Sub-Phase F:** `DRWN_STORE_READONLY` env var refuses store mutations; `drwn store export <output-dir>` packages a portable snapshot for CI/container use.
+- **New Sub-Phase H (External Integrations):** R4 — reusable validation GitHub Action at `darwinian-harness/validate-card-action`. Lives in a separate repo; landed as a companion PR alongside the main Phase 2 PR.
+- **Long-term CLI-as-kernel architecture noted:** the desktop app planned for post-Phase-3 (Electron) reads filesystem state and shells CLI commands. Phase 2 work should preserve atomic writes (already done), maintain stable JSON output across all status/list/show commands, and avoid Clipanion-specific dependencies in `cli/core/*` modules (so the core can be imported as a library later).
+
+These amendments do not change the core architecture of Phase 2; they are additive.
 
 ---
 
@@ -92,6 +111,32 @@ Phase 1's `~/.agents/drwn/cache/` (Git URL archive cache) is **preserved** in Ph
 - [ ] `drwn library remove catalog <scope-or-url>` unregisters a catalog.
 - [ ] `drwn search card --scope @team` returns cards from registered catalogs matching the scope.
 - [ ] `drwn search card <name>` searches across all catalogs by name.
+- [ ] **Default community catalog (R3)** at `darwinian-harness/cards-catalog` (or chosen org) is pre-registered on `drwn init`. Users can opt out via `drwn library remove catalog`.
+
+### Resolver — semver ranges over Git URLs (R2)
+
+- [ ] `drwn add git+https://github.com/owner/repo.git@^1.0.0` resolves the highest semver-matching tag from the remote.
+- [ ] `drwn add github:owner/repo@^1.0.0` works as shorthand (composes with R1 from Phase 1).
+- [ ] Lockfile records the resolved tag + commit SHA.
+- [ ] `drwn update` re-resolves semver-range Git URLs against the latest tags (after `drwn card fetch`).
+
+### Consumer-side validation (R5)
+
+- [ ] `drwn card validate <git-url-ref>` resolves the URL, runs validation against the resolved content, reports.
+- [ ] No project mutation; pure inspection.
+
+### Read-only / portable store (R10)
+
+- [ ] When `DRWN_STORE_READONLY=1` is set, any drwn command that would mutate `~/.agents/drwn/` errors out cleanly.
+- [ ] `drwn store export <output-dir>` produces a portable snapshot of cards + extracted content suitable for mounting read-only in CI/containers.
+- [ ] Imported (mounted) read-only store works for `drwn apply` end-to-end.
+
+### Validation GitHub Action (R4, companion PR)
+
+- [ ] `darwinian-harness/validate-card-action` repo exists with a published v1.
+- [ ] Single-line usage: `uses: darwinian-harness/validate-card-action@v1`.
+- [ ] Action runs `drwn card source doctor` on the workflow's checkout and reports as a GitHub check.
+- [ ] Action is documented in the operator guide.
 
 ### History affordances
 
@@ -361,6 +406,117 @@ bun run typecheck
 
 git add cli/core/git.ts cli/core/store-paths.ts test/core-git.test.ts
 git commit -m "[feat:git] expand git plumbing wrapper; add bare-repo + catalog paths"
+```
+
+### Task 4.5: Add semver-range resolution over Git URLs (R2)
+
+**Files:**
+- Modify: `cli/core/git.ts`
+- Modify: `cli/core/card-store.ts`
+- Create or modify: `test/core-git-semver-range.test.ts`
+
+Extend `parseCardRef` to recognize the `@^<range>` form when the prefix is `git+` / `github:` / `gitlab:`. When the suffix after the URL matches `@<semver-range>` (and not a bare ref like `v1.0.0`), use range resolution. The parser distinguishes:
+
+- `git+url#v1.0.0` → explicit ref
+- `git+url@^1.0.0` → semver range; resolve against tags
+- `git+url@1.0.0` → exact semver (a range too, but a single point)
+
+Add to `cli/core/git.ts`:
+
+```typescript
+/**
+ * Resolve a semver range against the tags of a Git remote.
+ * Used when the user specifies `git+url@^1.0.0` instead of `git+url#v1.0.0`.
+ */
+export async function resolveSemverRangeAgainstGitTags(
+  agentsDir: string,
+  url: string,
+  range: string,
+): Promise<{ tag: string; commit: string }> {
+  // 1. Get all tags from the remote (cached by ref-cache; full list lives in bare repo if already cloned)
+  const tags = await listRemoteTags(url, agentsDir);
+
+  // 2. Strip 'v' prefix, filter to valid semver, intersect with range
+  const candidates = tags
+    .map(t => ({ tag: t.tag, commit: t.commit, version: t.tag.replace(/^v/, "") }))
+    .filter(c => semver.valid(c.version) && semver.satisfies(c.version, range));
+
+  if (candidates.length === 0) {
+    throw new GitError(`no tags in ${url} match range ${range}; available: ${tags.map(t => t.tag).join(", ")}`);
+  }
+
+  // 3. Pick highest matching (semver.rcompare)
+  candidates.sort((a, b) => semver.rcompare(a.version, b.version));
+  return { tag: candidates[0].tag, commit: candidates[0].commit };
+}
+
+async function listRemoteTags(url: string, agentsDir: string): Promise<Array<{ tag: string; commit: string }>> {
+  // git ls-remote --tags <url>
+  // Returns lines like "<sha>\trefs/tags/<tag>"
+  // ...
+}
+```
+
+Add to `cli/core/card-store.ts` (resolver dispatch):
+
+```typescript
+async function resolveFromGit(
+  agentsDir: string,
+  parsed: ParsedCardRef,
+): Promise<ResolvedCard> {
+  const { gitUrl, gitRef } = parsed;
+  if (!gitUrl) throw new Error("internal: missing gitUrl");
+
+  let commit: string;
+  let ref: string;
+
+  if (parsed.gitRange) {
+    // Semver range resolution (R2)
+    const resolved = await resolveSemverRangeAgainstGitTags(agentsDir, gitUrl, parsed.gitRange);
+    commit = resolved.commit;
+    ref = resolved.tag;
+  } else if (gitRef) {
+    // Explicit ref resolution (Phase 1 path)
+    commit = await resolveGitRefToCommit(agentsDir, gitUrl, gitRef);
+    ref = gitRef;
+  } else {
+    throw new Error("internal: parseGitRef returned without gitRef or gitRange");
+  }
+
+  // ... rest of Phase 1 / Phase 2 resolver logic ...
+}
+```
+
+Test the new resolution path:
+
+```typescript
+test("git+url@^1.0.0 resolves to highest matching tag", async () => {
+  const repo = await createLocalCardRepoWithVersions({
+    name: "@test/sample",
+    versions: ["1.0.0", "1.1.0", "1.2.0", "2.0.0"],
+  });
+
+  const fixture = await scaffoldCliFixture();
+  await fixture.runCli(["add", `git+${repo.url}@^1.0.0`]);
+
+  const lock = JSON.parse(await readFile(/* ... */));
+  expect(lock.cards[0].version).toBe("1.2.0"); // highest matching ^1.0.0
+});
+
+test("git+url@^1.0.0 rejects when no tag matches", async () => {
+  const repo = await createLocalCardRepoWithVersions({ name: "@x/y", versions: ["2.0.0"] });
+  const fixture = await scaffoldCliFixture();
+  const result = await fixture.runCli(["add", `git+${repo.url}@^1.0.0`]);
+  expect(result.exitCode).not.toBe(0);
+  expect(result.stderr).toMatch(/no tags.*match range/i);
+});
+```
+
+Commit:
+
+```bash
+git add cli/core/git.ts cli/core/card-store.ts test/core-git-semver-range.test.ts
+git commit -m "[feat:resolver] support semver range over git URLs (R2 from analysis 51)"
 ```
 
 ---
@@ -1017,11 +1173,71 @@ export class SearchCardCommand extends Command {
 
 Test in `test/commands-search-card.test.ts`.
 
+### Task 19.5: Pre-register the default community catalog (R3)
+
+**Files:**
+- Modify: `cli/commands/init.ts` (or wherever first-run config is bootstrapped)
+- Modify: `cli/core/card-catalog.ts`
+- Modify: `cli/core/defaults.ts` or similar (the place to keep the default catalog URL constant)
+
+Add a baked-in constant:
+
+```typescript
+// cli/core/defaults.ts
+export const DEFAULT_COMMUNITY_CATALOGS: string[] = [
+  "https://github.com/darwinian-harness/cards-catalog.git",
+];
+```
+
+On first `drwn init` (or first time the catalog index is created), seed it with the default catalogs:
+
+```typescript
+async function initCatalogIndexIfMissing(agentsDir: string): Promise<void> {
+  const indexPath = resolveCatalogsIndexPath(agentsDir);
+  if (existsSync(indexPath)) return;
+
+  // Seed with defaults
+  for (const url of DEFAULT_COMMUNITY_CATALOGS) {
+    try {
+      await addCatalog(agentsDir, url);
+    } catch (e) {
+      // Default catalog unreachable; log but don't fail init
+      console.warn(`Could not register default catalog ${url}: ${(e as Error).message}`);
+    }
+  }
+}
+```
+
+Add an opt-out flag to `drwn init`:
+
+```text
+drwn init [--no-default-catalogs]
+```
+
+When set, skip the seeding step.
+
+Test:
+
+```typescript
+test("drwn init seeds the default community catalog", async () => {
+  // ... requires the default catalog to exist or be mocked ...
+});
+
+test("drwn init --no-default-catalogs skips seeding", async () => {
+  const fixture = await scaffoldCliFixture();
+  await fixture.runCli(["init", "--no-default-catalogs"]);
+  const index = await loadCatalogIndex(fixture.agentsDir);
+  expect(index.catalogs).toHaveLength(0);
+});
+```
+
+**Operator action (separate from code):** create the GitHub org `darwinian-harness` and the `cards-catalog` repo with an initial `catalog.json` (can be empty: `{ "catalogVersion": 1, "scope": "@community", "cards": [] }`).
+
 ### Task 20: Commit discovery block
 
 ```bash
-git add cli/core/card-catalog.ts cli/commands/library/catalog/ cli/commands/search/card.ts cli/index.ts test/commands-library-catalog.test.ts test/commands-search-card.test.ts
-git commit -m "[feat:catalog] add catalog support and drwn search card"
+git add cli/core/card-catalog.ts cli/commands/library/catalog/ cli/commands/search/card.ts cli/commands/init.ts cli/core/defaults.ts cli/index.ts test/commands-library-catalog.test.ts test/commands-search-card.test.ts
+git commit -m "[feat:catalog] add catalog support, drwn search card, and default community catalog (R3)"
 ```
 
 ---
@@ -1099,11 +1315,102 @@ test("drwn card diff produces a real Git diff", async () => {
 });
 ```
 
+### Task 23.5: Consumer-side `drwn card validate <ref>` (R5)
+
+**Files:**
+- Create: `cli/commands/card/validate.ts`
+- Modify: `cli/index.ts`
+
+```typescript
+// cli/commands/card/validate.ts
+
+export class CardValidateCommand extends Command {
+  static paths = [["card", "validate"]];
+
+  static usage = Command.Usage({
+    description: "Validate a card without installing it. Useful for evaluating a card before adoption.",
+    examples: [
+      ["Validate a card by Git URL", "drwn card validate git+https://github.com/owner/repo.git#v1.0.0"],
+      ["Validate a local-store card", "drwn card validate @team/baseline@1.0.0"],
+    ],
+  });
+
+  ref = Option.String();
+  json = Option.Boolean("--json", false);
+
+  async execute(): Promise<number> {
+    const ctx = await getContext();
+
+    let resolved: ResolvedCard;
+    try {
+      // Use the same resolver as `drwn add`, but in a "preview" mode that
+      // doesn't write to project config or lockfile.
+      resolved = await resolveCard(ctx.agentsDir, this.ref);
+    } catch (e) {
+      this.context.stderr.write(`Could not resolve ${this.ref}: ${(e as Error).message}\n`);
+      return 1;
+    }
+
+    // Run the same validation drwn card source doctor uses
+    const issues = await validateExtractedCard(resolved.path);
+
+    if (this.json) {
+      this.context.stdout.write(JSON.stringify({
+        ref: this.ref,
+        name: resolved.name,
+        version: resolved.version,
+        origin: resolved.origin,
+        integrity: resolved.integrity,
+        ok: issues.length === 0,
+        issues,
+      }, null, 2));
+    } else {
+      this.context.stdout.write(`Card: ${resolved.name}@${resolved.version} (${resolved.origin})\n`);
+      this.context.stdout.write(`Integrity: ${resolved.integrity}\n`);
+      if (issues.length === 0) {
+        this.context.stdout.write(`Validation: ✓ no issues\n`);
+      } else {
+        this.context.stdout.write(`Validation: ${issues.length} issue(s)\n`);
+        for (const issue of issues) {
+          this.context.stdout.write(`  - ${issue}\n`);
+        }
+      }
+    }
+
+    return issues.length === 0 ? 0 : 1;
+  }
+}
+```
+
+Where `validateExtractedCard(path)` is the shared validation logic factored out of `drwn card source doctor` (per task 41). Both commands call the same function.
+
+Test:
+
+```typescript
+// test/commands-card-validate.test.ts
+
+test("validates a healthy card via git URL", async () => {
+  const repo = await createLocalCardRepo({ name: "@test/sample", version: "1.0.0", skills: ["alpha"] });
+  const fixture = await scaffoldCliFixture();
+  const result = await fixture.runCli(["card", "validate", `git+${repo.url}#v1.0.0`]);
+  expect(result.exitCode).toBe(0);
+  expect(result.stdout).toMatch(/no issues/);
+});
+
+test("reports issues for a malformed card", async () => {
+  // Create a repo with a skill referenced in card.json but missing on disk
+  // ...
+  const result = await fixture.runCli(["card", "validate", `git+${repo.url}#v1.0.0`]);
+  expect(result.exitCode).not.toBe(0);
+  expect(result.stdout).toMatch(/issue/);
+});
+```
+
 ### Task 24: Commit history block
 
 ```bash
-git add cli/commands/card/show.ts cli/commands/card/diff.ts test/commands-card-*.test.ts
-git commit -m "[feat:history] surface Git history in card show and diff"
+git add cli/commands/card/show.ts cli/commands/card/diff.ts cli/commands/card/validate.ts cli/index.ts test/commands-card-*.test.ts
+git commit -m "[feat:history] surface Git history in card show and diff; add card validate (R5)"
 ```
 
 ---
@@ -1191,12 +1498,257 @@ Add the `--fetch` flag. When set, run `git fetch` against each card's `origin` r
 **Files:**
 - Create: `test/commands-store-gc.test.ts`, `test/commands-store-verify.test.ts`, `test/commands-outdated-fetch.test.ts`
 
+### Task 28.5: `DRWN_STORE_READONLY` env var + `drwn store export` (R10)
+
+**Files:**
+- Modify: `cli/context.ts` (or wherever the agentsDir is resolved)
+- Create: `cli/commands/store/export.ts`
+- Modify: `cli/core/store-paths.ts` (small helper for write guard)
+
+Add a guard helper:
+
+```typescript
+// cli/core/store-paths.ts (addition)
+
+export function assertStoreWritable(): void {
+  if (process.env.DRWN_STORE_READONLY === "1") {
+    throw new Error(
+      "DRWN_STORE_READONLY is set; refusing any operation that would mutate the local store.",
+    );
+  }
+}
+```
+
+Wire the guard into every store-mutating helper: `publishCard`, `cloneBare`, `fetch`, `push`, `extractTreeToDir` (target side), `addCatalog`, `gc`, `migrate-to-git`. Each calls `assertStoreWritable()` at the start.
+
+```typescript
+// cli/commands/store/export.ts
+
+export class StoreExportCommand extends Command {
+  static paths = [["store", "export"]];
+
+  static usage = Command.Usage({
+    description: "Export a portable snapshot of the local store for CI/container use.",
+    examples: [
+      ["Export to a directory", "drwn store export /tmp/drwn-snapshot"],
+      ["Export only specific cards", "drwn store export /tmp/drwn-snapshot --cards @team/baseline,@team/observability"],
+    ],
+  });
+
+  outputDir = Option.String();
+  cards = Option.Array("--cards");
+  json = Option.Boolean("--json", false);
+
+  async execute(): Promise<number> {
+    const ctx = await getContext();
+
+    if (existsSync(this.outputDir)) {
+      this.context.stderr.write(`Output directory already exists: ${this.outputDir}\n`);
+      return 1;
+    }
+
+    await mkdir(this.outputDir, { recursive: true });
+
+    // Determine which cards to include
+    const cardsToExport = this.cards ?? (await listAllCardsInStore(ctx.agentsDir));
+
+    const exportedTreeShas = new Set<string>();
+
+    for (const cardName of cardsToExport) {
+      // Copy the bare repo
+      const srcBare = resolveCardBareRepoPath(ctx.agentsDir, cardName);
+      const dstBare = join(this.outputDir, "cards", cardNameToPath(cardName) + ".git");
+      await cp(srcBare, dstBare, { recursive: true });
+
+      // Find which tree SHAs are referenced by tags in this bare repo
+      const tags = await git.listTags(srcBare);
+      for (const tag of tags) {
+        const commit = await git.revParse(srcBare, tag);
+        const tree = await git.getCommitTree(srcBare, commit);
+        exportedTreeShas.add(tree);
+      }
+    }
+
+    // Copy referenced extractions
+    for (const tree of exportedTreeShas) {
+      const src = resolveExtractedPath(ctx.agentsDir, tree);
+      const dst = join(this.outputDir, "extracted", tree);
+      if (existsSync(src)) await cp(src, dst, { recursive: true });
+    }
+
+    // Copy MCP defs, library skills, and machine config (the user can edit before deploying)
+    // ... copy mcp-servers/, skills/, machine.json ...
+
+    if (this.json) {
+      this.context.stdout.write(JSON.stringify({
+        outputDir: this.outputDir,
+        cards: cardsToExport,
+        extractedTreeCount: exportedTreeShas.size,
+      }, null, 2));
+    } else {
+      this.context.stdout.write(`Exported ${cardsToExport.length} card(s) to ${this.outputDir}\n`);
+      this.context.stdout.write(`Mount this directory read-only at ~/.agents/drwn/ in CI/containers.\n`);
+      this.context.stdout.write(`Set DRWN_STORE_READONLY=1 to enforce read-only behavior.\n`);
+    }
+
+    return 0;
+  }
+}
+```
+
+Test:
+
+```typescript
+// test/commands-store-export.test.ts
+
+test("export produces a portable snapshot that works read-only", async () => {
+  // 1. Set up a fixture with a published card
+  // 2. Export to a temp dir
+  // 3. Set up a second fixture with HOME pointing at the exported dir + DRWN_STORE_READONLY=1
+  // 4. Verify drwn apply works
+  // 5. Verify drwn add (mutation) errors out
+});
+
+test("DRWN_STORE_READONLY refuses mutations", async () => {
+  const fixture = await scaffoldCliFixture();
+  // ... write some state ...
+  process.env.DRWN_STORE_READONLY = "1";
+  try {
+    const result = await fixture.runCli(["card", "publish", "@me/foo"]);
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toMatch(/DRWN_STORE_READONLY/);
+  } finally {
+    delete process.env.DRWN_STORE_READONLY;
+  }
+});
+```
+
 ### Task 29: Commit maintenance block
 
 ```bash
-git add cli/commands/store/gc.ts cli/commands/store/verify.ts cli/commands/outdated.ts cli/index.ts test/commands-store-*.test.ts test/commands-outdated-fetch.test.ts
-git commit -m "[feat:maint] add store gc, verify, and outdated --fetch"
+git add cli/commands/store/gc.ts cli/commands/store/verify.ts cli/commands/store/export.ts cli/commands/outdated.ts cli/context.ts cli/core/store-paths.ts cli/index.ts test/commands-store-*.test.ts test/commands-outdated-fetch.test.ts
+git commit -m "[feat:maint] add store gc, verify, outdated --fetch, read-only + export (R10)"
 ```
+
+---
+
+## Sub-Phase H: External Integrations (Companion PR)
+
+> **Note:** Sub-Phase H ships as a **companion PR in a separate repo** (`darwinian-harness/validate-card-action`), not in the main drwn repo's Phase 2 PR. It can land before, alongside, or shortly after the main Phase 2 PR. Listed here for completeness; the main Phase 2 PR's checklist references its existence.
+
+### Task 29.1: Create the validation GitHub Action repo (R4)
+
+**Repo:** `github.com/darwinian-harness/validate-card-action`
+
+**Layout:**
+
+```text
+validate-card-action/
+├── action.yml                  # composite action definition
+├── README.md                   # usage docs
+├── LICENSE
+└── examples/
+    └── card-source-ci.yml      # example consumer workflow
+```
+
+`action.yml`:
+
+```yaml
+name: 'Validate drwn Card Source'
+description: 'Runs `drwn card source doctor` on a card source repo to validate manifest, skills, and MCP definitions.'
+author: 'Darwinian Harness'
+
+inputs:
+  card-source-path:
+    description: 'Path to the card source directory (default: repo root)'
+    required: false
+    default: '.'
+  drwn-version:
+    description: 'drwn version to install (default: latest)'
+    required: false
+    default: 'latest'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v1
+      with:
+        bun-version: latest
+
+    - name: Install drwn
+      shell: bash
+      run: |
+        if [ "${{ inputs.drwn-version }}" = "latest" ]; then
+          npm install -g darwinian-harness
+        else
+          npm install -g darwinian-harness@${{ inputs.drwn-version }}
+        fi
+
+    - name: Validate card source
+      shell: bash
+      working-directory: ${{ inputs.card-source-path }}
+      run: drwn card source doctor .
+```
+
+### Task 29.2: Write usage documentation
+
+`README.md` for the action:
+
+```markdown
+# Validate drwn Card Source
+
+A reusable GitHub Action that validates a [drwn](https://github.com/remyjkim/darwinian-harness) card source on every PR.
+
+## Usage
+
+In your card source repo's `.github/workflows/validate.yml`:
+
+```yaml
+name: Validate Card
+on: [push, pull_request]
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: darwinian-harness/validate-card-action@v1
+```
+
+That's it. The action will run `drwn card source doctor` on every push and PR, and surface the result as a check.
+
+## Inputs
+
+| Input | Description | Default |
+|---|---|---|
+| `card-source-path` | Path to the card source within the repo | `.` |
+| `drwn-version` | drwn version to install | `latest` |
+
+## Example: validate a card in a subdirectory
+
+```yaml
+- uses: darwinian-harness/validate-card-action@v1
+  with:
+    card-source-path: cards/baseline
+```
+```
+
+### Task 29.3: Tag and publish v1
+
+```bash
+cd validate-card-action/
+git tag v1.0.0 -a -m "Initial release"
+git tag v1   # mutable major tag that auto-tracks the latest v1.x
+git push origin main --tags
+```
+
+### Task 29.4: Use in drwn's own example card repos
+
+Any example card source repos shipped by the drwn project should consume this action. This serves as both validation and dogfooding documentation.
+
+### Task 29.5: Document in the operator guide
+
+Add a "Publishing a card" section to the operator guide that recommends adopting the action.
 
 ---
 
@@ -1311,15 +1863,17 @@ gh pr create --title "[feat:git] Phase 2 — per-card bare repos + team sharing"
 
 - [ ] Branch created.
 - [ ] Sub-phase A: foundation (plumbing wrapper + paths) shipped.
+- [ ] Sub-phase A: semver range over Git URLs shipped (R2).
 - [ ] Sub-phase B: migration + publish rewrite shipped.
 - [ ] Sub-phase C: remote/push/fetch/clone shipped.
-- [ ] Sub-phase D: catalogs shipped.
-- [ ] Sub-phase E: history affordances shipped.
-- [ ] Sub-phase F: maintenance commands shipped.
+- [ ] Sub-phase D: catalogs + default community catalog pre-registration shipped (R3).
+- [ ] Sub-phase E: history affordances + `drwn card validate <ref>` shipped (R5).
+- [ ] Sub-phase F: maintenance commands + `DRWN_STORE_READONLY` + `drwn store export` shipped (R10).
+- [ ] Sub-phase H (companion PR): `darwinian-harness/validate-card-action` repo published with v1 (R4).
 - [ ] Sub-phase G: full verification green.
 - [ ] All gates pass.
 - [ ] Smoke tests pass manually.
-- [ ] PR opened.
+- [ ] Both PRs (main + companion) opened.
 
 ---
 

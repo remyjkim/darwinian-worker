@@ -1,5 +1,13 @@
 # drwn Target Architecture — After Phase 3 (Unified Git Backend)
 
+> **⚠ PARTIALLY SUPERSEDED on 2026-06-01** by **[analysis 52](52_drwn-target-architecture-post-wave-1.md)**. With Phases 1 and 2 collapsed into Wave 1 (which goes directly to bare repos with no `cache/` layer), the migration-of-Phase-1-cache portion of this doc no longer applies. What remains relevant for the future **Wave 2** scope:
+>
+> - `drwn card new --from-project` capture flow (R6)
+> - Manifest schema v2 quality-signal fields (R12)
+> - Persistent URL→name mapping cache (`url-card-map.json`)
+>
+> Treat this doc as the Wave 2 spec going forward; ignore the cache-migration sections. See analysis 52 §16 for the Wave 2 surface and §15 for the phase collapse rationale.
+
 **Date**: 2026-06-01
 **Author**: Claude + Remy
 **Status**: Draft
