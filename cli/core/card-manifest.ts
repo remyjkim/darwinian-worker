@@ -16,6 +16,9 @@ export interface CardManifest {
   servers?: Record<string, ServerOverride>;
   extensions?: Record<string, ProjectExtensionConfig>;
   targets?: Partial<Record<TargetName, { enabled: boolean }>>;
+  stability?: "experimental" | "stable" | "production";
+  lastValidatedWith?: string;
+  testStatusBadge?: string;
 }
 
 export interface CardManifestValidationResult {
@@ -33,6 +36,15 @@ export function isCardUnscopedName(name: string) {
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isHttpUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 export function validateCardManifest(input: unknown): CardManifestValidationResult {
@@ -53,6 +65,22 @@ export function validateCardManifest(input: unknown): CardManifestValidationResu
   }
   if (manifest.harness?.minVersion && !isStrictSemver(manifest.harness.minVersion)) {
     errors.push("harness.minVersion must be strict semver");
+  }
+  if (
+    manifest.stability !== undefined &&
+    (typeof manifest.stability !== "string" || !["experimental", "stable", "production"].includes(manifest.stability))
+  ) {
+    errors.push("stability must be experimental, stable, or production");
+  }
+  if (manifest.lastValidatedWith !== undefined) {
+    if (typeof manifest.lastValidatedWith !== "string" || !isStrictSemver(manifest.lastValidatedWith)) {
+      errors.push("lastValidatedWith must be strict semver");
+    }
+  }
+  if (manifest.testStatusBadge !== undefined) {
+    if (typeof manifest.testStatusBadge !== "string" || !isHttpUrl(manifest.testStatusBadge)) {
+      errors.push("testStatusBadge must be an http(s) URL");
+    }
   }
   if (manifest.skills?.exclude) {
     errors.push("skills.exclude is not allowed in card manifests");

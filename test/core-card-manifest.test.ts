@@ -41,3 +41,30 @@ test("validateCardManifest accepts skills.shared if absent or empty array", () =
   expect(validateCardManifest({ name: "@me/x", version: "1.0.0", skills: { include: ["a"] } }).ok).toBe(true);
   expect(validateCardManifest({ name: "@me/x", version: "1.0.0", skills: { include: ["a"], shared: [] } }).ok).toBe(true);
 });
+
+test("validateCardManifest accepts optional quality fields", () => {
+  expect(
+    validateCardManifest({
+      name: "@me/x",
+      version: "1.0.0",
+      stability: "production",
+      lastValidatedWith: "0.1.0",
+      testStatusBadge: "https://example.com/status.svg",
+    }),
+  ).toEqual({ ok: true, errors: [] });
+});
+
+test("validateCardManifest rejects invalid quality fields", () => {
+  const result = validateCardManifest({
+    name: "@me/x",
+    version: "1.0.0",
+    stability: "almost-ready",
+    lastValidatedWith: "current",
+    testStatusBadge: "file:///tmp/status.svg",
+  });
+
+  expect(result.ok).toBe(false);
+  expect(result.errors).toContain("stability must be experimental, stable, or production");
+  expect(result.errors).toContain("lastValidatedWith must be strict semver");
+  expect(result.errors).toContain("testStatusBadge must be an http(s) URL");
+});
