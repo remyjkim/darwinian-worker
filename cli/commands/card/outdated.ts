@@ -2,8 +2,12 @@
 // ABOUTME: Provides a --check mode suitable for CI gates.
 
 import { Option } from "clipanion";
+import { loadCardLock } from "../../core/card-lock";
 import { findOutdatedProjectCards } from "../../core/card-project";
+import { pMap, resolveFetchConcurrency } from "../../core/concurrency";
+import * as git from "../../core/git";
 import { renderJson, renderTable } from "../../core/output";
+import { resolveCardBareRepoPath } from "../../core/store-paths";
 import { BaseCommand } from "../base";
 import { requireProjectRoot } from "./project-command";
 
@@ -27,12 +31,28 @@ export class CardOutdatedCommand extends BaseCommand {
     description: "Exit non-zero when any project card is outdated.",
   });
 
+  fetch = Option.Boolean("--fetch", false, {
+    description: "Fetch Git-origin card remotes before checking.",
+  });
+
   json = Option.Boolean("--json", false, {
     description: "Emit machine-readable JSON output.",
   });
 
   async execute() {
-    const outdated = await findOutdatedProjectCards(requireProjectRoot(this), this.context.agentsDir);
+    const projectRoot = requireProjectRoot(this);
+    if (this.fetch) {
+      const lock = await loadCardLock(projectRoot);
+      const fetchable = (lock?.cards ?? []).filter((entry) => Boolean(entry.git?.url));
+      await pMap(fetchable, resolveFetchConcurrency(), async (entry) => {
+        await git.fetch(
+          resolveCardBareRepoPath(this.context.agentsDir, entry.name),
+          "origin",
+          ["refs/heads/*:refs/heads/*", "refs/tags/*:refs/tags/*"],
+        );
+      });
+    }
+    const outdated = await findOutdatedProjectCards(projectRoot, this.context.agentsDir);
     if (this.json) {
       this.context.stdout.write(renderJson({ outdated }));
     } else if (outdated.length === 0) {

@@ -3,8 +3,8 @@
 
 import { describe, expect, test } from "bun:test";
 
-async function helpFor(args: string[]) {
-  const proc = Bun.spawn(["bun", "run", "cli/index.ts", ...args, "--help"], {
+async function helpFor(args: string[], helpFlag = "--help") {
+  const proc = Bun.spawn(["bun", "run", "cli/index.ts", ...args, helpFlag], {
     stdout: "pipe",
     stderr: "pipe",
     env: { ...process.env, NO_COLOR: "1" },
@@ -13,6 +13,27 @@ async function helpFor(args: string[]) {
   const stderr = await new Response(proc.stderr).text();
   const exitCode = await proc.exited;
   return { stdout, stderr, exitCode };
+}
+
+async function detailedHelpFor(args: string[]) {
+  const result = await helpFor(args);
+  if (!result.stdout.startsWith("Multiple commands match your selection:")) {
+    return result;
+  }
+  const commandPrefix = `drwn ${args.join(" ")}`;
+  const match = result.stdout
+    .split("\n")
+    .map((line) => line.match(/^\s*(\d+)\.\s+(drwn .+)$/))
+    .find((lineMatch) => {
+      const candidate = lineMatch?.[2];
+      return candidate === commandPrefix ||
+        candidate?.startsWith(`${commandPrefix} [`) ||
+        candidate?.startsWith(`${commandPrefix} <`);
+    });
+  if (!match?.[1]) {
+    return result;
+  }
+  return await helpFor(args, `-h=${match[1]}`);
 }
 
 function extractCommandPaths(topLevelHelp: string) {
@@ -53,7 +74,7 @@ describe("drwn command help", () => {
     expect(commands.length).toBeGreaterThan(0);
 
     for (const cmd of commands) {
-      const result = await helpFor(cmd);
+      const result = await detailedHelpFor(cmd);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toMatch(/^Details$/m);
       expect(result.stdout).toMatch(/^Examples$/m);

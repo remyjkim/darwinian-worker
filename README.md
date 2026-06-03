@@ -1,6 +1,8 @@
-# darwinian-harness
+<p align="center">
+  <img src="./docs/assets/darwinian-harness-logo.png" alt="Darwinian Harness" width="120" height="120" />
+</p>
 
-![The Darwinian Harness hero image](./docs/assets/the-darwinian-harness.png)
+# darwinian-harness
 
 `darwinian-harness` is a local meta-harness for AI agent tools: one CLI to organize skills, MCP servers, extensions, defaults, project overlays, downstream tool configs, and diagnostics.
 
@@ -57,7 +59,7 @@ The published package includes built-in harness defaults. By default, global `dr
 Use this mode if you want to edit the registry, maintain your own fork, add built-in skills, or develop the CLI:
 
 ```bash
-git clone https://github.com/remyjkim/beginning-harness.git
+git clone https://github.com/remyjkim/darwinian-harness.git
 cd darwinian-harness
 bun install
 bun run drwn -- status
@@ -198,7 +200,16 @@ General commands:
 Card commands:
 
 - `drwn card new <name> --scope @scope`
+- `drwn card new <name> --from-project [projectPath]`
 - `drwn card publish <name>`
+- `drwn card source list`
+- `drwn card source show <name>`
+- `drwn card source doctor [name]`
+- `drwn card source add-skill <name> <skillName>`
+- `drwn card source remove-skill <name> <skillName>`
+- `drwn card source set <name> [options]`
+- `drwn card source add-mcp <name> <serverName>`
+- `drwn card source remove-mcp <name> <serverName>`
 - `drwn card apply <cardRef> [--write]`
 - `drwn card add <cardRef> [--write]`
 - `drwn card pin <cardRef> [--write]`
@@ -211,6 +222,20 @@ Card commands:
 - `drwn card status [--explain]`
 - `drwn card diff <beforeRef> <afterRef>`
 - `drwn card deprecate <cardRef>`
+- `drwn card validate <cardRef>`
+
+Card source commands operate on editable sources under `~/.agents/drwn/sources/<scope>/<name>/`. Published cards are immutable store releases under `~/.agents/drwn/cards`, and consumed cards are the refs and locks recorded by a project.
+
+Typical source authoring:
+
+```bash
+drwn card new @me/backend --no-git
+drwn card source add-skill @me/backend reviewer
+drwn card source add-mcp @me/backend context7
+drwn card source set @me/backend --description "Backend review harness" --version 0.1.0 --stability stable --last-validated-with 0.1.0 --test-status-badge https://example.com/status.svg
+drwn card source doctor @me/backend
+drwn card publish @me/backend
+```
 
 MCP commands:
 
@@ -250,7 +275,7 @@ drwn skills packages add --help
 The core model has five layers:
 
 - packaged harness defaults: config, built-in skills, and built-in MCP definitions
-- local library: package-backed skills and user MCP definitions under `~/.agents/library`
+- local library: package-backed skills and user MCP definitions under `~/.agents/drwn/skills` and `~/.agents/drwn/mcp-servers`
 - user defaults: machine-wide active state under `~/.agents/drwn/config.json`
 - project overlay: current-project overrides under `<project>/.agents/drwn/config.json`
 - downstream state: Claude, Codex, Cursor, and generated MCP config files
@@ -315,7 +340,7 @@ Missing source roots like `~/.claude/projects/` or `~/.codex/sessions/` are skip
 
 MCP servers are defined in [registry/mcp-servers.json](./registry/mcp-servers.json). Target config and optional toggles live in [registry/config.json](./registry/config.json).
 
-User-registered MCP servers live in `~/.agents/library/mcp-servers.json`. Machine-wide active MCP defaults live in `~/.agents/drwn/config.json` under `defaults.mcpServers`.
+User-registered MCP servers live under `~/.agents/drwn/mcp-servers`. Machine-wide active MCP defaults live in `~/.agents/drwn/machine.json` under `defaults.mcpServers`.
 
 Inspect active MCP state:
 
@@ -389,7 +414,7 @@ drwn write --skills-only
 
 The distinction matters:
 
-- added means the bundle is available under `~/.agents/packages/skills`
+- added means the bundle is available under `~/.agents/drwn/skills`
 - curated means a shared skill is linked into `~/.agents/skills`
 - written means the curated skill is linked into downstream tool directories
 
@@ -743,26 +768,28 @@ Then read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a pull request.
 
 ## Documentation Site
 
-The public documentation site lives in [docs-astro](./docs-astro). It is an Astro app with its own lockfile and scripts:
+The public documentation site lives in [docs-docusaurus](./docs-docusaurus). It is a Docusaurus app with its own lockfile and scripts:
 
 ```bash
-cd docs-astro
+cd docs-docusaurus
 bun install
-bun run dev
+bun run start
 bun run build
-bun run preview
+bun run deploy:pages
 ```
 
-Deployment uses the docs app's Cloudflare Pages script:
+The root package exposes the same active docs workflow:
 
 ```bash
-bun run deploy:pages
+bun run docs:dev
+bun run docs:build
+bun run docs:deploy
 ```
 
 ## Documentation Map
 
 - [CONTRIBUTING.md](./CONTRIBUTING.md): contributor setup, verification, and pull request expectations
-- [docs-astro](./docs-astro): public Astro documentation site source
+- [docs-docusaurus](./docs-docusaurus): public Docusaurus documentation site source
 - [docs/maintainers/README.md](./docs/maintainers/README.md): release and operational documentation for maintainers
 - [.ai/knowledges/01_agents-cli-usage-guide.md](./.ai/knowledges/01_agents-cli-usage-guide.md): detailed operator guide
 - [.ai/knowledges/02_per-project-config-guide.md](./.ai/knowledges/02_per-project-config-guide.md): per-project config reference

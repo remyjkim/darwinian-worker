@@ -46,6 +46,21 @@ test("top-level apply alias works", async () => {
   expect(result.exitCode).toBe(0);
 });
 
+test("top-level add alias adds a card to the current project", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  await publishCard(fixture);
+  const projectDir = join(fixture.root, "project");
+  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
+  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1, cards: [] }, null, 2));
+
+  const result = await runAgentsCli(["add", "@me/backend@^1.0.0"], envFor(fixture), projectDir);
+
+  expect(result.exitCode).toBe(0);
+  expect(JSON.parse(await readFile(join(projectDir, ".agents", "drwn", "config.json"), "utf8")).cards).toEqual(["@me/backend@^1.0.0"]);
+});
+
+
 test("card apply --write chains materialization after preserving mutation", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);

@@ -10,11 +10,11 @@ export class CardPublishCommand extends BaseCommand {
 
   static override usage = BaseCommand.Usage({
     category: "Cards",
-    description: "Publish a card source into the immutable local card store.",
+    description: "Publish a card source into the Git-backed local card store.",
     details: `
-      Validates card.json and package.json when present, then copies the source
-      into ~/.agents/drwn/cards/<name>/<version>. Existing versions are never
-      overwritten.
+      Validates card.json and package.json when present, then commits the source
+      into the card's bare repo under ~/.agents/drwn/cards/ and tags the manifest
+      version. Existing versions are never overwritten.
     `,
     examples: [["Publish a card", "drwn card publish @me/backend"]],
   });

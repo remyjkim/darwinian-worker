@@ -12,8 +12,8 @@ export class CardDeprecateCommand extends BaseCommand {
     category: "Cards",
     description: "Mark a published card version as deprecated.",
     details: `
-      Records deprecation metadata in versions.json without mutating the
-      immutable published card directory.
+      Records deprecation metadata on the card's local bare Git repository
+      without mutating immutable published content.
     `,
     examples: [["Deprecate a version", "drwn card deprecate @me/backend@1.0.0 --message replaced"]],
   });

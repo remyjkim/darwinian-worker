@@ -1,21 +1,28 @@
 // ABOUTME: Manages local Harness Card sources, immutable published versions, and resolution.
 // ABOUTME: Centralizes card store layout so authoring and project commands share behavior.
 
-import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { cp, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { createHash, randomBytes } from "node:crypto";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { mkdir, readdir, readFile, rename, rm, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { assertValidCardManifest, isCardScopeName, isCardUnscopedName, type CardManifest } from "./card-manifest";
+import type { CardOrigin, GitLockInfo } from "./card-lock";
 import { detectLegacyLayout } from "./migration";
 import { compareVersions, gt, isStrictSemver, maxSatisfying, validRange } from "./semver-utils";
+import { writeAtomically } from "./fs";
+import * as git from "./git";
+import { DrwnError } from "./errors";
+import { readUrlCardName, writeUrlCardName } from "./url-card-map";
 import {
-  resolveCardPackageDir,
+  assertStoreWritable,
+  resolveCardBareRepoPath,
   resolveCardSourceDir,
-  resolveCardVersionDir,
   resolveCardsRoot,
+  resolveCatalogsDir,
+  resolveExtractedPath,
+  resolveExtractedRoot,
   resolveMachineConfigPath,
   resolveSourcesRoot,
-  resolveStoreCacheDir,
   resolveStoreGeneratedDir,
   resolveStoreMcpServersDir,
   resolveStoreMetadataPath,
@@ -25,10 +32,16 @@ import {
 } from "./store-paths";
 import type { MachineConfig, StoreMetadata } from "./types";
 
-export interface CardRef {
+export interface ParsedCardRef {
+  origin: CardOrigin;
   name: string;
   range: string;
   filePath?: string;
+  gitUrl?: string;
+  gitRef?: string;
+  gitRange?: string;
+  gitSubpath?: string;
+  original: string;
 }
 
 export interface ResolvedCard {
@@ -38,6 +51,8 @@ export interface ResolvedCard {
   dir: string;
   integrity: string;
   manifest: CardManifest;
+  origin: CardOrigin;
+  git?: GitLockInfo;
 }
 
 export interface CardPackageIndexVersion {
@@ -57,8 +72,7 @@ function nowIso() {
 }
 
 async function writeJson(pathValue: string, value: unknown) {
-  mkdirSync(dirname(pathValue), { recursive: true });
-  await writeFile(pathValue, `${JSON.stringify(value, null, 2)}\n`);
+  await writeAtomically(pathValue, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 function assertNoLegacyLayout(agentsDir: string) {
@@ -76,7 +90,8 @@ export async function ensureStoreInitialized(agentsDir: string) {
     resolveStoreSkillsRoot(agentsDir),
     resolveStoreMcpServersDir(agentsDir),
     resolveStoreGeneratedDir(agentsDir),
-    resolveStoreCacheDir(agentsDir),
+    resolveExtractedRoot(agentsDir),
+    resolveCatalogsDir(agentsDir),
   ]) {
     mkdirSync(pathValue, { recursive: true });
   }
@@ -97,6 +112,7 @@ export async function readMachineConfig(agentsDir: string): Promise<MachineConfi
 }
 
 export async function writeMachineConfig(agentsDir: string, config: MachineConfig) {
+  assertStoreWritable();
   await ensureStoreInitialized(agentsDir);
   await writeJson(resolveMachineConfigPath(agentsDir), config);
 }
@@ -117,19 +133,83 @@ export function normalizeCardName(name: string, scope?: string) {
   return `${scope}/${name}`;
 }
 
-export function parseCardRef(ref: string): CardRef {
+export function parseCardRef(ref: string): ParsedCardRef {
   if (ref.startsWith("file:")) {
-    return { name: ref, range: "*", filePath: ref.slice("file:".length) };
+    return { origin: "file", name: ref, range: "*", filePath: ref.slice("file:".length), original: ref };
+  }
+  if (ref.startsWith("git+")) {
+    return parseGitCardRef(ref, ref.slice("git+".length));
+  }
+  if (ref.startsWith("github:")) {
+    return parseGitHostShorthand(ref, "github:", "https://github.com");
+  }
+  if (ref.startsWith("gitlab:")) {
+    return parseGitHostShorthand(ref, "gitlab:", "https://gitlab.com");
   }
   const slashIndex = ref.indexOf("/");
   const rangeMarker = ref.lastIndexOf("@");
   if (ref.startsWith("@") && slashIndex !== -1 && rangeMarker > slashIndex) {
-    return { name: ref.slice(0, rangeMarker), range: ref.slice(rangeMarker + 1) };
+    return { origin: "store", name: ref.slice(0, rangeMarker), range: ref.slice(rangeMarker + 1), original: ref };
   }
   if (!ref.startsWith("@") && rangeMarker > 0) {
-    return { name: ref.slice(0, rangeMarker), range: ref.slice(rangeMarker + 1) };
+    return { origin: "store", name: ref.slice(0, rangeMarker), range: ref.slice(rangeMarker + 1), original: ref };
   }
-  return { name: ref, range: "*" };
+  return { origin: "store", name: ref, range: "*", original: ref };
+}
+
+function parseGitCardRef(original: string, body: string): ParsedCardRef {
+  if (!body) {
+    throw new Error("git ref requires git URL");
+  }
+  const hashIndex = body.indexOf("#");
+  if (hashIndex !== -1) {
+    const gitUrl = body.slice(0, hashIndex);
+    const gitRef = body.slice(hashIndex + 1);
+    if (!gitUrl) throw new Error("git ref requires git URL");
+    if (!gitRef) throw new Error("git ref requires #ref");
+    return { origin: "git", name: "", range: "*", gitUrl, gitRef, original };
+  }
+
+  const rangeMarker = lastGitRangeMarker(body);
+  if (rangeMarker !== -1) {
+    const gitUrl = body.slice(0, rangeMarker);
+    const gitRange = body.slice(rangeMarker + 1);
+    if (!gitUrl) throw new Error("git ref requires git URL");
+    if (!gitRange) throw new Error("git ref requires @range");
+    return { origin: "git", name: "", range: gitRange, gitUrl, gitRange, original };
+  }
+
+  throw new Error("git ref requires #ref or @range");
+}
+
+function parseGitHostShorthand(original: string, prefix: "github:" | "gitlab:", baseUrl: string): ParsedCardRef {
+  const body = original.slice(prefix.length);
+  const marker = body.includes("#") ? body.indexOf("#") : body.lastIndexOf("@");
+  if (marker === -1) {
+    throw new Error(`${prefix} refs requires #ref or @range`);
+  }
+  const repo = body.slice(0, marker);
+  const selector = body.slice(marker + 1);
+  if (!/^[^/]+\/[^/]+$/.test(repo)) {
+    throw new Error(`${prefix} refs require owner/repo`);
+  }
+  if (!selector) {
+    throw new Error(`${prefix} refs requires #ref or @range`);
+  }
+  const gitUrl = `${baseUrl}/${repo}.git`;
+  if (body[marker] === "#") {
+    return { origin: "git", name: "", range: "*", gitUrl, gitRef: selector, original };
+  }
+  return { origin: "git", name: "", range: selector, gitUrl, gitRange: selector, original };
+}
+
+function lastGitRangeMarker(value: string) {
+  const rangeMarker = value.lastIndexOf("@");
+  if (rangeMarker === -1) {
+    return -1;
+  }
+  const lastSlash = Math.max(value.lastIndexOf("/"), value.lastIndexOf(":"));
+  return rangeMarker > lastSlash ? rangeMarker : -1;
 }
 
 export function formatCardSpec(name: string, range: string) {
@@ -146,6 +226,7 @@ export async function createCardSource(options: {
   scope?: string;
   noGit?: boolean;
 }) {
+  assertStoreWritable();
   assertNoLegacyLayout(options.agentsDir);
   if (isCardUnscopedName(options.name) && !options.scope) {
     throw new Error("Unscoped card names require --scope or machine authoring.scope");
@@ -173,8 +254,7 @@ export async function createCardSource(options: {
   await writeJson(join(sourceDir, "card.json"), manifest);
   if (!options.noGit) {
     try {
-      const proc = Bun.spawn(["git", "init"], { cwd: sourceDir, stdout: "pipe", stderr: "pipe" });
-      await proc.exited;
+      await git.runGit(["init"], { cwd: sourceDir });
     } catch {
       // Git initialization is best-effort; card files are still usable without it.
     }
@@ -195,31 +275,13 @@ export async function readCardSourceManifest(agentsDir: string, name: string): P
   return manifest;
 }
 
-function versionsIndexPath(agentsDir: string, name: string) {
-  return join(resolveCardPackageDir(agentsDir, name), "versions.json");
-}
-
-export async function loadCardPackageIndex(agentsDir: string, name: string): Promise<CardPackageIndex> {
-  const path = versionsIndexPath(agentsDir, name);
-  if (!existsSync(path)) {
-    return { name, versions: [] };
-  }
-  return JSON.parse(await readFile(path, "utf8")) as CardPackageIndex;
-}
-
-async function writeCardPackageIndex(agentsDir: string, index: CardPackageIndex) {
-  const versions = [...index.versions].sort((a, b) => compareVersions(a.version, b.version));
-  await writeJson(versionsIndexPath(agentsDir, index.name), { ...index, versions });
-}
-
 export async function readPublishedCardManifest(agentsDir: string, name: string, version: string): Promise<CardManifest> {
-  const manifestPath = join(resolveCardVersionDir(agentsDir, name, version), "card.json");
-  if (!existsSync(manifestPath)) {
-    throw new Error(`Card version not found: ${name}@${version}`);
-  }
-  const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as CardManifest;
-  assertValidCardManifest(manifest);
-  return manifest;
+  return (await resolveFromStore(agentsDir, {
+    origin: "store",
+    name,
+    range: version,
+    original: formatCardSpec(name, version),
+  })).manifest;
 }
 
 async function walkVersionTree(versionDir: string): Promise<Array<{ relPath: string; absPath: string; mode: number }>> {
@@ -230,7 +292,7 @@ async function walkVersionTree(versionDir: string): Promise<Array<{ relPath: str
     for (const dirent of dirEntries) {
       const relPath = currentRel ? `${currentRel}/${dirent.name}` : dirent.name;
       const absPath = join(currentAbs, dirent.name);
-      if (relPath === ".integrity") {
+      if (relPath === ".integrity" || relPath === ".git" || relPath.startsWith(".git/")) {
         continue;
       }
       if (dirent.isDirectory()) {
@@ -285,7 +347,278 @@ function validatePublishedSkillDirs(versionDir: string, manifest: CardManifest) 
   }
 }
 
+export async function ensureExtracted(agentsDir: string, barePath: string, treeSha: string): Promise<string> {
+  const extractedDir = resolveExtractedPath(agentsDir, treeSha);
+  if (existsSync(extractedDir)) {
+    return extractedDir;
+  }
+  assertStoreWritable();
+  const tempDir = `${extractedDir}.tmp.${randomBytes(8).toString("hex")}`;
+  await rm(tempDir, { recursive: true, force: true });
+  await git.extractTreeToDir(barePath, treeSha, tempDir);
+  await mkdir(dirname(extractedDir), { recursive: true });
+  try {
+    await rename(tempDir, extractedDir);
+  } catch (error) {
+    if (existsSync(extractedDir)) {
+      await rm(tempDir, { recursive: true, force: true });
+      return extractedDir;
+    }
+    throw error;
+  }
+  return extractedDir;
+}
+
+async function readManifestFromDir(dir: string): Promise<CardManifest> {
+  const manifestPath = join(dir, "card.json");
+  if (!existsSync(manifestPath)) {
+    throw new Error(`Card is missing card.json: ${dir}`);
+  }
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as CardManifest;
+  assertValidCardManifest(manifest);
+  return manifest;
+}
+
+async function revParseOptional(repoPath: string, ref: string): Promise<string | null> {
+  try {
+    return await git.revParse(repoPath, ref);
+  } catch (error) {
+    if (error instanceof git.GitRefNotFoundError) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+function versionsFromTags(tags: string[]) {
+  return tags
+    .filter((tag) => /^v\d/.test(tag))
+    .map((tag) => tag.slice(1))
+    .filter(isStrictSemver)
+    .sort(compareVersions);
+}
+
+function selectVersion(versions: string[], range: string, label: string) {
+  if (!validRange(range) && !isStrictSemver(range)) {
+    throw new Error(`Invalid card version range: ${label}`);
+  }
+  return maxSatisfying(versions, range) ?? (versions.includes(range) ? range : null);
+}
+
+async function resolveFromStore(agentsDir: string, parsed: ParsedCardRef): Promise<ResolvedCard> {
+  const barePath = resolveCardBareRepoPath(agentsDir, parsed.name);
+  if (!existsSync(barePath)) {
+    throw new DrwnError("CARD_NOT_FOUND", `card not in local store: ${parsed.name}`);
+  }
+  const versions = await listPublishedVersions(agentsDir, parsed.name);
+  const range = parsed.range || "*";
+  const version = selectVersion(versions, range, parsed.original);
+  if (!version) {
+    throw new DrwnError(
+      "CARD_NO_MATCHING_VERSION",
+      `no version of ${parsed.name} matches ${range}; available: ${versions.join(", ")}`,
+    );
+  }
+  return await resolveRepoVersion({
+    agentsDir,
+    barePath,
+    name: parsed.name,
+    requested: parsed.original,
+    version,
+    origin: "store",
+    git: { commit: await git.revParse(barePath, `refs/tags/v${version}^{commit}`) },
+  });
+}
+
+async function resolveFromGit(agentsDir: string, parsed: ParsedCardRef): Promise<ResolvedCard> {
+  if (!parsed.gitUrl) {
+    throw new Error("git ref requires git URL");
+  }
+  const existing = await findBareRepoByOriginUrl(agentsDir, parsed.gitUrl);
+  if (existing) {
+    await git.fetch(existing.path, "origin", ["refs/heads/*:refs/heads/*", "refs/tags/*:refs/tags/*"]);
+    const resolved = await resolveGitRepoAtParsedRef(agentsDir, existing.path, parsed, existing.name);
+    await writeUrlCardName(agentsDir, parsed.gitUrl, resolved.name);
+    return resolved;
+  }
+
+  const cached = await readUrlCardName(agentsDir, parsed.gitUrl);
+  if (cached) {
+    const resolved = await tryResolveFromCachedGitName(agentsDir, parsed, cached.name);
+    if (resolved) {
+      return resolved;
+    }
+  }
+
+  const tempRepo = join(resolveCardsRoot(agentsDir), `.tmp-${randomBytes(8).toString("hex")}.git`);
+  await rm(tempRepo, { recursive: true, force: true });
+  await git.cloneBare(parsed.gitUrl, tempRepo);
+  try {
+    const discovered = await resolveGitRepoAtParsedRef(agentsDir, tempRepo, parsed, null);
+    const targetPath = resolveCardBareRepoPath(agentsDir, discovered.name);
+    if (existsSync(targetPath)) {
+      const existingOrigin = await git.configGet(targetPath, "drwn.originUrl");
+      if (existingOrigin !== parsed.gitUrl) {
+        throw new DrwnError(
+          "CARD_NAME_COLLISION",
+          `${discovered.name} is already bound to ${existingOrigin ?? "a local store repo"}; cannot bind ${parsed.gitUrl}`,
+        );
+      }
+      await rm(tempRepo, { recursive: true, force: true });
+    } else {
+      await mkdir(dirname(targetPath), { recursive: true });
+      await rename(tempRepo, targetPath);
+    }
+    await git.configSet(targetPath, "drwn.cardName", discovered.name);
+    await git.configSet(targetPath, "drwn.originUrl", parsed.gitUrl);
+    await writeUrlCardName(agentsDir, parsed.gitUrl, discovered.name);
+    return { ...discovered, git: { ...discovered.git!, url: parsed.gitUrl } };
+  } catch (error) {
+    await rm(tempRepo, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+async function tryResolveFromCachedGitName(
+  agentsDir: string,
+  parsed: ParsedCardRef,
+  cachedName: string,
+): Promise<ResolvedCard | null> {
+  if (!parsed.gitUrl) {
+    throw new Error("git ref requires git URL");
+  }
+  const targetPath = resolveCardBareRepoPath(agentsDir, cachedName);
+  if (existsSync(targetPath)) {
+    const existingOrigin = await git.configGet(targetPath, "drwn.originUrl");
+    if (existingOrigin !== parsed.gitUrl) {
+      throw new DrwnError(
+        "CARD_NAME_COLLISION",
+        `${cachedName} is already bound to ${existingOrigin ?? "a local store repo"}; cannot bind ${parsed.gitUrl}`,
+      );
+    }
+    await git.fetch(targetPath, "origin", ["refs/heads/*:refs/heads/*", "refs/tags/*:refs/tags/*"]);
+    const resolved = await resolveGitRepoAtParsedRef(agentsDir, targetPath, parsed, cachedName);
+    await writeUrlCardName(agentsDir, parsed.gitUrl, resolved.name);
+    return { ...resolved, git: { ...resolved.git!, url: parsed.gitUrl } };
+  }
+
+  await mkdir(dirname(targetPath), { recursive: true });
+  await git.cloneBare(parsed.gitUrl, targetPath);
+  try {
+    const resolved = await resolveGitRepoAtParsedRef(agentsDir, targetPath, parsed, cachedName);
+    await git.configSet(targetPath, "drwn.cardName", resolved.name);
+    await git.configSet(targetPath, "drwn.originUrl", parsed.gitUrl);
+    await writeUrlCardName(agentsDir, parsed.gitUrl, resolved.name);
+    return { ...resolved, git: { ...resolved.git!, url: parsed.gitUrl } };
+  } catch (error) {
+    await rm(targetPath, { recursive: true, force: true });
+    if (error instanceof DrwnError && error.code === "CARD_NAME_MISMATCH") {
+      return null;
+    }
+    throw error;
+  }
+}
+
+async function resolveGitRepoAtParsedRef(
+  agentsDir: string,
+  barePath: string,
+  parsed: ParsedCardRef,
+  expectedName: string | null,
+): Promise<ResolvedCard> {
+  const versions = versionsFromTags(await git.listTags(barePath));
+  const version = parsed.gitRange
+    ? selectVersion(versions, parsed.gitRange, parsed.original)
+    : null;
+  const ref = parsed.gitRef ?? (version ? `v${version}` : null);
+  if (!ref) {
+    throw new DrwnError("CARD_NO_MATCHING_VERSION", `no version matches ${parsed.gitRange ?? parsed.original}`);
+  }
+  const commit = await git.revParse(barePath, `${ref}^{commit}`);
+  const resolved = await resolveRepoVersion({
+    agentsDir,
+    barePath,
+    name: expectedName ?? "",
+    requested: parsed.original,
+    version,
+    origin: "git",
+    git: { url: parsed.gitUrl, ref: parsed.gitRef ?? parsed.gitRange, commit },
+  });
+  if (expectedName && resolved.name !== expectedName) {
+    throw new DrwnError("CARD_NAME_MISMATCH", `expected ${expectedName}, got ${resolved.name}`);
+  }
+  return resolved;
+}
+
+async function resolveRepoVersion(options: {
+  agentsDir: string;
+  barePath: string;
+  name: string;
+  requested: string;
+  version: string | null;
+  origin: "store" | "git";
+  git: GitLockInfo;
+}): Promise<ResolvedCard> {
+  const treeSha = await git.getCommitTree(options.barePath, options.git.commit);
+  const dir = await ensureExtracted(options.agentsDir, options.barePath, treeSha);
+  const manifest = await readManifestFromDir(dir);
+  if (options.name && manifest.name !== options.name) {
+    throw new DrwnError("CARD_NAME_MISMATCH", `expected ${options.name}, got ${manifest.name}`);
+  }
+  validatePublishedSkillDirs(dir, manifest);
+  return {
+    name: manifest.name,
+    requested: options.requested,
+    version: options.version ?? manifest.version,
+    dir,
+    integrity: await computeCardIntegrity(dir),
+    manifest,
+    origin: options.origin,
+    git: options.git,
+  };
+}
+
+async function findBareRepoByOriginUrl(agentsDir: string, url: string) {
+  for (const repo of await listBareRepos(agentsDir)) {
+    try {
+      if ((await git.configGet(repo.path, "drwn.originUrl")) === url) {
+        return repo;
+      }
+    } catch {
+      // Ignore malformed repos while scanning; direct resolution will surface errors.
+    }
+  }
+  return null;
+}
+
+async function listBareRepos(agentsDir: string): Promise<Array<{ name: string; path: string }>> {
+  const root = resolveCardsRoot(agentsDir);
+  if (!existsSync(root)) {
+    return [];
+  }
+  const repos: Array<{ name: string; path: string }> = [];
+  for (const entry of await readdir(root, { withFileTypes: true })) {
+    if (entry.name.startsWith(".")) continue;
+    if (entry.name.startsWith("@") && entry.isDirectory()) {
+      const scopeDir = join(root, entry.name);
+      for (const cardEntry of await readdir(scopeDir, { withFileTypes: true })) {
+        if (cardEntry.name.endsWith(".git") && cardEntry.isDirectory()) {
+          repos.push({
+            name: `${entry.name}/${cardEntry.name.slice(0, -".git".length)}`,
+            path: join(scopeDir, cardEntry.name),
+          });
+        }
+      }
+      continue;
+    }
+    if (entry.name.endsWith(".git") && entry.isDirectory()) {
+      repos.push({ name: entry.name.slice(0, -".git".length), path: join(root, entry.name) });
+    }
+  }
+  return repos.sort((a, b) => a.name.localeCompare(b.name));
+}
+
 export async function publishCard(agentsDir: string, name: string) {
+  assertStoreWritable();
   assertNoLegacyLayout(agentsDir);
   await ensureStoreInitialized(agentsDir);
   const manifest = await readCardSourceManifest(agentsDir, name);
@@ -312,42 +645,45 @@ export async function publishCard(agentsDir: string, name: string) {
       throw new Error(`package.json.version must equal card.json version: ${manifest.version}`);
     }
   }
-  const versionDir = resolveCardVersionDir(agentsDir, manifest.name, manifest.version);
-  if (existsSync(versionDir)) {
+  const barePath = resolveCardBareRepoPath(agentsDir, manifest.name);
+  const tag = `v${manifest.version}`;
+  if (!existsSync(barePath)) {
+    await git.initBare(barePath);
+    await git.configSet(barePath, "drwn.cardName", manifest.name);
+  }
+  if ((await git.listTags(barePath)).includes(tag)) {
     throw new Error(`Card version already exists: ${manifest.name}@${manifest.version}`);
   }
-  mkdirSync(dirname(versionDir), { recursive: true });
-  await cp(resolveCardSourceDir(agentsDir, manifest.name), versionDir, {
-    recursive: true,
-    verbatimSymlinks: true,
-    force: false,
-  });
+
+  const treeSha = await git.writeTreeFromDir(barePath, sourceDir);
+  const versionDir = await ensureExtracted(agentsDir, barePath, treeSha);
   validatePublishedSkillDirs(versionDir, manifest);
   const integrity = await computeCardIntegrity(versionDir);
-  await writeFile(join(versionDir, ".integrity"), `${integrity}\n`);
-  const index = await loadCardPackageIndex(agentsDir, manifest.name);
-  index.versions = index.versions.filter((entry) => entry.version !== manifest.version);
-  index.versions.push({ version: manifest.version, publishedAt: nowIso(), integrity });
-  await writeCardPackageIndex(agentsDir, index);
-  return { name: manifest.name, version: manifest.version, versionDir, integrity, manifest };
+  const parent = await revParseOptional(barePath, "refs/heads/main");
+  const commit = await git.commitTree(
+    barePath,
+    treeSha,
+    parent,
+    `Publish ${manifest.name}@${manifest.version}\n\nIntegrity: ${integrity}`,
+  );
+  await git.updateRef(barePath, "refs/heads/main", commit);
+  await git.createAnnotatedTag(barePath, tag, commit, `Publish ${manifest.name}@${manifest.version}`);
+  return { name: manifest.name, version: manifest.version, versionDir, integrity, manifest, git: { commit } };
 }
 
 async function listPublishedVersions(agentsDir: string, name: string) {
-  const packageDir = resolveCardPackageDir(agentsDir, name);
-  if (!existsSync(packageDir)) {
+  const barePath = resolveCardBareRepoPath(agentsDir, name);
+  if (!existsSync(barePath)) {
     return [];
   }
-  const entries = await readdir(packageDir, { withFileTypes: true });
-  return entries
-    .filter((entry) => entry.isDirectory() && isStrictSemver(entry.name))
-    .map((entry) => entry.name)
-    .sort(compareVersions);
+  return versionsFromTags(await git.listTags(barePath));
 }
 
 export async function resolveCard(agentsDir: string, ref: string): Promise<ResolvedCard> {
   assertNoLegacyLayout(agentsDir);
+  await ensureStoreInitialized(agentsDir);
   const parsed = parseCardRef(ref);
-  if (parsed.filePath) {
+  if (parsed.origin === "file" && parsed.filePath) {
     const dir = resolve(parsed.filePath);
     const manifestPath = join(dir, "card.json");
     if (!existsSync(manifestPath)) {
@@ -363,41 +699,13 @@ export async function resolveCard(agentsDir: string, ref: string): Promise<Resol
       dir,
       integrity: await computeCardIntegrity(dir),
       manifest,
+      origin: "file",
     };
   }
-  const versions = await listPublishedVersions(agentsDir, parsed.name);
-  const range = parsed.range || "*";
-  if (!validRange(range) && !isStrictSemver(range)) {
-    throw new Error(`Invalid card version range: ${ref}`);
+  if (parsed.origin === "git") {
+    return await resolveFromGit(agentsDir, parsed);
   }
-  const version = maxSatisfying(versions, range) ?? (versions.includes(range) ? range : null);
-  if (!version) {
-    throw new Error(`No published version satisfies ${ref}`);
-  }
-  const manifest = await readPublishedCardManifest(agentsDir, parsed.name, version);
-  const versionDir = resolveCardVersionDir(agentsDir, parsed.name, version);
-  validatePublishedSkillDirs(versionDir, manifest);
-  const computedIntegrity = await computeCardIntegrity(versionDir);
-  const index = await loadCardPackageIndex(agentsDir, parsed.name);
-  const recordedEntry = index.versions.find((entry) => entry.version === version);
-  if (recordedEntry && recordedEntry.integrity !== computedIntegrity) {
-    console.info(
-      `[drwn] upgraded integrity hash for ${parsed.name}@${version}: was ${recordedEntry.integrity.slice(0, 20)}..., now ${computedIntegrity.slice(0, 20)}...`,
-    );
-    recordedEntry.integrity = computedIntegrity;
-    await writeCardPackageIndex(agentsDir, index);
-    await writeFile(join(versionDir, ".integrity"), `${computedIntegrity}\n`);
-  } else if (!recordedEntry) {
-    await writeFile(join(versionDir, ".integrity"), `${computedIntegrity}\n`);
-  }
-  return {
-    name: parsed.name,
-    requested: formatCardSpec(parsed.name, range),
-    version,
-    dir: versionDir,
-    integrity: computedIntegrity,
-    manifest,
-  };
+  return await resolveFromStore(agentsDir, parsed);
 }
 
 export async function listCards(agentsDir: string) {
@@ -406,35 +714,17 @@ export async function listCards(agentsDir: string) {
     return [];
   }
   const cards: Array<{ name: string; versions: string[] }> = [];
-  const roots = await readdir(root, { withFileTypes: true });
-  for (const entry of roots) {
-    if (entry.name.startsWith(".")) continue;
-    if (entry.name.startsWith("@") && entry.isDirectory()) {
-      const scopeDir = join(root, entry.name);
-      for (const cardEntry of await readdir(scopeDir, { withFileTypes: true })) {
-        if (cardEntry.isDirectory()) {
-          const name = `${entry.name}/${cardEntry.name}`;
-          cards.push({ name, versions: await listPublishedVersions(agentsDir, name) });
-        }
-      }
-      continue;
-    }
-    if (entry.isDirectory()) {
-      cards.push({ name: entry.name, versions: await listPublishedVersions(agentsDir, entry.name) });
-    }
+  for (const repo of await listBareRepos(agentsDir)) {
+    cards.push({ name: repo.name, versions: await listPublishedVersions(agentsDir, repo.name) });
   }
   return cards.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function deprecateCardVersion(agentsDir: string, ref: string, message: string) {
+  assertStoreWritable();
   const resolved = await resolveCard(agentsDir, ref);
-  const index = await loadCardPackageIndex(agentsDir, resolved.name);
-  const version = index.versions.find((entry) => entry.version === resolved.version);
-  if (!version) {
-    throw new Error(`Card version not found: ${ref}`);
-  }
-  version.deprecated = message || "deprecated";
-  await writeCardPackageIndex(agentsDir, index);
+  const barePath = resolveCardBareRepoPath(agentsDir, resolved.name);
+  await git.configSet(barePath, `drwn.deprecated.${resolved.version}`, message || "deprecated");
   return resolved;
 }
 

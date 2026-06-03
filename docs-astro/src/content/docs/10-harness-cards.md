@@ -43,17 +43,42 @@ Card sources live under:
 
 Each source contains `card.json`, `skills/`, and `mcp-servers/`.
 
+Capture a working project as a card:
+
+```bash
+cd your-project
+drwn card new @me/project-harness --from-project . --no-git
+```
+
+Capture writes a self-contained source with the project's effective skills,
+active MCP servers, extensions, and target settings. It preserves environment
+variable references in MCP definitions but does not read host secret values into
+the card.
+
 Publish a version:
 
 ```bash
 drwn card publish @me/backend
 ```
 
-Published card versions are immutable and live under:
+Published card versions are immutable Git tags in per-card bare repos under:
 
 ```text
 ~/.agents/drwn/cards/
 ```
+
+Card manifests can also expose optional quality signals:
+
+```json
+{
+  "stability": "stable",
+  "lastValidatedWith": "0.1.0",
+  "testStatusBadge": "https://example.com/status.svg"
+}
+```
+
+`drwn card show` surfaces those fields for consumers. `skills.shared` remains
+reserved; use `skills.include` with bundled skill directories for now.
 
 ## Inspect Cards
 
@@ -68,6 +93,10 @@ drwn card deprecate @me/backend@1.0.0 --message "use 1.1.0"
 
 Version ranges use normal semver range behavior. `drwn` resolves the highest
 published local version that satisfies the requested range.
+
+Git URL card refs cache discovered URL-to-card-name mappings in
+`~/.agents/drwn/url-card-map.json`. The cache is an optimization only; stale or
+corrupt entries are corrected or ignored.
 
 ## Apply Cards To A Project
 

@@ -4,7 +4,9 @@
 import { Option } from "clipanion";
 import { diffCards } from "../../core/card-diff";
 import { resolveCard } from "../../core/card-store";
+import * as git from "../../core/git";
 import { renderJson } from "../../core/output";
+import { resolveCardBareRepoPath } from "../../core/store-paths";
 import { BaseCommand } from "../base";
 
 export class CardDiffCommand extends BaseCommand {
@@ -34,14 +36,17 @@ export class CardDiffCommand extends BaseCommand {
       resolveCard(this.context.agentsDir, this.after),
     ]);
     const diff = diffCards(before.manifest, after.manifest);
+    const gitDiff = before.git && after.git && before.name === after.name
+      ? await git.diff(resolveCardBareRepoPath(this.context.agentsDir, after.name), before.git.commit, after.git.commit)
+      : "";
     if (this.json) {
-      this.context.stdout.write(renderJson({ before, after, ...diff }));
+      this.context.stdout.write(renderJson({ before, after, ...diff, gitDiff }));
       return 0;
     }
     const changes = diff.changes.length === 0
       ? "Changes: none"
       : `Changes:\n${diff.changes.map((change) => `- ${change.kind} ${change.path}`).join("\n")}`;
-    this.context.stdout.write(`Classification: ${diff.classification}\n${changes}\n`);
+    this.context.stdout.write(`Classification: ${diff.classification}\n${changes}\n${gitDiff ? `\nGit diff:\n${gitDiff}` : ""}`);
     return 0;
   }
 }

@@ -21,11 +21,11 @@ describe("package readiness", () => {
     expect((pkg.bin as Record<string, string>)["drwn-hx"]).toBe("cli/index.ts");
     expect((pkg.scripts as Record<string, string>).drwn).toBe("bun run cli/index.ts");
     expect((pkg.scripts as Record<string, string>).sync).toBeUndefined();
-    expect(pkg.homepage).toBe("https://github.com/remyjkim/beginning-harness");
-    expect(pkg.bugs).toEqual({ url: "https://github.com/remyjkim/beginning-harness/issues" });
+    expect(pkg.homepage).toBe("https://github.com/remyjkim/darwinian-harness");
+    expect(pkg.bugs).toEqual({ url: "https://github.com/remyjkim/darwinian-harness/issues" });
     expect(pkg.repository).toEqual({
       type: "git",
-      url: "git+https://github.com/remyjkim/beginning-harness.git",
+      url: "git+https://github.com/remyjkim/darwinian-harness.git",
     });
   });
 
@@ -75,7 +75,7 @@ describe("package readiness", () => {
     expect(paths).not.toContain("mcp-servers.json");
     expect(paths).toContain("registry/config.json");
     expect(paths).toContain("registry/mcp-servers.json");
-    expect(paths).toContain("docs/assets/the-darwinian-harness.png");
+    expect(paths).toContain("docs/assets/darwinian-harness-logo.png");
     expect(paths).toContain("skills/shared/frontend-design/SKILL.md");
   });
 });

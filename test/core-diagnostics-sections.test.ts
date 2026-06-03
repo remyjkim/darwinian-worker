@@ -22,7 +22,7 @@ test("diagnostics sections compose cards, store, and write-record state", async 
   const configPath = join(projectDir, ".agents", "drwn", "config.json");
   await mkdir(dirname(configPath), { recursive: true });
   await writeFile(configPath, JSON.stringify({ version: 1, cards: ["@me/backend@^1.0.0"] }, null, 2));
-  writeCardLock(projectDir, [
+  await writeCardLock(projectDir, [
     {
       name: "@me/backend",
       requested: "@me/backend@^1.0.0",
@@ -32,6 +32,8 @@ test("diagnostics sections compose cards, store, and write-record state", async 
       manifest: { name: "@me/backend", version: "1.0.0", skills: { include: ["alpha"] } },
       skills: ["alpha"],
       registry: null,
+      origin: "store",
+      git: { commit: "d".repeat(40) },
     },
   ]);
   saveWriteRecord(join(projectDir, ".agents", "drwn", "write-record.json"), {

@@ -2,14 +2,14 @@
 
 ## Purpose
 
-This document explains the implemented package-backed skill bundle model in `beginning-harness`.
+This document explains the implemented package-backed skill bundle model in `darwinian-harness`.
 
 Use it for:
 
 - understanding what a bundle is
 - adding extension bundles safely
 - knowing how bundles are stored locally
-- understanding the boundary between npm packages and `bgng`
+- understanding the boundary between npm packages and `drwn`
 
 ## What A Package-Backed Skill Bundle Is
 
@@ -19,7 +19,7 @@ In this model:
 
 - npm is the distribution and versioning layer
 - the bundle provides skill files plus metadata
-- `bgng` remains the only supported local meta-harness control plane for curation and downstream write
+- `drwn` remains the only supported local meta-harness control plane for curation and downstream write
 
 Bundles are extension sources. They do not replace the built-in first-party skill tree in the repo.
 
@@ -41,7 +41,7 @@ It is not designed as a general public marketplace contract yet.
 
 ## Bundle Boundary
 
-`bgng` uses npm packages as content bundles, not as write tools.
+`drwn` uses npm packages as content bundles, not as write tools.
 
 Specifically, the package contributes:
 
@@ -51,7 +51,7 @@ Specifically, the package contributes:
 - metadata in `package.json`
 - bundle metadata in `bundle.json`
 
-`bgng` contributes:
+`drwn` contributes:
 
 - ingestion
 - validation
@@ -99,7 +99,7 @@ Current supported scopes:
 
 ## Ingestion Model
 
-`bgng` ingests bundles with:
+`drwn` ingests bundles with:
 
 ```bash
 npm pack <spec> --ignore-scripts --json --pack-destination <tmp>
@@ -116,14 +116,14 @@ Why `--ignore-scripts` matters:
 - plain local-folder `npm pack` can run `prepack`
 - the implemented ingestion path explicitly suppresses scripts
 
-After packing, `bgng` extracts the tarball, normalizes the top-level `package/` directory, validates `bundle.json`, and installs the bundle into managed local state.
+After packing, `drwn` extracts the tarball, normalizes the top-level `package/` directory, validates `bundle.json`, and installs the bundle into managed local state.
 
 ## Local Storage Model
 
 In the cards-era store, installed bundles live under:
 
 ```text
-~/.agents/bgng/skills/<package-name>/<version>
+~/.agents/drwn/skills/<package-name>/<version>
 ```
 
 There is also a `current` symlink at the package root pointing to the active version.
@@ -131,24 +131,12 @@ There is also a `current` symlink at the package root pointing to the active ver
 Example:
 
 ```text
-~/.agents/bgng/skills/@scope/example-bundle/
+~/.agents/drwn/skills/@scope/example-bundle/
   current -> 1.2.3
   1.2.3/
     bundle.json
     skills/
 ```
-
-Pre-migration installs used:
-
-```text
-~/.agents/packages/skills/<package-name>/<version>
-```
-
-`bgng store migrate` copies that legacy cache into
-`~/.agents/bgng/skills` and archives the old layout. The implementation chooses
-the active layout by checking whether `~/.agents/bgng/store.json` exists: if it
-does, package commands use the cards-era store; if it does not, they fall back
-to the legacy package cache for compatibility before migration.
 
 This storage model is intentionally separate from:
 
@@ -161,21 +149,21 @@ This storage model is intentionally separate from:
 Add a bundle:
 
 ```bash
-bgng skills packages add <npm-package-or-local-path>
+drwn skills packages add <npm-package-or-local-path>
 ```
 
 List installed bundles:
 
 ```bash
-bgng skills packages list
-bgng skills packages list --json
+drwn skills packages list
+drwn skills packages list --json
 ```
 
 Show a bundle:
 
 ```bash
-bgng skills packages show <package-name>
-bgng skills packages show <package-name> --json
+drwn skills packages show <package-name>
+drwn skills packages show <package-name> --json
 ```
 
 ## Availability vs Curation
@@ -185,17 +173,16 @@ Adding a bundle makes its skills available. It does not expose them automaticall
 Typical flow:
 
 ```bash
-bgng skills packages add <bundle>
-bgng skills packages show <package-name>
-bgng add skill <skill-name>
-bgng write
+drwn skills packages add <bundle>
+drwn skills packages show <package-name>
+drwn add skill <skill-name>
+drwn write
 ```
 
 Important distinction:
 
-- available: the bundle exists in the active bundle cache, normally `~/.agents/bgng/skills`
-- legacy available: before store migration, the bundle may exist in `~/.agents/packages/skills`
-- default: a shared skill is listed in `~/.agents/bgng/machine.json` under `defaults.skills`
+- available: the bundle exists in the active bundle cache, normally `~/.agents/drwn/skills`
+- default: a shared skill is listed in `~/.agents/drwn/machine.json` under `defaults.skills`
 - compatibility publication: a default or curated shared skill is linked into `~/.agents/skills`
 - written: downstream tool symlinks exist in `~/.claude/skills` and `~/.codex/skills`
 
@@ -231,7 +218,7 @@ Deferred:
 
 Per-project `skills.include` supports both repo-native shared skills and installed package-backed shared skills.
 
-Keep package-backed skill names unique. If a project include references an unknown or ambiguous skill name, `bgng doctor` reports it and write will not silently pick an arbitrary source.
+Keep package-backed skill names unique. If a project include references an unknown or ambiguous skill name, `drwn doctor` reports it and write will not silently pick an arbitrary source.
 
 ## How Bundles Relate To Built-In Skills
 
@@ -241,7 +228,7 @@ That means:
 
 - the repo is still the default first-party source
 - bundles are additive extension sources
-- `beginning-harness` remains a single first-party harness package
+- `darwinian-harness` remains a single first-party harness package
 
 This is intentional. The project is not splitting first-party skills into separate packages by default.
 
@@ -259,9 +246,9 @@ Common failures include:
 The safest first debug steps are:
 
 ```bash
-bgng skills packages list --json
-bgng skills packages show <package-name> --json
-bgng skills list --json
+drwn skills packages list --json
+drwn skills packages show <package-name> --json
+drwn skills list --json
 ```
 
 ## Non-Goals
@@ -273,7 +260,7 @@ Current bundle support does not mean:
 - arbitrary public npm packages are automatically trusted
 - install-time scripts are part of the intended workflow
 
-`bgng` remains the local harness control plane.
+`drwn` remains the local harness control plane.
 
 ## Relationship To Other Docs
 

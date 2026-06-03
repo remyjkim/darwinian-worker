@@ -6,6 +6,7 @@ import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
 import type { Dirent } from "node:fs";
 import { join, relative, basename, sep } from "node:path";
+import { runGit } from "../git";
 
 export interface SessionFile {
   source: "claude" | "codex";
@@ -16,15 +17,9 @@ export interface SessionFile {
 export async function resolveProjectRoot(cwd: string): Promise<string> {
   let root = cwd;
   try {
-    const proc = Bun.spawn(["git", "rev-parse", "--show-toplevel"], {
-      cwd,
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    const stdout = await new Response(proc.stdout).text();
-    const exitCode = await proc.exited;
-    if (exitCode === 0) {
-      root = stdout.trim();
+    const result = await runGit(["rev-parse", "--show-toplevel"], { cwd });
+    if (result.exitCode === 0) {
+      root = result.stdout.trim();
     }
   } catch {
     // fall through to cwd fallback
@@ -44,21 +39,13 @@ export function deriveProjectSlug(projectRoot: string): string {
 
 export async function gitWorktreeRoots(projectRoot: string): Promise<string[]> {
   try {
-    const proc = Bun.spawn(["git", "worktree", "list", "--porcelain"], {
-      cwd: projectRoot,
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-
-    const stdout = await new Response(proc.stdout).text();
-    const exitCode = await proc.exited;
-
-    if (exitCode !== 0) {
+    const result = await runGit(["worktree", "list", "--porcelain"], { cwd: projectRoot });
+    if (result.exitCode !== 0) {
       return [projectRoot];
     }
 
     const paths: string[] = [];
-    for (const line of stdout.split("\n")) {
+    for (const line of result.stdout.split("\n")) {
       if (line.startsWith("worktree ")) {
         paths.push(line.slice("worktree ".length).trim());
       }

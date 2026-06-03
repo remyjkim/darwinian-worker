@@ -9,20 +9,20 @@
   "version": "0.1.0",
   "license": "Apache-2.0",
   "author": "remyjkim <jkkim123@gmail.com>",
-  "homepage": "https://github.com/remyjkim/beginning-harness",
+  "homepage": "https://github.com/remyjkim/darwinian-harness",
   "bugs": {
-    "url": "https://github.com/remyjkim/beginning-harness/issues"
+    "url": "https://github.com/remyjkim/darwinian-harness/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/remyjkim/beginning-harness.git"
+    "url": "git+https://github.com/remyjkim/darwinian-harness.git"
   },
   "files": [
     "cli",
     "registry",
     "skills",
     "README.md",
-    "docs/assets/the-darwinian-harness.png",
+    "docs/assets/darwinian-harness-logo.png",
     "LICENSE",
     "CONTRIBUTING.md"
   ],

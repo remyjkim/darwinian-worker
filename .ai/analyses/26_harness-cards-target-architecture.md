@@ -5,7 +5,6 @@ Status: target architecture design, handoff-ready. Outcome of a full brainstormi
 Date: 2026-05-18
 
 Related artifacts:
-- `.ai/analyses/25_harness-cards-cli-design.md` — midway CLI design snapshot (subsumed by §6 below; retained as historical record).
 - `.ai/knowledges/02_per-project-config-guide.md` — current per-project config model that this design builds on.
 - `.ai/knowledges/03_npm-skill-bundles-guide.md` — current skill-bundle ingestion model that influences the store layout.
 

@@ -21,8 +21,12 @@ describe("command output contracts", () => {
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,
     };
+    expect((await runAgentsCli(["card", "new", "@me/output", "--no-git"], env)).exitCode).toBe(0);
 
     const humanCommands = [
+      ["card", "source", "list"],
+      ["card", "source", "show", "@me/output"],
+      ["card", "source", "doctor", "@me/output"],
       ["write", "--dry-run"],
       ["scan"],
       ["skills", "list"],
@@ -46,6 +50,9 @@ describe("command output contracts", () => {
     }
 
     const jsonCommands = [
+      ["card", "source", "list", "--json"],
+      ["card", "source", "show", "@me/output", "--json"],
+      ["card", "source", "doctor", "@me/output", "--json"],
       ["write", "--dry-run", "--json"],
       ["scan", "--json"],
       ["skills", "list", "--json"],

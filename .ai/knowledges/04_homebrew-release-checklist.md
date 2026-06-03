@@ -5,9 +5,9 @@ This checklist is future-facing. Homebrew distribution is not implemented yet, b
 ## Naming
 
 - package name finalization
-- current package name: `beginning-harness`
+- current package name: `darwinian-harness`
 - finalize the public package/repository name
-- current CLI binary name: `bgng`
+- current CLI binary name: `drwn`
 - ensure there is no naming collision with existing formulae or packages
 
 ## Release Artifact
@@ -49,16 +49,16 @@ post-install smoke tests:
 
 After a future Homebrew install, verify:
 
-- `bgng --help`
-- `bgng status --json`
-- `bgng doctor --json`
-- `bgng init --force`
-- `bgng write --dry-run`
-- `bgng scan --json`
-- `bgng skills packages list --json`
-- `bgng store status --json`
-- `bgng card list --json`
-- `bgng status --explain`
+- `drwn --help`
+- `drwn status --json`
+- `drwn doctor --json`
+- `drwn init --force`
+- `drwn write --dry-run`
+- `drwn scan --json` (currently a planned-surface placeholder; confirms the binary is reachable and JSON output renders)
+- `drwn skills packages list --json`
+- `drwn store status --json`
+- `drwn card list --json`
+- `drwn status --explain`
 
 ## User Environment Assumptions
 
@@ -69,7 +69,7 @@ After a future Homebrew install, verify:
 ## Publish-Adjacent Requirements
 
 - package metadata finalized
-- package metadata currently uses `beginning-harness`
+- package metadata currently uses `darwinian-harness`
 - repository metadata finalized
 - license finalized
 - docs updated to include Homebrew usage once implementation exists

@@ -72,7 +72,9 @@ test("migrateStore produces the expected post-cards layout", async () => {
   expect(existsSync(join(fixture.agentsDir, "drwn", "cards"))).toBe(true);
   expect(existsSync(join(fixture.agentsDir, "drwn", "sources"))).toBe(true);
   expect(existsSync(join(fixture.agentsDir, "drwn", "generated"))).toBe(true);
-  expect(existsSync(join(fixture.agentsDir, "drwn", "cache"))).toBe(true);
+  expect(existsSync(join(fixture.agentsDir, "drwn", "extracted"))).toBe(true);
+  expect(existsSync(join(fixture.agentsDir, "drwn", "catalogs"))).toBe(true);
+  expect(existsSync(join(fixture.agentsDir, "drwn", "cache"))).toBe(false);
   expect(existsSync(join(fixture.agentsDir, "drwn", "mcp-servers", "context7.json"))).toBe(true);
   expect(existsSync(join(fixture.agentsDir, "drwn", "mcp-servers", "github.json"))).toBe(true);
   expect(existsSync(join(fixture.agentsDir, "drwn", "skills", "@acme", "skills", "1.0.0", "bundle.json"))).toBe(true);

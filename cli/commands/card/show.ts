@@ -3,7 +3,9 @@
 
 import { Option } from "clipanion";
 import { resolveCard } from "../../core/card-store";
+import * as git from "../../core/git";
 import { renderJson, renderTable } from "../../core/output";
+import { resolveCardBareRepoPath } from "../../core/store-paths";
 import { BaseCommand } from "../base";
 
 export class CardShowCommand extends BaseCommand {
@@ -30,20 +32,28 @@ export class CardShowCommand extends BaseCommand {
 
   async execute() {
     const card = await resolveCard(this.context.agentsDir, this.ref);
+    const history = card.git
+      ? await git.log(resolveCardBareRepoPath(this.context.agentsDir, card.name), { maxCount: 10, ref: card.git.commit })
+      : [];
     if (this.json) {
-      this.context.stdout.write(renderJson(card));
+      this.context.stdout.write(renderJson({ ...card, history }));
       return 0;
     }
+    const rows = [
+      ["name", card.name],
+      ["version", card.version],
+      ["requested", card.requested],
+      ["path", card.dir],
+      ["integrity", card.integrity],
+      ...(card.manifest.stability ? [["stability", card.manifest.stability]] : []),
+      ...(card.manifest.lastValidatedWith ? [["lastValidatedWith", card.manifest.lastValidatedWith]] : []),
+      ...(card.manifest.testStatusBadge ? [["testStatusBadge", card.manifest.testStatusBadge]] : []),
+      ["history", history.map((entry) => `${entry.commit.slice(0, 12)} ${entry.subject}`).join("; ")],
+    ];
     this.context.stdout.write(
       renderTable(
         ["field", "value"],
-        [
-          ["name", card.name],
-          ["version", card.version],
-          ["requested", card.requested],
-          ["path", card.dir],
-          ["integrity", card.integrity],
-        ],
+        rows,
       ),
     );
     return 0;

@@ -18,7 +18,10 @@ Cards-era `drwn` stores local user-managed inventory under:
 |-- skills/
 |-- mcp-servers/
 |-- generated/
-|-- cache/
+|-- extracted/
+|-- catalogs/
+|-- catalogs.json
+|-- url-card-map.json
 `-- global-write-record.json
 ```
 
@@ -26,11 +29,15 @@ Cards-era `drwn` stores local user-managed inventory under:
 |---|---|
 | `store.json` | Store metadata and schema version |
 | `machine.json` | Machine-scope overlay used outside configured projects |
-| `cards/` | Immutable published Harness Card versions |
+| `cards/` | Per-card bare Git repositories |
 | `sources/` | Editable card source directories |
 | `skills/` | Package-backed skill bundles |
 | `mcp-servers/` | User MCP server definitions, one JSON file per server |
 | `generated/` | Machine-scope generated files such as Cursor MCP payloads |
+| `extracted/` | Content-addressed card materializations keyed by Git tree SHA |
+| `catalogs/` | Local clones of Git-backed card catalogs |
+| `catalogs.json` | Registered card catalog index |
+| `url-card-map.json` | Cached Git URL to card-name mappings for repeat resolution |
 | `global-write-record.json` | Machine-scope materialization ownership record |
 
 ## Inspect Store State
@@ -45,24 +52,25 @@ inventory counts, and whether a pre-cards layout is still present.
 
 ## Migration
 
-Pre-cards versions used several paths:
+Store migration has two explicit steps:
 
-| Legacy path | Cards-era path |
+| Source | Current path |
 |---|---|
-| `~/.agents/drwn/config.json` | `~/.agents/drwn/machine.json` |
-| `~/.agents/library/mcp-servers.json` | `~/.agents/drwn/mcp-servers/<id>.json` |
-| `~/.agents/packages/skills/` | `~/.agents/drwn/skills/` |
+| Pre-cards library/packages layout | `~/.agents/drwn/` |
+| Per-version card directories | `~/.agents/drwn/cards/<scope>/<name>.git/` |
 
 Run migration explicitly:
 
 ```bash
 drwn store migrate
+drwn store migrate-to-git
 ```
 
 For structured output:
 
 ```bash
 drwn store migrate --json
+drwn store migrate-to-git --json
 ```
 
 For unattended migration:
@@ -74,19 +82,6 @@ drwn store migrate --yes
 Migration stages the new layout, validates it, archives the old layout, then
 activates `~/.agents/drwn`. Ordinary commands do not silently migrate state;
 they warn when a pre-cards layout is detected.
-
-## Legacy Orphan Cleanup
-
-After migration, old global downstream skill symlinks may still point into the
-legacy or archived store. Clean up drwn-owned legacy orphans explicitly:
-
-```bash
-drwn store migrate --cleanup-legacy-orphans
-drwn store migrate --cleanup-legacy-orphans --yes
-```
-
-Cleanup removes only symlinks whose targets are recognized as drwn-owned legacy
-paths. User-owned replacements and unrelated paths are preserved.
 
 ## Project Write Records
 
