@@ -121,5 +121,5 @@ rm -f "$TMP_NPMRC"
 - Do not rely on ambient `~/.npmrc` state for publishing.
 - Keep the package boundary explicit through `package.json.files`.
 - Publish from committed repo state, not from a half-edited worktree.
-- If `beginning-agents` remains published, deprecate it only after `darwinian-harness` is published and installable.
+- Earlier published names (`beginning-agents`, `beginning-harness`) are deprecated; mark them as such on npm now that `darwinian-harness` is installable.
 - If future CI publishing is added, prefer trusted publishing over long-lived tokens.

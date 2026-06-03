@@ -54,7 +54,7 @@ After a future Homebrew install, verify:
 - `drwn doctor --json`
 - `drwn init --force`
 - `drwn write --dry-run`
-- `drwn scan --json`
+- `drwn scan --json` (currently a planned-surface placeholder; confirms the binary is reachable and JSON output renders)
 - `drwn skills packages list --json`
 - `drwn store status --json`
 - `drwn card list --json`

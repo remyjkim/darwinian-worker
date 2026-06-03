@@ -348,7 +348,7 @@ readlink .claude/skills/animate
 
 Expected:
 
-- both point into `"$AGENTS_DIR/drwn/cards/..."`
+- both point into `"$AGENTS_DIR/drwn/extracted/<tree-sha>/skills/..."`
 - neither points into the checkout’s built-in `skills/` tree
 
 ### D. Dry-run must dedupe and show which layer wins
