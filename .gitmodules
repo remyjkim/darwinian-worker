@@ -1,0 +1,4 @@
+[submodule "darwinian-harness-skills"]
+	path = darwinian-harness-skills
+	url = https://github.com/remyjkim/darwinian-harness-skills.git
+	shallow = true
