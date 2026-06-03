@@ -5,7 +5,7 @@
 
 **Category**: Reference
 **Tags**: drwn, cli, architecture, internals, store, cards, skills, mcp, diagnostics, write-pipeline
-**Last Updated**: 2026-06-02
+**Last Updated**: 2026-06-03
 **References**: [analyses/52_drwn-target-architecture-post-wave-1.md, analyses/43_drwn-cli-target-architecture.md, analyses/47_drwn-target-architecture-after-phase-1.md, analyses/49_drwn-target-architecture-after-phase-3.md, knowledges/01_agents-cli-usage-guide.md, knowledges/02_per-project-config-guide.md, knowledges/03_npm-skill-bundles-guide.md, cli/index.ts, cli/context.ts, cli/core/card-store.ts, cli/core/card-source.ts, cli/core/card-lock.ts, cli/core/card-manifest.ts, cli/core/card-skill-resolver.ts, cli/core/git.ts, cli/core/store-paths.ts, cli/core/paths.ts, cli/core/fs.ts, cli/core/sync.ts, cli/core/write-record.ts, cli/core/effective-state.ts, cli/core/diagnostics.ts, cli/core/skills.ts, cli/core/skill-packages.ts, cli/core/mcp.ts, cli/core/managed-fields.ts, cli/core/extensions/registry.ts, registry/config.json, registry/mcp-servers.json]
 
 ---
@@ -39,32 +39,33 @@ These appear repeatedly below; treat them as load-bearing.
 
 ### 1.1 Invocation and command dispatch
 
-The entrypoint is `cli/index.ts:1` (`#!/usr/bin/env bun`). It constructs a Clipanion `Cli` with `binaryName: "drwn"` (`cli/index.ts:88-92`), registers every command class as a top-level entry (`cli/index.ts:94-173`), and calls `cli.runExit(process.argv.slice(2), context)` (`cli/index.ts:182`). Before dispatch:
+The entrypoint is `cli/index.ts:1` (`#!/usr/bin/env bun`). It constructs a Clipanion `Cli` with `binaryName: "drwn"` (`cli/index.ts:93-97`), registers every command class as a top-level entry (`cli/index.ts:99-183`), and calls `cli.runExit(process.argv.slice(2), context)` (`cli/index.ts:192`). Before dispatch:
 
-- `createAgentsContext()` builds the per-process context (`cli/index.ts:175`).
-- `validateRepoRoot()` confirms a packaged `registry/config.json` exists (`cli/index.ts:178`, `cli/context.ts:34-38`); failure is fatal.
-- `detectLegacyLayout(agentsDir)` emits a stderr warning when a pre-cards layout is present (`cli/index.ts:179-181`, `cli/core/migration.ts:38-43`).
+- `createAgentsContext()` builds the per-process context (`cli/index.ts:185`).
+- `validateRepoRoot()` confirms a packaged `registry/config.json` exists (`cli/index.ts:188`, `cli/context.ts:34-38`); failure is fatal.
+- `detectLegacyLayout(agentsDir)` emits a stderr warning when a pre-cards layout is present (`cli/index.ts:189-190`, `cli/core/migration.ts:38-43`).
 
-Uncaught errors render to stderr and set `process.exitCode = 1` (`cli/index.ts:183-186`).
+Uncaught errors render to stderr and set `process.exitCode = 1` (`cli/index.ts:193-196`).
 
-**Command tree (75 registrations).** All registrations are in a single block. Grouped by area:
+**Command tree (85 registrations).** All registrations are in a single block. Grouped by area:
 
 | Namespace | Commands | TS files |
 |---|---|---|
-| skills | `skills list`, `skills packages add/list/show`, `skills curate`, `skills uncurate` | `cli/commands/skills/*` (`cli/index.ts:94-99`) |
-| add | `add skill`, `add mcp`, `add card` | `cli/commands/add/{skill,mcp}.ts`, `cli/commands/card/add.ts` (`cli/index.ts:100-102`) |
-| install | `install` | `cli/commands/install.ts` (`cli/index.ts:103`) |
-| card (author) | `card new`, `card publish`, `card show`, `card source list/show/doctor/add-skill/remove-skill/set/add-mcp/remove-mcp`, `card list`, `card diff`, `card deprecate` | `cli/commands/card/{new,publish,show,source/*,list,diff,deprecate}.ts` (`cli/index.ts:104-117`) |
-| card (sharing) | `card remote add/list/set/remove`, `card push`, `card fetch`, `card clone` | `cli/commands/card/{remote,push,fetch,clone}.ts` (`cli/index.ts:118-124`) |
-| card (consumer) | `card apply`, `card add`, `card pin`, `card remove`, `card detach`, `card update`, `card outdated`, `card status`, `card validate` | `cli/commands/card/{apply,add,pin,remove,detach,update,outdated,status,validate}.ts` (`cli/index.ts:125-133`) |
-| top-level aliases | `apply`, `update` (alias `card apply` / `card update`) | (`cli/index.ts:134-135`) |
-| library | `library add skill/mcp`, `library catalog list/add/remove/refresh`, `library defaults list/add-skill/remove-skill/add-mcp/remove-mcp`, `library list`, `library show` | `cli/commands/library/*` (`cli/index.ts:136-148`) |
-| search | `search skill`, `search mcp`, `search card` | `cli/commands/search/*` (`cli/index.ts:149-151`) |
-| extensions | `extensions add/list/show/status/doctor/setup` | `cli/commands/extensions/*` (`cli/index.ts:152-157`) |
-| mcp / write / scan / export | `mcp write`, `mcp list`, `write`, `scan`, `export sessions` | (`cli/index.ts:158-162`) |
-| store | `store migrate`, `store migrate-to-git`, `store gc`, `store verify`, `store export`, `store status` | `cli/commands/store/*` (`cli/index.ts:163-168`) |
-| diagnostic / bootstrap | `status`, `doctor`, `init` | (`cli/index.ts:169-171`) |
-| builtins | Clipanion `Help`, `Version` | (`cli/index.ts:172-173`) |
+| skills | `skills list`, `skills packages add/list/show`, `skills curate`, `skills uncurate` | `cli/commands/skills/*` (`cli/index.ts:99-104`) |
+| add | `add skill`, `add mcp`, `add card` | `cli/commands/add/{skill,mcp}.ts`, `cli/commands/card/add.ts` (`cli/index.ts:105-107`) |
+| install | `install` | `cli/commands/install.ts` (`cli/index.ts:108`) |
+| card (author) | `card new`, `card publish`, `card show`, `card source list/show/doctor/add-skill/remove-skill/set/add-mcp/remove-mcp`, `card list`, `card diff`, `card deprecate` | `cli/commands/card/{new,publish,show,source/*,list,diff,deprecate}.ts` (`cli/index.ts:109-123`) |
+| card (sharing) | `card catalog publish`, `card remote add/list/set/remove`, `card push`, `card fetch`, `card clone` | `cli/commands/card/{catalog-publish,remote,push,fetch,clone}.ts` (`cli/index.ts`) |
+| card (consumer) | `card apply`, `card add`, `card pin`, `card remove`, `card detach`, `card update`, `card outdated`, `card status`, `card validate` | `cli/commands/card/{apply,add,pin,remove,detach,update,outdated,status,validate}.ts` (`cli/index.ts:131-139`) |
+| top-level aliases | `apply`, `update` (alias `card apply` / `card update`) | (`cli/index.ts:140-141`) |
+| library | `library add skill/mcp`, `library catalog list/add/remove/refresh`, `library defaults list/add-skill/remove-skill/add-mcp/remove-mcp`, `library list`, `library show` | `cli/commands/library/*` (`cli/index.ts:142-154`) |
+| search | `search skill`, `search mcp`, `search card` | `cli/commands/search/*` (`cli/index.ts:155-157`) |
+| extensions | `extensions add/list/show/status/doctor/setup` | `cli/commands/extensions/*` (`cli/index.ts:158-163`) |
+| mcp / write / scan / analyze / export | `mcp write`, `mcp list`, `write`, `scan`, `analyze sessions`, `export sessions` | (`cli/index.ts:164-169`) |
+| store | `store migrate`, `store migrate-to-git`, `store gc`, `store verify`, `store export`, `store status` | `cli/commands/store/*` (`cli/index.ts:170-175`) |
+| auth | `login`, `logout`, `whoami` | `cli/commands/auth/*` (`cli/index.ts:179-181`) |
+| diagnostic / bootstrap | `status`, `doctor`, `init` | (`cli/index.ts:176-178`) |
+| builtins | Clipanion `Help`, `Version` | (`cli/index.ts:182-183`) |
 
 All commands extend `BaseCommand` (`cli/commands/base.ts:7`) — `abstract class extends Command<AgentsContext>`. There is no middleware layer; argument parsing routes Clipanion → `execute()` and the context is on `this.context`.
 
@@ -85,6 +86,9 @@ When `AGENTS_REPO_ROOT` is unset, the resolver picks the cwd if it already conta
 - `DRWN_STORE_READONLY=1` (or `=true`) — enforced by `assertStoreWritable()` (`store-paths.ts:17-21`). Every store-mutating helper calls it: `card-store.ts:115,229,355,621,724`, `card-catalog.ts:121,153,172`, `card-source.ts:453`, `card-install.ts:52,67`, `store-migrate.ts:53`, `url-card-map.ts:58`. Migration defers the check to after dry-run so `--dry-run` works against a read-only store (`store-migrate.ts:46-54`).
 - `DRWN_FETCH_CONCURRENCY` — parallel fetch limit, default 4, clamped ≥1 (`concurrency.ts:11-17`).
 - `DRWN_GIT_TIMEOUT_MS` — Git subprocess timeout, default 30000 (`git.ts:9`).
+- `DRWN_ANALYZER_URL` — analyzer API override for `login`, env-token auth, and analyze uploads (`auth/config.ts:28-40`, `auth/resolve-token.ts:18-24`).
+- `DRWN_ANALYZER_WEB_URL` — analyzer frontend URL override used to compose processing/report URLs (`auth/config.ts:38-40`, `analyze/url.ts:4-9`).
+- `DRWN_TOKEN` — bearer-token override for non-login analyzer commands; must be paired with `DRWN_ANALYZER_URL` (`auth/resolve-token.ts:18-25`).
 
 ### 1.3 Per-user store topology
 
@@ -105,6 +109,7 @@ Store root is `~/.agents/drwn/`. `resolveAgentsDir(homeDir) = join(homeDir, ".ag
 | `generated/` | `resolveStoreGeneratedDir` (`store-paths.ts:146-148`) | Drwn-generated files for downstream tools (Cursor MCP) |
 | `global-write-record.json` | `resolveGlobalWriteRecordPath` (`store-paths.ts:150-152`) | Machine-scope write record |
 | `url-card-map.json` | `resolveUrlCardMapPath` (`url-card-map.ts:21-23`) | Persistent URL→card-name cache |
+| `credentials.json` | `resolveCredentialsPath` (`paths.ts:29-31`) | Analyzer auth credentials written atomically with mode `0600` (`auth/credentials.ts`) |
 
 **Path safety.** `assertSafePathPart` (`store-paths.ts:35-39`) rejects `..`, backslashes, leading `/` or `.`. `splitCardName` (`store-paths.ts:41-53`) parses `@scope/name` vs unscoped, validating both segments. `validateTreeSha` is module-private and only reachable via `resolveExtractedPath`.
 
@@ -178,20 +183,23 @@ Layer 4's on-disk path is gated on `useStoreLayout` (checks `resolveStoreMetadat
 
 1. Load packaged config (`repoConfig`, line 46).
 2. Merge packaged registry with user MCP library via `mergeUserMcpLibrary` (lines 47-50).
-3. `mergeMachineConfig` shallow-overlays `targets`, `optional`, `defaults`, `catalogs`, `parallel` (`user-config.ts:77-100`) — produces `machineConfig` (line 51).
+3. `mergeMachineConfig` shallow-overlays `targets`, `optional`, `defaults`, `catalogs`, `parallel`, and `analyzer` (`user-config.ts:77-104`) — produces `machineConfig` (line 51).
 4. **Critical inversion:** if a project config is present, `baseConfig = repoConfig`, **not** `machineConfig` (line 54). Machine-only overlays are deliberately discarded inside a configured project — this is the user-facing guarantee at `knowledges/02_per-project-config-guide.md:149-150`.
 5. Card manifests resolved from `projectConfig.cards` fold into the project config via `mergeCardManifestsIntoProjectConfig` (`card-project.ts:44-94`).
 6. The project overlay (with cards merged in) applies via `mergeProjectConfig` (`project.ts:49-92`).
 
 ### 2.2 Machine defaults
 
-`registry/config.json:1-47` is the canonical `CanonicalConfig` baseline. Schema in `types.ts:39-69`:
+`registry/config.json:1-47` is the canonical `CanonicalConfig` baseline. Schema in `types.ts:39-75`:
 
 - `version` (required, currently `1`).
 - `targets` — `claude`, `codex`, `cursor`, each `{enabled, configPath, format, mcpKey}` where `format ∈ {json-merge, toml-merge, json-standalone}`.
 - `parallel` — `{cli.enabled, mcp.enabled}`.
+- `analyzer` — optional analyzer integration config: `apiUrl`, `clientId`, `webBaseUrl`, `maxArchiveBytes` (`types.ts:68-73`).
 - `catalogs` — `{npmSkills, mcp}`.
 - `optional` — `Record<serverName, boolean>` toggle map.
+
+`loadAnalyzerConfig` (`auth/config.ts`) merges env, effective user/machine config, and packaged config for analyzer settings. No packaged analyzer API default is currently present, so `drwn login` without `DRWN_ANALYZER_URL` or `analyzer.apiUrl` fails with a config-path hint instead of guessing an environment.
 
 The machine layer extends with `MachineConfig` (`types.ts:76-80`), adding `authoring.scope` used by `drwn card new` to persist the user's preferred card scope (`card-store.ts:237-240`).
 
@@ -544,6 +552,7 @@ Eight subcommands under `cli/commands/card/source/*` mutate authoring state owne
 | `card detach` | clear `config.cards = []`; preserve overlay | `detachProjectCards` (`card-project.ts:145-147`) |
 | `card clone <git-ref>` | resolve & cache a `git+`/`github:`/`gitlab:` ref locally | `resolveCard` (`commands/card/clone.ts:28-41`) |
 | `card publish <name>` | publish source to bare repo + tag | `publishCard` (`commands/card/publish.ts:24-33`) |
+| `card catalog publish <ref> --catalog <scope\|url\|path> --mode <local\|direct>` | upsert one catalog entry; local mode writes only, direct mode commits and pushes catalog JSON | `publishCardToCatalog` (`card-catalog-publish.ts`) |
 | `card push <name> [--remote]` | push `refs/heads/main` + `--tags` | `git.push` (`commands/card/push.ts:29-35`) |
 | `card fetch <name> [--remote]` | fetch heads + tags | `git.fetch` (`commands/card/fetch.ts:29-35`) |
 | `card validate <ref>` | resolve + integrity-check; typed error codes in JSON | `resolveCard` (`commands/card/validate.ts:32-47`) |
@@ -553,6 +562,13 @@ Eight subcommands under `cli/commands/card/source/*` mutate authoring state owne
 | `card status [--explain]` | project specs + locked versions + outdated table | `readProjectCardStatus` (`card-project.ts:153-161`); `explainStatus` (`diagnostics.ts`) |
 | `card deprecate <ref> [--message]` | set `drwn.deprecated.<v>` config | `deprecateCardVersion` (`card-store.ts:723-729`) |
 | `card remote add/set/remove/list` | manage bare repo `[remote "<n>"]` + `drwn.originUrl` | `commands/card/remote.ts:27-129` |
+
+`card catalog publish` is producer-side catalog authoring. It resolves the card
+ref, validates the installable Git URL in an isolated temp store, validates the
+target `catalog.json`, refuses duplicate entries unless `--replace`, and sorts
+entries by name for stable diffs. `--mode direct` accepts a registered catalog
+scope, Git URL, or clean local checkout; it commits `catalog.json`, pushes the
+current branch to `origin`, and best-effort refreshes a registered catalog cache.
 
 Every mutating consumer command supports `--write` to chain into `syncRepository` via `runChainedWrite` (`project-command.ts:28-42`). Errors from the chained write go to stderr; the lock mutation has already succeeded.
 
@@ -855,9 +871,9 @@ Flags (`:40-58`):
 | `--minimal` | Alias for prompt-free minimal config |
 | `--non-interactive` | Prompt-free minimal config |
 | `--force` | Overwrite existing config (passed to `scaffoldProjectConfig`) |
-| `--no-default-catalogs` | Skip pre-registering the default community card catalog (`:86-88`) |
+| `--no-default-catalogs` | Skip pre-registering the default Curation Labs community card catalog (`:86-88`) |
 
-Side effects: scaffold `config.json` (`:75, 95`); in guided mode, conditional Parallel/Beads extension entries (`:101-105, 112-115`); default community catalog registration unless `--no-default-catalogs`; `.gitignore` is read but never mutated — a warning is appended if it excludes `.agents` (`:79-84`).
+Side effects: scaffold `config.json` (`:75, 95`); in guided mode, conditional Parallel/Beads extension entries (`:101-105, 112-115`); default community catalog registration for `https://github.com/curation-labs/dh-cards-catalog-v1.git` unless `--no-default-catalogs`; `.gitignore` is read but never mutated — a warning is appended if it excludes `.agents` (`:79-84`).
 
 ### 5.5 Status and doctor
 
@@ -991,6 +1007,7 @@ Verified placeholder. `commands/scan.ts:14-62` registers under `["scan"]` and em
 | Bundle | npm-distributed skill package under `~/.agents/drwn/skills/<package>/<version>/` | `skill-packages.ts`, `bundle.json` |
 | Library | Machine-local inventory (curated repo skills + bundles + MCP definitions + registry) | `library.ts:9-69` |
 | Catalog (discovery) | Configured source of searchable items (npm-skills, mcp, card-catalogs) | `catalogs.ts`, `card-catalog.ts` |
+| Catalog publication | Producer-side mutation of a card catalog repo's `catalog.json` | `card-catalog-publish.ts` |
 | Defaults | Subset of library promoted into `userConfig.defaults.{skills, mcpServers, extensions}` | `defaults.ts` |
 | Effective state | Composed view of repo + machine + library + project + cards for read or write | `effective-state.ts:44-107` |
 | Managed field | A drwn-owned key inside a user-owned config file, tracked via `_drwn` meta block | `managed-fields.ts:6-50` |
@@ -1013,6 +1030,7 @@ Verified placeholder. `commands/scan.ts:14-62` registers under `["scan"]` and em
 | `card new` | `card-store.ts:createCardSource`, `card-capture.ts` |
 | `card source *` | `card-source.ts`, `store-paths.ts` |
 | `card publish` | `card-store.ts:publishCard`, `git.ts` |
+| `card catalog publish` | `card-catalog-publish.ts`, `card-catalog.ts`, `card-store.ts`, `git.ts` |
 | `card push` / `card fetch` / `card clone` / `card remote *` | `git.ts`, `card-store.ts` |
 | `card show` / `card list` / `card validate` / `card diff` / `card outdated` | `card-store.ts`, `card-diff.ts`, `git.ts` |
 | `card deprecate` | `card-store.ts:deprecateCardVersion`, `git.configSet` |
@@ -1026,6 +1044,8 @@ Verified placeholder. `commands/scan.ts:14-62` registers under `["scan"]` and em
 | `search skill/mcp/card` | `search.ts`, `catalogs.ts`, `card-catalog.ts` |
 | `extensions add/setup/list/show/status/doctor` | `extensions/registry.ts`, per-extension modules, `project-writes.ts` |
 | `export sessions` | `export/session-discovery.ts`, `export/archiver.ts` |
+| `analyze sessions` | `analyze/find-archive.ts`, `analyze/inline-export.ts`, `analyze/resolve-input.ts`, `analyze/validate-archive.ts`, `auth/resolve-token.ts`, `http/analyzer-client.ts` |
+| `login` / `logout` / `whoami` | `auth/config.ts`, `auth/credentials.ts`, `auth/device-flow.ts`, `auth/resolve-token.ts`, `http/analyzer-client.ts` |
 | `store status/verify/migrate/migrate-to-git/gc/export` | `migration.ts`, `store-migrate.ts`, `git.ts` |
 | `mcp list` | `mcp.ts`, `mcp-library.ts`, `effective-state.ts` |
 
@@ -1035,17 +1055,23 @@ Verified placeholder. `commands/scan.ts:14-62` registers under `["scan"]` and em
 
 | Module | LOC | Role |
 |---|---|---|
-| `paths.ts` | 116 | `resolveAgentsDir`, `resolveRepoRoot`, legacy package paths |
+| `paths.ts` | 120 | `resolveAgentsDir`, `resolveRepoRoot`, credentials path, legacy package paths |
+| `auth/config.ts` | 52 | Analyzer API/web/client config resolution with env overrides |
+| `auth/credentials.ts` | 62 | Read/write/delete `~/.agents/drwn/credentials.json` |
+| `auth/device-flow.ts` | 55 | Device-flow orchestration over the shared analyzer HTTP client |
+| `auth/resolve-token.ts` | 33 | Credentials/env bearer-token resolution |
+| `http/analyzer-client.ts` | 121 | Analyzer auth/session/upload/job HTTP client with schema validation |
+| `analyze/*` | 161 | Archive selection, validation, inline export, and frontend URL helpers |
 | `store-paths.ts` | 152 | Every path under `~/.agents/drwn/`; `assertStoreWritable` |
 | `fs.ts` | 45 | `writeAtomically`, `lstatSafe`, `realpathSafe`, `ensureParentDir` |
 | `concurrency.ts` | 60 | `pMap`, `resolveFetchConcurrency` |
 | `errors.ts` | 23 | `DrwnError` + `toJSON` |
 | `output.ts` | 57 | `renderJson`, `renderTable`, `renderSyncResult`, `renderDoctorReport` |
 | `interactivity.ts` | 54 | TTY-aware mode resolvers |
-| `types.ts` | 163 | Shared schemas (config, registry, project, manifest, lock, bundle) |
+| `types.ts` | 169 | Shared schemas (config, registry, project, manifest, lock, bundle) |
 | `config.ts` | 14 | Packaged `registry/config.json` read/write |
 | `registry.ts` | 14 | Packaged `registry/mcp-servers.json` read/write |
-| `user-config.ts` | 100 | Machine config load/merge (`mergeMachineConfig`) |
+| `user-config.ts` | 104 | Machine config load/merge (`mergeMachineConfig`) |
 | `defaults.ts` | 90 | `resolveDefaultMcpNames`, `applyMcpDefaultsToConfig`, `addDefaultValue`/`removeDefaultValue` |
 | `project.ts` | 125 | `findProjectConfig`, `loadProjectConfig`, `mergeProjectConfig`, `scaffoldProjectConfig` |
 | `project-writes.ts` | 56 | Project config read-for-write helpers, `includeProjectSkill`, `setProjectServerOverride`, `setProjectExtensionConfig` |
@@ -1064,6 +1090,7 @@ Verified placeholder. `commands/scan.ts:14-62` registers under `["scan"]` and em
 | `card-capture.ts` | 95 | `captureProjectAsCard` for `card new --from-project` |
 | `card-install.ts` | 89 | `ensureCardPresentFromLock` |
 | `card-catalog.ts` | 264 | Git-backed card catalogs (clones under `catalogs/`) |
+| `card-catalog-publish.ts` | 500 | Producer-side catalog entry validation, local/direct catalog mutation, commit/push orchestration |
 | `card-diff.ts` | 98 | `diffCards` manifest classification |
 | `git.ts` | 365 | Single module that runs `git`; error taxonomy; bare-repo plumbing |
 | `url-card-map.ts` | 67 | `~/.agents/drwn/url-card-map.json` persistent cache |

@@ -118,7 +118,7 @@ Added:
 - `drwn search card --scope <scope>`
 - `drwn init --no-default-catalogs`
 
-Catalogs use a `catalog.json` schema with `catalogVersion: 1`, `scope`, and card entries. The default community catalog URL is `https://github.com/darwinian-harness/cards-catalog.git`, registered fail-soft by default during init.
+Catalogs use a `catalog.json` schema with `catalogVersion: 1`, `scope`, and card entries. The default community catalog URL is `https://github.com/curation-labs/dh-cards-catalog-v1.git`, registered fail-soft by default during init.
 
 ### Card Affordances
 
@@ -179,7 +179,7 @@ drwn uses the system `git` binary under the hood via `Bun.spawn`. This is now an
 A post-implementation review surfaced and closed these gaps before Wave 1 was considered complete:
 
 - **Catalog reconciliation**: catalog schema and index schema now match the intended spec.
-- **Default community catalog**: default registration now points to `https://github.com/darwinian-harness/cards-catalog.git`.
+- **Default community catalog**: default registration now points to `https://github.com/curation-labs/dh-cards-catalog-v1.git`.
 - **Catalog refresh**: `drwn library catalog refresh [<scope>]` was added.
 - **Catalog search scope**: `drwn search card --scope <scope>` was added.
 - **Default catalog opt-out**: `drwn init --no-default-catalogs` was added.
