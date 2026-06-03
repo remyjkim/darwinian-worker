@@ -106,6 +106,13 @@ In checkout mode, edit:
 - `registry/mcp-servers.json` for MCP server definitions
 - `skills/` for built-in skill content
 
+For a global `drwn` that runs the checkout's source:
+
+```bash
+bun link
+drwn --help
+```
+
 ## Command reference
 
 General commands:
