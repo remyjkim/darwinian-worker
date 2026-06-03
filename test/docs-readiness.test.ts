@@ -33,7 +33,9 @@ describe("documentation readiness", () => {
       readFile(new URL("../docs-docusaurus/docs/concepts/local-store.md", import.meta.url), "utf8"),
       readFile(new URL("../docs-docusaurus/docs/concepts/mcp-servers.md", import.meta.url), "utf8"),
       readFile(new URL("../docs-docusaurus/docs/guides/authoring-multi-skill-cards.md", import.meta.url), "utf8"),
+      readFile(new URL("../docs-docusaurus/docs/guides/sharing-with-a-team.md", import.meta.url), "utf8"),
       readFile(new URL("../docs-docusaurus/docs/reference/cli/card.md", import.meta.url), "utf8"),
+      readFile(new URL("../docs-docusaurus/docs/reference/cli/library.md", import.meta.url), "utf8"),
       readFile(new URL("../docs-docusaurus/docs/reference/cli/store.md", import.meta.url), "utf8"),
       readFile(new URL("../docs-docusaurus/docs/reference/cli/extensions.md", import.meta.url), "utf8"),
       readFile(new URL("../docs-docusaurus/docs/reference/cli/status.md", import.meta.url), "utf8"),
@@ -61,6 +63,7 @@ describe("documentation readiness", () => {
       "drwn extensions setup parallel",
       "drwn extensions setup markitdown",
       "drwn skills packages",
+      "drwn card catalog publish",
     ]) {
       expect(quickref).toContain(command);
     }
@@ -99,6 +102,9 @@ describe("documentation readiness", () => {
     expect(quickref).toContain("How export works");
     expect(quickref).toContain("drwn library defaults remove skill");
     expect(quickref).toContain("drwn library defaults remove mcp");
+    expect(quickref).toContain("--mode direct");
+    expect(quickref).toContain("https://github.com/curation-labs/dh-cards-catalog-v1.git");
+    expect(quickref).toContain("@community");
     expect(quickref).toContain("registry/config.json");
     expect(quickref).toContain("registry/mcp-servers.json");
     expect(quickref).toContain("drwn apply");
@@ -112,6 +118,9 @@ describe("documentation readiness", () => {
     expect(usageGuide).toContain("drwn write --force");
     expect(usageGuide).toContain("drwn status --why");
     expect(usageGuide).toContain("drwn library defaults add");
+    expect(usageGuide).toContain("drwn card catalog publish");
+    expect(usageGuide).toContain("library catalog refresh");
+    expect(usageGuide).toContain("https://github.com/curation-labs/dh-cards-catalog-v1.git");
     expect(usageGuide).toContain("repo-native and installed package-backed skills");
     expect(usageGuide).toContain("darwinian-harness");
     expect(usageGuide).toContain("local harness");
@@ -136,6 +145,9 @@ describe("documentation readiness", () => {
     expect(docsDocusaurus).toContain("Local Store");
     expect(docsDocusaurus).toContain("drwn extensions add");
     expect(docsDocusaurus).toContain("drwn card");
+    expect(docsDocusaurus).toContain("drwn card catalog publish");
+    expect(docsDocusaurus).toContain("https://github.com/curation-labs/dh-cards-catalog-v1.git");
+    expect(docsDocusaurus).toContain("@community");
     expect(docsDocusaurus).toContain("drwn store");
     expect(docsDocusaurus).toContain("drwn apply");
     expect(docsDocusaurus).toContain("drwn update");

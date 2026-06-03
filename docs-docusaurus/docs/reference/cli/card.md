@@ -12,6 +12,7 @@ Author and publish:
 drwn card new @your-handle/backend --no-git
 drwn card new backend --scope @your-handle --from-project .
 drwn card publish @your-handle/backend
+drwn card catalog publish @your-handle/backend@1.0.0 --catalog @your-handle --mode direct
 drwn card show @your-handle/backend@1.0.0
 drwn card validate @your-handle/backend@1.0.0
 drwn card diff @your-handle/backend@1.0.0 @your-handle/backend@1.1.0
@@ -82,6 +83,27 @@ drwn card outdated --check --json
 `--check` exits non-zero when any locked card has a newer version available locally, which makes it suitable as a CI gate. `--fetch` runs `git fetch` against each card's origin before computing the diff so the check uses up-to-date tag listings.
 
 Remote and catalog flows use Git refs. `drwn` delegates authentication to Git.
+
+Publish to a card catalog after the card has been pushed to an installable Git remote:
+
+```bash
+drwn card remote add @team/backend <card-git-url>
+drwn card push @team/backend
+drwn library catalog add <catalog-git-url>
+drwn card catalog publish @team/backend@1.0.0 --catalog @team --mode direct --tag backend --json
+drwn search card backend --scope @team
+```
+
+`drwn card catalog publish` accepts a store card ref or Git-origin card ref.
+`--catalog` can be a registered scope such as `@team`, a catalog Git URL, or a
+local catalog checkout path. `--mode local` updates `catalog.json` only; it does
+not commit or push. `--mode direct` requires a clean catalog worktree, commits
+the `catalog.json` change, pushes the current branch, and refreshes a registered
+catalog cache when possible.
+
+Use `--dry-run --json` to validate the card ref, entry URL, catalog schema, and
+duplicate-entry behavior before writing. Existing entries require `--replace`
+unless the generated payload is already identical.
 
 ## Typical Source Authoring
 
