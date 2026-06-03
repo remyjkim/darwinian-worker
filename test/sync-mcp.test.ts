@@ -475,6 +475,7 @@ describe("syncRepository", () => {
       repoRoot,
       agentsDir,
       homeDir,
+      cwd: repoRoot,
       dryRun: true,
     });
 
@@ -538,6 +539,7 @@ describe("syncRepository", () => {
       repoRoot,
       agentsDir,
       homeDir,
+      cwd: repoRoot,
       skillsOnly: true,
     });
 
