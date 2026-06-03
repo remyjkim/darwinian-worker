@@ -160,6 +160,74 @@ export async function cloneBare(url: string, targetPath: string, opts: { depth?:
   throwForFailure(result, "GIT_CLONE_FAILED", `git clone --bare failed for ${url}`, args);
 }
 
+export async function cloneWorktree(url: string, targetPath: string, opts: { depth?: number } = {}): Promise<void> {
+  await mkdir(dirname(targetPath), { recursive: true });
+  const args = ["clone"];
+  if (opts.depth) {
+    args.push("--depth", String(opts.depth));
+  }
+  args.push(url, targetPath);
+  const result = await runGit(args);
+  throwForFailure(result, "GIT_CLONE_FAILED", `git clone failed for ${url}`, args);
+}
+
+export async function worktreeStatusPorcelain(cwd: string): Promise<string> {
+  const args = ["status", "--porcelain"];
+  const result = await runGit(args, { cwd });
+  throwForFailure(result, "GIT_STATUS_FAILED", "git status --porcelain failed", args);
+  return result.stdout.trimEnd();
+}
+
+export async function currentBranch(cwd: string): Promise<string> {
+  const args = ["branch", "--show-current"];
+  const result = await runGit(args, { cwd });
+  throwForFailure(result, "GIT_BRANCH_FAILED", "git branch --show-current failed", args);
+  return result.stdout.trim();
+}
+
+export async function addWorktreePaths(cwd: string, paths: string[]): Promise<void> {
+  const args = ["add", "--", ...paths];
+  const result = await runGit(args, { cwd });
+  throwForFailure(result, "GIT_ADD_FAILED", "git add failed", args);
+}
+
+export async function commitWorktree(cwd: string, message: string): Promise<string> {
+  const args = ["commit", "-m", message];
+  const result = await runGit(args, {
+    cwd,
+    env: {
+      GIT_AUTHOR_NAME: "drwn",
+      GIT_AUTHOR_EMAIL: "drwn@example.local",
+      GIT_COMMITTER_NAME: "drwn",
+      GIT_COMMITTER_EMAIL: "drwn@example.local",
+    },
+  });
+  throwForFailure(result, "GIT_COMMIT_FAILED", "git commit failed", args);
+  return await revParseWorktree(cwd, "HEAD");
+}
+
+export async function pushWorktreeHead(cwd: string, remote: string, branch: string): Promise<void> {
+  const args = ["push", remote, `HEAD:${branch}`];
+  const result = await runGit(args, { cwd });
+  throwForFailure(result, "GIT_PUSH_FAILED", `git push failed to ${remote}`, args);
+}
+
+export async function remoteGetUrl(cwd: string, remote: string): Promise<string> {
+  const args = ["remote", "get-url", remote];
+  const result = await runGit(args, { cwd });
+  throwForFailure(result, "GIT_REMOTE_GET_URL_FAILED", `git remote get-url failed for ${remote}`, args);
+  return result.stdout.trim();
+}
+
+export async function revParseWorktree(cwd: string, ref: string): Promise<string> {
+  const args = ["rev-parse", ref];
+  const result = await runGit(args, { cwd });
+  if (result.exitCode !== 0) {
+    throw classifyGitFailure("GIT_REV_PARSE_FAILED", `git rev-parse failed for ${ref}`, args, result);
+  }
+  return result.stdout.trim();
+}
+
 export async function fetch(repoPath: string, remote: string, refspecs: string[] = []): Promise<void> {
   const args = ["fetch", remote, ...refspecs];
   const result = await runInRepo(repoPath, args);

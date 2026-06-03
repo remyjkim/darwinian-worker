@@ -33,6 +33,7 @@ describe("CLI entrypoint", () => {
     expect(stdout).toContain("drwn card source list");
     expect(stdout).toContain("drwn card source show");
     expect(stdout).toContain("drwn card source doctor");
+    expect(stdout).toContain("drwn card catalog publish");
     expect(stdout).not.toContain("drwn mcp apply");
     expect(stdout).not.toContain("drwn sync");
     expect(stdout).not.toContain("drwn mcp sync");

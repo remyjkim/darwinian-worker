@@ -6,6 +6,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { resolveDefaultCommunityCatalogUrl } from "../cli/core/card-catalog";
 import {
   commitTree,
   createAnnotatedTag,
@@ -16,6 +17,7 @@ import {
 } from "../cli/core/git";
 
 const tempRoots: string[] = [];
+const CURATION_LABS_CATALOG_URL = "https://github.com/curation-labs/dh-cards-catalog-v1.git";
 
 afterEach(async () => {
   await cleanupTempRoots(tempRoots);
@@ -79,6 +81,12 @@ async function writeManifest(
     )}\n`,
   );
 }
+
+test("default community catalog points to the public Curation Labs catalog", async () => {
+  const config = JSON.parse(await readFile(join(process.cwd(), "registry/config.json"), "utf8"));
+
+  expect(resolveDefaultCommunityCatalogUrl(config)).toBe(CURATION_LABS_CATALOG_URL);
+});
 
 test("library catalog add registers a catalog by URL and discovers its scope", async () => {
   const fixture = await scaffoldCliFixture();

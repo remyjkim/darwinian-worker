@@ -7,9 +7,13 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  addWorktreePaths,
   cloneBare,
+  cloneWorktree,
+  commitWorktree,
   commitTree,
   createAnnotatedTag,
+  currentBranch,
   diff,
   extractTreeToDir,
   fetch,
@@ -17,12 +21,15 @@ import {
   log,
   lsRemote,
   push,
+  pushWorktreeHead,
   remoteAdd,
+  remoteGetUrl,
   remoteList,
   remoteRemove,
   remoteSet,
   revParse,
   showBlob,
+  worktreeStatusPorcelain,
   updateRef,
   writeTreeFromDir,
 } from "../cli/core/git";
@@ -68,6 +75,54 @@ describe("git remote and tree primitives", () => {
     expect(await listTags(clone)).toContain("v1.1.0");
   });
 
+  test("working-tree helpers clone, inspect, commit, and push catalog content", async () => {
+    const tmp = await mkdtemp(join(tmpdir(), "drwn-git-worktree-"));
+    cleanups.push(tmp);
+    const remotePath = join(tmp, "catalog.git");
+    const seed = join(tmp, "seed");
+    const checkout = join(tmp, "checkout");
+    await runTestGit(["init", "--bare", remotePath]);
+    await mkdir(seed, { recursive: true });
+    await writeFile(
+      join(seed, "catalog.json"),
+      JSON.stringify({ catalogVersion: 1, scope: "@team", cards: [] }, null, 2) + "\n",
+    );
+    await runTestGit(["init"], { cwd: seed });
+    await runTestGit(["add", "catalog.json"], { cwd: seed });
+    await runTestGit(["commit", "-m", "catalog: seed"], { cwd: seed });
+    await runTestGit(["branch", "-M", "main"], { cwd: seed });
+    await runTestGit(["remote", "add", "origin", `file://${remotePath}`], { cwd: seed });
+    await runTestGit(["push", "origin", "main"], { cwd: seed });
+    await runTestGit(["--git-dir", remotePath, "symbolic-ref", "HEAD", "refs/heads/main"]);
+
+    await cloneWorktree(`file://${remotePath}`, checkout);
+
+    expect(await currentBranch(checkout)).toBe("main");
+    expect(await remoteGetUrl(checkout, "origin")).toBe(`file://${remotePath}`);
+    expect(await worktreeStatusPorcelain(checkout)).toBe("");
+
+    await writeFile(
+      join(checkout, "catalog.json"),
+      JSON.stringify(
+        {
+          catalogVersion: 1,
+          scope: "@team",
+          cards: [{ name: "backend", url: "git+file:///tmp/backend.git#v1.0.0" }],
+        },
+        null,
+        2,
+      ) + "\n",
+    );
+    expect(await worktreeStatusPorcelain(checkout)).toContain("catalog.json");
+
+    await addWorktreePaths(checkout, ["catalog.json"]);
+    const commit = await commitWorktree(checkout, "catalog: add backend card");
+    await pushWorktreeHead(checkout, "origin", "main");
+
+    const pushed = (await runTestGit(["--git-dir", remotePath, "show", `${commit}:catalog.json`])).stdout;
+    expect(JSON.parse(pushed).cards[0].name).toBe("backend");
+  });
+
   test("writeTreeFromDir, commitTree, updateRef, createAnnotatedTag, and push publish content", async () => {
     const remote = await createLocalCardRepo({ name: "@me/foo" });
     cleanups.push(remote.tempDir);
@@ -109,3 +164,27 @@ describe("git remote and tree primitives", () => {
     expect(JSON.parse(await readFile(join(extracted, "card.json"), "utf8")).version).toBe("1.1.0");
   });
 });
+
+async function runTestGit(args: string[], opts: { cwd?: string } = {}) {
+  const proc = Bun.spawn(["git", ...args], {
+    cwd: opts.cwd,
+    stdout: "pipe",
+    stderr: "pipe",
+    env: {
+      ...process.env,
+      GIT_AUTHOR_NAME: "Test",
+      GIT_AUTHOR_EMAIL: "test@example.com",
+      GIT_COMMITTER_NAME: "Test",
+      GIT_COMMITTER_EMAIL: "test@example.com",
+    },
+  });
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+  if (exitCode !== 0) {
+    throw new Error(`git ${args.join(" ")} failed: ${stderr || stdout}`);
+  }
+  return { stdout, stderr, exitCode };
+}
