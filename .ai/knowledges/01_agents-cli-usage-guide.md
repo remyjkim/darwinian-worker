@@ -227,19 +227,30 @@ Edit bundled skills and MCP definitions:
 ```bash
 drwn card source add-skill @me/backend reviewer
 drwn card source add-skill @me/backend reviewer --from ./skills/reviewer
+drwn card source add-skill @me/backend reviewer --replace
+drwn card source add-skill @me/backend reviewer --dry-run
 drwn card source remove-skill @me/backend reviewer
 drwn card source remove-skill @me/backend reviewer --keep-files
+drwn card source remove-skill @me/backend reviewer --dry-run
 drwn card source add-mcp @me/backend context7
 drwn card source add-mcp @me/backend context7 --from ./context7.json
+drwn card source add-mcp @me/backend context7 --replace
 drwn card source remove-mcp @me/backend context7
 drwn card source remove-mcp @me/backend context7 --keep-files
 ```
+
+`--replace` lets `add-skill` and `add-mcp` overwrite an existing entry by name.
+`--keep-files` retains bundled skill or MCP files on disk while dropping the
+`card.json` declaration. Every mutating source subcommand accepts `--dry-run`
+and `--json`.
 
 Update manifest metadata and quality signals:
 
 ```bash
 drwn card source set @me/backend --description "Backend review harness"
 drwn card source set @me/backend --version 0.1.0 --stability stable
+drwn card source set @me/backend --license Apache-2.0
+drwn card source set @me/backend --harness-min-version 0.1.0
 drwn card source set @me/backend --last-validated-with 0.1.0 --test-status-badge https://example.com/status.svg
 ```
 

@@ -2,6 +2,10 @@
 
 This directory holds internal operator and maintainer knowledge that is more specific than the public [README.md](../../README.md).
 
+## Architecture
+
+- [10_drwn-cli-architecture.md](./10_drwn-cli-architecture.md): comprehensive as-built reference for the CLI internals — process model, store topology, config merge, cards, skills, write pipeline, diagnostics, with a per-module index and command-to-module map
+
 ## Operator Docs
 
 - [01_agents-cli-usage-guide.md](./01_agents-cli-usage-guide.md): day-to-day `drwn` usage, local state model, and command workflows
