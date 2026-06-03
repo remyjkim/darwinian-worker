@@ -4,6 +4,46 @@ sidebar_position: 13
 
 # Doctor
 
-> **Coming soon.** This page is part of the planned IA but has not been written yet.
->
-> If you need this content now, please open an issue at [github.com/remyjkim/darwinian-harness/issues](https://github.com/remyjkim/darwinian-harness/issues).
+`drwn doctor` reports drift, broken links, missing generated files, and project-config issues without mutating anything. It is the read-only counterpart to `drwn write`.
+
+Run a health check:
+
+```bash
+drwn doctor
+drwn doctor --json
+```
+
+`drwn doctor` is project-aware: when run inside a configured project, the report scopes to that project's write record, generated dir, and overlay. Outside a project, the report is machine-scoped.
+
+## What it surfaces
+
+| Category | Detail |
+|---|---|
+| Broken skill symlinks | lstat-survivor filter over the active skill link sets |
+| Stale skill symlinks | drwn-owned downstream symlinks that no longer correspond to the desired set (curated + scope + card-source resolved skills) |
+| MCP drift | Per-target managed-content drift across Claude / Codex / Cursor, comparing recorded vs recomputed hashes for each managed field |
+| Missing generated Cursor file | Cursor is enabled but `cursor-mcp.json` is missing under the write scope's generated dir |
+| Project config — unknown server | `serverOverrides` references a server that is neither in the registry nor the user MCP library |
+| Project config — unknown skill | `skills.include` (or `extensions.<name>` derivations) references a skill that does not resolve in any layer |
+| Project config — unknown extension | `extensions.<name>` references an extension drwn does not know |
+| Project config — stale target override | `targets.<name>` references a target drwn does not know |
+| Project config — unknown card | A `config.cards` entry cannot be parsed or matched against `card.lock` |
+| Project config — unresolved card refs | A locked card cannot be materialized (missing extract, missing remote, etc.) |
+| Card manifest — unavailable skill | A consumed card's manifest references a skill name that does not resolve under the effective state |
+| Store + write-record status | Store schema version, card count, and last-write record presence/corruption |
+
+## Report-only by design
+
+`drwn doctor` never mutates files. It is safe to run anywhere, including under `DRWN_STORE_READONLY=1`.
+
+The unresolved `skills.include` case is split across two surfaces:
+
+- `drwn write` fails before any downstream mutation when a `skills.include` name does not resolve — this is a hard write-time contract.
+- `drwn doctor` reports the same condition as a diagnostic, so operators can see it without attempting a write.
+
+## Related
+
+- [Status](./status) — effective harness summary (use `--why` to trace why something is active)
+- [Write](./write) — the mutating counterpart; `--dry-run` previews the same writes doctor reports drift against
+- [Extensions doctor](../extensions/doctor) — extension-specific diagnostics (Parallel, Beads, MarkItDown)
+- [Store status / verify](./store) — store-layer health

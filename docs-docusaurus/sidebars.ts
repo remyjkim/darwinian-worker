@@ -46,9 +46,11 @@ const sidebars: SidebarsConfig = {
       collapsed: true,
       items: [
         'guides/per-project-patterns',
+        'guides/use-darwinian-harness-skills',
         'guides/setup-beads',
         'guides/setup-parallel',
         'guides/setup-markitdown',
+        'guides/setup-markdownify',
         'guides/authoring-multi-skill-cards',
         'guides/sharing-with-a-team',
         'guides/doctor-in-ci',
@@ -78,6 +80,7 @@ const sidebars: SidebarsConfig = {
             'reference/cli/store',
             'reference/cli/status',
             'reference/cli/doctor',
+            'reference/cli/export',
           ],
         },
         {
