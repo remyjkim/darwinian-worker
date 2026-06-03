@@ -5,6 +5,10 @@
 import { Builtins, Cli } from "clipanion";
 import { AddMcpCommand } from "./commands/add/mcp";
 import { AddSkillCommand } from "./commands/add/skill";
+import { AnalyzeSessionsCommand } from "./commands/analyze/sessions";
+import { LoginCommand } from "./commands/auth/login";
+import { LogoutCommand } from "./commands/auth/logout";
+import { WhoamiCommand } from "./commands/auth/whoami";
 import { ApplyCommand, CardApplyCommand } from "./commands/card/apply";
 import { AddCardCommand, CardAddCommand } from "./commands/card/add";
 import { CardCatalogPublishCommand } from "./commands/card/catalog-publish";
@@ -161,6 +165,7 @@ cli.register(McpWriteCommand);
 cli.register(McpListCommand);
 cli.register(WriteCommand);
 cli.register(ScanCommand);
+cli.register(AnalyzeSessionsCommand);
 cli.register(ExportSessionsCommand);
 cli.register(StoreMigrateCommand);
 cli.register(StoreMigrateToGitCommand);
@@ -171,6 +176,9 @@ cli.register(StoreStatusCommand);
 cli.register(StatusCommand);
 cli.register(DoctorCommand);
 cli.register(InitCommand);
+cli.register(LoginCommand);
+cli.register(LogoutCommand);
+cli.register(WhoamiCommand);
 cli.register(Builtins.HelpCommand);
 cli.register(Builtins.VersionCommand);
 
