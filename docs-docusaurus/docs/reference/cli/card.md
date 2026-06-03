@@ -52,4 +52,53 @@ drwn card outdated
 drwn card status --explain
 ```
 
+Every mutating consumer command accepts `--write` to chain into `drwn write` after the lock mutation succeeds:
+
+```bash
+drwn card add @me/backend@^1.0.0 --write
+drwn card pin @me/backend@1.0.0 --write
+drwn card remove @me/backend --write
+drwn card update --write
+drwn card detach --write
+```
+
+`drwn update` is a top-level alias for `drwn card update`.
+
+List local cards:
+
+```bash
+drwn card list
+drwn card list --json
+```
+
+Check for outdated locks in CI and pre-fetch origins:
+
+```bash
+drwn card outdated --check
+drwn card outdated --fetch
+drwn card outdated --check --json
+```
+
+`--check` exits non-zero when any locked card has a newer version available locally, which makes it suitable as a CI gate. `--fetch` runs `git fetch` against each card's origin before computing the diff so the check uses up-to-date tag listings.
+
 Remote and catalog flows use Git refs. `drwn` delegates authentication to Git.
+
+## Typical Source Authoring
+
+The canonical authoring sequence from empty source to published card:
+
+```bash
+drwn card new @me/backend --no-git
+drwn card source add-skill @me/backend reviewer
+drwn card source add-mcp @me/backend context7
+drwn card source set @me/backend \
+  --description "Backend review harness" \
+  --version 0.1.0 \
+  --stability stable \
+  --last-validated-with 0.1.0 \
+  --test-status-badge https://example.com/status.svg
+drwn card source doctor @me/backend
+drwn card publish @me/backend
+```
+
+The quality fields (`--stability`, `--last-validated-with`, `--test-status-badge`) surface in `drwn card show` so consumers can see the maturity signal before applying a card.

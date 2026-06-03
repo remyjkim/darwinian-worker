@@ -8,6 +8,7 @@ describe("documentation readiness", () => {
   test("README, usage guide, and Homebrew checklist cover key scenarios", async () => {
     const [
       readme,
+      quickref,
       usageGuide,
       projectGuide,
       bundleGuide,
@@ -18,6 +19,7 @@ describe("documentation readiness", () => {
       ...docsDocusaurusFiles
     ] = await Promise.all([
       readFile(new URL("../README.md", import.meta.url), "utf8"),
+      readFile(new URL("../docs/cli-quickref.md", import.meta.url), "utf8"),
       readFile(new URL("../.ai/knowledges/01_agents-cli-usage-guide.md", import.meta.url), "utf8"),
       readFile(new URL("../.ai/knowledges/02_per-project-config-guide.md", import.meta.url), "utf8"),
       readFile(new URL("../.ai/knowledges/03_npm-skill-bundles-guide.md", import.meta.url), "utf8"),
@@ -38,8 +40,11 @@ describe("documentation readiness", () => {
       readFile(new URL("../docs-docusaurus/docs/reference/cli/write.md", import.meta.url), "utf8"),
     ]);
     const docsDocusaurus = docsDocusaurusFiles.join("\n");
+    const repoOperatorDocs = quickref + "\n" + usageGuide;
 
-    for (const doc of [readme, usageGuide]) {
+    // Usage-pattern coverage: every operator-facing detail must appear in
+    // the in-repo operator docs (cli-quickref + agents CLI usage guide).
+    for (const doc of [quickref, usageGuide]) {
       expect(doc).toContain("bun link");
       expect(doc).toContain("uv tool install --python 3.12 'markitdown[all]'");
       expect(doc).toContain("markdownify");
@@ -57,30 +62,48 @@ describe("documentation readiness", () => {
       "drwn extensions setup markitdown",
       "drwn skills packages",
     ]) {
-      expect(readme).toContain(command);
+      expect(quickref).toContain(command);
     }
 
     expect(brewGuide).toContain("Homebrew");
     expect(brewGuide).toContain("tagged release");
     expect(brewGuide).toContain("drwn");
     expect(brewGuide).toContain("darwinian-harness");
+
+    // Slim README: brand identity, pitch, install, first taste, disciplines,
+    // safety model, documentation pointers, contributing.
     expect(readme).toContain("local meta-harness");
     expect(readme).toContain("The package is `darwinian-harness`. The command is `drwn`.");
-    expect(readme).toContain("What It Changes On Disk");
     expect(readme).toContain("<img src=\"./docs/assets/darwinian-harness-logo.png\"");
-    expect(readme).toContain("Usage Modes");
-    expect(readme).toContain("Documentation Map");
-    expect(readme).toContain("Per-Project Configuration");
-    expect(readme).toContain("Extension Skill Bundles");
-    expect(readme).toContain("Optional Extensions");
-    expect(readme).toContain("Documentation Site");
-    expect(readme).toContain("[docs-docusaurus](./docs-docusaurus)");
-    expect(readme).toContain("bun run build");
-    expect(readme).toContain("bun run deploy:pages");
-    expect(readme).toContain("drwn library defaults remove skill");
-    expect(readme).toContain("drwn library defaults remove mcp");
-    expect(readme).toContain("[registry/config.json](./registry/config.json)");
-    expect(readme).toContain("[registry/mcp-servers.json](./registry/mcp-servers.json)");
+    expect(readme).toContain("What it harnesses");
+    expect(readme).toContain("Why this exists");
+    expect(readme).toContain("Disciplines");
+    expect(readme).toContain("Install");
+    expect(readme).toContain("First taste");
+    expect(readme).toContain("Safety model");
+    expect(readme).toContain("Documentation");
+    expect(readme).toContain("Contributing");
+    expect(readme).toContain("docs-docusaurus");
+    expect(readme).toContain("docs/cli-quickref.md");
+    expect(readme).toContain("bun run docs:build");
+    expect(readme).toContain("drwn write");
+    expect(readme).toContain("drwn status");
+
+    // cli-quickref carries the usage-pattern content the slim README points to.
+    expect(quickref).toContain("Usage modes");
+    expect(quickref).toContain("Command reference");
+    expect(quickref).toContain("Per-project configuration");
+    expect(quickref).toContain("Extension skill bundles");
+    expect(quickref).toContain("Optional extensions");
+    expect(quickref).toContain("How write works");
+    expect(quickref).toContain("How export works");
+    expect(quickref).toContain("drwn library defaults remove skill");
+    expect(quickref).toContain("drwn library defaults remove mcp");
+    expect(quickref).toContain("registry/config.json");
+    expect(quickref).toContain("registry/mcp-servers.json");
+    expect(quickref).toContain("drwn apply");
+
+    expect(repoOperatorDocs).toContain("drwn apply");
     expect(usageGuide).toContain("<project>/.agents/drwn/config.json");
     expect(usageGuide).toContain("~/.agents/drwn/machine.json");
     expect(usageGuide).toContain("~/.agents/drwn/mcp-servers");
@@ -92,7 +115,6 @@ describe("documentation readiness", () => {
     expect(usageGuide).toContain("repo-native and installed package-backed skills");
     expect(usageGuide).toContain("darwinian-harness");
     expect(usageGuide).toContain("local harness");
-    expect(readme).toContain("drwn apply");
     expect(usageGuide).toContain("drwn apply");
     expect(projectGuide).toContain("Discovery walks upward");
     expect(projectGuide).toContain("\"version\": 1");
@@ -135,7 +157,7 @@ describe("documentation readiness", () => {
       "--last-validated-with",
       "--test-status-badge",
     ]) {
-      expect(readme + usageGuide + docsDocusaurus).toContain(command);
+      expect(readme + quickref + usageGuide + docsDocusaurus).toContain(command);
     }
     expect(docsDocusaurus).not.toContain("Coming soon");
     expect(docsDocusaurus).not.toContain("drwn add extension");
