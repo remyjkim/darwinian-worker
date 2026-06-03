@@ -1,5 +1,21 @@
 # Contributing
 
+## Cloning
+
+Clone with submodules so the `darwinian-harness-skills/` working tree is populated:
+
+```bash
+git clone --recurse-submodules https://github.com/remyjkim/darwinian-harness.git
+```
+
+If you already cloned without `--recurse-submodules`:
+
+```bash
+git submodule update --init --recursive
+```
+
+See [`docs/maintainers/skills-repo-submodule.md`](./docs/maintainers/skills-repo-submodule.md) for the submodule reference (bumping the pin, shallow-clone rationale, CI considerations).
+
 ## Setup
 
 Install dependencies:

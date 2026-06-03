@@ -106,6 +106,25 @@ drwn write --dry-run && drwn write
 
 For Git-distributable reproducible harness state, see [`docs/cli-quickref.md`](./docs/cli-quickref.md) → Cards or the [cards concept page](https://darwiniantools.com/concepts/cards).
 
+## Skills source repo
+
+The broader skill library and harness cards consumed by `drwn` live in the sibling repo [`darwinian-harness-skills`](https://github.com/remyjkim/darwinian-harness-skills). It is added here as a git submodule at [`darwinian-harness-skills/`](./darwinian-harness-skills) so a `git clone --recurse-submodules` of this repo gives you both checkouts in one tree.
+
+If you already cloned without `--recurse-submodules`:
+
+```bash
+git submodule update --init --recursive
+```
+
+The submodule is shallow by default. Bumping the pin to upstream `main` is an explicit two-step:
+
+```bash
+cd darwinian-harness-skills && git pull
+cd .. && git add darwinian-harness-skills && git commit
+```
+
+The in-tree `skills/shared/` directory holds the small set of skills published with this CLI; the submodule is the canonical authoring source for the larger skill catalog and harness cards consumed via `drwn library add skill` and `drwn add card`. See [`docs/maintainers/skills-repo-submodule.md`](./docs/maintainers/skills-repo-submodule.md) for the contributor-side reference.
+
 ## Safety model
 
 The safety model is intentionally simple:
