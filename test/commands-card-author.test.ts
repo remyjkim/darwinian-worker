@@ -108,6 +108,17 @@ test("card publish succeeds when every skills.include has a matching source dire
   expect(published.exitCode).toBe(0);
 });
 
+test("card publish succeeds after source add-skill prepares the bundled skill", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  expect((await runAgentsCli(["card", "new", "@me/backend", "--no-git"], envFor(fixture))).exitCode).toBe(0);
+  expect((await runAgentsCli(["card", "source", "add-skill", "@me/backend", "alpha"], envFor(fixture))).exitCode).toBe(0);
+
+  const published = await runAgentsCli(["card", "publish", "@me/backend"], envFor(fixture));
+
+  expect(published.exitCode).toBe(0);
+});
+
 test("card diff classifies structural changes", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);

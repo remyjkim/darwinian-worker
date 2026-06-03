@@ -1,0 +1,125 @@
+// ABOUTME: Verifies semantic bundled-skill mutation through `drwn card source`.
+// ABOUTME: Protects copy-not-symlink behavior, dry-run contracts, and read-only store guards.
+
+import { afterEach, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
+import { lstat, readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture } from "./helpers";
+
+const tempRoots: string[] = [];
+
+afterEach(async () => {
+  await cleanupTempRoots(tempRoots);
+});
+
+async function scaffoldSourceFixture() {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  expect((await runAgentsCli(["card", "new", "@me/example", "--no-git"], envFor(fixture))).exitCode).toBe(0);
+  return fixture;
+}
+
+async function readManifest(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
+  return JSON.parse(await readFile(join(fixture.agentsDir, "drwn", "sources", "@me", "example", "card.json"), "utf8"));
+}
+
+test("add-skill --dry-run --json reports copy and manifest changes without writing", async () => {
+  const fixture = await scaffoldSourceFixture();
+  const dest = join(fixture.agentsDir, "drwn", "sources", "@me", "example", "skills", "alpha");
+
+  const result = await runAgentsCli(["card", "source", "add-skill", "@me/example", "alpha", "--dry-run", "--json"], envFor(fixture));
+
+  expect(result.exitCode).toBe(0);
+  const parsed = JSON.parse(result.stdout);
+  expect(parsed.dryRun).toBe(true);
+  expect(parsed.changes.map((change: { action: string }) => change.action)).toEqual(["copy-skill", "update-manifest"]);
+  expect(existsSync(dest)).toBe(false);
+  expect((await readManifest(fixture)).skills?.include ?? []).toEqual([]);
+});
+
+test("add-skill copies a repo-native shared skill and appends skills.include", async () => {
+  const fixture = await scaffoldSourceFixture();
+  const dest = join(fixture.agentsDir, "drwn", "sources", "@me", "example", "skills", "alpha");
+
+  const result = await runAgentsCli(["card", "source", "add-skill", "@me/example", "alpha"], envFor(fixture));
+
+  expect(result.exitCode).toBe(0);
+  expect(existsSync(join(dest, "SKILL.md"))).toBe(true);
+  expect((await lstat(dest)).isSymbolicLink()).toBe(false);
+  expect((await readManifest(fixture)).skills.include).toEqual(["alpha"]);
+});
+
+test("add-skill fails on duplicate without --replace and --replace overwrites the bundled copy", async () => {
+  const fixture = await scaffoldSourceFixture();
+  const destSkillMd = join(fixture.agentsDir, "drwn", "sources", "@me", "example", "skills", "alpha", "SKILL.md");
+  expect((await runAgentsCli(["card", "source", "add-skill", "@me/example", "alpha"], envFor(fixture))).exitCode).toBe(0);
+  await Bun.write(destSkillMd, "local edit\n");
+
+  const duplicate = await runAgentsCli(["card", "source", "add-skill", "@me/example", "alpha"], envFor(fixture));
+  const replaced = await runAgentsCli(["card", "source", "add-skill", "@me/example", "alpha", "--replace"], envFor(fixture));
+
+  expect(duplicate.exitCode).not.toBe(0);
+  expect(duplicate.stderr).toContain("--replace");
+  expect(replaced.exitCode).toBe(0);
+  expect(await Bun.file(destSkillMd).text()).toContain("name: alpha");
+  expect((await readManifest(fixture)).skills.include).toEqual(["alpha"]);
+});
+
+test("remove-skill --dry-run --json reports removals without writing", async () => {
+  const fixture = await scaffoldSourceFixture();
+  expect((await runAgentsCli(["card", "source", "add-skill", "@me/example", "alpha"], envFor(fixture))).exitCode).toBe(0);
+  const dest = join(fixture.agentsDir, "drwn", "sources", "@me", "example", "skills", "alpha");
+
+  const result = await runAgentsCli(["card", "source", "remove-skill", "@me/example", "alpha", "--dry-run", "--json"], envFor(fixture));
+
+  expect(result.exitCode).toBe(0);
+  const parsed = JSON.parse(result.stdout);
+  expect(parsed.dryRun).toBe(true);
+  expect(parsed.changes.map((change: { action: string }) => change.action)).toEqual(["remove-skill-files", "update-manifest"]);
+  expect(existsSync(dest)).toBe(true);
+  expect((await readManifest(fixture)).skills.include).toEqual(["alpha"]);
+});
+
+test("remove-skill deletes files and removes only the named manifest entry", async () => {
+  const fixture = await scaffoldSourceFixture();
+  expect((await runAgentsCli(["card", "source", "add-skill", "@me/example", "alpha"], envFor(fixture))).exitCode).toBe(0);
+  expect((await runAgentsCli(["card", "source", "add-skill", "@me/example", "beta"], envFor(fixture))).exitCode).toBe(0);
+  const dest = join(fixture.agentsDir, "drwn", "sources", "@me", "example", "skills", "alpha");
+
+  const result = await runAgentsCli(["card", "source", "remove-skill", "@me/example", "alpha"], envFor(fixture));
+
+  expect(result.exitCode).toBe(0);
+  expect(existsSync(dest)).toBe(false);
+  expect((await readManifest(fixture)).skills.include).toEqual(["beta"]);
+});
+
+test("remove-skill --keep-files removes only the manifest entry", async () => {
+  const fixture = await scaffoldSourceFixture();
+  expect((await runAgentsCli(["card", "source", "add-skill", "@me/example", "alpha"], envFor(fixture))).exitCode).toBe(0);
+  const dest = join(fixture.agentsDir, "drwn", "sources", "@me", "example", "skills", "alpha");
+
+  const result = await runAgentsCli(["card", "source", "remove-skill", "@me/example", "alpha", "--keep-files"], envFor(fixture));
+
+  expect(result.exitCode).toBe(0);
+  expect(existsSync(dest)).toBe(true);
+  expect((await readManifest(fixture)).skills.include).toEqual([]);
+});
+
+test("skill mutations honor DRWN_STORE_READONLY while dry-run still reports plans", async () => {
+  const fixture = await scaffoldSourceFixture();
+  const readonlyEnv = { ...envFor(fixture), DRWN_STORE_READONLY: "1" };
+
+  const blockedAdd = await runAgentsCli(["card", "source", "add-skill", "@me/example", "alpha"], readonlyEnv);
+  const dryRunAdd = await runAgentsCli(["card", "source", "add-skill", "@me/example", "alpha", "--dry-run", "--json"], readonlyEnv);
+  expect((await runAgentsCli(["card", "source", "add-skill", "@me/example", "alpha"], envFor(fixture))).exitCode).toBe(0);
+  const blockedRemove = await runAgentsCli(["card", "source", "remove-skill", "@me/example", "alpha"], readonlyEnv);
+  const dryRunRemove = await runAgentsCli(["card", "source", "remove-skill", "@me/example", "alpha", "--dry-run", "--json"], readonlyEnv);
+
+  expect(blockedAdd.exitCode).not.toBe(0);
+  expect(blockedAdd.stderr).toContain("read-only");
+  expect(dryRunAdd.exitCode).toBe(0);
+  expect(blockedRemove.exitCode).not.toBe(0);
+  expect(blockedRemove.stderr).toContain("read-only");
+  expect(dryRunRemove.exitCode).toBe(0);
+});
