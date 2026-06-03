@@ -207,6 +207,46 @@ It copies active skill content, records active MCP server definitions, and
 preserves effective extension and target intent. It never reads host environment
 variable values into the captured card.
 
+Card source commands edit that source tree before publication. A card source is
+mutable authoring state. A published card is an immutable Git-backed release in
+the local store. A consumed card is a project ref and lock entry that points at
+a published store release, file source, or Git origin.
+
+Inspect source state:
+
+```bash
+drwn card source list
+drwn card source show @me/backend
+drwn card source show @me/backend --json
+drwn card source doctor
+drwn card source doctor @me/backend
+```
+
+Edit bundled skills and MCP definitions:
+
+```bash
+drwn card source add-skill @me/backend reviewer
+drwn card source add-skill @me/backend reviewer --from ./skills/reviewer
+drwn card source remove-skill @me/backend reviewer
+drwn card source remove-skill @me/backend reviewer --keep-files
+drwn card source add-mcp @me/backend context7
+drwn card source add-mcp @me/backend context7 --from ./context7.json
+drwn card source remove-mcp @me/backend context7
+drwn card source remove-mcp @me/backend context7 --keep-files
+```
+
+Update manifest metadata and quality signals:
+
+```bash
+drwn card source set @me/backend --description "Backend review harness"
+drwn card source set @me/backend --version 0.1.0 --stability stable
+drwn card source set @me/backend --last-validated-with 0.1.0 --test-status-badge https://example.com/status.svg
+```
+
+Source commands honor `DRWN_STORE_READONLY=1`: inspection and dry runs work,
+but real source mutations fail before writing. `doctor` is report-only and exits
+successfully after printing any source issues it found.
+
 Card manifests may include optional quality signals:
 
 ```json

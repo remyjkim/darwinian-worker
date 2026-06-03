@@ -2,8 +2,37 @@
 sidebar_position: 3
 ---
 
-# The Local Store
+# Local Store
 
-> **Coming soon.** This page is part of the planned IA but has not been written yet.
->
-> If you need this content now, please open an issue at [github.com/remyjkim/darwinian-harness/issues](https://github.com/remyjkim/darwinian-harness/issues).
+The local store is `~/.agents/drwn`. It is the durable state for machine defaults, reusable library content, card sources, published cards, catalogs, extracted card trees, and write records.
+
+Important paths:
+
+- `~/.agents/drwn/machine.json`: machine-wide active defaults
+- `~/.agents/drwn/skills`: installed package-backed skill bundles
+- `~/.agents/drwn/mcp-servers`: user-registered MCP server definitions
+- `~/.agents/drwn/sources`: editable card sources
+- `~/.agents/drwn/cards`: Git-backed published card repositories
+- `~/.agents/drwn/extracted`: immutable extracted card trees
+- `~/.agents/drwn/catalogs`: local card catalog clones
+
+Inspect and maintain the store:
+
+```bash
+drwn store status
+drwn store status --json
+drwn store verify
+drwn store migrate
+drwn store migrate-to-git --dry-run --json
+drwn store gc
+drwn store export --out /tmp/drwn-store.tar
+```
+
+Readonly mode is useful for validation against mounted or unpacked snapshots:
+
+```bash
+DRWN_STORE_READONLY=1 drwn store status
+DRWN_STORE_READONLY=1 drwn card source doctor
+```
+
+Commands that mutate store state refuse to write when readonly mode is enabled.

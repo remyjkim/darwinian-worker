@@ -15,7 +15,7 @@ describe("documentation readiness", () => {
       knowledgeReadme,
       maintainerReadme,
       publishingGuide,
-      ...docsAstroFiles
+      ...docsDocusaurusFiles
     ] = await Promise.all([
       readFile(new URL("../README.md", import.meta.url), "utf8"),
       readFile(new URL("../.ai/knowledges/01_agents-cli-usage-guide.md", import.meta.url), "utf8"),
@@ -25,19 +25,19 @@ describe("documentation readiness", () => {
       readFile(new URL("../.ai/knowledges/README.md", import.meta.url), "utf8"),
       readFile(new URL("../docs/maintainers/README.md", import.meta.url), "utf8"),
       readFile(new URL("../docs/maintainers/publishing.md", import.meta.url), "utf8"),
-      readFile(new URL("../docs-astro/src/content/docs/01-getting-started.md", import.meta.url), "utf8"),
-      readFile(new URL("../docs-astro/src/content/docs/02-how-apply-works.md", import.meta.url), "utf8"),
-      readFile(new URL("../docs-astro/src/content/docs/03-cli-reference.md", import.meta.url), "utf8"),
-      readFile(new URL("../docs-astro/src/content/docs/04-mcp-registry.md", import.meta.url), "utf8"),
-      readFile(new URL("../docs-astro/src/content/docs/05-skill-library.md", import.meta.url), "utf8"),
-      readFile(new URL("../docs-astro/src/content/docs/06-extensions.md", import.meta.url), "utf8"),
-      readFile(new URL("../docs-astro/src/content/docs/07-per-project-config.md", import.meta.url), "utf8"),
-      readFile(new URL("../docs-astro/src/content/docs/08-diagnostics.md", import.meta.url), "utf8"),
-      readFile(new URL("../docs-astro/src/content/docs/09-harness-engineering.md", import.meta.url), "utf8"),
-      readFile(new URL("../docs-astro/src/content/docs/10-harness-cards.md", import.meta.url), "utf8"),
-      readFile(new URL("../docs-astro/src/content/docs/11-store-and-migration.md", import.meta.url), "utf8"),
+      readFile(new URL("../docs-docusaurus/docs/getting-started/paths/author-and-publish-card.md", import.meta.url), "utf8"),
+      readFile(new URL("../docs-docusaurus/docs/getting-started/paths/use-team-harness.md", import.meta.url), "utf8"),
+      readFile(new URL("../docs-docusaurus/docs/concepts/cards.md", import.meta.url), "utf8"),
+      readFile(new URL("../docs-docusaurus/docs/concepts/local-store.md", import.meta.url), "utf8"),
+      readFile(new URL("../docs-docusaurus/docs/concepts/mcp-servers.md", import.meta.url), "utf8"),
+      readFile(new URL("../docs-docusaurus/docs/guides/authoring-multi-skill-cards.md", import.meta.url), "utf8"),
+      readFile(new URL("../docs-docusaurus/docs/reference/cli/card.md", import.meta.url), "utf8"),
+      readFile(new URL("../docs-docusaurus/docs/reference/cli/store.md", import.meta.url), "utf8"),
+      readFile(new URL("../docs-docusaurus/docs/reference/cli/extensions.md", import.meta.url), "utf8"),
+      readFile(new URL("../docs-docusaurus/docs/reference/cli/status.md", import.meta.url), "utf8"),
+      readFile(new URL("../docs-docusaurus/docs/reference/cli/write.md", import.meta.url), "utf8"),
     ]);
-    const docsAstro = docsAstroFiles.join("\n");
+    const docsDocusaurus = docsDocusaurusFiles.join("\n");
 
     for (const doc of [readme, usageGuide]) {
       expect(doc).toContain("bun link");
@@ -74,7 +74,7 @@ describe("documentation readiness", () => {
     expect(readme).toContain("Extension Skill Bundles");
     expect(readme).toContain("Optional Extensions");
     expect(readme).toContain("Documentation Site");
-    expect(readme).toContain("[docs-astro](./docs-astro)");
+    expect(readme).toContain("[docs-docusaurus](./docs-docusaurus)");
     expect(readme).toContain("bun run build");
     expect(readme).toContain("bun run deploy:pages");
     expect(readme).toContain("drwn library defaults remove skill");
@@ -110,21 +110,37 @@ describe("documentation readiness", () => {
     expect(bundleGuide).toContain("~/.agents/drwn/machine.json");
     expect(brewGuide).toContain("drwn store status --json");
     expect(brewGuide).toContain("drwn card list --json");
-    expect(docsAstro).toContain("Harness Cards");
-    expect(docsAstro).toContain("Store And Migration");
-    expect(docsAstro).toContain("drwn extensions add");
-    expect(docsAstro).toContain("drwn card");
-    expect(docsAstro).toContain("drwn store");
-    expect(docsAstro).toContain("drwn apply");
-    expect(docsAstro).toContain("drwn update");
-    expect(docsAstro).toContain("drwn write --force");
-    expect(docsAstro).toContain("drwn status --why");
-    expect(docsAstro).toContain("~/.agents/drwn/machine.json");
-    expect(docsAstro).toContain("~/.agents/drwn/skills");
-    expect(docsAstro).toContain("~/.agents/drwn/mcp-servers");
-    expect(docsAstro).not.toContain("drwn add extension");
-    expect(docsAstro).not.toContain("Machine-wide active MCP defaults live in `~/.agents/drwn/config.json`");
-    expect(docsAstro).not.toContain("package-backed skills and user MCP definitions under `~/.agents/library`");
+    expect(docsDocusaurus).toContain("Cards");
+    expect(docsDocusaurus).toContain("Local Store");
+    expect(docsDocusaurus).toContain("drwn extensions add");
+    expect(docsDocusaurus).toContain("drwn card");
+    expect(docsDocusaurus).toContain("drwn store");
+    expect(docsDocusaurus).toContain("drwn apply");
+    expect(docsDocusaurus).toContain("drwn update");
+    expect(docsDocusaurus).toContain("drwn write --force");
+    expect(docsDocusaurus).toContain("drwn status --why");
+    expect(docsDocusaurus).toContain("~/.agents/drwn/machine.json");
+    expect(docsDocusaurus).toContain("~/.agents/drwn/skills");
+    expect(docsDocusaurus).toContain("~/.agents/drwn/mcp-servers");
+    for (const command of [
+      "drwn card source list",
+      "drwn card source show",
+      "drwn card source doctor",
+      "drwn card source add-skill",
+      "drwn card source remove-skill",
+      "drwn card source set",
+      "drwn card source add-mcp",
+      "drwn card source remove-mcp",
+      "--stability",
+      "--last-validated-with",
+      "--test-status-badge",
+    ]) {
+      expect(readme + usageGuide + docsDocusaurus).toContain(command);
+    }
+    expect(docsDocusaurus).not.toContain("Coming soon");
+    expect(docsDocusaurus).not.toContain("drwn add extension");
+    expect(docsDocusaurus).not.toContain("Machine-wide active MCP defaults live in `~/.agents/drwn/config.json`");
+    expect(docsDocusaurus).not.toContain("package-backed skills and user MCP definitions under `~/.agents/library`");
     expect(knowledgeReadme).toContain("Operator Docs");
     expect(knowledgeReadme).toContain("Distribution And Release Docs");
     expect(maintainerReadme).toContain("publishing.md");
