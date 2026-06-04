@@ -18,7 +18,7 @@ Purpose: the project-scope overlay. Declares the cards a project consumes, per-s
 {
   "version": 1,
   "cards": [
-    "@me/backend@^1.0.0",
+    "@your-handle/backend@^1.0.0",
     "file:./vendor/local-card",
     "git+https://github.com/example/team-card.git#v2.1.0",
     "github:example/team-card@^2.0.0"

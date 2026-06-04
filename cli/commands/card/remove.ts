@@ -17,7 +17,7 @@ export class CardRemoveCommand extends BaseCommand {
       card.lock. Unknown card names are rejected so scripts catch stale
       assumptions.
     `,
-    examples: [["Remove a card", "drwn card remove @me/backend"]],
+    examples: [["Remove a card", "drwn card remove @your-handle/backend"]],
   });
 
   refOrName = Option.String({ required: true });

@@ -27,7 +27,7 @@ export class CardSourceDoctorCommand extends BaseCommand {
     `,
     examples: [
       ["Doctor all sources", "drwn card source doctor"],
-      ["Doctor one source as JSON", "drwn card source doctor @me/backend --json"],
+      ["Doctor one source as JSON", "drwn card source doctor @your-handle/backend --json"],
     ],
   });
 

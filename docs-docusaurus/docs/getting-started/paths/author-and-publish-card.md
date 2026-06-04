@@ -13,26 +13,26 @@ Cards let you package reusable harness intent, skills, MCP definitions, and meta
 Create a source:
 
 ```bash
-drwn card new @me/backend --no-git
-drwn card source show @me/backend
-drwn card source doctor @me/backend
+drwn card new @your-handle/backend --no-git
+drwn card source show @your-handle/backend
+drwn card source doctor @your-handle/backend
 ```
 
 Add local content before publishing:
 
 ```bash
-drwn card source add-skill @me/backend reviewer --from ./skills/reviewer
-drwn card source add-mcp @me/backend context7
-drwn card source set @me/backend --description "Backend review harness" --version 0.1.0
-drwn card source set @me/backend --stability stable --last-validated-with 0.1.0 --test-status-badge https://example.com/status.svg
+drwn card source add-skill @your-handle/backend reviewer --from ./skills/reviewer
+drwn card source add-mcp @your-handle/backend context7
+drwn card source set @your-handle/backend --description "Backend review harness" --version 0.1.0
+drwn card source set @your-handle/backend --stability stable --last-validated-with 0.1.0 --test-status-badge https://example.com/status.svg
 ```
 
 Publish and inspect the release:
 
 ```bash
-drwn card publish @me/backend
-drwn card show @me/backend@0.1.0
-drwn card validate @me/backend@0.1.0
+drwn card publish @your-handle/backend
+drwn card show @your-handle/backend@0.1.0
+drwn card validate @your-handle/backend@0.1.0
 ```
 
 Use `DRWN_STORE_READONLY=1` when validating a store snapshot. Source inspection and dry runs continue to work, while commands that would mutate source files or publish releases fail before writing.

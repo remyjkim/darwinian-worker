@@ -16,7 +16,7 @@ export class CardPublishCommand extends BaseCommand {
       into the card's bare repo under ~/.agents/drwn/cards/ and tags the manifest
       version. Existing versions are never overwritten.
     `,
-    examples: [["Publish a card", "drwn card publish @me/backend"]],
+    examples: [["Publish a card", "drwn card publish @your-handle/backend"]],
   });
 
   name = Option.String({ required: true });

@@ -46,6 +46,8 @@ drwn init --no-default-catalogs
 
 By default, `drwn init` registers the default community card catalog into `~/.agents/drwn/catalogs.json` so that `drwn search card <query>` works out of the box.
 
+The default catalog URL is configured in the packaged registry at `defaults.communityCatalogUrl` (currently `https://github.com/curation-labs/dh-cards-catalog-v1.git`). To swap it for a fork or a private catalog, edit `registry/config.json` and rerun `drwn init`. To disable the default registration entirely without using the flag every time, set `defaults.communityCatalogUrl` to `null`.
+
 ## Side effects
 
 - Writes `<project>/.agents/drwn/config.json`.

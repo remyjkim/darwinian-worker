@@ -29,7 +29,7 @@ drwn status --why skill:reviewer
 
 Possible answers:
 
-- `skill:reviewer is active or available from card @me/backend@0.2.0.`
+- `skill:reviewer is active or available from card @your-handle/backend@0.2.0.`
 - `skill:reviewer is active or available from project config.`
 - `skill:reviewer is active or available from machine curation.`
 - `skill:reviewer is active or available from repo or installed skill library.`
@@ -45,7 +45,7 @@ drwn status --why server:context7
 
 Possible answers:
 
-- `server:context7 is active from card @me/backend@0.2.0.`
+- `server:context7 is active from card @your-handle/backend@0.2.0.`
 - `server:context7 is available from project config.`
 - `server:context7 is active from registry or machine library.`
 
@@ -80,14 +80,14 @@ Answers report enabled/disabled state and which layer is responsible:
 ### `--why card:<name>`
 
 ```bash
-drwn status --why card:@me/backend
+drwn status --why card:@your-handle/backend
 ```
 
 Returns the locked version and the requested ref:
 
-- `card:@me/backend is locked at 0.2.0 from @me/backend@^0.2.0.`
+- `card:@your-handle/backend is locked at 0.2.0 from @your-handle/backend@^0.2.0.`
 
-If the project does not consume the card, returns `not found: card:@me/backend`.
+If the project does not consume the card, returns `not found: card:@your-handle/backend`.
 
 ## Disambiguating Untyped Queries
 
@@ -124,7 +124,7 @@ When a card update changes effective state, compare before and after:
 
 ```bash
 drwn card outdated
-drwn status --why card:@me/backend
+drwn status --why card:@your-handle/backend
 drwn card update --dry-run
 ```
 

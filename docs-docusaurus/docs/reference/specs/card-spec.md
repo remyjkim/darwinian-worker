@@ -26,7 +26,7 @@ A card ref names a card and a version selector. Three canonical forms plus two s
 
 | Form | Shape | Example |
 |---|---|---|
-| Store | `@scope/name@<range>` or `name@<range>` | `@me/backend@^1.0.0` |
+| Store | `@scope/name@<range>` or `name@<range>` | `@your-handle/backend@^1.0.0` |
 | File | `file:<path>` | `file:./vendor/local-card` |
 | Git (ref) | `git+<url>#<ref>` | `git+https://github.com/me/card.git#v1.2.0` |
 | Git (range) | `git+<url>@<range>` | `git+https://github.com/me/card.git@^1.0.0` |
@@ -50,12 +50,12 @@ Producers must emit exactly this shape; consumers must reject anything else. The
   "cards": [
     {
       "origin": "store",
-      "name": "@me/backend",
-      "requested": "@me/backend@^1.0.0",
+      "name": "@your-handle/backend",
+      "requested": "@your-handle/backend@^1.0.0",
       "version": "1.2.0",
       "path": "/Users/me/.agents/drwn/extracted/abc123.../",
       "integrity": "sha256-deadbeef...",
-      "manifest": { "name": "@me/backend", "version": "1.2.0" },
+      "manifest": { "name": "@your-handle/backend", "version": "1.2.0" },
       "skills": ["reviewer", "release-notes"],
       "registry": null,
       "git": {

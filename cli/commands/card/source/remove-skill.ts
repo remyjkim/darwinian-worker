@@ -18,8 +18,8 @@ export class CardSourceRemoveSkillCommand extends BaseCommand {
       to remove the manifest declaration.
     `,
     examples: [
-      ["Remove a bundled skill", "drwn card source remove-skill @me/backend alpha"],
-      ["Keep files while removing the manifest entry", "drwn card source remove-skill @me/backend alpha --keep-files"],
+      ["Remove a bundled skill", "drwn card source remove-skill @your-handle/backend alpha"],
+      ["Keep files while removing the manifest entry", "drwn card source remove-skill @your-handle/backend alpha --keep-files"],
     ],
   });
 

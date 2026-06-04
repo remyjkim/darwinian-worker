@@ -11,7 +11,7 @@ sidebar_position: 2
 Append a card ref to the project and refresh `card.lock`.
 
 ```bash
-drwn add card @me/backend@^1.0.0
+drwn add card @your-handle/backend@^1.0.0
 drwn add card @team/review --write
 ```
 

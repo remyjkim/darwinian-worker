@@ -17,7 +17,7 @@ export class CardApplyCommand extends BaseCommand {
       against the local card store or file sources, and writes card.lock.
       Use --write to materialize the resulting effective state immediately.
     `,
-    examples: [["Apply a card range", "drwn card apply @me/backend@^1.0.0"]],
+    examples: [["Apply a card range", "drwn card apply @your-handle/backend@^1.0.0"]],
   });
 
   specs = Option.Rest({ required: 1 });

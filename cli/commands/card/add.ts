@@ -17,7 +17,7 @@ export class CardAddCommand extends BaseCommand {
       Duplicate card names are rejected so one project has a single constraint
       per card.
     `,
-    examples: [["Add a card", "drwn card add @me/backend@^1.0.0"]],
+    examples: [["Add a card", "drwn card add @your-handle/backend@^1.0.0"]],
   });
 
   spec = Option.String({ required: true });

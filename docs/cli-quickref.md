@@ -178,12 +178,12 @@ Card source commands operate on editable sources under `~/.agents/drwn/sources/<
 Typical source authoring:
 
 ```bash
-drwn card new @me/backend --no-git
-drwn card source add-skill @me/backend reviewer
-drwn card source add-mcp @me/backend context7
-drwn card source set @me/backend --description "Backend review harness" --version 0.1.0 --stability stable --last-validated-with 0.1.0 --test-status-badge https://example.com/status.svg
-drwn card source doctor @me/backend
-drwn card publish @me/backend
+drwn card new @your-handle/backend --no-git
+drwn card source add-skill @your-handle/backend reviewer
+drwn card source add-mcp @your-handle/backend context7
+drwn card source set @your-handle/backend --description "Backend review harness" --version 0.1.0 --stability stable --last-validated-with 0.1.0 --test-status-badge https://example.com/status.svg
+drwn card source doctor @your-handle/backend
+drwn card publish @your-handle/backend
 ```
 
 MCP commands:

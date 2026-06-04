@@ -18,8 +18,8 @@ export class CardSourceAddMcpCommand extends BaseCommand {
       card.json.servers so current consumers can use the published card.
     `,
     examples: [
-      ["Add a reusable MCP server", "drwn card source add-mcp @me/backend context7"],
-      ["Preview an MCP source mutation", "drwn card source add-mcp @me/backend context7 --dry-run --json"],
+      ["Add a reusable MCP server", "drwn card source add-mcp @your-handle/backend context7"],
+      ["Preview an MCP source mutation", "drwn card source add-mcp @your-handle/backend context7 --dry-run --json"],
     ],
   });
 

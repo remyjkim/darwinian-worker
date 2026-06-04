@@ -19,8 +19,8 @@ export class CardSourceSetCommand extends BaseCommand {
       drwn card show.
     `,
     examples: [
-      ["Set description and version", "drwn card source set @me/backend --description \"Backend baseline\" --version 1.2.0"],
-      ["Preview quality fields", "drwn card source set @me/backend --stability stable --last-validated-with 0.1.0 --dry-run --json"],
+      ["Set description and version", "drwn card source set @your-handle/backend --description \"Backend baseline\" --version 1.2.0"],
+      ["Preview quality fields", "drwn card source set @your-handle/backend --stability stable --last-validated-with 0.1.0 --dry-run --json"],
     ],
   });
 

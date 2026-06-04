@@ -18,8 +18,8 @@ export class CardValidateCommand extends BaseCommand {
       verifies its content integrity calculation.
     `,
     examples: [
-      ["Validate a card", "drwn card validate @me/backend@1.0.0"],
-      ["Validate a card as JSON", "drwn card validate @me/backend@1.0.0 --json"],
+      ["Validate a card", "drwn card validate @your-handle/backend@1.0.0"],
+      ["Validate a card as JSON", "drwn card validate @your-handle/backend@1.0.0 --json"],
     ],
   });
 

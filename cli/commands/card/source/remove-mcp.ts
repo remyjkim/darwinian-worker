@@ -18,8 +18,8 @@ export class CardSourceRemoveMcpCommand extends BaseCommand {
       the source file in place for manual follow-up.
     `,
     examples: [
-      ["Remove an MCP server", "drwn card source remove-mcp @me/backend context7"],
-      ["Keep the source file", "drwn card source remove-mcp @me/backend context7 --keep-files"],
+      ["Remove an MCP server", "drwn card source remove-mcp @your-handle/backend context7"],
+      ["Keep the source file", "drwn card source remove-mcp @your-handle/backend context7 --keep-files"],
     ],
   });
 
