@@ -62,7 +62,11 @@ jobs:
       - name: Check internal links
         uses: lycheeverse/lychee-action@v2
         with:
-          args: --config lychee.toml --no-progress docs-docusaurus/build
+          # --root-dir tells lychee how to resolve root-relative URLs like
+          # /img/favicon.svg or /getting-started/installation against the
+          # local filesystem. Without it, every absolute link in
+          # Docusaurus-generated HTML fails.
+          args: --config lychee.toml --no-progress --root-dir ${{ github.workspace }}/docs-docusaurus/build docs-docusaurus/build
           fail: true
 
       - name: Deploy to Cloudflare Pages production
