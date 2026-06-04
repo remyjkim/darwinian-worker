@@ -42,6 +42,14 @@ exclude = [
   '\.pages\.dev/',
   '\.vercel\.app/',
   '\.workers\.dev/',
+
+  # Self-references to the production docs domain. Docusaurus emits these
+  # as canonical / sitemap / "edit this page" hrefs. New pages in a PR
+  # will 404 on production until merge — that is a chicken-and-egg, not a
+  # bug. Internal navigation is already guarded by docusaurus's
+  # onBrokenLinks: 'throw' build-time check; lychee's job here is external
+  # link rot, which is unaffected by excluding self-refs.
+  '^https://docs\.darwiniantools\.com',
 ]
 
 # Skip mailto and tel links — not URLs in the normal sense.
