@@ -96,5 +96,9 @@ function mergeMachineConfig(repoConfig: CanonicalConfig, machineConfig: MachineC
     ...(merged.parallel ?? {}),
     ...(machineConfig.parallel ?? {}),
   };
+  merged.analyzer = {
+    ...(merged.analyzer ?? {}),
+    ...(machineConfig.analyzer ?? {}),
+  };
   return merged;
 }

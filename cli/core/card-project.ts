@@ -166,12 +166,24 @@ async function highestPublishedVersion(agentsDir: string, name: string) {
 }
 
 export async function findOutdatedProjectCards(projectRoot: string, agentsDir: string) {
-  const mutation = await updateProjectCardLock(projectRoot, agentsDir);
   const outdated: Array<{ name: string; current: string; latest: string }> = [];
-  for (const locked of mutation.locked) {
-    const latest = await highestPublishedVersion(agentsDir, locked.name);
-    if (latest && isNewerVersion(latest, locked.version)) {
-      outdated.push({ name: locked.name, current: locked.version, latest });
+  const lock = await loadCardLock(projectRoot);
+  const currentByName = new Map((lock?.cards ?? []).map((entry) => [entry.name, entry]));
+  const resolved = await resolveProjectCards(agentsDir, await getCurrentProjectCardSpecs(projectRoot));
+
+  for (const next of resolved) {
+    const current = currentByName.get(next.name);
+    if (!current) {
+      continue;
+    }
+    if (isNewerVersion(next.version, current.version)) {
+      outdated.push({ name: next.name, current: current.version, latest: next.version });
+      continue;
+    }
+
+    const latest = await highestPublishedVersion(agentsDir, next.name);
+    if (latest && isNewerVersion(latest, next.version)) {
+      outdated.push({ name: next.name, current: next.version, latest });
     }
   }
   return outdated;

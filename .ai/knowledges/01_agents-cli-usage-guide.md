@@ -323,11 +323,20 @@ drwn card push @team/backend
 drwn card fetch @team/backend
 drwn card clone git+<git-url>#v1.0.0
 drwn card clone git+<git-url>@^1.0.0 --json
+drwn card catalog publish @team/backend@1.0.0 --catalog @team --mode direct
 ```
 
 The default remote name is `origin`. Use `--name <remote>` with `card remote`
 commands and `--remote <remote>` with `card push` / `card fetch` when a card has
 more than one remote.
+
+`card catalog publish` adds an already-published immutable card ref to a
+Git-backed catalog manifest. `--catalog` accepts a registered scope such as
+`@team`, a catalog Git URL, or a local catalog checkout path. `--mode local`
+updates `catalog.json` only. `--mode direct` requires a clean catalog worktree,
+commits `catalog.json`, pushes the current branch, and refreshes the registered
+catalog cache when possible. Use `--dry-run --json` before publishing to validate
+the card ref, catalog schema, install URL, and duplicate behavior.
 
 Machine-readable card output is available on inspection commands:
 
@@ -383,8 +392,13 @@ drwn search card <query> --json
 `--library` means the user's local inventory only. Online sources are catalogs, not the local library.
 
 `search card` searches registered Git-backed card catalogs. Catalog repos expose
-cards through a `cards.json` file and must be registered locally before their
-entries appear.
+cards through a `catalog.json` file and must be registered locally before their
+entries appear. `drwn init` registers the public Curation Labs community catalog
+by default:
+
+```text
+https://github.com/curation-labs/dh-cards-catalog-v1.git
+```
 
 ## Library Commands
 
@@ -398,8 +412,9 @@ drwn library show <id>
 drwn library add skill <npm-package-or-local-path>
 drwn library add mcp <json-file> --as <server-id>
 drwn library catalog list
-drwn library catalog add <name> <git-url>
-drwn library catalog remove <name>
+drwn library catalog add <git-url>
+drwn library catalog refresh [@scope]
+drwn library catalog remove <scope-or-url>
 drwn library defaults list
 drwn library defaults add skill <skill-name>
 drwn library defaults remove skill <skill-name>
@@ -412,10 +427,14 @@ drwn library defaults remove mcp <server-name>
 `library add mcp` registers a reusable MCP definition in the active MCP library (`~/.agents/drwn/mcp-servers/<id>.json`). It does not activate the MCP globally or for a project.
 
 `library catalog` manages Git-backed card catalogs used by `drwn search card`.
-The default community catalog is pre-registered but not fetched automatically.
+The default community catalog is
+`https://github.com/curation-labs/dh-cards-catalog-v1.git` with scope
+`@community`. `drwn init` pre-registers and shallow-clones it when reachable
+unless `--no-default-catalogs` is passed.
 `library catalog add` clones the catalog and records it in
-`~/.agents/drwn/catalogs.json`; `library catalog remove` removes non-default
-catalog registrations and local clones.
+`~/.agents/drwn/catalogs.json`; `library catalog refresh` fetches registered
+catalog remotes and updates card counts; `library catalog remove` removes
+catalog registrations and local clones by scope or URL.
 
 `library defaults add` makes an available skill or MCP server active globally by writing machine config under `~/.agents/drwn/machine.json`. Use project `drwn add ...` when only the current project should use something.
 
@@ -971,6 +990,8 @@ drwn card new @team/backend --no-git
 drwn card publish @team/backend
 drwn card remote add @team/backend <git-url>
 drwn card push @team/backend
+drwn library catalog add <catalog-git-url>
+drwn card catalog publish @team/backend@1.0.0 --catalog @team --mode direct
 ```
 
 Another machine can import it with:
@@ -985,7 +1006,7 @@ drwn install
 
 ```bash
 drwn library catalog list
-drwn library catalog add team <catalog-git-url>
+drwn library catalog add <catalog-git-url>
 drwn search card backend
 drwn add git+<card-git-url>#v1.0.0
 ```

@@ -151,6 +151,7 @@ Card commands:
 - `drwn card new <name> --scope @scope`
 - `drwn card new <name> --from-project [projectPath]`
 - `drwn card publish <name>`
+- `drwn card catalog publish <cardRef> --catalog <scope|git-url|path> --mode <local|direct>`
 - `drwn card source list`
 - `drwn card source show <name>`
 - `drwn card source doctor [name]`
@@ -186,6 +187,27 @@ drwn card source doctor @your-handle/backend
 drwn card publish @your-handle/backend
 ```
 
+Publish a card to a shared Git catalog after pushing the card repo:
+
+```bash
+drwn card remote add @team/backend <card-git-url>
+drwn card push @team/backend
+drwn library catalog add <catalog-git-url>
+drwn card catalog publish @team/backend@0.1.0 --catalog <catalog-checkout-or-ssh-url> --mode direct --tag backend
+drwn search card backend --scope <scope>
+```
+
+The default public community catalog is readable at
+`https://github.com/curation-labs/dh-cards-catalog-v1.git` and uses scope
+`@community`. Catalog maintainers should publish through an SSH-backed checkout
+or SSH URL so Git can push the catalog commit.
+
+Use `--mode local` with a catalog checkout path to update `catalog.json`
+without committing or pushing. Use `--mode direct` with a registered scope, Git
+URL, or clean local checkout to commit and push the catalog entry. `--dry-run --json`
+validates the card ref, catalog manifest, and install URL without
+writing.
+
 MCP commands:
 
 - `drwn mcp list`
@@ -200,9 +222,19 @@ Skill commands:
 - `drwn skills packages list`
 - `drwn skills packages show <packageName>`
 
+Auth commands:
+
+- `drwn login [--no-browser] [--json]`
+- `drwn whoami [--json]`
+- `drwn logout [--json]`
+
 Export commands:
 
 - `drwn export sessions [--dry-run] [--gzip] [--out <path>]`
+
+Analyze commands:
+
+- `drwn analyze sessions [--archive <path>] [--fresh] [--wait] [--open] [--json] [--dry-run]`
 
 Most inspection commands support `--json`. Write commands support `--dry-run`.
 
@@ -217,6 +249,8 @@ drwn library list --help
 drwn search skill --help
 drwn extensions setup beads --help
 drwn skills packages add --help
+drwn login --help
+drwn analyze sessions --help
 ```
 
 ## How write works
@@ -284,6 +318,56 @@ The archiver enforces explicit cleanliness guarantees:
 **Do not manually recompress archives** (e.g. by Finder-zipping `.agents/drwn/session-log-exports/`). Manual repackaging bypasses these guarantees and can introduce AppleDouble sidecars that break downstream analyzers. Upload the file `drwn` produces as-is.
 
 Missing source roots like `~/.claude/projects/` or `~/.codex/sessions/` are skipped silently and do not produce an error.
+
+## How auth works
+
+Analyzer-backed commands use `drwn login`, `drwn whoami`, and `drwn logout`.
+
+The analyzer API URL is intentionally not packaged as a default. Configure it with `DRWN_ANALYZER_URL` or in user config:
+
+```json
+{
+  "version": 1,
+  "analyzer": {
+    "apiUrl": "http://localhost:8787",
+    "webBaseUrl": "https://darwinian-harness-services.pages.dev"
+  },
+  "optional": {}
+}
+```
+
+Authenticate:
+
+```bash
+DRWN_ANALYZER_URL=http://localhost:8787 drwn login
+drwn whoami
+drwn logout
+```
+
+Credentials are stored at `~/.agents/drwn/credentials.json` with owner-only permissions. For automation, `DRWN_TOKEN` plus `DRWN_ANALYZER_URL` bypasses the credentials file for commands that only need bearer auth.
+
+## How analyze works
+
+`drwn analyze sessions` uploads a session archive to the configured analyzer backend.
+
+Input resolution order:
+
+1. `--archive <path>` uses an explicit `.tar`, `.tar.gz`, or `.tgz`.
+2. `--fresh` builds a new gzip archive with the same session discovery used by `drwn export sessions`.
+3. Without flags, the command reuses the newest archive under `.agents/drwn/session-log-exports/` when one exists.
+4. If no archive exists, it builds a new inline `.tar.gz`.
+
+Examples:
+
+```bash
+drwn analyze sessions --dry-run
+drwn export sessions --gzip
+DRWN_ANALYZER_WEB_URL=https://darwinian-harness-services.pages.dev drwn analyze sessions
+drwn analyze sessions --wait --open
+drwn analyze sessions --archive /tmp/sessions.tar.gz --json
+```
+
+`--dry-run` validates the selected archive or reports that an inline export would be built; it does not create a new archive and does not require auth. `--wait` polls the backend job until the report is ready. `--open` opens the processing URL or final report URL only when `analyzer.webBaseUrl` or `DRWN_ANALYZER_WEB_URL` is configured.
 
 ## MCP registry
 

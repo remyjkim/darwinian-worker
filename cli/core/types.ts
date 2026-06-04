@@ -66,6 +66,12 @@ export interface CanonicalConfig {
       enabled: boolean;
     };
   };
+  analyzer?: {
+    apiUrl?: string;
+    clientId?: string;
+    webBaseUrl?: string;
+    maxArchiveBytes?: number;
+  };
   optional: Record<string, boolean>;
 }
 

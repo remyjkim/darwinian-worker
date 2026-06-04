@@ -327,7 +327,7 @@ export class IntegrityError extends DrwnError {
 **Design sketch:**
 
 - A new repo `darwinian-harness/catalog-browser` with a small static-site generator (Astro or Eleventy).
-- Reads `catalog.json` from a configured catalog repo (e.g., `darwinian-harness/cards-catalog`).
+- Reads `catalog.json` from a configured catalog repo (e.g., `curation-labs/dh-cards-catalog-v1`).
 - For each card listed, optionally clones the card repo to read its `card.json` and show description, version history, stability.
 - Deployed to GitHub Pages on every catalog commit.
 

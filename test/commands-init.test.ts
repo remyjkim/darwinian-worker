@@ -19,7 +19,7 @@ describe("drwn init", () => {
     const projectDir = join(fixture.root, "project");
     await mkdir(projectDir, { recursive: true });
 
-    const result = await runAgentsCli(["init", "--non-interactive"], {
+    const result = await runAgentsCli(["init", "--non-interactive", "--no-default-catalogs"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,
@@ -38,7 +38,7 @@ describe("drwn init", () => {
     await mkdir(dirname(configPath), { recursive: true });
     await writeFile(configPath, JSON.stringify({ version: 1, skills: { include: ["alpha"] } }, null, 2));
 
-    const result = await runAgentsCli(["init", "--non-interactive"], {
+    const result = await runAgentsCli(["init", "--non-interactive", "--no-default-catalogs"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,
@@ -56,7 +56,7 @@ describe("drwn init", () => {
     await mkdir(dirname(configPath), { recursive: true });
     await writeFile(configPath, JSON.stringify({ version: 1, skills: { include: ["alpha"] } }, null, 2));
 
-    const result = await runAgentsCli(["init", "--non-interactive", "--force"], {
+    const result = await runAgentsCli(["init", "--non-interactive", "--force", "--no-default-catalogs"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,
@@ -73,7 +73,7 @@ describe("drwn init", () => {
     await mkdir(projectDir, { recursive: true });
     await writeFile(join(projectDir, ".gitignore"), ".agents/\n");
 
-    const result = await runAgentsCli(["init", "--non-interactive"], {
+    const result = await runAgentsCli(["init", "--non-interactive", "--no-default-catalogs"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,

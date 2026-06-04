@@ -22,7 +22,7 @@
 **v2 (2026-06-01)** — Amendments from analysis 51 (Claude Code marketplace comparison):
 
 - **R2 added to Sub-Phase A:** support `git+url@^semver-range` resolution (in addition to existing `git+url#ref`). When a semver range is provided against a Git URL, drwn lists tags via the bare repo, picks highest matching. Cheap in Phase 2 because tags are locally available after first fetch.
-- **R3 added to Sub-Phase D:** establish a pre-configured default community catalog under `darwinian-harness/cards-catalog` (or operator-preferred org). Auto-registered on `drwn init`. Empty initially; populated as community cards emerge.
+- **R3 added to Sub-Phase D:** establish a pre-configured default community catalog under `curation-labs/dh-cards-catalog-v1`. Auto-registered on `drwn init`. Empty initially; populated as community cards emerge.
 - **R5 added to Sub-Phase E:** new `drwn card validate <git-url-ref>` consumer-side validation. Resolves a remote URL, runs `drwn card source doctor`-equivalent checks against the resolved tree without installing into the project.
 - **R10 added to Sub-Phase F:** `DRWN_STORE_READONLY` env var refuses store mutations; `drwn store export <output-dir>` packages a portable snapshot for CI/container use.
 - **New Sub-Phase H (External Integrations):** R4 — reusable validation GitHub Action at `darwinian-harness/validate-card-action`. Lives in a separate repo; landed as a companion PR alongside the main Phase 2 PR.
@@ -111,7 +111,7 @@ Phase 1's `~/.agents/drwn/cache/` (Git URL archive cache) is **preserved** in Ph
 - [ ] `drwn library remove catalog <scope-or-url>` unregisters a catalog.
 - [ ] `drwn search card --scope @team` returns cards from registered catalogs matching the scope.
 - [ ] `drwn search card <name>` searches across all catalogs by name.
-- [ ] **Default community catalog (R3)** at `darwinian-harness/cards-catalog` (or chosen org) is pre-registered on `drwn init`. Users can opt out via `drwn library remove catalog`.
+- [ ] **Default community catalog (R3)** at `curation-labs/dh-cards-catalog-v1` is pre-registered on `drwn init`. Users can opt out via `drwn library remove catalog`.
 
 ### Resolver — semver ranges over Git URLs (R2)
 
@@ -1185,7 +1185,7 @@ Add a baked-in constant:
 ```typescript
 // cli/core/defaults.ts
 export const DEFAULT_COMMUNITY_CATALOGS: string[] = [
-  "https://github.com/darwinian-harness/cards-catalog.git",
+  "https://github.com/curation-labs/dh-cards-catalog-v1.git",
 ];
 ```
 

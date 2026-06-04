@@ -140,7 +140,7 @@ Wave 1 introduces:
 - [ ] `drwn library remove catalog <scope-or-url>` unregisters a catalog.
 - [ ] `drwn search card --scope @team` returns catalog matches.
 - [ ] `drwn search card <name>` searches across all catalogs.
-- [ ] Default community catalog `https://github.com/darwinian-harness/cards-catalog.git` is pre-registered on `drwn init` (unless `--no-default-catalogs`).
+- [ ] Default community catalog `https://github.com/curation-labs/dh-cards-catalog-v1.git` is pre-registered on `drwn init` (unless `--no-default-catalogs`).
 
 ### History + validation
 
@@ -1485,7 +1485,7 @@ git commit -m "[feat:catalog] drwn library add/remove/list/refresh catalog"
 // cli/core/defaults.ts
 
 export const DEFAULT_COMMUNITY_CATALOGS: string[] = [
-  "https://github.com/darwinian-harness/cards-catalog.git",
+  "https://github.com/curation-labs/dh-cards-catalog-v1.git",
 ];
 ```
 

@@ -78,6 +78,7 @@ describe("sync-mcp.ts compatibility", () => {
     const result = await syncRepository({
       repoRoot,
       homeDir,
+      cwd: repoRoot,
       dryRun: true,
     });
 
@@ -92,6 +93,7 @@ describe("sync-mcp.ts compatibility", () => {
     const result = await syncRepository({
       repoRoot,
       homeDir,
+      cwd: repoRoot,
       mcpOnly: true,
       dryRun: true,
     });
@@ -107,6 +109,7 @@ describe("sync-mcp.ts compatibility", () => {
     const result = await syncRepository({
       repoRoot,
       homeDir,
+      cwd: repoRoot,
       skillsOnly: true,
       dryRun: true,
     });
@@ -125,6 +128,7 @@ describe("sync-mcp.ts compatibility", () => {
     const result = await syncRepository({
       repoRoot,
       homeDir,
+      cwd: repoRoot,
       target: "claude",
       dryRun: true,
     });

@@ -4,6 +4,60 @@ sidebar_position: 4
 
 # Library
 
-> **Coming soon.** This page is part of the planned IA but has not been written yet.
->
-> If you need this content now, please open an issue at [github.com/remyjkim/darwinian-harness/issues](https://github.com/remyjkim/darwinian-harness/issues).
+`drwn library` manages reusable local inventory and card catalog registrations.
+
+List and inspect local inventory:
+
+```bash
+drwn library list
+drwn library list skills
+drwn library list mcp
+drwn library show <id>
+```
+
+Install reusable skill bundles and MCP definitions into the local store:
+
+```bash
+drwn library add skill <npm-package-or-local-path>
+drwn library add mcp ./server.json --as <server-id>
+```
+
+These commands make inventory available. They do not activate it in a project; use `drwn add skill <name>` or `drwn add mcp <server-id>` from a project when you want to select it.
+
+## Card Catalogs
+
+Card catalogs are Git repositories with a root `catalog.json`. Register a catalog locally before searching it:
+
+```bash
+drwn library catalog add https://github.com/curation-labs/dh-cards-catalog-v1.git
+drwn library catalog add <catalog-git-url>
+drwn library catalog list
+drwn library catalog refresh
+drwn library catalog refresh @community
+drwn library catalog remove @community
+drwn library catalog remove <catalog-git-url>
+```
+
+`drwn library catalog add` clones the catalog, reads its manifest scope, and records the registration in `~/.agents/drwn/catalogs.json`. `drwn init` pre-registers the Curation Labs `@community` catalog unless `--no-default-catalogs` is passed. `drwn search card <query>` searches registered catalog clones.
+
+Producers add entries to a catalog with:
+
+```bash
+drwn card catalog publish @team/backend@1.0.0 --catalog @team --mode direct
+```
+
+`--mode direct` commits and pushes the catalog entry. `--mode local` updates a local catalog checkout without committing.
+
+## Defaults
+
+Defaults promote available local inventory into the machine-wide active set:
+
+```bash
+drwn library defaults list
+drwn library defaults add skill <skill-name>
+drwn library defaults remove skill <skill-name>
+drwn library defaults add mcp <server-id>
+drwn library defaults remove mcp <server-id>
+```
+
+Machine defaults are written under `~/.agents/drwn/machine.json`. Project-local selections should use `drwn add ...` instead.

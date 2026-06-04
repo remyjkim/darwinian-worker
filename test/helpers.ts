@@ -247,7 +247,7 @@ export async function createExecutable(dir: string, name: string, body: string) 
 export async function runAgentsCli(args: string[], env: Record<string, string>, cwd?: string) {
   const entrypoint = new URL("../cli/index.ts", import.meta.url).pathname;
   const proc = Bun.spawn([process.execPath, "run", entrypoint, ...args], {
-    cwd: cwd ?? join(import.meta.dir, ".."),
+    cwd: cwd ?? env.AGENTS_REPO_ROOT ?? join(import.meta.dir, ".."),
     stdout: "pipe",
     stderr: "pipe",
     env: {
@@ -265,7 +265,7 @@ export async function runAgentsCli(args: string[], env: Record<string, string>, 
 
 export async function runGlobalAgentsCli(args: string[], env: Record<string, string>) {
   const proc = Bun.spawn(["drwn", ...args], {
-    cwd: join(import.meta.dir, ".."),
+    cwd: env.AGENTS_REPO_ROOT ?? join(import.meta.dir, ".."),
     stdout: "pipe",
     stderr: "pipe",
     env: {

@@ -145,7 +145,7 @@ describe("user journeys", () => {
       AGENTS_DIR: fixture.agentsDir,
     };
 
-    let result = await runAgentsCli(["init", "--non-interactive"], env, projectDir);
+    let result = await runAgentsCli(["init", "--non-interactive", "--no-default-catalogs"], env, projectDir);
     expect(result.exitCode).toBe(0);
 
     const projectConfigPath = join(projectDir, ".agents", "drwn", "config.json");

@@ -26,6 +26,10 @@ export function resolveUserConfigPath(agentsDir: string) {
   return join(resolveUserDrwnDir(agentsDir), "config.json");
 }
 
+export function resolveCredentialsPath(agentsDir: string) {
+  return join(resolveUserDrwnDir(agentsDir), "credentials.json");
+}
+
 export function resolveLibraryDir(agentsDir: string) {
   return join(agentsDir, "library");
 }

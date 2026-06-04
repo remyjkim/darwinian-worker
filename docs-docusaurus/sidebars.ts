@@ -80,6 +80,10 @@ const sidebars: SidebarsConfig = {
             'reference/cli/status',
             'reference/cli/doctor',
             'reference/cli/export',
+            'reference/cli/login',
+            'reference/cli/logout',
+            'reference/cli/whoami',
+            'reference/cli/analyze',
           ],
         },
         {

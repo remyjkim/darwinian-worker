@@ -467,7 +467,7 @@ catalog-repo/
 └── .github/workflows/validate.yml  # optional CI for the catalog itself
 ```
 
-The default community catalog at `darwinian-harness/cards-catalog` ships with an initial `catalog.json` (empty `cards` array). It's pre-registered on `drwn init` unless `--no-default-catalogs` is passed.
+The default community catalog at `curation-labs/dh-cards-catalog-v1` ships with an initial `catalog.json` (empty `cards` array). It's pre-registered on `drwn init` unless `--no-default-catalogs` is passed.
 
 ### 6.1 Catalog registration index
 
