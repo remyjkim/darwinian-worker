@@ -11,7 +11,7 @@ const config: Config = {
     v4: true,
   },
 
-  url: 'https://darwiniantools.com',
+  url: 'https://docs.darwiniantools.com',
   baseUrl: '/',
   organizationName: 'remyjkim',
   projectName: 'darwinian-harness',

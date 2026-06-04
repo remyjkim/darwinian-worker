@@ -28,10 +28,10 @@ drwn library defaults remove mcp context7
 Attach MCP servers to a card source:
 
 ```bash
-drwn card source add-mcp @me/backend context7
-drwn card source add-mcp @me/backend context7 --from ./context7.json
-drwn card source remove-mcp @me/backend context7
-drwn card source doctor @me/backend
+drwn card source add-mcp @your-handle/backend context7
+drwn card source add-mcp @your-handle/backend context7 --from ./context7.json
+drwn card source remove-mcp @your-handle/backend context7
+drwn card source doctor @your-handle/backend
 ```
 
 Write the effective MCP config:

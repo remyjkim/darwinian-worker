@@ -6,7 +6,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { ensureDefaultCommunityCatalog } from "../core/card-catalog";
+import { ensureDefaultCommunityCatalog, resolveDefaultCommunityCatalogUrl } from "../core/card-catalog";
+import { loadConfig } from "../core/config";
 import { ensureBeadsProjectExtensionConfig, normalizeBeadsTargets } from "../core/extensions/beads";
 import { ensureParallelProjectExtensionConfig } from "../core/extensions/parallel";
 import { resolveInitMode } from "../core/interactivity";
@@ -84,7 +85,9 @@ export class InitCommand extends BaseCommand {
     }
 
     if (!this.noDefaultCatalogs) {
-      await ensureDefaultCommunityCatalog(this.context.agentsDir);
+      const packaged = await loadConfig(this.context.repoRoot);
+      const url = resolveDefaultCommunityCatalogUrl(packaged);
+      await ensureDefaultCommunityCatalog(this.context.agentsDir, url);
     }
 
     this.context.stdout.write(`${messages.join("\n")}\n`);

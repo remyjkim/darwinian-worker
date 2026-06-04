@@ -11,13 +11,13 @@ sidebar_position: 2
 Append a card ref to the project and refresh `card.lock`.
 
 ```bash
-drwn add card @me/backend@^1.0.0
+drwn add card @your-handle/backend@^1.0.0
 drwn add card @team/review --write
 ```
 
 `add card` is an alias for `drwn card add`. It rejects duplicate card names so one project keeps a single constraint per card. Pass `--write` to chain `drwn write` after the config update.
 
-See [Card commands](../cards/add) for the full card lifecycle.
+See [Card commands](./card) for the full card lifecycle.
 
 ## drwn add skill
 
@@ -88,4 +88,4 @@ drwn add mcp github --yes
 
 - [Search](./search) — discover candidates before adding
 - [Write](./write) — materialize the new project overlay into downstream targets
-- [Library](../library/list) — manage what is locally available to add
+- [Library](./library) — manage what is locally available to add

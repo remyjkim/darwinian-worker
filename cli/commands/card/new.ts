@@ -2,8 +2,12 @@
 // ABOUTME: Persists authoring scope so repeated card creation stays concise.
 
 import { Option } from "clipanion";
+import { createInterface } from "node:readline/promises";
 import { captureProjectAsCard } from "../../core/card-capture";
+import { isCardUnscopedName } from "../../core/card-manifest";
 import { createCardSource, readMachineConfig } from "../../core/card-store";
+import { probeAuthoringScope, resolveScopeForCardNew } from "../../core/authoring-scope";
+import { defaultProbeGh, defaultProbeGit } from "../../core/authoring-scope-probes";
 import { BaseCommand } from "../base";
 
 export class CardNewCommand extends BaseCommand {
@@ -20,9 +24,9 @@ export class CardNewCommand extends BaseCommand {
       a self-contained card source.
     `,
     examples: [
-      ["Create a scoped card source", "drwn card new backend --scope @me"],
-      ["Create a fully-qualified card source", "drwn card new @me/backend --no-git"],
-      ["Capture the current project", "drwn card new @me/project-harness --from-project ."],
+      ["Create a scoped card source", "drwn card new backend --scope @your-handle"],
+      ["Create a fully-qualified card source", "drwn card new @your-handle/backend --no-git"],
+      ["Capture the current project", "drwn card new @your-handle/project-harness --from-project ."],
     ],
   });
 
@@ -34,7 +38,7 @@ export class CardNewCommand extends BaseCommand {
   });
 
   scope = Option.String("--scope", {
-    description: "Scope to apply to an unscoped card name, such as @me.",
+    description: "Scope to apply to an unscoped card name (e.g., @your-handle). Auto-derived from gh / git config on first use.",
   });
 
   noGit = Option.Boolean("--no-git", false, {
@@ -47,6 +51,36 @@ export class CardNewCommand extends BaseCommand {
       return 1;
     }
     const machine = await readMachineConfig(this.context.agentsDir);
+
+    let scopeForCreate: string | undefined = this.scope ?? machine.authoring?.scope;
+    if (isCardUnscopedName(this.name) && !scopeForCreate) {
+      const resolved = await resolveScopeForCardNew({
+        explicit: this.scope,
+        savedScope: machine.authoring?.scope,
+        isInteractive: process.stdin.isTTY === true && process.stdout.isTTY === true,
+        probe: () => probeAuthoringScope({ runGh: defaultProbeGh, runGit: defaultProbeGit }),
+        prompt: async (suggested) => {
+          const rl = createInterface({ input: process.stdin, output: process.stdout });
+          try {
+            const answer = (
+              await rl.question(`Use ${suggested} as your default card scope? [Y/n] `)
+            )
+              .trim()
+              .toLowerCase();
+            return answer === "" || answer === "y" || answer === "yes";
+          } finally {
+            rl.close();
+          }
+        },
+      });
+
+      if (resolved.kind === "error") {
+        this.context.stderr.write(`${resolved.message}\n`);
+        return 1;
+      }
+      scopeForCreate = resolved.scope;
+    }
+
     if (this.fromProject) {
       let captured;
       try {
@@ -56,7 +90,7 @@ export class CardNewCommand extends BaseCommand {
           homeDir: this.context.homeDir,
           projectPath: this.projectPath ?? this.context.cwd,
           name: this.name,
-          scope: this.scope ?? machine.authoring?.scope,
+          scope: scopeForCreate,
           noGit: this.noGit,
         });
       } catch (error) {
@@ -76,7 +110,7 @@ export class CardNewCommand extends BaseCommand {
       source = await createCardSource({
         agentsDir: this.context.agentsDir,
         name: this.name,
-        scope: this.scope ?? machine.authoring?.scope,
+        scope: scopeForCreate,
         noGit: this.noGit,
       });
     } catch (error) {

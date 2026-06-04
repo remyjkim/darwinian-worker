@@ -1,0 +1,100 @@
+name: docs deploy production
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs-docusaurus/**'
+      - 'test/docs-readiness.test.ts'
+      - 'test/package-readiness.test.ts'
+      - '.github/workflows/docs-*.yml'
+      - 'lychee.toml'
+  workflow_dispatch:
+
+concurrency:
+  group: docs-deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  deployments: write
+
+env:
+  BUN_VERSION: '1.2.21'
+  CF_PAGES_PROJECT: darwiniantools-docs
+  PROD_URL: https://docs.darwiniantools.com
+
+jobs:
+  deploy_production:
+    name: deploy production
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install root deps
+        run: bun install --frozen-lockfile
+
+      # Root typecheck (`tsc --noEmit` on cli/*) is the CLI pipeline's concern,
+      # not the docs pipeline's. Keep CLI-vs-docs CI boundaries clean so a
+      # half-finished CLI refactor never blocks a docs typo fix from shipping.
+      - name: Docs readiness tests
+        run: bun test test/docs-readiness.test.ts test/package-readiness.test.ts
+
+      - name: Install docusaurus deps
+        working-directory: docs-docusaurus
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck docusaurus
+        working-directory: docs-docusaurus
+        run: bun run typecheck
+
+      - name: Build docusaurus
+        working-directory: docs-docusaurus
+        run: bun run build
+
+      - name: Check internal links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          # --root-dir tells lychee how to resolve root-relative URLs like
+          # /img/favicon.svg or /getting-started/installation against the
+          # local filesystem. Without it, every absolute link in
+          # Docusaurus-generated HTML fails.
+          args: --config lychee.toml --no-progress --root-dir ${{ github.workspace }}/docs-docusaurus/build docs-docusaurus/build
+          fail: true
+
+      - name: Deploy to Cloudflare Pages production
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy docs-docusaurus/build --project-name=${{ env.CF_PAGES_PROJECT }} --branch=main
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Smoke test production
+        env:
+          DEPLOY_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          # Cloudflare DNS for the custom domain can lag the deploy by a few seconds.
+          curl -fsS --retry 5 --retry-delay 5 --retry-connrefused "${{ env.PROD_URL }}" -o /dev/null
+          echo "Production reachable: ${{ env.PROD_URL }}"
+          curl -fsS --retry 5 --retry-delay 3 --retry-connrefused "${DEPLOY_URL}" -o /dev/null
+          echo "Deployment URL reachable: ${DEPLOY_URL}"
+
+      - name: Summarize
+        run: |
+          {
+            echo "## docs production deployed"
+            echo ""
+            echo "- Commit: \`${{ github.sha }}\`"
+            echo "- Production URL: ${{ env.PROD_URL }}"
+            echo "- Deployment URL: ${{ steps.deploy.outputs.deployment-url }}"
+            echo "- Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } >> "$GITHUB_STEP_SUMMARY"

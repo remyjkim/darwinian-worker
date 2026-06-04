@@ -1,0 +1,62 @@
+############################################################
+# Lychee link checker config for docs-docusaurus
+# Runs against the built ./build directory in CI workflows.
+############################################################
+
+# Output format
+verbose = "info"
+format = "compact"
+no_progress = true
+
+# Network behavior
+max_redirects = 5
+max_concurrency = 16
+timeout = 20
+retry_wait_time = 2
+# 429 (rate limited), 503 (transient) — retry rather than fail
+accept = [
+  "200..=299",
+  "403",  # Cloudflare bot challenge; not a content error
+  "999",  # LinkedIn bot challenge; not a content error
+]
+
+# Skip checking these domains in CI to avoid false positives.
+# Anything that bot-challenges, requires login, or is intentionally
+# external-and-flaky goes here. Internal links and docs.darwiniantools.com
+# stay checked.
+exclude = [
+  # Localhost / development URLs
+  '^https?://localhost',
+  '^https?://127\.0\.0\.1',
+
+  # GitHub edit-this-page and pull-request URLs that may 404 mid-flight
+  '^https://github\.com/.*\/edit/',
+  '^https://github\.com/remyjkim/darwinian-harness/tree/main/docs-docusaurus/docs/',
+  '^https://github\.com/.*\/issues\/new',
+
+  # Social / sign-in walls
+  '^https://(www\.)?linkedin\.com',
+  '^https://(www\.)?twitter\.com',
+  '^https://x\.com',
+
+  # Cloudflare / Vercel / vendor short-lived preview URLs
+  '\.pages\.dev/',
+  '\.vercel\.app/',
+  '\.workers\.dev/',
+
+  # Self-references to the production docs domain. Docusaurus emits these
+  # as canonical / sitemap / "edit this page" hrefs. New pages in a PR
+  # will 404 on production until merge — that is a chicken-and-egg, not a
+  # bug. Internal navigation is already guarded by docusaurus's
+  # onBrokenLinks: 'throw' build-time check; lychee's job here is external
+  # link rot, which is unaffected by excluding self-refs.
+  '^https://docs\.darwiniantools\.com',
+]
+
+# Skip mailto and tel links — not URLs in the normal sense.
+# Only `include_mail` is a valid lychee key (negative form does not exist).
+include_mail = false
+
+# Cache directory (reused across runs in CI when actions/cache wraps lychee).
+cache = true
+max_cache_age = "1d"

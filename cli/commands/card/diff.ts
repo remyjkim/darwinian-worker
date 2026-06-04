@@ -19,7 +19,7 @@ export class CardDiffCommand extends BaseCommand {
       Compares structural card manifest changes. Removals classify as major,
       additions classify as minor, and metadata-only edits classify as patch.
     `,
-    examples: [["Compare versions", "drwn card diff @me/backend@1.0.0 @me/backend@1.1.0"]],
+    examples: [["Compare versions", "drwn card diff @your-handle/backend@1.0.0 @your-handle/backend@1.1.0"]],
   });
 
   before = Option.String({ required: true });

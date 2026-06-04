@@ -19,8 +19,8 @@ export class CardSourceAddSkillCommand extends BaseCommand {
       require --replace.
     `,
     examples: [
-      ["Add a repo skill", "drwn card source add-skill @me/backend alpha"],
-      ["Preview the source mutation", "drwn card source add-skill @me/backend alpha --dry-run --json"],
+      ["Add a repo skill", "drwn card source add-skill @your-handle/backend alpha"],
+      ["Preview the source mutation", "drwn card source add-skill @your-handle/backend alpha --dry-run --json"],
     ],
   });
 

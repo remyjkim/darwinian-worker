@@ -17,7 +17,7 @@ export class CardPinCommand extends BaseCommand {
       card is not already present. Exact versions are useful when a project
       needs reproducible behavior independent of newer local publishes.
     `,
-    examples: [["Pin a card", "drwn card pin @me/backend@1.0.0"]],
+    examples: [["Pin a card", "drwn card pin @your-handle/backend@1.0.0"]],
   });
 
   spec = Option.String({ required: true });

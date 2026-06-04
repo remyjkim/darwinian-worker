@@ -43,7 +43,7 @@ Purpose: the machine-scope drwn configuration. Holds target enablement, machine-
     "context7": true
   },
   "authoring": {
-    "scope": "@me"
+    "scope": "@your-handle"
   }
 }
 ```
@@ -72,7 +72,7 @@ Purpose: the machine-scope drwn configuration. Holds target enablement, machine-
 - **First-run seeding** — `initializeUserConfigFromPackagedDefaults` (`cli/core/user-config.ts:36-50`) populates `defaults.skills`, `defaults.mcpServers`, and `defaults.extensions` from the packaged repo config and curated skill list.
 - **Mutators**
   - `drwn library defaults add|remove skill|mcp` rewrites `defaults.skills` / `defaults.mcpServers` (`cli/commands/library/defaults/*.ts`).
-  - `drwn card new --scope @me` persists `authoring.scope` (`cli/commands/card/new.ts`; persistence at `card-store.ts:236-240`).
+  - `drwn card new --scope @your-handle` persists `authoring.scope` (`cli/commands/card/new.ts`; persistence at `card-store.ts:236-240`).
 - **Reads** — `loadOrInitializeUserConfig` and `loadEffectiveConfig` (`user-config.ts:52-75`) pull the file when present and merge it onto the packaged repo config.
 
 ## Notes

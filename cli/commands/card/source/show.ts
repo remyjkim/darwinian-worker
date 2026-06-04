@@ -18,8 +18,8 @@ export class CardSourceShowCommand extends BaseCommand {
       This inspects editable source state, not published immutable versions.
     `,
     examples: [
-      ["Show a source", "drwn card source show @me/backend"],
-      ["Show a source as JSON", "drwn card source show @me/backend --json"],
+      ["Show a source", "drwn card source show @your-handle/backend"],
+      ["Show a source as JSON", "drwn card source show @your-handle/backend --json"],
     ],
   });
 

@@ -63,4 +63,4 @@ Unlike skill and MCP search, card search has no `--library`/`--catalog` split: c
 ## Related
 
 - [Add](./add) — add the result of a search to the current project
-- [Library](../library/list) — list everything available locally without search
+- [Library](./library) — list everything available locally without search

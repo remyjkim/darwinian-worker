@@ -17,7 +17,7 @@ Purpose: the manifest a card carries. Declares the card's identity, versioned sk
 ```json
 {
   "$schema": "https://drwn.dev/schemas/card-manifest-v1.json",
-  "name": "@me/backend",
+  "name": "@your-handle/backend",
   "version": "1.2.0",
   "description": "Backend reviewer + release-notes harness for the api team.",
   "license": "MIT",

@@ -15,7 +15,7 @@ export class CardDeprecateCommand extends BaseCommand {
       Records deprecation metadata on the card's local bare Git repository
       without mutating immutable published content.
     `,
-    examples: [["Deprecate a version", "drwn card deprecate @me/backend@1.0.0 --message replaced"]],
+    examples: [["Deprecate a version", "drwn card deprecate @your-handle/backend@1.0.0 --message replaced"]],
   });
 
   ref = Option.String({ required: true });

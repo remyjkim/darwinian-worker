@@ -37,6 +37,16 @@ It is useful when you want:
 
 If you only need a single MCP config file for one tool, this project is probably more structure than you need.
 
+## Core ideas
+
+If you want to understand how drwn thinks before installing it:
+
+- [The Layered Model](./concepts/layered-model) — how registry, library, machine defaults, card manifests, and project overlay resolve into one effective state.
+- [Cards](./concepts/cards) — versioned harness bundles you can author, share, and lock.
+- [Local Store](./concepts/local-store) — the durable shape of `~/.agents/drwn/`.
+- [Disciplines](./concepts/disciplines) — the six load-bearing commitments that shape every command.
+- [Safety Model](./concepts/safety-model) — preview-first, doctor-is-report-only, and the rules that flow from it.
+
 ## What's next
 
 - **New here?** Start with [Installation](./getting-started/installation).

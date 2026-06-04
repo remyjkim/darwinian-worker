@@ -19,8 +19,8 @@ export class CardShowCommand extends BaseCommand {
       exact version, store path, requested range, and integrity hash.
     `,
     examples: [
-      ["Show an exact card version", "drwn card show @me/backend@1.0.0"],
-      ["Show the latest satisfying version", "drwn card show @me/backend@^1.0.0"],
+      ["Show an exact card version", "drwn card show @your-handle/backend@1.0.0"],
+      ["Show the latest satisfying version", "drwn card show @your-handle/backend@^1.0.0"],
     ],
   });
 

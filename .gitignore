@@ -1,4 +1,6 @@
 generated/
+build/
+dist/
 *.bak
 node_modules/
 .env

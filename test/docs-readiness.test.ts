@@ -70,17 +70,15 @@ describe("documentation readiness", () => {
     expect(brewGuide).toContain("drwn");
     expect(brewGuide).toContain("darwinian-harness");
 
-    // Slim README: brand identity, pitch, install, first taste, disciplines,
-    // safety model, documentation pointers, contributing.
+    // Slim README: brand identity, pitch, install, first run, doc pointers,
+    // contributing. Deep content (Disciplines, Safety model, "What it
+    // harnesses", "Why this exists") lives in the docs site; the README links
+    // to the corresponding concepts pages.
     expect(readme).toContain("local meta-harness");
     expect(readme).toContain("The package is `darwinian-harness`. The command is `drwn`.");
     expect(readme).toContain("<img src=\"./docs/assets/darwinian-harness-logo.png\"");
-    expect(readme).toContain("What it harnesses");
-    expect(readme).toContain("Why this exists");
-    expect(readme).toContain("Disciplines");
     expect(readme).toContain("Install");
-    expect(readme).toContain("First taste");
-    expect(readme).toContain("Safety model");
+    expect(readme).toContain("First run");
     expect(readme).toContain("Documentation");
     expect(readme).toContain("Contributing");
     expect(readme).toContain("docs-docusaurus");
@@ -88,6 +86,8 @@ describe("documentation readiness", () => {
     expect(readme).toContain("bun run docs:build");
     expect(readme).toContain("drwn write");
     expect(readme).toContain("drwn status");
+    expect(readme).toContain("concepts/disciplines");
+    expect(readme).toContain("concepts/safety-model");
 
     // cli-quickref carries the usage-pattern content the slim README points to.
     expect(quickref).toContain("Usage modes");

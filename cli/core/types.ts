@@ -43,6 +43,7 @@ export interface CanonicalConfig {
     skills?: string[];
     mcpServers?: string[];
     extensions?: Record<string, ProjectExtensionConfig>;
+    communityCatalogUrl?: string | null;
   };
   catalogs?: {
     npmSkills?: {

@@ -15,33 +15,33 @@ The model separates authoring from consumption:
 Common card commands:
 
 ```bash
-drwn card new @me/backend --no-git
-drwn card publish @me/backend
-drwn card show @me/backend@1.0.0
-drwn card validate @me/backend@1.0.0
-drwn card diff @me/backend@1.0.0 @me/backend@1.1.0
-drwn card deprecate @me/backend@1.0.0
+drwn card new @your-handle/backend --no-git
+drwn card publish @your-handle/backend
+drwn card show @your-handle/backend@1.0.0
+drwn card validate @your-handle/backend@1.0.0
+drwn card diff @your-handle/backend@1.0.0 @your-handle/backend@1.1.0
+drwn card deprecate @your-handle/backend@1.0.0
 ```
 
 Source authoring commands:
 
 ```bash
 drwn card source list
-drwn card source show @me/backend --json
-drwn card source doctor @me/backend
-drwn card source add-skill @me/backend reviewer
-drwn card source remove-skill @me/backend reviewer --keep-files
-drwn card source set @me/backend --stability stable --last-validated-with 0.1.0 --test-status-badge https://example.com/status.svg
-drwn card source add-mcp @me/backend context7
-drwn card source remove-mcp @me/backend context7 --keep-files
+drwn card source show @your-handle/backend --json
+drwn card source doctor @your-handle/backend
+drwn card source add-skill @your-handle/backend reviewer
+drwn card source remove-skill @your-handle/backend reviewer --keep-files
+drwn card source set @your-handle/backend --stability stable --last-validated-with 0.1.0 --test-status-badge https://example.com/status.svg
+drwn card source add-mcp @your-handle/backend context7
+drwn card source remove-mcp @your-handle/backend context7 --keep-files
 ```
 
 Consumption commands:
 
 ```bash
-drwn apply @me/backend@^1.0.0
-drwn card add @me/backend@^1.0.0
-drwn card pin @me/backend@1.0.0
+drwn apply @your-handle/backend@^1.0.0
+drwn card add @your-handle/backend@^1.0.0
+drwn card pin @your-handle/backend@1.0.0
 drwn card update
 drwn update
 drwn write --dry-run
