@@ -1,0 +1,49 @@
+name: docs PR cleanup
+
+on:
+  pull_request:
+    types: [closed]
+    paths:
+      - 'docs-docusaurus/**'
+      - 'test/docs-readiness.test.ts'
+      - 'test/package-readiness.test.ts'
+      - '.github/workflows/docs-*.yml'
+      - 'lychee.toml'
+
+permissions:
+  contents: read
+
+env:
+  CF_PAGES_PROJECT: darwiniantools-docs
+
+jobs:
+  cleanup:
+    name: list preview deployments
+    runs-on: ubuntu-latest
+
+    # Skip fork PRs (their previews never ran).
+    if: github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: List Pages deployments for this PR alias
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN_NONPROD }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deployment list --project-name=${{ env.CF_PAGES_PROJECT }}
+
+      - name: Cleanup note
+        env:
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          {
+            echo "## docs PR cleanup — pr-${PR}"
+            echo ""
+            echo "Cloudflare Pages preview branch \`pr-${PR}\` is listed above."
+            echo "The latest deployment for a branch cannot be deleted via API; manual cleanup is currently report-only."
+            echo "Promote to automated deletion once the team has agreed on retention policy."
+          } >> "$GITHUB_STEP_SUMMARY"

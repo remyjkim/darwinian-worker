@@ -1,0 +1,57 @@
+############################################################
+# Lychee link checker config for docs-docusaurus
+# Runs against the built ./build directory in CI workflows.
+############################################################
+
+# Output format
+verbose = "info"
+format = "compact"
+no_progress = true
+
+# Network behavior
+max_redirects = 5
+max_concurrency = 16
+timeout = 20
+retry_wait_time = 2
+# 429 (rate limited), 503 (transient) — retry rather than fail
+accept = [
+  "200..=299",
+  "403",  # Cloudflare bot challenge; not a content error
+  "999",  # LinkedIn bot challenge; not a content error
+]
+
+# Skip checking these domains in CI to avoid false positives.
+# Anything that bot-challenges, requires login, or is intentionally
+# external-and-flaky goes here. Internal links and docs.darwiniantools.com
+# stay checked.
+exclude = [
+  # Localhost / development URLs
+  '^https?://localhost',
+  '^https?://127\.0\.0\.1',
+
+  # GitHub edit-this-page and pull-request URLs that may 404 mid-flight
+  '^https://github\.com/.*\/edit/',
+  '^https://github\.com/.*\/issues\/new',
+
+  # Social / sign-in walls
+  '^https://(www\.)?linkedin\.com',
+  '^https://(www\.)?twitter\.com',
+  '^https://x\.com',
+
+  # Cloudflare / Vercel / vendor short-lived preview URLs
+  '\.pages\.dev/',
+  '\.vercel\.app/',
+  '\.workers\.dev/',
+]
+
+# Skip mailto and tel links — not URLs in the normal sense
+exclude_mail = true
+include_mail = false
+
+# Treat absolute paths in HTML as repo-rooted, so /docs/x links resolve
+# against the local build tree, not the public domain.
+base = "docs-docusaurus/build"
+
+# Cache directory (reused across runs in CI when actions/cache wraps lychee)
+cache = true
+max_cache_age = "1d"
