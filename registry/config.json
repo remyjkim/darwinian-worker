@@ -21,6 +21,9 @@
       "symlink": true
     }
   },
+  "defaults": {
+    "communityCatalogUrl": "https://github.com/curation-labs/dh-cards-catalog-v1.git"
+  },
   "parallel": {
     "cli": {
       "enabled": true

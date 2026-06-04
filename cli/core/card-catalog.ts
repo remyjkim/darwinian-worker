@@ -10,6 +10,7 @@ import {
 } from "./store-paths";
 import { writeAtomically } from "./fs";
 import * as git from "./git";
+import type { CanonicalConfig } from "./types";
 
 /**
  * Schema served by a catalog repo at HEAD:catalog.json.
@@ -63,8 +64,13 @@ export interface CardCatalogCard {
   sourceCatalog: string;
 }
 
-export const DEFAULT_COMMUNITY_CATALOG_URL =
-  "https://github.com/darwinian-harness/cards-catalog.git";
+export function resolveDefaultCommunityCatalogUrl(
+  config: Pick<CanonicalConfig, "defaults"> | null | undefined,
+): string | null {
+  const value = config?.defaults?.communityCatalogUrl;
+  if (value === undefined || value === null) return null;
+  return value;
+}
 
 export async function loadCardCatalogIndex(agentsDir: string): Promise<CatalogsIndex> {
   const path = resolveCatalogsIndexPath(agentsDir);
@@ -196,18 +202,21 @@ export async function refreshCardCatalog(
   return { refreshed, warnings };
 }
 
-export async function ensureDefaultCommunityCatalog(agentsDir: string): Promise<void> {
+export async function ensureDefaultCommunityCatalog(
+  agentsDir: string,
+  url: string | null,
+): Promise<void> {
+  if (!url) return;
   const index = await loadCardCatalogIndex(agentsDir);
-  if (index.catalogs.some((entry) => entry.url === DEFAULT_COMMUNITY_CATALOG_URL)) {
+  if (index.catalogs.some((entry) => entry.url === url)) {
     return;
   }
   try {
-    await addCardCatalog(agentsDir, DEFAULT_COMMUNITY_CATALOG_URL);
+    await addCardCatalog(agentsDir, url);
   } catch (error) {
-    // Fail-soft: the default catalog may not be reachable or may not yet exist
-    // upstream. Don't break `drwn init` over it.
+    // Fail-soft: the default catalog may not be reachable. Don't break `drwn init` over it.
     process.stderr.write(
-      `drwn: could not register default community catalog (${DEFAULT_COMMUNITY_CATALOG_URL}): ${
+      `drwn: could not register default community catalog (${url}): ${
         error instanceof Error ? error.message : String(error)
       }\n`,
     );
