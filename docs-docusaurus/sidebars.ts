@@ -46,7 +46,6 @@ const sidebars: SidebarsConfig = {
       collapsed: true,
       items: [
         'guides/per-project-patterns',
-        'guides/use-darwinian-harness-skills',
         'guides/setup-beads',
         'guides/setup-parallel',
         'guides/setup-markitdown',

@@ -45,5 +45,5 @@ The unresolved `skills.include` case is split across two surfaces:
 
 - [Status](./status) — effective harness summary (use `--why` to trace why something is active)
 - [Write](./write) — the mutating counterpart; `--dry-run` previews the same writes doctor reports drift against
-- [Extensions doctor](../extensions/doctor) — extension-specific diagnostics (Parallel, Beads, MarkItDown)
+- [Extensions doctor](./extensions) — extension-specific diagnostics (Parallel, Beads, MarkItDown)
 - [Store status / verify](./store) — store-layer health

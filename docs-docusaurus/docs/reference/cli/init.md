@@ -63,4 +63,4 @@ The project overlay can:
 - include or exclude skills during write
 - enable or disable targets locally
 
-See [Per-project configuration](../../guides/per-project-config) and `.ai/knowledges/02_per-project-config-guide.md` for the full overlay model.
+See [Per-project configuration](../../guides/per-project-patterns) and `.ai/knowledges/02_per-project-config-guide.md` for the full overlay model.
