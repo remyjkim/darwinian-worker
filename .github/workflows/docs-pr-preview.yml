@@ -91,6 +91,13 @@ jobs:
         with:
           submodules: false
 
+      # wrangler-action@v3 detects bun.lock at the repo root and invokes
+      # `bun` for its install step. Without Bun on PATH, the deploy step
+      # fails with "Unable to locate executable file: bun".
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
       - name: Download built site
         uses: actions/download-artifact@v4
         with:

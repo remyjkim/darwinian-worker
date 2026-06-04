@@ -29,6 +29,12 @@ jobs:
         with:
           submodules: false
 
+      # wrangler-action@v3 detects bun.lock at the repo root and invokes
+      # `bun` for its install step. Without Bun on PATH the action fails.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.21'
+
       - name: List Pages deployments for this PR alias
         uses: cloudflare/wrangler-action@v3
         with:
