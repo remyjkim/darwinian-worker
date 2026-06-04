@@ -44,14 +44,10 @@ exclude = [
   '\.workers\.dev/',
 ]
 
-# Skip mailto and tel links — not URLs in the normal sense
-exclude_mail = true
+# Skip mailto and tel links — not URLs in the normal sense.
+# Only `include_mail` is a valid lychee key (negative form does not exist).
 include_mail = false
 
-# Treat absolute paths in HTML as repo-rooted, so /docs/x links resolve
-# against the local build tree, not the public domain.
-base = "docs-docusaurus/build"
-
-# Cache directory (reused across runs in CI when actions/cache wraps lychee)
+# Cache directory (reused across runs in CI when actions/cache wraps lychee).
 cache = true
 max_cache_age = "1d"
