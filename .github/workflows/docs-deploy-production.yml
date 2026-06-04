@@ -41,9 +41,9 @@ jobs:
       - name: Install root deps
         run: bun install --frozen-lockfile
 
-      - name: Typecheck root
-        run: bun run typecheck
-
+      # Root typecheck (`tsc --noEmit` on cli/*) is the CLI pipeline's concern,
+      # not the docs pipeline's. Keep CLI-vs-docs CI boundaries clean so a
+      # half-finished CLI refactor never blocks a docs typo fix from shipping.
       - name: Docs readiness tests
         run: bun test test/docs-readiness.test.ts test/package-readiness.test.ts
 

@@ -54,13 +54,14 @@ gh variable list
 
 The validate job in both `pr-preview` and `deploy-production` runs:
 
-1. `bun install --frozen-lockfile` at repo root
-2. `bun run typecheck` — root TypeScript
-3. `bun test test/docs-readiness.test.ts test/package-readiness.test.ts` — enforces docs↔CLI alignment
-4. `bun install --frozen-lockfile` in `docs-docusaurus/`
-5. `bun run typecheck` — docusaurus TypeScript
-6. `bun run build` — docusaurus production build
-7. `lycheeverse/lychee-action@v2` — internal link check against `docs-docusaurus/build`
+1. `bun install --frozen-lockfile` at repo root (validates lockfile integrity)
+2. `bun test test/docs-readiness.test.ts test/package-readiness.test.ts` — enforces docs↔CLI alignment (runs via Bun's runtime, no tsc dependency)
+3. `bun install --frozen-lockfile` in `docs-docusaurus/`
+4. `bun run typecheck` — docusaurus TypeScript
+5. `bun run build` — docusaurus production build
+6. `lycheeverse/lychee-action@v2` — internal link check against `docs-docusaurus/build`
+
+Root `tsc --noEmit` on `cli/**` is intentionally **not** in this pipeline — that's the CLI pipeline's responsibility. Keeping CLI-vs-docs CI boundaries clean lets a docs typo fix ship while a CLI refactor is mid-flight.
 
 The PR preview workflow uploads the built site as an artifact and re-downloads it in the deploy job so the deployed artifact is byte-identical to the validated one.
 
