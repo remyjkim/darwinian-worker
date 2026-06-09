@@ -2,10 +2,12 @@
 // ABOUTME: Centralizes card store layout so authoring and project commands share behavior.
 
 import { createHash, randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, statSync } from "node:fs";
 import { mkdir, readdir, readFile, rename, rm, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { assertValidCardManifest, isCardScopeName, isCardUnscopedName, type CardManifest } from "./card-manifest";
+import { bumpOverrideConfigKey, assertSemverBumpMatchesClassification } from "./card-publish-guardrail";
+import { diffCards } from "./card-diff";
 import type { CardOrigin, GitLockInfo } from "./card-lock";
 import { detectLegacyLayout } from "./migration";
 import { compareVersions, gt, isStrictSemver, maxSatisfying, validRange } from "./semver-utils";
@@ -13,6 +15,7 @@ import { writeAtomically } from "./fs";
 import * as git from "./git";
 import { DrwnError } from "./errors";
 import { readUrlCardName, writeUrlCardName } from "./url-card-map";
+import { assertSourceTrusted, loadEffectiveTrustedSourcesPolicy } from "./trusted-sources";
 import {
   assertStoreWritable,
   resolveCardBareRepoPath,
@@ -55,6 +58,12 @@ export interface ResolvedCard {
   git?: GitLockInfo;
 }
 
+export interface ResolveCardOptions {
+  allowUntrustedSource?: boolean;
+  repoRoot?: string;
+  cwd?: string;
+}
+
 export interface CardPackageIndexVersion {
   version: string;
   publishedAt: string;
@@ -65,6 +74,10 @@ export interface CardPackageIndexVersion {
 export interface CardPackageIndex {
   name: string;
   versions: CardPackageIndexVersion[];
+}
+
+export interface PublishCardOptions {
+  forceBumpMismatch?: boolean;
 }
 
 function nowIso() {
@@ -83,6 +96,19 @@ function assertNoLegacyLayout(agentsDir: string) {
 
 export async function ensureStoreInitialized(agentsDir: string) {
   const storeRoot = resolveStoreRoot(agentsDir);
+  const seedPath = process.env.DRWN_STORE_SEED_PATH;
+  if (seedPath && existsSync(seedPath)) {
+    const { isStoreMissingOrEmpty, seedStore } = await import("./store-seed");
+    if (await isStoreMissingOrEmpty(storeRoot)) {
+      const kind = statSync(seedPath).isDirectory() ? "dir" : "tar";
+      await seedStore({
+        agentsDir,
+        source: { kind, path: seedPath },
+        allowReadonlySeed: true,
+      });
+      return;
+    }
+  }
   mkdirSync(storeRoot, { recursive: true });
   for (const pathValue of [
     resolveCardsRoot(agentsDir),
@@ -617,7 +643,7 @@ async function listBareRepos(agentsDir: string): Promise<Array<{ name: string; p
   return repos.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export async function publishCard(agentsDir: string, name: string) {
+export async function publishCard(agentsDir: string, name: string, options: PublishCardOptions = {}) {
   assertStoreWritable();
   assertNoLegacyLayout(agentsDir);
   await ensureStoreInitialized(agentsDir);
@@ -651,8 +677,24 @@ export async function publishCard(agentsDir: string, name: string) {
     await git.initBare(barePath);
     await git.configSet(barePath, "drwn.cardName", manifest.name);
   }
-  if ((await git.listTags(barePath)).includes(tag)) {
+  const tags = await git.listTags(barePath);
+  if (tags.includes(tag)) {
     throw new Error(`Card version already exists: ${manifest.name}@${manifest.version}`);
+  }
+  const existingVersions = versionsFromTags(tags);
+  const previousVersion = existingVersions.at(-1);
+  if (previousVersion) {
+    const previousManifest = await readPublishedCardManifest(agentsDir, manifest.name, previousVersion);
+    const classification = diffCards(previousManifest, manifest).classification;
+    if (!options.forceBumpMismatch) {
+      assertSemverBumpMatchesClassification({
+        previousVersion,
+        nextVersion: manifest.version,
+        classification,
+      });
+    } else {
+      await git.configSet(barePath, bumpOverrideConfigKey(manifest.version), classification);
+    }
   }
 
   const treeSha = await git.writeTreeFromDir(barePath, sourceDir);
@@ -679,10 +721,18 @@ async function listPublishedVersions(agentsDir: string, name: string) {
   return versionsFromTags(await git.listTags(barePath));
 }
 
-export async function resolveCard(agentsDir: string, ref: string): Promise<ResolvedCard> {
+export async function resolveCard(agentsDir: string, ref: string, options: ResolveCardOptions = {}): Promise<ResolvedCard> {
   assertNoLegacyLayout(agentsDir);
   await ensureStoreInitialized(agentsDir);
   const parsed = parseCardRef(ref);
+  if (!options.allowUntrustedSource) {
+    const policy = await loadEffectiveTrustedSourcesPolicy({
+      agentsDir,
+      repoRoot: options.repoRoot,
+      cwd: options.cwd,
+    });
+    assertSourceTrusted(parsed, policy);
+  }
   if (parsed.origin === "file" && parsed.filePath) {
     const dir = resolve(parsed.filePath);
     const manifestPath = join(dir, "card.json");

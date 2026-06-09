@@ -29,9 +29,20 @@ export class CardValidateCommand extends BaseCommand {
     description: "Emit machine-readable JSON output.",
   });
 
+  allowUntrustedSource = Option.Boolean("--allow-untrusted-source", false, {
+    description: "Resolve the card ref even when trustedSources.strict would reject it.",
+  });
+
   async execute() {
     try {
-      const card = await resolveCard(this.context.agentsDir, this.ref);
+      if (this.allowUntrustedSource) {
+        this.context.stderr.write(`Warning: --allow-untrusted-source used for ${this.ref}\n`);
+      }
+      const card = await resolveCard(this.context.agentsDir, this.ref, {
+        allowUntrustedSource: this.allowUntrustedSource,
+        repoRoot: this.context.repoRoot,
+        cwd: this.context.cwd,
+      });
       const payload = { ok: true, card: { name: card.name, version: card.version, integrity: card.integrity, origin: card.origin } };
       this.context.stdout.write(this.json ? renderJson(payload) : `Valid ${card.name}@${card.version}\n`);
       return 0;

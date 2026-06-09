@@ -11,6 +11,7 @@ import {
 import { writeAtomically } from "./fs";
 import * as git from "./git";
 import type { CanonicalConfig } from "./types";
+import { assertCatalogSourceTrusted, loadEffectiveTrustedSourcesPolicy } from "./trusted-sources";
 
 /**
  * Schema served by a catalog repo at HEAD:catalog.json.
@@ -123,8 +124,17 @@ async function loadCatalogManifest(catalogRepoPath: string): Promise<CatalogMani
 export async function addCardCatalog(
   agentsDir: string,
   url: string,
+  options: { allowUntrustedSource?: boolean; repoRoot?: string; cwd?: string } = {},
 ): Promise<CatalogIndexEntry> {
   assertStoreWritable();
+  if (!options.allowUntrustedSource) {
+    const policy = await loadEffectiveTrustedSourcesPolicy({
+      agentsDir,
+      repoRoot: options.repoRoot,
+      cwd: options.cwd,
+    });
+    assertCatalogSourceTrusted(url, policy);
+  }
   const index = await loadCardCatalogIndex(agentsDir);
   if (index.catalogs.some((entry) => entry.url === url)) {
     throw new Error(`Card catalog already registered: ${url}`);

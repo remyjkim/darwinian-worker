@@ -35,6 +35,10 @@ export class CardOutdatedCommand extends BaseCommand {
     description: "Fetch Git-origin card remotes before checking.",
   });
 
+  allowUntrustedSource = Option.Boolean("--allow-untrusted-source", false, {
+    description: "Resolve project card refs even when trustedSources.strict would reject them.",
+  });
+
   json = Option.Boolean("--json", false, {
     description: "Emit machine-readable JSON output.",
   });
@@ -52,7 +56,14 @@ export class CardOutdatedCommand extends BaseCommand {
         );
       });
     }
-    const outdated = await findOutdatedProjectCards(projectRoot, this.context.agentsDir);
+    if (this.allowUntrustedSource) {
+      this.context.stderr.write(`Warning: --allow-untrusted-source used for card outdated\n`);
+    }
+    const outdated = await findOutdatedProjectCards(projectRoot, this.context.agentsDir, {
+      allowUntrustedSource: this.allowUntrustedSource,
+      repoRoot: this.context.repoRoot,
+      cwd: this.context.cwd,
+    });
     if (this.json) {
       this.context.stdout.write(renderJson({ outdated }));
     } else if (outdated.length === 0) {

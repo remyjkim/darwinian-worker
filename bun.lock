@@ -1,10 +1,12 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "darwinian-harness",
       "dependencies": {
         "clipanion": "4.0.0-rc.4",
+        "drwn-catalog-schema": "^0.1.0",
         "semver": "^7.8.0",
         "smol-toml": "^1.6.1",
         "zod": "^4.4.3",
@@ -25,6 +27,8 @@
     "bun-types": ["bun-types@1.3.13", "", { "dependencies": { "@types/node": "*" } }, "sha512-QXKeHLlOLqQX9LgYaHJfzdBaV21T63HhFJnvuRCcjZiaUDpbs5ED1MgxbMra71CsryN/1dAoXuJJJwIv/2drVA=="],
 
     "clipanion": ["clipanion@4.0.0-rc.4", "", { "dependencies": { "typanion": "^3.8.0" } }, "sha512-CXkMQxU6s9GklO/1f714dkKBMu1lopS1WFF0B8o4AxPykR1hpozxSiUZ5ZUeBjfPgCWqbcNOtZVFhB8Lkfp1+Q=="],
+
+    "drwn-catalog-schema": ["drwn-catalog-schema@0.1.0", "", { "dependencies": { "zod": "^4.3.6" } }, "sha512-+tm5djG/ZkV3+fqCZDCkHwhSNNySDInkqFAg6X4dAMpcy1IBjJ/lPWYiSTNONIajQ3OO34OoIo3BQ1oEKCOPhQ=="],
 
     "semver": ["semver@7.8.0", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-AcM7dV/5ul4EekoQ29Agm5vri8JNqRyj39o0qpX6vDF2GZrtutZl5RwgD1XnZjiTAfncsJhMI48QQH3sN87YNA=="],
 

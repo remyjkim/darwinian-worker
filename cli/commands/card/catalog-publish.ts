@@ -78,6 +78,10 @@ export class CardCatalogPublishCommand extends BaseCommand {
     description: "Emit machine-readable JSON output.",
   });
 
+  allowUntrustedSource = Option.Boolean("--allow-untrusted-source", false, {
+    description: "Resolve the card ref or catalog URL even when trustedSources.strict would reject it.",
+  });
+
   async execute() {
     try {
       let mode: CatalogPublishMode;
@@ -86,8 +90,16 @@ export class CardCatalogPublishCommand extends BaseCommand {
       } else {
         throw new UsageError("--mode must be one of: local, direct");
       }
+      if (this.allowUntrustedSource) {
+        this.context.stderr.write(
+          `Warning: --allow-untrusted-source used for ${this.cardRef} / ${this.catalog}\n`,
+        );
+      }
       const result = await publishCardToCatalog({
         agentsDir: this.context.agentsDir,
+        repoRoot: this.context.repoRoot,
+        cwd: this.context.cwd,
+        allowUntrustedSource: this.allowUntrustedSource,
         cardRef: this.cardRef,
         catalog: this.catalog,
         mode,

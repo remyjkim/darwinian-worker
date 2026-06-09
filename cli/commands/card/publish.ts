@@ -21,13 +21,24 @@ export class CardPublishCommand extends BaseCommand {
 
   name = Option.String({ required: true });
 
+  forceBumpMismatch = Option.Boolean("--force-bump-mismatch", false, {
+    description: "Publish despite a mismatch between structural diff classification and declared version bump.",
+  });
+
   async execute() {
     let published;
     try {
-      published = await publishCard(this.context.agentsDir, this.name);
+      published = await publishCard(this.context.agentsDir, this.name, {
+        forceBumpMismatch: this.forceBumpMismatch,
+      });
     } catch (error) {
       this.context.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
       return 1;
+    }
+    if (this.forceBumpMismatch) {
+      this.context.stderr.write(
+        `Warning: --force-bump-mismatch used for ${published.name}@${published.version}\n`,
+      );
     }
     this.context.stdout.write(`Published ${published.name}@${published.version}: ${published.versionDir}\n`);
     return 0;

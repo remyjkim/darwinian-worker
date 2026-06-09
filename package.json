@@ -6,7 +6,7 @@
   },
   "type": "module",
   "description": "Local meta-harness CLI for managing AI agent skills, MCP servers, extensions, defaults, and project overlays.",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "license": "Apache-2.0",
   "author": "remyjkim <jkkim123@gmail.com>",
   "homepage": "https://github.com/remyjkim/darwinian-harness",
@@ -51,6 +51,7 @@
     "@types/semver": "^7.7.1"
   },
   "dependencies": {
+    "drwn-catalog-schema": "^0.1.0",
     "clipanion": "4.0.0-rc.4",
     "semver": "^7.8.0",
     "smol-toml": "^1.6.1",

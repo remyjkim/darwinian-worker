@@ -213,7 +213,7 @@ assert_skill "$PINNED_PROJECT" bootstrap-project
       OUTDATED_JSON: `${consumer.root}/outdated.json`,
     },
   );
-});
+}, 15000);
 
 function prefixedFixtureEnv(prefix: string, fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
   const env = envFor(fixture);

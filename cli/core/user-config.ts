@@ -100,5 +100,9 @@ function mergeMachineConfig(repoConfig: CanonicalConfig, machineConfig: MachineC
     ...(merged.analyzer ?? {}),
     ...(machineConfig.analyzer ?? {}),
   };
+  merged.trustedSources = {
+    ...(merged.trustedSources ?? {}),
+    ...(machineConfig.trustedSources ?? {}),
+  };
   return merged;
 }

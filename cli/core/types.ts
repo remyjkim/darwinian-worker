@@ -36,6 +36,14 @@ export interface TargetConfig {
   symlink?: boolean;
 }
 
+export interface TrustedSourcesPolicy {
+  strict?: boolean;
+  gitHosts?: string[];
+  gitOwners?: string[];
+  catalogScopes?: string[];
+  refs?: string[];
+}
+
 export interface CanonicalConfig {
   version: number;
   targets: Record<TargetName, TargetConfig>;
@@ -72,6 +80,7 @@ export interface CanonicalConfig {
     webBaseUrl?: string;
     maxArchiveBytes?: number;
   };
+  trustedSources?: TrustedSourcesPolicy;
   optional: Record<string, boolean>;
 }
 
@@ -109,6 +118,7 @@ export interface ProjectConfig {
   };
   extensions?: Record<string, ProjectExtensionConfig>;
   targets?: Partial<Record<TargetName, { enabled: boolean }>>;
+  trustedSources?: TrustedSourcesPolicy;
 }
 
 export type SkillSourceType = "repo" | "npm";

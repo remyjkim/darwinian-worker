@@ -26,8 +26,19 @@ export class CardApplyCommand extends BaseCommand {
     description: "Run drwn write after updating project cards.",
   });
 
+  allowUntrustedSource = Option.Boolean("--allow-untrusted-source", false, {
+    description: "Resolve card refs even when trustedSources.strict would reject them.",
+  });
+
   async execute() {
-    const result = await applyProjectCardSpecs(requireProjectRoot(this), this.context.agentsDir, this.specs);
+    if (this.allowUntrustedSource) {
+      this.context.stderr.write(`Warning: --allow-untrusted-source used for card apply\n`);
+    }
+    const result = await applyProjectCardSpecs(requireProjectRoot(this), this.context.agentsDir, this.specs, {
+      allowUntrustedSource: this.allowUntrustedSource,
+      repoRoot: this.context.repoRoot,
+      cwd: this.context.cwd,
+    });
     this.context.stdout.write(renderCardMutation(result));
     if (this.write) {
       return await runChainedWrite(this);
