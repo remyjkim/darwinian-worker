@@ -116,6 +116,14 @@ export interface ProjectConfig {
     include?: string[];
     exclude?: string[];
   };
+  hooks?: {
+    exclude?: string[];
+    runtimes?: {
+      "claude-code"?: { enabled: boolean };
+      codex?: { enabled: boolean };
+      mastra?: { enabled: boolean };
+    };
+  };
   extensions?: Record<string, ProjectExtensionConfig>;
   targets?: Partial<Record<TargetName, { enabled: boolean }>>;
   trustedSources?: TrustedSourcesPolicy;
@@ -156,6 +164,7 @@ export interface SyncOptions {
   skillsOnly?: boolean;
   target?: TargetName;
   force?: boolean;
+  strictHooks?: boolean;
 }
 
 export interface SyncResult {
@@ -177,4 +186,5 @@ export interface NormalizedSyncOptions {
   skillsOnly: boolean;
   target?: TargetName;
   force?: boolean;
+  strictHooks?: boolean;
 }
