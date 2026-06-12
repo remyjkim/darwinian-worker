@@ -373,6 +373,23 @@ function validatePublishedSkillDirs(versionDir: string, manifest: CardManifest) 
   }
 }
 
+function validatePublishedHookDirs(versionDir: string, manifest: CardManifest) {
+  for (const policyName of manifest.hooks?.include ?? []) {
+    const hookDir = join(versionDir, "hooks", policyName);
+    const policyTs = join(hookDir, "policy.ts");
+    if (!existsSync(hookDir)) {
+      throw new Error(
+        `Card ${manifest.name}@${manifest.version} is missing hook directory '${policyName}'. Expected: ${hookDir}`,
+      );
+    }
+    if (!existsSync(policyTs)) {
+      throw new Error(
+        `Card ${manifest.name}@${manifest.version} is missing policy.ts for hook '${policyName}'. Expected: ${policyTs}`,
+      );
+    }
+  }
+}
+
 export async function ensureExtracted(agentsDir: string, barePath: string, treeSha: string): Promise<string> {
   const extractedDir = resolveExtractedPath(agentsDir, treeSha);
   if (existsSync(extractedDir)) {
@@ -591,6 +608,7 @@ async function resolveRepoVersion(options: {
     throw new DrwnError("CARD_NAME_MISMATCH", `expected ${options.name}, got ${manifest.name}`);
   }
   validatePublishedSkillDirs(dir, manifest);
+  validatePublishedHookDirs(dir, manifest);
   return {
     name: manifest.name,
     requested: options.requested,
@@ -661,6 +679,7 @@ export async function publishCard(agentsDir: string, name: string, options: Publ
       throw new Error(`Card source skill '${skillName}' is missing SKILL.md. Expected: ${skillMd}`);
     }
   }
+  validatePublishedHookDirs(sourceDir, manifest);
   const packagePath = join(resolveCardSourceDir(agentsDir, manifest.name), "package.json");
   if (existsSync(packagePath)) {
     const packageJson = JSON.parse(await readFile(packagePath, "utf8")) as { name?: string; version?: string };
@@ -700,6 +719,7 @@ export async function publishCard(agentsDir: string, name: string, options: Publ
   const treeSha = await git.writeTreeFromDir(barePath, sourceDir);
   const versionDir = await ensureExtracted(agentsDir, barePath, treeSha);
   validatePublishedSkillDirs(versionDir, manifest);
+  validatePublishedHookDirs(versionDir, manifest);
   const integrity = await computeCardIntegrity(versionDir);
   const parent = await revParseOptional(barePath, "refs/heads/main");
   const commit = await git.commitTree(
@@ -742,6 +762,7 @@ export async function resolveCard(agentsDir: string, ref: string, options: Resol
     const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as CardManifest;
     assertValidCardManifest(manifest);
     validatePublishedSkillDirs(dir, manifest);
+    validatePublishedHookDirs(dir, manifest);
     return {
       name: manifest.name,
       requested: ref,
