@@ -107,6 +107,7 @@ Store root is `~/.agents/drwn/`. `resolveAgentsDir(homeDir) = join(homeDir, ".ag
 | `catalogs/<slug>/` | `resolveCatalogPath` (`store-paths.ts:81-87`) | Shallow clones of Git-backed card catalogs (`slugifyUrl`, `store-paths.ts:99-105`) |
 | `catalogs.json` | `resolveCatalogsIndexPath` (`store-paths.ts:89-91`) | Registered catalogs index |
 | `generated/` | `resolveStoreGeneratedDir` (`store-paths.ts:146-148`) | Drwn-generated files for downstream tools (Cursor MCP) |
+| `generated/hooks/<runtime>/` | `resolveGeneratedHooksDir` (`store-paths.ts`) | Generated hook composer shims for Claude Code, Codex, and Mastra |
 | `global-write-record.json` | `resolveGlobalWriteRecordPath` (`store-paths.ts:150-152`) | Machine-scope write record |
 | `url-card-map.json` | `resolveUrlCardMapPath` (`url-card-map.ts:21-23`) | Persistent URL→card-name cache |
 | `credentials.json` | `resolveCredentialsPath` (`paths.ts:29-31`) | Analyzer auth credentials written atomically with mode `0600` (`auth/credentials.ts`) |
@@ -558,6 +559,28 @@ Eight subcommands under `cli/commands/card/source/*` mutate authoring state owne
 | `card validate <ref>` | resolve + integrity-check; typed error codes in JSON | `resolveCard` (`commands/card/validate.ts:32-47`) |
 | `card diff <a> <b>` | structural manifest classification + raw `git diff` | `diffCards` + `git.diff` (`commands/card/diff.ts:33-49`) |
 | `card list` | enumerate `cards/` bare repos with versions | `listCards` (`card-store.ts:711-721`) |
+
+### 3.10 Card hooks
+
+Card hooks add a third card artifact class beside skills and MCP server definitions. The target architecture is analysis 60 (`.ai/analyses/60_drwn-card-hooks-target-architecture.md`). Authors declare policy modules in `card.json` as `hooks.include: string[]`; each policy lives at `hooks/<policy>/policy.ts` and imports the public `darwinian-harness/hook-policy` subpath.
+
+The source commands `card source add-hook` and `card source remove-hook` mutate both `card.json` and the `hooks/<policy>/` directory. `card source doctor` checks missing hook directories, missing `policy.ts`, orphaned hook directories, and best-effort TypeScript build failures.
+
+Publishing validates every declared hook path in the source tree and again in the extracted tree. Lockfiles are schema v3: each `CardLockEntry` carries `hooks: string[]` and optional `hookConsent`. Older v2 lockfiles read as `hooks: []`; writes emit v3.
+
+Hook materialization is consent-gated. `card trust <card> --hooks [--range <range>]` records `{consentedAt, consentedRange}` in `card.lock`; `card untrust <card> --hooks` clears it. `drwn write` skips unconsented or out-of-range hook policies with warnings, while `--strict-hooks` turns those warnings into a hard failure.
+
+`syncHooks` materializes one composer per enabled hook runtime:
+
+| Runtime | Generated path | Downstream wiring |
+|---|---|---|
+| Claude Code | `generated/hooks/claude/composer.mjs` | `.claude/settings.json` `hooks.PreToolUse` and `hooks.PostToolUse` |
+| Codex | `generated/hooks/codex/composer.mjs` | `.codex/hooks.json` as drwn-owned managed content |
+| Mastra | `generated/hooks/mastra/composer.ts` | imported by the consumer's Mastra bundle |
+
+Runtime selection is hook-specific, not a new `TargetName`: `claude-code` follows `targets.claude.enabled`, `codex` follows `targets.codex.enabled`, and `mastra` is disabled unless `project.hooks.runtimes.mastra.enabled === true`. Project `hooks.exclude` entries skip policies by bare policy name or `@scope/card:policy-name`.
+
+Codex has an independent native trust flow. drwn consent permits materialization, but Codex may still require `/hooks` review before project-local command hooks execute.
 | `card show <ref>` | resolved card + `git.log --max-count=10`; surfaces quality fields | `resolveCard` + `git.log` (`commands/card/show.ts:33-58`) |
 | `card status [--explain]` | project specs + locked versions + outdated table | `readProjectCardStatus` (`card-project.ts:153-161`); `explainStatus` (`diagnostics.ts`) |
 | `card deprecate <ref> [--message]` | set `drwn.deprecated.<v>` config | `deprecateCardVersion` (`card-store.ts:723-729`) |

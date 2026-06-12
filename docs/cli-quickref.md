@@ -157,6 +157,8 @@ Card commands:
 - `drwn card source doctor [name]`
 - `drwn card source add-skill <name> <skillName>`
 - `drwn card source remove-skill <name> <skillName>`
+- `drwn card source add-hook <name> <policyName>`
+- `drwn card source remove-hook <name> <policyName>`
 - `drwn card source set <name> [options]`
 - `drwn card source add-mcp <name> <serverName>`
 - `drwn card source remove-mcp <name> <serverName>`
@@ -170,17 +172,31 @@ Card commands:
 - `drwn card list`
 - `drwn card show <cardRef>`
 - `drwn card status [--explain]`
+- `drwn card trust <name> --hooks [--range <semverRange>]`
+- `drwn card untrust <name> --hooks`
+- `drwn card audit`
 - `drwn card diff <beforeRef> <afterRef>`
 - `drwn card deprecate <cardRef>`
 - `drwn card validate <cardRef>`
 
 Card source commands operate on editable sources under `~/.agents/drwn/sources/<scope>/<name>/`. Published cards are immutable store releases under `~/.agents/drwn/cards/`, and consumed cards are the refs and locks recorded by a project.
 
+Card hooks:
+
+- Authors scaffold policies with `drwn card source add-hook <card> <policyName>`. This creates `hooks/<policyName>/policy.ts` and adds the policy to `card.json` under `hooks.include`.
+- Consumers must explicitly consent before hook code is materialized: `drwn card trust <card> --hooks`. Consent is stored in `card.lock` with a semver range; `card untrust <card> --hooks` clears it.
+- `drwn write` silently skips hook policies without valid consent and reports a warning. Use `drwn write --strict-hooks` in CI when missing hook consent should fail the write.
+- Claude Code and Codex hook generation follow the existing `targets.claude.enabled` and `targets.codex.enabled` settings. Cursor has no hook runtime in this release.
+- Mastra hook generation is opt-in per project with `hooks.runtimes.mastra.enabled: true` in `<project>/.agents/drwn/config.json`.
+- `hooks.exclude` can skip a policy by bare policy name or by `@scope/card:policy-name`.
+- drwn hook consent only gates drwn materialization. Codex project-local hooks may still require Codex's own `/hooks` review/trust flow before they run.
+
 Typical source authoring:
 
 ```bash
 drwn card new @your-handle/backend --no-git
 drwn card source add-skill @your-handle/backend reviewer
+drwn card source add-hook @your-handle/backend audit-tool-calls
 drwn card source add-mcp @your-handle/backend context7
 drwn card source set @your-handle/backend --description "Backend review harness" --version 0.1.0 --stability stable --last-validated-with 0.1.0 --test-status-badge https://example.com/status.svg
 drwn card source doctor @your-handle/backend
