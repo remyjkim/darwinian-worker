@@ -7,7 +7,7 @@ import { mergeCardManifestsIntoProjectConfig, resolveProjectCards } from "./card
 import { collectCardServerDefinitions, mergeCardServerDefinitionsIntoRegistry, type CardServerDefinition } from "./card-mcp";
 import { loadCardLock } from "./card-lock";
 import { loadConfig } from "./config";
-import { mergeUserMcpLibrary } from "./defaults";
+import { hasExplicitSkillDefaults, mergeUserMcpLibrary } from "./defaults";
 import { loadMcpLibrary } from "./mcp-library";
 import { buildActiveServers } from "./mcp";
 import { normalizeSyncPathOptions } from "./paths";
@@ -57,8 +57,9 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
   const baseConfig = projectConfigPath ? repoConfig : machineConfig;
   let effectiveConfig = baseConfig;
   let effectiveRegistry = registry;
-  let skillSelection: SkillSyncOverrides | undefined = baseConfig.defaults?.skills
-    ? { include: [...baseConfig.defaults.skills] }
+  const baseDefaultSkills = hasExplicitSkillDefaults(baseConfig) ? [...(baseConfig.defaults?.skills ?? [])] : [];
+  let skillSelection: SkillSyncOverrides | undefined = baseDefaultSkills.length > 0
+    ? { include: [...baseDefaultSkills] }
     : undefined;
   let lockedCards: CardLockEntry[] = [];
   let projectConfig: ProjectConfig | null = null;
@@ -84,7 +85,7 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
     effectiveRegistry = merged.registry;
     skillSelection = {
       include: [
-        ...(baseConfig.defaults?.skills ?? []),
+        ...baseDefaultSkills,
         ...(merged.skills?.include ?? []),
       ],
       exclude: merged.skills?.exclude,

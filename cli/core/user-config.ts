@@ -7,7 +7,7 @@ import { dirname } from "node:path";
 import { resolveUserDrwnDir, resolveUserConfigPath } from "./paths";
 import { resolveMachineConfigPath, resolveStoreMetadataPath } from "./store-paths";
 import { listCuratedSkills } from "./skills";
-import { resolveDefaultMcpNames } from "./defaults";
+import { hasExplicitMcpDefaults, hasExplicitSkillDefaults, resolveDefaultMcpNames } from "./defaults";
 import type { CanonicalConfig, CanonicalRegistry, MachineConfig } from "./types";
 
 export { resolveUserDrwnDir, resolveUserConfigPath };
@@ -42,8 +42,8 @@ export async function initializeUserConfigFromPackagedDefaults(
   const curated = agentsDir ? await listCuratedSkills(agentsDir) : [];
   next.defaults = {
     ...(next.defaults ?? {}),
-    skills: next.defaults?.skills ?? curated.map((skill) => skill.name),
-    mcpServers: next.defaults?.mcpServers ?? resolveDefaultMcpNames(packagedConfig, registry),
+    skills: hasExplicitSkillDefaults(next) ? next.defaults?.skills ?? [] : curated.map((skill) => skill.name),
+    mcpServers: hasExplicitMcpDefaults(next) ? next.defaults?.mcpServers ?? [] : resolveDefaultMcpNames(packagedConfig, registry),
     extensions: next.defaults?.extensions ?? {},
   };
   return next;

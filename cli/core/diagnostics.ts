@@ -8,7 +8,7 @@ import { resolveSkillSource } from "./card-skill-resolver";
 import { mergeCardManifestsIntoProjectConfig, resolveProjectCards } from "./card-project";
 import { loadConfig } from "./config";
 import { buildActiveServers, hashCodexManagedServers, mergeClaudeSettingsText, mergeCodexTomlText, renderCursorConfig, renderJsonMcpConfig } from "./mcp";
-import { mergeUserMcpLibrary, validateDefaultReferences } from "./defaults";
+import { hasExplicitSkillDefaults, mergeUserMcpLibrary, validateDefaultReferences } from "./defaults";
 import { expandHomePath, resolveToolPaths } from "./paths";
 import { loadRegistry } from "./registry";
 import { loadMcpLibrary } from "./mcp-library";
@@ -567,7 +567,7 @@ export async function buildDoctorReport(repoRoot: string, agentsDir: string, hom
     registry,
     skillNames: new Set(skillInventory.map((skill) => skill.name)),
   });
-  const defaultSkillOverrides = config.defaults?.skills ? { include: config.defaults.skills } : undefined;
+  const defaultSkillOverrides = hasExplicitSkillDefaults(config) ? { include: config.defaults?.skills ?? [] } : undefined;
 
   const sections = await buildDiagnosticsSections(repoRoot, agentsDir, homeDir);
   return {

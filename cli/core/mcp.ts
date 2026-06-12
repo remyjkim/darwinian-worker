@@ -2,6 +2,7 @@
 // ABOUTME: Shared by drwn commands and the legacy sync-mcp compatibility wrapper.
 
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
+import { hasExplicitMcpDefaults } from "./defaults";
 import { buildDrwnMetaBlock, canonicalJsonHash, detectManagedFieldDrift, readDrwnMetaBlock } from "./managed-fields";
 import type { CanonicalConfig, CanonicalRegistry, RegistryServer } from "./types";
 
@@ -24,8 +25,8 @@ export interface ClaudeHooksConfig {
 }
 
 export function buildActiveServers(registry: CanonicalRegistry, config: CanonicalConfig) {
-  if (config.defaults?.mcpServers) {
-    const defaults = new Set(config.defaults.mcpServers);
+  if (hasExplicitMcpDefaults(config)) {
+    const defaults = new Set(config.defaults?.mcpServers ?? []);
     return Object.fromEntries(
       Object.entries(registry.servers).filter(([name, server]) =>
         defaults.has(name) && server.transport !== "platform-provided"
