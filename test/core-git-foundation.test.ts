@@ -3,7 +3,7 @@
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -37,10 +37,25 @@ describe("git foundation primitives", () => {
     const tmp = await mkdtemp(join(tmpdir(), "drwn-test-"));
     cleanups.push(tmp);
     const repo = join(tmp, "test.git");
+    const gitConfig = join(tmp, "gitconfig");
+    await writeFile(gitConfig, "[init]\n\tdefaultBranch = master\n");
 
-    await initBare(repo);
+    const originalGlobalConfig = process.env.GIT_CONFIG_GLOBAL;
+    process.env.GIT_CONFIG_GLOBAL = gitConfig;
+    try {
+      await initBare(repo);
+    } finally {
+      if (originalGlobalConfig === undefined) {
+        delete process.env.GIT_CONFIG_GLOBAL;
+      } else {
+        process.env.GIT_CONFIG_GLOBAL = originalGlobalConfig;
+      }
+    }
 
     expect(existsSync(join(repo, "HEAD"))).toBe(true);
+    const head = await runGit(["--git-dir", repo, "symbolic-ref", "HEAD"]);
+    expect(head.exitCode).toBe(0);
+    expect(head.stdout.trim()).toBe("refs/heads/main");
   });
 
   test("configSet and configGet round-trip in a bare repo", async () => {
