@@ -7,13 +7,21 @@ function isParallelMcpName(name: string) {
   return name === "parallel-search" || name === "parallel-task";
 }
 
+export function hasExplicitSkillDefaults(config: CanonicalConfig): boolean {
+  return Array.isArray(config.defaults?.skills) && config.defaults.skills.length > 0;
+}
+
+export function hasExplicitMcpDefaults(config: CanonicalConfig): boolean {
+  return Array.isArray(config.defaults?.mcpServers) && config.defaults.mcpServers.length > 0;
+}
+
 export function resolveDefaultSkillNames(config: CanonicalConfig): string[] {
-  return [...(config.defaults?.skills ?? [])];
+  return hasExplicitSkillDefaults(config) ? [...(config.defaults?.skills ?? [])] : [];
 }
 
 export function resolveDefaultMcpNames(config: CanonicalConfig, registry: CanonicalRegistry): string[] {
-  if (config.defaults?.mcpServers) {
-    return [...config.defaults.mcpServers];
+  if (hasExplicitMcpDefaults(config)) {
+    return [...(config.defaults?.mcpServers ?? [])];
   }
 
   return Object.entries(registry.servers)
@@ -30,7 +38,7 @@ export function resolveDefaultMcpNames(config: CanonicalConfig, registry: Canoni
 }
 
 export function applyMcpDefaultsToConfig(config: CanonicalConfig): CanonicalConfig {
-  if (!config.defaults?.mcpServers) {
+  if (!hasExplicitMcpDefaults(config)) {
     return config;
   }
 
@@ -46,6 +54,22 @@ export function applyMcpDefaultsToConfig(config: CanonicalConfig): CanonicalConf
     enabled: defaults.has("parallel-search") || defaults.has("parallel-task"),
   };
   return next;
+}
+
+export function ensureMcpDefaultsInitialized(config: CanonicalConfig, seedNames: string[]): string[] {
+  config.defaults ??= {};
+  if (!hasExplicitMcpDefaults(config)) {
+    config.defaults.mcpServers = [...seedNames];
+  }
+  return config.defaults.mcpServers ?? [];
+}
+
+export function ensureSkillDefaultsInitialized(config: CanonicalConfig, seedNames: string[]): string[] {
+  config.defaults ??= {};
+  if (!hasExplicitSkillDefaults(config)) {
+    config.defaults.skills = [...seedNames];
+  }
+  return config.defaults.skills ?? [];
 }
 
 export function mergeUserMcpLibrary(registry: CanonicalRegistry, library: UserMcpLibrary): CanonicalRegistry {
