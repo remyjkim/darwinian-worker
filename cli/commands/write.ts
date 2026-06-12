@@ -51,6 +51,10 @@ export class WriteCommand extends BaseCommand {
     description: "Overwrite drift in drwn-managed regions.",
   });
 
+  strictHooks = Option.Boolean("--strict-hooks", false, {
+    description: "Fail when card hooks are present but missing valid hook consent.",
+  });
+
   async execute() {
     if (this.mcpOnly && this.skillsOnly) {
       throw new UsageError("Use either --mcp-only or --skills-only, not both.");
@@ -71,6 +75,7 @@ export class WriteCommand extends BaseCommand {
         skillsOnly: this.skillsOnly,
         target: this.target as "claude" | "codex" | "cursor" | undefined,
         force: this.force,
+        strictHooks: this.strictHooks,
       });
     } catch (error) {
       this.context.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);

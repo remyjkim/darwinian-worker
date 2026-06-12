@@ -22,6 +22,9 @@ export function renderCardMutation(result: CardProjectMutation) {
     result.locked.length === 0
       ? "Cards: none"
       : `Cards:\n${result.locked.map((card) => `- ${card.name}@${card.version} (${card.requested})`).join("\n")}`,
+    ...(result.warnings && result.warnings.length > 0
+      ? [`Warnings:\n${result.warnings.map((warning) => `- ${warning}`).join("\n")}`]
+      : []),
   ].join("\n") + "\n";
 }
 

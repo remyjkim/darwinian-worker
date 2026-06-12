@@ -39,6 +39,13 @@ export class CardAddCommand extends BaseCommand {
       repoRoot: this.context.repoRoot,
       cwd: this.context.cwd,
     });
+    for (const card of result.locked) {
+      if (card.hooks.length > 0 && !card.hookConsent) {
+        this.context.stderr.write(
+          `Warning: ${card.name}@${card.version} declares hooks but has no hook consent. Run drwn card trust ${card.name} --hooks before drwn write materializes them.\n`,
+        );
+      }
+    }
     this.context.stdout.write(renderCardMutation(result));
     if (this.write) {
       return await runChainedWrite(this);

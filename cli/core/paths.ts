@@ -116,5 +116,6 @@ export function normalizeSyncPathOptions(
     skillsOnly: options.skillsOnly ?? false,
     target: options.target,
     force: options.force ?? false,
+    strictHooks: options.strictHooks ?? false,
   };
 }
