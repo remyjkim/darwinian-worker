@@ -2,7 +2,7 @@
 // ABOUTME: Protects the safe-by-default diagnostics contract for the new CLI.
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdir, symlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture } from "./helpers";
 
@@ -205,5 +205,53 @@ describe("drwn doctor", () => {
     };
     expect(parsed.projectConfigIssues).not.toContain('Unknown skill reference: "polish"');
     expect(parsed.cards?.warnings ?? []).not.toContain("Card @me/frontend@1.0.0 references unavailable skills");
+  });
+
+  test("reports card hooks without valid consent", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    expect((await runAgentsCli(["card", "new", "@me/policy", "--no-git"], envFor(fixture))).exitCode).toBe(0);
+    expect((await runAgentsCli(["card", "source", "add-hook", "@me/policy", "guard"], envFor(fixture))).exitCode).toBe(0);
+    expect((await runAgentsCli(["card", "publish", "@me/policy"], envFor(fixture))).exitCode).toBe(0);
+    const manifest = JSON.parse(await readFile(join(fixture.agentsDir, "drwn", "sources", "@me", "policy", "card.json"), "utf8"));
+    const projectDir = join(fixture.root, "project");
+    await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
+    await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1, cards: [] }, null, 2));
+    expect((await runAgentsCli(["card", "add", `@me/policy@${manifest.version}`], envFor(fixture), projectDir)).exitCode).toBe(0);
+
+    const result = await runAgentsCli(["doctor", "--json"], envFor(fixture), projectDir);
+
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout) as { hookIssues: string[] };
+    expect(parsed.hookIssues.join("\n")).toContain("drwn card trust @me/policy --hooks");
+  });
+
+  test("reports stale generated hook composers", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    expect((await runAgentsCli(["card", "new", "@me/policy", "--no-git"], envFor(fixture))).exitCode).toBe(0);
+    expect((await runAgentsCli(["card", "source", "add-hook", "@me/policy", "guard"], envFor(fixture))).exitCode).toBe(0);
+    const sourceDir = join(fixture.agentsDir, "drwn", "sources", "@me", "policy");
+    await writeFile(join(sourceDir, "hooks", "guard", "policy.ts"), `
+      import { defineToolPolicy } from "darwinian-harness/hook-policy";
+      export default defineToolPolicy({ policyKind: "observer" });
+    `);
+    expect((await runAgentsCli(["card", "publish", "@me/policy"], envFor(fixture))).exitCode).toBe(0);
+    const manifest = JSON.parse(await readFile(join(sourceDir, "card.json"), "utf8"));
+    const projectDir = join(fixture.root, "project");
+    await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
+    await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1, cards: [] }, null, 2));
+    expect((await runAgentsCli(["card", "add", `@me/policy@${manifest.version}`], envFor(fixture), projectDir)).exitCode).toBe(0);
+    expect((await runAgentsCli(["card", "trust", "@me/policy", "--hooks"], envFor(fixture), projectDir)).exitCode).toBe(0);
+    expect((await runAgentsCli(["write"], envFor(fixture), projectDir)).exitCode).toBe(0);
+    const composerPath = join(projectDir, ".agents", "drwn", "generated", "hooks", "claude", "composer.mjs");
+    const composer = await readFile(composerPath, "utf8");
+    await writeFile(composerPath, composer.replace(/drwn-version:\s*[^\n]+/, "drwn-version: 0.0.0"));
+
+    const result = await runAgentsCli(["doctor", "--json"], envFor(fixture), projectDir);
+
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout) as { hookIssues: string[] };
+    expect(parsed.hookIssues.join("\n")).toContain("composer stale; rerun drwn write");
   });
 });

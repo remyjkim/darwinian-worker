@@ -26,6 +26,8 @@ import { getExtension } from "./extensions/registry";
 import { getStoreStatus } from "./migration";
 import { resolveGlobalWriteRecordPath, resolveStoreGeneratedDir } from "./store-paths";
 import { loadWriteRecord, resolveProjectWriteRecordPath } from "./write-record";
+import { isHookConsentValid } from "./hook-consent";
+import { DRWN_VERSION } from "./version";
 import type { CanonicalConfig, ProjectConfig, RegistryServer } from "./types";
 
 export interface DoctorReport {
@@ -33,6 +35,7 @@ export interface DoctorReport {
   staleSkillSymlinks: string[];
   mcpDrift: string[];
   missingGeneratedFiles: string[];
+  hookIssues: string[];
   projectConfigIssues: string[];
   cards?: DiagnosticsSections["cards"];
   store?: DiagnosticsSections["store"];
@@ -503,6 +506,31 @@ async function detectMissingGeneratedFiles(config: CanonicalConfig, generatedDir
   return missing;
 }
 
+function detectHookIssues(cards: CardLockEntry[], generatedDir: string) {
+  const issues: string[] = [];
+  for (const card of cards) {
+    if (card.hooks.length > 0 && !isHookConsentValid(card)) {
+      issues.push(`Card ${card.name}@${card.version} has hooks without valid consent. Run drwn card trust ${card.name} --hooks.`);
+    }
+  }
+
+  for (const pathValue of [
+    join(generatedDir, "hooks", "claude", "composer.mjs"),
+    join(generatedDir, "hooks", "codex", "composer.mjs"),
+    join(generatedDir, "hooks", "mastra", "composer.ts"),
+  ]) {
+    if (!existsSync(pathValue)) {
+      continue;
+    }
+    const match = readFileSync(pathValue, "utf8").match(/drwn-version:\s*([^\s]+)/);
+    if (match && match[1] !== DRWN_VERSION) {
+      issues.push(`composer stale; rerun drwn write: ${pathValue}`);
+    }
+  }
+
+  return issues;
+}
+
 export async function buildDoctorReport(repoRoot: string, agentsDir: string, homeDir: string): Promise<DoctorReport> {
   const toolPaths = resolveToolPaths(homeDir);
   const generatedDir = resolveStoreGeneratedDir(agentsDir);
@@ -535,6 +563,7 @@ export async function buildDoctorReport(repoRoot: string, agentsDir: string, hom
     staleSkillSymlinks: await detectStaleSkillSymlinks(repoRoot, agentsDir, homeDir, defaultSkillOverrides),
     mcpDrift: await detectMcpDrift(config, activeServers, homeDir, homeDir, generatedDir),
     missingGeneratedFiles: await detectMissingGeneratedFiles(config, generatedDir),
+    hookIssues: [],
     projectConfigIssues: defaultIssues,
     cards: sections.cards,
     store: sections.store,
@@ -617,6 +646,7 @@ export async function buildDoctorReportWithProject(
       "project",
     ),
     missingGeneratedFiles: await detectMissingGeneratedFiles(merged.config, generatedDir),
+    hookIssues: detectHookIssues(cardLocks, generatedDir),
     projectConfigIssues: [...report.projectConfigIssues, ...issues],
   };
   const sections = await buildDiagnosticsSections(repoRoot, agentsDir, homeDir, projectConfigPath);
