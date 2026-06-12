@@ -16,6 +16,7 @@ describe("documentation readiness", () => {
       knowledgeReadme,
       maintainerReadme,
       publishingGuide,
+      releaseProcess,
       ...docsDocusaurusFiles
     ] = await Promise.all([
       readFile(new URL("../README.md", import.meta.url), "utf8"),
@@ -27,6 +28,7 @@ describe("documentation readiness", () => {
       readFile(new URL("../.ai/knowledges/README.md", import.meta.url), "utf8"),
       readFile(new URL("../docs/maintainers/README.md", import.meta.url), "utf8"),
       readFile(new URL("../docs/maintainers/publishing.md", import.meta.url), "utf8"),
+      readFile(new URL("../docs/release-process.md", import.meta.url), "utf8"),
       readFile(new URL("../docs-docusaurus/docs/getting-started/paths/author-and-publish-card.md", import.meta.url), "utf8"),
       readFile(new URL("../docs-docusaurus/docs/getting-started/paths/use-team-harness.md", import.meta.url), "utf8"),
       readFile(new URL("../docs-docusaurus/docs/concepts/cards.md", import.meta.url), "utf8"),
@@ -180,5 +182,10 @@ describe("documentation readiness", () => {
     expect(maintainerReadme).toContain("publishing.md");
     expect(publishingGuide).toContain("TMP_NPMRC");
     expect(publishingGuide).toContain("--userconfig");
+    expect(releaseProcess).toContain("Releasing a new CLI version");
+    expect(releaseProcess).toContain("bun run verify:release");
+    expect(releaseProcess).toContain("git tag -a v");
+    expect(releaseProcess).toContain("npm-publish");
+    expect(releaseProcess).toContain("npm view darwinian-harness@");
   });
 });
