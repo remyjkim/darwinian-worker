@@ -3,6 +3,9 @@
 // ABOUTME: All command registration starts here; reusable logic lives outside the command layer.
 
 import { Builtins, Cli } from "clipanion";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { AddMcpCommand } from "./commands/add/mcp";
 import { AddSkillCommand } from "./commands/add/skill";
 import { AnalyzeSessionsCommand } from "./commands/analyze/sessions";
@@ -42,6 +45,7 @@ import { CardSourceShowCommand } from "./commands/card/source/show";
 import { CardStatusCommand } from "./commands/card/status";
 import { CardUpdateCommand, UpdateCommand } from "./commands/card/update";
 import { CardValidateCommand } from "./commands/card/validate";
+import { CatalogValidateCommand } from "./commands/catalog/validate";
 import { DoctorCommand } from "./commands/doctor";
 import { InitCommand } from "./commands/init";
 import { InstallCommand } from "./commands/install";
@@ -79,6 +83,7 @@ import { StoreMigrateToGitCommand } from "./commands/store/migrate-to-git";
 import { StoreGcCommand } from "./commands/store/gc";
 import { StoreVerifyCommand } from "./commands/store/verify";
 import { StoreExportCommand } from "./commands/store/export";
+import { StoreSeedCommand } from "./commands/store/seed";
 import { StoreStatusCommand } from "./commands/store/status";
 import { SkillsCurateCommand } from "./commands/skills/curate";
 import { SkillsListCommand } from "./commands/skills/list";
@@ -90,10 +95,14 @@ import { WriteCommand } from "./commands/write";
 import { ExportSessionsCommand } from "./commands/export/sessions";
 import { detectLegacyLayout } from "./core/migration";
 
+const packageJson = JSON.parse(
+  readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../package.json"), "utf8"),
+) as { version?: string };
+
 const cli = new Cli({
   binaryLabel: "drwn",
   binaryName: "drwn",
-  binaryVersion: "0.1.0",
+  binaryVersion: packageJson.version ?? "0.0.0",
 });
 
 cli.register(SkillsListCommand);
@@ -137,6 +146,7 @@ cli.register(CardUpdateCommand);
 cli.register(CardOutdatedCommand);
 cli.register(CardStatusCommand);
 cli.register(CardValidateCommand);
+cli.register(CatalogValidateCommand);
 cli.register(ApplyCommand);
 cli.register(UpdateCommand);
 cli.register(LibraryAddSkillCommand);
@@ -172,6 +182,7 @@ cli.register(StoreMigrateToGitCommand);
 cli.register(StoreGcCommand);
 cli.register(StoreVerifyCommand);
 cli.register(StoreExportCommand);
+cli.register(StoreSeedCommand);
 cli.register(StoreStatusCommand);
 cli.register(StatusCommand);
 cli.register(DoctorCommand);

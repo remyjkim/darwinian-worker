@@ -20,6 +20,13 @@ export function assertStoreWritable() {
   }
 }
 
+export function assertStoreWritableForSeed(options: { allowReadonlySeed?: boolean } = {}) {
+  if (options.allowReadonlySeed) {
+    return;
+  }
+  assertStoreWritable();
+}
+
 export function resolveStoreMetadataPath(agentsDir: string) {
   return join(resolveStoreRoot(agentsDir), "store.json");
 }

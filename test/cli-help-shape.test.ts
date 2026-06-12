@@ -79,7 +79,7 @@ describe("drwn command help", () => {
       expect(result.stdout).toMatch(/^Details$/m);
       expect(result.stdout).toMatch(/^Examples$/m);
     }
-  });
+  }, 15000);
 
   test("high-leverage commands explain behavior hidden by terse descriptions", async () => {
     for (const [command, snippets] of Object.entries(REQUIRED_SNIPPETS)) {

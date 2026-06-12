@@ -26,3 +26,23 @@ export function compareVersions(a: string, b: string) {
 export function gt(a: string, b: string) {
   return semver.gt(a, b);
 }
+
+export type SemverBumpKind = "major" | "minor" | "patch";
+
+export function classifyBump(previousVersion: string, nextVersion: string): SemverBumpKind | null {
+  if (!semver.gt(nextVersion, previousVersion)) {
+    return null;
+  }
+  const previous = semver.parse(previousVersion);
+  const next = semver.parse(nextVersion);
+  if (!previous || !next) {
+    return null;
+  }
+  if (next.major !== previous.major) {
+    return "major";
+  }
+  if (next.minor !== previous.minor) {
+    return "minor";
+  }
+  return "patch";
+}

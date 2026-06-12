@@ -25,13 +25,24 @@ export class CardCloneCommand extends BaseCommand {
     description: "Emit machine-readable JSON output.",
   });
 
+  allowUntrustedSource = Option.Boolean("--allow-untrusted-source", false, {
+    description: "Resolve the Git ref even when trustedSources.strict would reject it.",
+  });
+
   async execute() {
     const parsed = parseCardRef(this.ref);
     if (parsed.origin !== "git") {
       this.context.stderr.write("card clone requires a git+, github:, or gitlab: ref\n");
       return 1;
     }
-    const card = await resolveCard(this.context.agentsDir, this.ref);
+    if (this.allowUntrustedSource) {
+      this.context.stderr.write(`Warning: --allow-untrusted-source used for ${this.ref}\n`);
+    }
+    const card = await resolveCard(this.context.agentsDir, this.ref, {
+      allowUntrustedSource: this.allowUntrustedSource,
+      repoRoot: this.context.repoRoot,
+      cwd: this.context.cwd,
+    });
     if (this.json) {
       this.context.stdout.write(renderJson(card));
     } else {

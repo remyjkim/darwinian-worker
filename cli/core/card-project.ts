@@ -10,6 +10,7 @@ import {
   listCards,
   parseCardRef,
   resolveCard,
+  type ResolveCardOptions,
 } from "./card-store";
 import { loadProjectConfig, resolveProjectRootFromConfigPath } from "./project";
 import { projectConfigPath, readProjectConfigForWrite, writeProjectConfigForWrite } from "./project-writes";
@@ -23,8 +24,12 @@ export interface CardProjectMutation {
   locked: CardLockEntry[];
 }
 
-export async function resolveProjectCards(agentsDir: string, specs: string[]): Promise<CardLockEntry[]> {
-  const resolved = await Promise.all(specs.map((spec) => resolveCard(agentsDir, spec)));
+export async function resolveProjectCards(
+  agentsDir: string,
+  specs: string[],
+  options: ResolveCardOptions = {},
+): Promise<CardLockEntry[]> {
+  const resolved = await Promise.all(specs.map((spec) => resolveCard(agentsDir, spec, options)));
   return resolved
     .map((card) => ({
       name: card.name,
@@ -93,11 +98,16 @@ export function mergeCardManifestsIntoProjectConfig(project: ProjectConfig, mani
   return next;
 }
 
-export async function writeProjectCards(projectRoot: string, agentsDir: string, specs: string[]): Promise<CardProjectMutation> {
+export async function writeProjectCards(
+  projectRoot: string,
+  agentsDir: string,
+  specs: string[],
+  options: ResolveCardOptions = {},
+): Promise<CardProjectMutation> {
   const config = readProjectConfigForWrite(projectRoot);
   config.cards = [...specs];
   const configPath = writeProjectConfigForWrite(projectRoot, config);
-  const locked = await resolveProjectCards(agentsDir, config.cards);
+  const locked = await resolveProjectCards(agentsDir, config.cards, options);
   const lockPath = await writeCardLock(projectRoot, locked);
   return { projectConfigPath: configPath, lockPath, cards: config.cards, locked };
 }
@@ -108,28 +118,43 @@ export async function getCurrentProjectCardSpecs(projectRoot: string) {
   return [...(config.cards ?? [])];
 }
 
-export async function applyProjectCardSpecs(projectRoot: string, agentsDir: string, specs: string[]) {
-  return await writeProjectCards(projectRoot, agentsDir, specs);
+export async function applyProjectCardSpecs(
+  projectRoot: string,
+  agentsDir: string,
+  specs: string[],
+  options: ResolveCardOptions = {},
+) {
+  return await writeProjectCards(projectRoot, agentsDir, specs, options);
 }
 
-export async function addProjectCardSpec(projectRoot: string, agentsDir: string, spec: string) {
+export async function addProjectCardSpec(
+  projectRoot: string,
+  agentsDir: string,
+  spec: string,
+  options: ResolveCardOptions = {},
+) {
   const current = await getCurrentProjectCardSpecs(projectRoot);
   const nextName = parseCardRef(spec).name;
   if (current.some((item) => cardNamesEqual(item, nextName))) {
     throw new Error(`Card already exists in project: ${nextName}`);
   }
   current.push(spec);
-  return await writeProjectCards(projectRoot, agentsDir, current);
+  return await writeProjectCards(projectRoot, agentsDir, current, options);
 }
 
-export async function pinProjectCardSpec(projectRoot: string, agentsDir: string, spec: string) {
+export async function pinProjectCardSpec(
+  projectRoot: string,
+  agentsDir: string,
+  spec: string,
+  options: ResolveCardOptions = {},
+) {
   const parsed = parseCardRef(spec);
   const current = await getCurrentProjectCardSpecs(projectRoot);
   const next = current.map((item) => (cardNamesEqual(item, parsed.name) ? formatCardSpec(parsed.name, parsed.range) : item));
   if (!next.some((item) => cardNamesEqual(item, parsed.name))) {
     next.push(formatCardSpec(parsed.name, parsed.range));
   }
-  return await writeProjectCards(projectRoot, agentsDir, next);
+  return await writeProjectCards(projectRoot, agentsDir, next, options);
 }
 
 export async function removeProjectCard(projectRoot: string, agentsDir: string, refOrName: string) {
@@ -146,8 +171,12 @@ export async function detachProjectCards(projectRoot: string, agentsDir: string)
   return await writeProjectCards(projectRoot, agentsDir, []);
 }
 
-export async function updateProjectCardLock(projectRoot: string, agentsDir: string) {
-  return await writeProjectCards(projectRoot, agentsDir, await getCurrentProjectCardSpecs(projectRoot));
+export async function updateProjectCardLock(
+  projectRoot: string,
+  agentsDir: string,
+  options: ResolveCardOptions = {},
+) {
+  return await writeProjectCards(projectRoot, agentsDir, await getCurrentProjectCardSpecs(projectRoot), options);
 }
 
 export async function readProjectCardStatus(projectConfigPath: string, agentsDir: string) {
@@ -165,11 +194,15 @@ async function highestPublishedVersion(agentsDir: string, name: string) {
   return card?.versions.at(-1) ?? null;
 }
 
-export async function findOutdatedProjectCards(projectRoot: string, agentsDir: string) {
+export async function findOutdatedProjectCards(
+  projectRoot: string,
+  agentsDir: string,
+  options: ResolveCardOptions = {},
+) {
   const outdated: Array<{ name: string; current: string; latest: string }> = [];
   const lock = await loadCardLock(projectRoot);
   const currentByName = new Map((lock?.cards ?? []).map((entry) => [entry.name, entry]));
-  const resolved = await resolveProjectCards(agentsDir, await getCurrentProjectCardSpecs(projectRoot));
+  const resolved = await resolveProjectCards(agentsDir, await getCurrentProjectCardSpecs(projectRoot), options);
 
   for (const next of resolved) {
     const current = currentByName.get(next.name);

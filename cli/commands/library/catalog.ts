@@ -72,8 +72,19 @@ export class LibraryCatalogAddCommand extends BaseCommand {
 
   url = Option.String({ required: true });
 
+  allowUntrustedSource = Option.Boolean("--allow-untrusted-source", false, {
+    description: "Register the catalog even when trustedSources.strict would reject its URL.",
+  });
+
   async execute() {
-    const entry = await addCardCatalog(this.context.agentsDir, this.url);
+    if (this.allowUntrustedSource) {
+      this.context.stderr.write(`Warning: --allow-untrusted-source used for catalog ${this.url}\n`);
+    }
+    const entry = await addCardCatalog(this.context.agentsDir, this.url, {
+      allowUntrustedSource: this.allowUntrustedSource,
+      repoRoot: this.context.repoRoot,
+      cwd: this.context.cwd,
+    });
     this.context.stdout.write(
       `Added card catalog ${entry.scope} from ${entry.url} (${entry.cardCount} cards)\n`,
     );

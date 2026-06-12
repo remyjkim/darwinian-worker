@@ -17,6 +17,7 @@ import { DrwnError } from "./errors";
 import { writeAtomically } from "./fs";
 import * as git from "./git";
 import { resolveCardBareRepoPath } from "./store-paths";
+import { assertCatalogSourceTrusted, loadEffectiveTrustedSourcesPolicy } from "./trusted-sources";
 
 export type CatalogPublishMode = "local" | "direct";
 export type CatalogPublishAction = "add" | "replace" | "noop";
@@ -30,6 +31,9 @@ export interface CatalogCardEntry {
 
 export interface PublishCardToCatalogOptions {
   agentsDir: string;
+  repoRoot?: string;
+  cwd?: string;
+  allowUntrustedSource?: boolean;
   cardRef: string;
   catalog: string;
   mode: CatalogPublishMode;
@@ -89,13 +93,21 @@ export async function publishCardToCatalog(
     throw catalogError("CATALOG_MODE_UNSUPPORTED", `unsupported catalog publish mode: ${options.mode}`);
   }
 
+  if (!options.allowUntrustedSource && isGitUrl(options.catalog)) {
+    const policy = await loadEffectiveTrustedSourcesPolicy({
+      agentsDir: options.agentsDir,
+      repoRoot: options.repoRoot,
+      cwd: options.cwd,
+    });
+    assertCatalogSourceTrusted(options.catalog, policy);
+  }
   const target = await resolveCatalogPublishTarget(options);
   try {
     if (options.mode === "direct") {
       await assertDirectCatalogWorktreeReady(target);
     }
     const manifest = await loadCatalogManifestFromPath(target.catalogJsonPath);
-    const resolved = await resolveCardForCatalogPublish(options.agentsDir, options.cardRef);
+    const resolved = await resolveCardForCatalogPublish(options);
     const installUrl = await determineInstallUrl(options, resolved);
     await validateInstallUrl(installUrl);
     const built = buildCatalogEntry(resolved, installUrl, options, manifest.scope);
@@ -347,17 +359,28 @@ function validateCatalogCardEntry(input: unknown, index: number, seen: Set<strin
   };
 }
 
-async function resolveCardForCatalogPublish(agentsDir: string, cardRef: string): Promise<ResolvedCard> {
+async function resolveCardForCatalogPublish(options: PublishCardToCatalogOptions): Promise<ResolvedCard> {
+  const { agentsDir, cardRef } = options;
   const parsed = parseCardRef(cardRef);
   if (parsed.origin === "git") {
     const tempRoot = await mkdtemp(join(tmpdir(), "drwn-card-catalog-card-"));
     try {
-      return await withIsolatedStoreWritable(() => resolveCard(join(tempRoot, ".agents"), cardRef));
+      return await withIsolatedStoreWritable(() =>
+        resolveCard(join(tempRoot, ".agents"), cardRef, {
+          allowUntrustedSource: options.allowUntrustedSource,
+          repoRoot: options.repoRoot,
+          cwd: options.cwd,
+        }),
+      );
     } finally {
       await rm(tempRoot, { recursive: true, force: true });
     }
   }
-  return await resolveCard(agentsDir, cardRef);
+  return await resolveCard(agentsDir, cardRef, {
+    allowUntrustedSource: options.allowUntrustedSource,
+    repoRoot: options.repoRoot,
+    cwd: options.cwd,
+  });
 }
 
 async function determineInstallUrl(

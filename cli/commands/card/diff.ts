@@ -30,10 +30,25 @@ export class CardDiffCommand extends BaseCommand {
     description: "Emit machine-readable JSON output.",
   });
 
+  allowUntrustedSource = Option.Boolean("--allow-untrusted-source", false, {
+    description: "Resolve card refs even when trustedSources.strict would reject them.",
+  });
+
   async execute() {
+    if (this.allowUntrustedSource) {
+      this.context.stderr.write(`Warning: --allow-untrusted-source used for card diff\n`);
+    }
     const [before, after] = await Promise.all([
-      resolveCard(this.context.agentsDir, this.before),
-      resolveCard(this.context.agentsDir, this.after),
+      resolveCard(this.context.agentsDir, this.before, {
+        allowUntrustedSource: this.allowUntrustedSource,
+        repoRoot: this.context.repoRoot,
+        cwd: this.context.cwd,
+      }),
+      resolveCard(this.context.agentsDir, this.after, {
+        allowUntrustedSource: this.allowUntrustedSource,
+        repoRoot: this.context.repoRoot,
+        cwd: this.context.cwd,
+      }),
     ]);
     const diff = diffCards(before.manifest, after.manifest);
     const gitDiff = before.git && after.git && before.name === after.name
