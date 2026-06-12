@@ -72,7 +72,11 @@ export class CardOutdatedCommand extends BaseCommand {
       this.context.stdout.write(
         renderTable(
           ["name", "current", "latest"],
-          outdated.map((entry) => [entry.name, entry.current, entry.latest]),
+          outdated.map((entry) => [
+            entry.name,
+            entry.current,
+            entry.hookConsentRequiresRegrant ? `${entry.latest} (hook consent will require re-grant)` : entry.latest,
+          ]),
         ),
       );
     }

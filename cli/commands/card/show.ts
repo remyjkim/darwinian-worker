@@ -2,12 +2,39 @@
 // ABOUTME: Supports both human and JSON output for published card metadata.
 
 import { Option } from "clipanion";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { resolveCard } from "../../core/card-store";
 import { DrwnError } from "../../core/errors";
 import * as git from "../../core/git";
 import { renderJson, renderTable } from "../../core/output";
 import { resolveCardBareRepoPath } from "../../core/store-paths";
 import { BaseCommand } from "../base";
+
+function readPolicyKind(policyPath: string) {
+  const text = readFileSync(policyPath, "utf8");
+  const match = text.match(/policyKind\s*:\s*["'](enforcement|observer)["']/);
+  return match?.[1] ?? "unknown";
+}
+
+function readHookReadmeSummary(readmePath: string) {
+  if (!existsSync(readmePath)) {
+    return "";
+  }
+  const firstLine = readFileSync(readmePath, "utf8")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line.length > 0) ?? "";
+  return firstLine.replace(/^#+\s*/, "");
+}
+
+function readHookSummaries(cardDir: string, hooks: string[] = []) {
+  return hooks.map((name) => ({
+    name,
+    policyKind: readPolicyKind(join(cardDir, "hooks", name, "policy.ts")),
+    summary: readHookReadmeSummary(join(cardDir, "hooks", name, "README.md")),
+  }));
+}
 
 export class CardShowCommand extends BaseCommand {
   static override paths = [["card", "show"]];
@@ -48,8 +75,9 @@ export class CardShowCommand extends BaseCommand {
       const history = card.git
         ? await git.log(resolveCardBareRepoPath(this.context.agentsDir, card.name), { maxCount: 10, ref: card.git.commit })
         : [];
+      const hookPolicies = readHookSummaries(card.dir, card.manifest.hooks?.include ?? []);
       if (this.json) {
-        this.context.stdout.write(renderJson({ ...card, history }));
+        this.context.stdout.write(renderJson({ ...card, history, hookPolicies }));
         return 0;
       }
       const rows = [
@@ -61,6 +89,14 @@ export class CardShowCommand extends BaseCommand {
         ...(card.manifest.stability ? [["stability", card.manifest.stability]] : []),
         ...(card.manifest.lastValidatedWith ? [["lastValidatedWith", card.manifest.lastValidatedWith]] : []),
         ...(card.manifest.testStatusBadge ? [["testStatusBadge", card.manifest.testStatusBadge]] : []),
+        ...(hookPolicies.length > 0
+          ? [[
+              "hooks",
+              hookPolicies.map((hook) =>
+                `${hook.name} (${hook.policyKind})${hook.summary ? ` - ${hook.summary}` : ""}`
+              ).join("; "),
+            ]]
+          : []),
         ["history", history.map((entry) => `${entry.commit.slice(0, 12)} ${entry.subject}`).join("; ")],
       ];
       this.context.stdout.write(

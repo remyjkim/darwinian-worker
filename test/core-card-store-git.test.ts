@@ -80,7 +80,7 @@ describe("Git-backed card store", () => {
     expect(JSON.parse(await readFile(join(resolved.dir, "card.json"), "utf8")).version).toBe("1.1.0");
   });
 
-  test("project apply writes v2 lockfile entries with store-origin Git commits", async () => {
+  test("project apply writes v3 lockfile entries with store-origin Git commits", async () => {
     const root = await createTempRoot("card-store-git-");
     tempRoots.push(root);
     const agentsDir = join(root, ".agents");
@@ -93,7 +93,7 @@ describe("Git-backed card store", () => {
     await applyProjectCardSpecs(projectRoot, agentsDir, ["@me/backend@^1.0.0"]);
 
     const lock = await loadCardLock(projectRoot);
-    expect(lock?.lockfileVersion).toBe(2);
+    expect(lock?.lockfileVersion).toBe(3);
     expect(lock?.cards[0]?.origin).toBe("store");
     expect(lock?.cards[0]?.git?.commit).toMatch(/^[a-f0-9]{40}$/);
   });
