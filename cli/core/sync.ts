@@ -1,15 +1,18 @@
 // ABOUTME: Orchestrates MCP and skill syncing using the extracted core modules.
 // ABOUTME: Shared by the Clipanion commands and the legacy sync-mcp compatibility wrapper.
 
-import { existsSync, readlinkSync, renameSync, rmSync, symlinkSync, writeFileSync, readFileSync } from "node:fs";
+import { existsSync, readlinkSync, rmSync, symlinkSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expandHomePath, resolveToolPaths } from "./paths";
 import { mergeClaudeSettingsText, mergeCodexTomlText, renderCursorConfig } from "./mcp";
 import { syncSkills as syncSkillsCore } from "./skills";
+import { syncHooks } from "./hook-generator/sync-hooks";
 import { ensureParentDir, lstatSafe, realpathSafe } from "./fs";
-import { diffWriteRecord, loadWriteRecord, saveWriteRecord, type ManagedPath } from "./write-record";
+import { backupExistingPath, writeManagedFile } from "./managed-file";
+import { diffWriteRecord, hashManagedContent, loadWriteRecord, saveWriteRecord, type ManagedPath } from "./write-record";
 import { buildEffectiveState } from "./effective-state";
+import { DRWN_VERSION } from "./version";
 import type {
   CanonicalConfig,
   NormalizedSyncOptions,
@@ -18,42 +21,6 @@ import type {
   SyncResult,
   TargetName,
 } from "./types";
-
-function nextBackupPath(pathValue: string) {
-  let candidate = `${pathValue}.bak`;
-  let index = 1;
-  while (existsSync(candidate)) {
-    candidate = `${pathValue}.bak.${index}`;
-    index += 1;
-  }
-  return candidate;
-}
-
-function backupExistingPath(pathValue: string, dryRun: boolean, result: SyncResult) {
-  const backupPath = nextBackupPath(pathValue);
-  result.changes.push(`backup ${pathValue} -> ${backupPath}`);
-  if (!dryRun) {
-    renameSync(pathValue, backupPath);
-  }
-}
-
-function writeManagedFile(pathValue: string, nextContent: string, dryRun: boolean, result: SyncResult) {
-  const exists = existsSync(pathValue);
-  const currentContent = exists ? readFileSync(pathValue, "utf8") : undefined;
-
-  if (currentContent === nextContent) {
-    return;
-  }
-
-  ensureParentDir(pathValue, dryRun);
-  if (exists) {
-    backupExistingPath(pathValue, dryRun, result);
-  }
-  result.changes.push(`write ${pathValue}`);
-  if (!dryRun) {
-    writeFileSync(pathValue, nextContent);
-  }
-}
 
 async function readTextIfExists(pathValue: string, fallback: string) {
   try {
@@ -98,10 +65,21 @@ function managedPathToAbsolute(scopeRoot: string, pathValue: string) {
   return join(scopeRoot, pathValue);
 }
 
-function cleanupRemovedManagedPaths(scopeRoot: string, previous: ManagedPath[], dryRun: boolean, result: SyncResult) {
+export function cleanupRemovedManagedPaths(scopeRoot: string, previous: ManagedPath[], dryRun: boolean, result: SyncResult) {
   for (const entry of previous) {
     const absolutePath = managedPathToAbsolute(scopeRoot, entry.path);
     if (!existsSync(absolutePath) && lstatSafe(absolutePath) === null) {
+      continue;
+    }
+    if (entry.kind === "managed-content") {
+      if (hashManagedContent(readFileSync(absolutePath)) === entry.contentHash) {
+        result.changes.push(`remove ${absolutePath}`);
+        if (!dryRun) {
+          rmSync(absolutePath, { recursive: true, force: true });
+        }
+        continue;
+      }
+      result.warnings.push(`preserved user-owned path: ${absolutePath}`);
       continue;
     }
     if (entry.kind === "symlink" || entry.kind === "generated-symlink") {
@@ -120,6 +98,27 @@ function cleanupRemovedManagedPaths(scopeRoot: string, previous: ManagedPath[], 
       }
     }
     result.warnings.push(`preserved user-owned path: ${absolutePath}`);
+  }
+}
+
+export function verifyManagedPaths(scopeRoot: string, previous: ManagedPath[], options?: { force?: boolean }) {
+  if (options?.force) {
+    return;
+  }
+  for (const entry of previous) {
+    if (entry.kind !== "managed-content") {
+      continue;
+    }
+    const absolutePath = managedPathToAbsolute(scopeRoot, entry.path);
+    if (!existsSync(absolutePath)) {
+      continue;
+    }
+    const currentHash = hashManagedContent(readFileSync(absolutePath));
+    if (currentHash !== entry.contentHash) {
+      throw new Error(
+        `Refusing to overwrite managed content drift at ${absolutePath}. Rerun drwn write --force to overwrite.`,
+      );
+    }
   }
 }
 
@@ -183,6 +182,7 @@ export async function syncRepository(options: SyncOptions = {}): Promise<SyncRes
   const state = await buildEffectiveState(options);
   const result: SyncResult = { changes: [], warnings: [], managedPaths: [] };
   const previousRecord = loadWriteRecord(state.recordPath);
+  verifyManagedPaths(state.scopeRoot, previousRecord?.managedPaths ?? [], { force: state.normalized.force ?? false });
 
   if (!state.normalized.skillsOnly) {
     const mcpResult = await syncMcp(state.scopedOptions, state.effectiveConfig, state.activeServers);
@@ -198,6 +198,13 @@ export async function syncRepository(options: SyncOptions = {}): Promise<SyncRes
     result.managedPaths?.push(...(skillsResult.managedPaths ?? []));
   }
 
+  if (!state.normalized.mcpOnly && !state.normalized.skillsOnly) {
+    const hooksResult = await syncHooks(state);
+    result.changes.push(...hooksResult.changes);
+    result.warnings.push(...hooksResult.warnings);
+    result.managedPaths?.push(...(hooksResult.managedPaths ?? []));
+  }
+
   const desiredManagedPaths = uniqueManagedPaths(result.managedPaths ?? []);
   const { toRemove } = diffWriteRecord(previousRecord, desiredManagedPaths);
   cleanupRemovedManagedPaths(state.scopeRoot, toRemove, state.normalized.dryRun, result);
@@ -206,7 +213,7 @@ export async function syncRepository(options: SyncOptions = {}): Promise<SyncRes
     saveWriteRecord(state.recordPath, {
       writeRecordVersion: 1,
       lastWriteAt: new Date().toISOString(),
-      lastWriteHarnessVersion: "0.1.0",
+      lastWriteHarnessVersion: DRWN_VERSION,
       managedPaths: desiredManagedPaths,
     });
   }

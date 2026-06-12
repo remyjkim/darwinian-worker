@@ -4,6 +4,7 @@
 import { join } from "node:path";
 import type { CardLockEntry } from "./card-lock";
 import { mergeCardManifestsIntoProjectConfig, resolveProjectCards } from "./card-project";
+import { loadCardLock } from "./card-lock";
 import { loadConfig } from "./config";
 import { mergeUserMcpLibrary } from "./defaults";
 import { loadMcpLibrary } from "./mcp-library";
@@ -63,7 +64,8 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
 
   if (projectConfigPath) {
     projectConfig = await loadProjectConfig(projectConfigPath);
-    lockedCards = projectConfig.cards ? await resolveProjectCards(normalized.agentsDir, projectConfig.cards) : [];
+    const cardLock = projectRoot ? await loadCardLock(projectRoot) : null;
+    lockedCards = cardLock?.cards ?? (projectConfig.cards ? await resolveProjectCards(normalized.agentsDir, projectConfig.cards) : []);
     projectConfigWithCards = mergeCardManifestsIntoProjectConfig(
       projectConfig,
       lockedCards.map((card) => card.manifest),

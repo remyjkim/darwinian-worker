@@ -5,6 +5,24 @@ import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 import { buildDrwnMetaBlock, detectManagedFieldDrift, readDrwnMetaBlock } from "./managed-fields";
 import type { CanonicalConfig, CanonicalRegistry, RegistryServer } from "./types";
 
+export interface ClaudeCommandHook {
+  type: "command";
+  command: string;
+  args?: string[];
+  timeout?: number;
+  statusMessage?: string;
+}
+
+export interface ClaudeHookMatcher {
+  matcher: string;
+  hooks: ClaudeCommandHook[];
+}
+
+export interface ClaudeHooksConfig {
+  PreToolUse?: ClaudeHookMatcher[];
+  PostToolUse?: ClaudeHookMatcher[];
+}
+
 export function buildActiveServers(registry: CanonicalRegistry, config: CanonicalConfig) {
   if (config.defaults?.mcpServers) {
     const defaults = new Set(config.defaults.mcpServers);
@@ -72,10 +90,16 @@ export function renderCursorConfig(servers: Record<string, RegistryServer>) {
   return `${JSON.stringify({ mcpServers }, null, 2)}\n`;
 }
 
-export function mergeClaudeSettingsText(currentText: string, servers: Record<string, RegistryServer>, options?: { force?: boolean }) {
+export function mergeClaudeSettingsText(
+  currentText: string,
+  servers: Record<string, RegistryServer>,
+  options?: { force?: boolean; hooks?: ClaudeHooksConfig },
+) {
   const parsed = JSON.parse(currentText) as Record<string, unknown>;
   const meta = readDrwnMetaBlock(parsed);
-  const managedKeys = meta?.managedKeys ?? ["mcpServers"];
+  const previouslyManagedKeys = meta?.managedKeys ?? ["mcpServers"];
+  const shouldManageHooks = options?.hooks !== undefined || previouslyManagedKeys.includes("hooks");
+  const managedKeys = shouldManageHooks ? ["mcpServers", "hooks"] : ["mcpServers"];
   const recordedHashes = meta?.fieldHashes ?? {};
   const driftedKeys = options?.force ? [] : detectManagedFieldDrift(parsed, managedKeys, recordedHashes);
   if (driftedKeys.length > 0) {
@@ -87,8 +111,22 @@ export function mergeClaudeSettingsText(currentText: string, servers: Record<str
   parsed.mcpServers = Object.fromEntries(
     Object.entries(servers).map(([name, server]) => [name, toJsonServerConfig(server)]),
   );
-  const nextMeta = buildDrwnMetaBlock(["mcpServers"], { mcpServers: parsed.mcpServers });
-  if (meta && meta.fieldHashes?.mcpServers === nextMeta.fieldHashes?.mcpServers) {
+
+  if (shouldManageHooks) {
+    if (options?.hooks !== undefined) {
+      parsed.hooks = options.hooks;
+    } else {
+      delete parsed.hooks;
+    }
+  }
+
+  const nextValues: Record<string, unknown> = { mcpServers: parsed.mcpServers };
+  if (shouldManageHooks) {
+    nextValues.hooks = parsed.hooks ?? null;
+  }
+  const nextMeta = buildDrwnMetaBlock(managedKeys, nextValues);
+  const hashesUnchanged = managedKeys.every((key) => meta?.fieldHashes?.[key] === nextMeta.fieldHashes?.[key]);
+  if (meta && hashesUnchanged) {
     nextMeta.lastWriteAt = meta.lastWriteAt;
   }
   parsed._drwn = nextMeta;
