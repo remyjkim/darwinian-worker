@@ -3,10 +3,16 @@
 
 import { Option, UsageError } from "clipanion";
 import { loadConfig } from "../../../core/config";
-import { addDefaultValue } from "../../../core/defaults";
+import {
+  addDefaultValue,
+  ensureMcpDefaultsInitialized,
+  mergeUserMcpLibrary,
+  resolveDefaultMcpNames,
+} from "../../../core/defaults";
 import { findLibraryMcpServer } from "../../../core/library";
+import { loadMcpLibrary } from "../../../core/mcp-library";
 import { loadRegistry } from "../../../core/registry";
-import { loadOrInitializeUserConfig, saveUserConfig } from "../../../core/user-config";
+import { loadEffectiveConfig, loadOrInitializeUserConfig, saveUserConfig } from "../../../core/user-config";
 import { renderJson } from "../../../core/output";
 import { BaseCommand } from "../../base";
 
@@ -40,7 +46,12 @@ export class LibraryDefaultsAddMcpCommand extends BaseCommand {
   });
 
   async execute() {
-    const [repoConfig, registry] = await Promise.all([loadConfig(this.context.repoRoot), loadRegistry(this.context.repoRoot)]);
+    const [repoConfig, builtInRegistry, userMcpLibrary] = await Promise.all([
+      loadConfig(this.context.repoRoot),
+      loadRegistry(this.context.repoRoot),
+      loadMcpLibrary(this.context.agentsDir),
+    ]);
+    const registry = mergeUserMcpLibrary(builtInRegistry, userMcpLibrary);
     const server = await findLibraryMcpServer(this.context.repoRoot, this.serverName, this.context.agentsDir);
     if (!server) {
       throw new UsageError(`Unknown MCP server: ${this.serverName}`);
@@ -51,9 +62,10 @@ export class LibraryDefaultsAddMcpCommand extends BaseCommand {
       registry,
       agentsDir: this.context.agentsDir,
     });
-    config.defaults ??= {};
-    const alreadyDefault = config.defaults.mcpServers?.includes(this.serverName) === true;
-    config.defaults.mcpServers = addDefaultValue(config.defaults.mcpServers, this.serverName);
+    const effective = await loadEffectiveConfig(repoConfig, this.context.agentsDir);
+    const defaults = ensureMcpDefaultsInitialized(config, resolveDefaultMcpNames(effective.config, registry));
+    const alreadyDefault = defaults.includes(this.serverName);
+    config.defaults!.mcpServers = addDefaultValue(defaults, this.serverName);
 
     if (!this.dryRun) {
       await saveUserConfig(path, config);
