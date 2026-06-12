@@ -9,7 +9,7 @@ import { writeAtomically } from "./fs";
 import { findLibraryMcpServer, findLibrarySkill } from "./library";
 import { validateMcpLibraryServer } from "./mcp-library";
 import { findRepoSkill } from "./skills";
-import { assertStoreWritable, resolveCardSourceDir, resolveSourcesRoot } from "./store-paths";
+import { assertSafePathPart, assertStoreWritable, resolveCardSourceDir, resolveSourcesRoot } from "./store-paths";
 import type { RegistryServer } from "./types";
 
 export interface CardSourceIssue {
@@ -32,6 +32,12 @@ export interface CardSourceMcpServerState {
   error?: string;
 }
 
+export interface CardSourceHookState {
+  name: string;
+  path: string;
+  hasPolicyTs: boolean;
+}
+
 export interface CardSourcePackageState {
   path: string;
   name?: string;
@@ -46,10 +52,15 @@ export interface CardSourceState {
   manifest: CardManifest | null;
   manifestErrors: string[];
   manifestSkills: string[];
+  manifestHooks: string[];
   bundledSkills: CardSourceSkillState[];
+  bundledHooks: CardSourceHookState[];
   orphanedSkills: string[];
+  orphanedHooks: string[];
   missingSkillDirs: string[];
   missingSkillFiles: string[];
+  missingHookDirs: string[];
+  missingHookFiles: string[];
   packageJson: CardSourcePackageState | null;
   mcpServers: CardSourceMcpServerState[];
   issues: CardSourceIssue[];
@@ -88,6 +99,13 @@ export interface CardSourceSkillMutationResult {
 export interface CardSourceMcpMutationResult {
   card: string;
   serverId: string;
+  dryRun: boolean;
+  changes: CardSourceMutationChange[];
+}
+
+export interface CardSourceHookMutationResult {
+  card: string;
+  hook: string;
   dryRun: boolean;
   changes: CardSourceMutationChange[];
 }
@@ -176,6 +194,10 @@ function assertSafeServerId(id: string) {
   }
 }
 
+function assertSafeHookName(name: string) {
+  assertSafePathPart(name, "hook policy");
+}
+
 async function readSourceManifestForMutation(agentsDir: string, cardName: string) {
   const state = await readCardSourceState(agentsDir, cardName);
   if (!state.manifest) {
@@ -255,6 +277,44 @@ async function listBundledSkills(sourceDir: string): Promise<CardSourceSkillStat
     });
   }
   return skills.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+async function listBundledHooks(sourceDir: string): Promise<CardSourceHookState[]> {
+  const hooksDir = join(sourceDir, "hooks");
+  if (!existsSync(hooksDir)) {
+    return [];
+  }
+  const hooks: CardSourceHookState[] = [];
+  for (const entry of await readdir(hooksDir, { withFileTypes: true })) {
+    if (entry.name.startsWith(".") || (!entry.isDirectory() && !entry.isSymbolicLink())) {
+      continue;
+    }
+    const hookPath = join(hooksDir, entry.name);
+    hooks.push({
+      name: entry.name,
+      path: hookPath,
+      hasPolicyTs: existsSync(join(hookPath, "policy.ts")),
+    });
+  }
+  return hooks.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+async function validatePolicyModule(path: string, issues: CardSourceIssue[]) {
+  try {
+    const buildConfig = {
+      entrypoints: [path],
+      target: "node",
+      format: "esm",
+      write: false,
+      external: ["darwinian-harness/hook-policy"],
+    } as Parameters<typeof Bun.build>[0] & { write: false };
+    const result = await Bun.build(buildConfig);
+    if (!result.success) {
+      issues.push(issue("invalid_policy_module", `Hook policy module is not valid TypeScript: ${path}`, path));
+    }
+  } catch {
+    issues.push(issue("invalid_policy_module", `Hook policy module is not valid TypeScript: ${path}`, path));
+  }
 }
 
 async function readPackageJson(sourceDir: string, manifest: CardManifest | null, issues: CardSourceIssue[]) {
@@ -351,12 +411,21 @@ export async function readCardSourceState(agentsDir: string, name: string): Prom
   }
 
   const manifestSkills = manifest?.skills?.include ?? [];
+  const manifestHooks = manifest?.hooks?.include ?? [];
   const bundledSkills = await listBundledSkills(sourceDir);
+  const bundledHooks = await listBundledHooks(sourceDir);
   const bundledNames = new Set(bundledSkills.map((skill) => skill.name));
+  const bundledHookNames = new Set(bundledHooks.map((hook) => hook.name));
   const manifestSkillSet = new Set(manifestSkills);
+  const manifestHookSet = new Set(manifestHooks);
   const orphanedSkills = bundledSkills.filter((skill) => !manifestSkillSet.has(skill.name)).map((skill) => skill.name);
+  const orphanedHooks = bundledHooks.filter((hook) => !manifestHookSet.has(hook.name)).map((hook) => hook.name);
   const missingSkillDirs = manifestSkills.filter((skill) => !bundledNames.has(skill));
   const missingSkillFiles = bundledSkills.filter((skill) => !skill.hasSkillMd).map((skill) => skill.name);
+  const missingHookDirs = manifestHooks.filter((hook) => !bundledHookNames.has(hook));
+  const missingHookFiles = bundledHooks
+    .filter((hook) => manifestHookSet.has(hook.name) && !hook.hasPolicyTs)
+    .map((hook) => hook.name);
 
   for (const skill of orphanedSkills) {
     issues.push(issue("orphaned_skill_dir", `Bundled skill is not declared in card.json skills.include: ${skill}`, join(sourceDir, "skills", skill)));
@@ -366,6 +435,20 @@ export async function readCardSourceState(agentsDir: string, name: string): Prom
   }
   for (const skill of missingSkillFiles) {
     issues.push(issue("missing_skill_md", `Bundled skill is missing SKILL.md: ${skill}`, join(sourceDir, "skills", skill, "SKILL.md")));
+  }
+  for (const hook of orphanedHooks) {
+    issues.push(issue("orphaned_hook_dir", `Bundled hook is not declared in card.json hooks.include: ${hook}`, join(sourceDir, "hooks", hook)));
+  }
+  for (const hook of missingHookDirs) {
+    issues.push(issue("missing_hook_dir", `card.json hooks.include references a missing hook directory: ${hook}`, join(sourceDir, "hooks", hook)));
+  }
+  for (const hook of missingHookFiles) {
+    issues.push(issue("missing_policy_ts", `Bundled hook is missing policy.ts: ${hook}`, join(sourceDir, "hooks", hook, "policy.ts")));
+  }
+  for (const hook of bundledHooks) {
+    if (manifestHookSet.has(hook.name) && hook.hasPolicyTs) {
+      await validatePolicyModule(join(hook.path, "policy.ts"), issues);
+    }
   }
 
   const packageJson = await readPackageJson(sourceDir, manifest, issues);
@@ -378,10 +461,15 @@ export async function readCardSourceState(agentsDir: string, name: string): Prom
     manifest,
     manifestErrors,
     manifestSkills,
+    manifestHooks,
     bundledSkills,
+    bundledHooks,
     orphanedSkills,
+    orphanedHooks,
     missingSkillDirs,
     missingSkillFiles,
+    missingHookDirs,
+    missingHookFiles,
     packageJson,
     mcpServers,
     issues,
@@ -407,6 +495,97 @@ export async function doctorCardSource(agentsDir: string, name?: string): Promis
   const sources = await Promise.all(names.map((sourceName) => readCardSourceState(agentsDir, sourceName)));
   const issues = sources.flatMap((source) => source.issues);
   return { ok: issues.length === 0, sources, issues };
+}
+
+function hookPolicyTemplate(policyName: string) {
+  return `// ABOUTME: Tool-call policy for ${policyName}.
+// ABOUTME: Replace this stub with your enforcement or observer logic.
+
+import { defineToolPolicy } from "darwinian-harness/hook-policy";
+
+export default defineToolPolicy({
+  policyKind: "observer",
+  async afterToolCall(event) {
+    // event.runtime, event.phase, event.toolName, event.input, event.output, ...
+  },
+});
+`;
+}
+
+export async function addCardSourceHook(options: {
+  agentsDir: string;
+  cardName: string;
+  hookName: string;
+  dryRun?: boolean;
+}): Promise<CardSourceHookMutationResult> {
+  assertSafeHookName(options.hookName);
+  const dryRun = options.dryRun === true;
+  const { state, manifest } = await readSourceManifestForMutation(options.agentsDir, options.cardName);
+  const destination = join(state.sourceDir, "hooks", options.hookName);
+  const policyPath = join(destination, "policy.ts");
+  const include = [...(manifest.hooks?.include ?? [])];
+  if (include.includes(options.hookName) || existsSync(destination)) {
+    throw new Error(`Hook already exists in card source: ${options.hookName}`);
+  }
+
+  const nextManifest: CardManifest = {
+    ...manifest,
+    hooks: {
+      ...(manifest.hooks ?? {}),
+      include: [...include, options.hookName],
+    },
+  };
+  const changes: CardSourceMutationChange[] = [
+    { action: "add-hook", path: policyPath },
+    { action: "update-manifest", path: state.manifestPath },
+  ];
+
+  if (!dryRun) {
+    assertStoreWritable();
+    await writeAtomically(policyPath, hookPolicyTemplate(options.hookName));
+    await writeCardSourceManifest(state.manifestPath, nextManifest);
+  }
+
+  return { card: options.cardName, hook: options.hookName, dryRun, changes };
+}
+
+export async function removeCardSourceHook(options: {
+  agentsDir: string;
+  cardName: string;
+  hookName: string;
+  keepFiles?: boolean;
+  dryRun?: boolean;
+}): Promise<CardSourceHookMutationResult> {
+  assertSafeHookName(options.hookName);
+  const dryRun = options.dryRun === true;
+  const { state, manifest } = await readSourceManifestForMutation(options.agentsDir, options.cardName);
+  const destination = join(state.sourceDir, "hooks", options.hookName);
+  const include = manifest.hooks?.include ?? [];
+  if (!include.includes(options.hookName)) {
+    throw new Error(`Hook is not declared in card source: ${options.hookName}`);
+  }
+
+  const nextManifest: CardManifest = {
+    ...manifest,
+    hooks: {
+      ...(manifest.hooks ?? {}),
+      include: include.filter((hook) => hook !== options.hookName),
+    },
+  };
+  const changes: CardSourceMutationChange[] = [
+    ...(options.keepFiles ? [] : [{ action: "remove-hook-files", path: destination }]),
+    { action: "update-manifest", path: state.manifestPath },
+  ];
+
+  if (!dryRun) {
+    assertStoreWritable();
+    if (!options.keepFiles) {
+      await rm(destination, { recursive: true, force: true });
+    }
+    await writeCardSourceManifest(state.manifestPath, nextManifest);
+  }
+
+  return { card: options.cardName, hook: options.hookName, dryRun, changes };
 }
 
 export async function addCardSourceSkill(options: {
