@@ -178,6 +178,14 @@ event-specific fields):
   is active from `ts₁` until the next `card_usage` line at `ts₂`. This captures
   mid-session card switches while keeping the sidecar small, and lets DHS attribute
   any turn to a card set by checking which interval its timestamp falls in.
+
+  **Why `UserPromptSubmit` (not `SessionStart`):** the card set only changes via an
+  explicit `drwn card add/remove/apply` (it mutates `card.lock`), and Claude exposes no
+  event for "card.lock changed." `UserPromptSubmit` is the only event that both marks a
+  genuine user call *and* re-observes `card.lock` so a mid-session switch is caught on
+  the next prompt; `SessionStart`-only would record just the initial set and miss
+  switches. Running every call is cheap because write-on-change makes the per-call cost a
+  small read + compare, not a write.
 - **`drwn hook skill-marker`** ← `PreToolUse` **and** `PostToolUse`, both matcher
   `Skill`. The signal is a **positional anchor (a labeled flag), not the skill's
   content** — it marks *where* a skill fired so SA can jump to the transcript's
