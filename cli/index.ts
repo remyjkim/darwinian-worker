@@ -47,6 +47,8 @@ import { CardUpdateCommand, UpdateCommand } from "./commands/card/update";
 import { CardValidateCommand } from "./commands/card/validate";
 import { CatalogValidateCommand } from "./commands/catalog/validate";
 import { DoctorCommand } from "./commands/doctor";
+import { HookCardUsageCommand } from "./commands/hook/card-usage";
+import { HookSkillMarkerCommand } from "./commands/hook/skill-marker";
 import { InitCommand } from "./commands/init";
 import { InstallCommand } from "./commands/install";
 import { createAgentsContext, validateRepoRoot } from "./context";
@@ -190,18 +192,30 @@ cli.register(InitCommand);
 cli.register(LoginCommand);
 cli.register(LogoutCommand);
 cli.register(WhoamiCommand);
+cli.register(HookCardUsageCommand);
+cli.register(HookSkillMarkerCommand);
 cli.register(Builtins.HelpCommand);
 cli.register(Builtins.VersionCommand);
 
+const argv = process.argv.slice(2);
+// Hooks run inside arbitrary projects (no drwn checkout / env) and must stay silent and
+// non-fatal: skip repo-root validation and never write to stderr or set a failing exit code.
+const isHookInvocation = argv[0] === "hook";
 const context = createAgentsContext();
 
 try {
-  validateRepoRoot(context.repoRoot);
-  if (detectLegacyLayout(context.agentsDir)) {
-    process.stderr.write("WARNING: pre-cards layout detected. Run `drwn store migrate` to upgrade.\n");
+  if (!isHookInvocation) {
+    validateRepoRoot(context.repoRoot);
+    if (detectLegacyLayout(context.agentsDir)) {
+      process.stderr.write("WARNING: pre-cards layout detected. Run `drwn store migrate` to upgrade.\n");
+    }
   }
-  await cli.runExit(process.argv.slice(2), context);
+  await cli.runExit(argv, context);
 } catch (error) {
-  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-  process.exitCode = 1;
+  if (isHookInvocation) {
+    process.exitCode = 0;
+  } else {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    process.exitCode = 1;
+  }
 }
