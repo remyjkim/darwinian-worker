@@ -43,6 +43,26 @@ describe("emitSkillMarker", () => {
     // no throw, nothing to assert beyond not crashing
     expect(true).toBe(true);
   });
+
+  test("no-ops on a partial payload (post without tool_use_id)", async () => {
+    const t = tempTranscript();
+    await emitSkillMarker({ session_id: t.sessionId, transcript_path: t.transcriptPath, hook_event_name: "PostToolUse", tool_name: "Skill" }, "post", { now: () => "t" });
+    expect(existsSync(t.sinkPath)).toBe(false);
+  });
+
+  test("concurrent appends all land (append-mode safe)", async () => {
+    const t = tempTranscript();
+    await Promise.all(
+      Array.from({ length: 20 }, (_, i) =>
+        emitSkillMarker(
+          { session_id: t.sessionId, transcript_path: t.transcriptPath, hook_event_name: "PreToolUse", tool_name: "Skill", tool_use_id: `t${i}` },
+          "pre",
+          { now: () => "t" },
+        ),
+      ),
+    );
+    expect(readLines(t.sinkPath)).toHaveLength(20);
+  });
 });
 
 describe("emitCardUsage", () => {

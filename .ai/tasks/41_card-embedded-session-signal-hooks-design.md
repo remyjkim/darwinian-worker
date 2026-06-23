@@ -43,18 +43,21 @@ be smoke-tested in a real session.
 
 ## 1a. Success criteria
 
-- [ ] `drwn hook card-usage` and `drwn hook skill-marker` exist as hidden subcommands in
-      `cli/index.ts`, read Claude hook JSON from stdin, and append signal lines (§4).
-- [ ] `card-usage` resolves the nearest `card.lock` from the stdin `cwd` and appends
-      **write-on-change** (only when the active card set differs from the last `card_usage`
-      line for the session); **requires `card.lock`** (skips silently if absent).
-- [ ] `skill-marker` emits `skill_invocation` (PreToolUse `Skill`), `skill_result`
-      (PostToolUse), `skill_failure` (PostToolUseFailure), and raw `slash_expansion`
-      (UserPromptExpansion). Tool markers carry `tool_use_id`.
-- [ ] Both subcommands **always exit 0** and emit **no stdout/stderr** on success or on any
-      swallowed failure (malformed/empty stdin, missing `transcript_path`, unwritable sink).
-- [ ] Signal lines conform to §4 and validate against a JSON shape test.
-- [ ] Unit + integration tests (§5) pass.
+- [x] `drwn hook card-usage` and `drwn hook skill-marker` exist as **hidden** subcommands
+      (no `static usage`, so absent from `drwn --help`) in `cli/index.ts`, read Claude hook
+      JSON from stdin, and append signal lines (§4).
+- [x] `card-usage` resolves the nearest `card.lock` from the stdin `cwd` and appends
+      **write-on-change**; **requires `card.lock`** (skips silently if absent or malformed).
+- [x] `skill-marker` emits `skill_invocation`/`skill_result`/`skill_failure`/raw
+      `slash_expansion`. Tool markers **require `tool_use_id`** (else no-op); a phase/event
+      mismatch is a no-op; `slash_expansion` requires `command_name`+`command_source`.
+- [x] Both subcommands **always exit 0** with **no stdout/stderr** (malformed/empty stdin,
+      missing `transcript_path`, unwritable sink, misconfigured repo root).
+- [x] Session discovery **excludes `*.drwn-signals.jsonl`** so sidecars never archive as
+      Claude logs (damage containment; full `--include-signals` transport stays deferred).
+- [x] Signal lines validated by a per-type contract shape test; unit + integration tests pass.
+- [ ] Manual live smoke (§5a) confirms the real `Skill` / `PostToolUseFailure` /
+      `UserPromptExpansion` payload shapes before the task is considered complete.
 
 ## 2. Background
 
@@ -69,26 +72,29 @@ Claude invokes a command hook with a JSON object on **stdin** carrying (per even
 `Skill` tool's `tool_input` and the PostToolUseFailure payload — must be confirmed from a
 **real captured payload** during implementation.)
 
-Relevant existing internals the subcommands reuse:
-- `findProjectConfig`/`card.lock` resolution from a cwd (`cli/core/project.ts`,
-  `cli/core/card-lock.ts`).
-- Atomic/append file helpers (`cli/core/fs.ts`), store read-only rules
-  (`cli/core/store-paths.ts`, `.ai/knowledges/10_drwn-cli-architecture.md:27`).
-- Sandbox env (`AGENTS_REPO_ROOT`/`AGENTS_HOME_DIR`/`AGENTS_DIR`) at the context boundary
-  (`cli/context.ts:19,25,27`).
+Implementation notes:
+- `card.lock` is read by a **permissive hot-path reader** that walks up for
+  `.agents/drwn/card.lock` and parses it directly — deliberately NOT via the semver-backed
+  `validateCardLockfile`, to keep the hook fast and dependency-light. It skips on
+  parse/shape errors and drops entries lacking a string `name`+`version`.
+- Append uses `appendFileSync` (append mode / `O_APPEND`); concurrent appends are covered
+  by a test.
+- Signal sidecars are co-located with the transcript and **excluded from session discovery**
+  (`cli/core/export/session-discovery.ts`) so neither `drwn export sessions` nor
+  `drwn analyze sessions --fresh` archives them as Claude logs.
 
 ## 3. The hook subcommands
 
 Both are hidden subcommands under `drwn hook …` registered in `cli/index.ts`. Each:
 
 1. Reads all of stdin and `JSON.parse`s it; on any parse/shape error → exit 0, write nothing.
+   Per-phase guards drop partial or phase/event-mismatched payloads as a no-op.
 2. Derives the **sink path**: `${dirname(transcript_path)}/${session_id}.drwn-signals.jsonl`.
    If `transcript_path` is absent → skip silently (do not invent a path).
 3. Appends exactly one JSON line via a single `O_APPEND` write. If the sink is unwritable →
    skip silently.
-4. **Always exits 0** and prints nothing to stdout/stderr. All diagnostics (behind a debug
-   env flag) go to a size-capped, rotated debug file under `~/.agents/drwn/`, skipped if the
-   store is read-only.
+4. **Always exits 0** and prints nothing to stdout/stderr. Errors are swallowed silently;
+   **this task writes no debug file** (a `DRWN_HOOK_DEBUG` channel is deferred).
 
 > **Silence note:** the subcommand path must avoid `cli/index.ts`'s pre-dispatch stderr/exit
 > (`validateRepoRoot` etc., `cli/index.ts:199-206`) — e.g. resolve under a hook-safe path that
@@ -116,11 +122,15 @@ registration) and/or `hook_event_name`:
 - `pre` → `skill_invocation`: `skill` (from `tool_input`), `tool_name`, `tool_use_id`.
 - `post` → `skill_result`: `tool_use_id`, `tool_name`.
 - `fail` → `skill_failure`: `tool_use_id`, `tool_name`.
-- `expansion` → `slash_expansion`: **raw** `command_name`, `command_source`, `command_args`
-  (no drwn-derived `skill` — Claude's `expansion_type` is `slash_command` for skills *and*
-  custom commands, so classification is the consumer's job).
+- `expansion` → `slash_expansion`: **raw** `command_name`, `command_source`, `command_args`,
+  and `expansion_type` when present (no drwn-derived `skill` — `expansion_type` is
+  `slash_command` for skills *and* custom commands, so classification is the consumer's job).
+  The user `prompt` is **deliberately omitted** (privacy).
 - `tool_use_id` is the anchor for tool markers; `slash_expansion` has none (correlates via
   `session_id` + `transcript_basename` + `command_name`).
+- Guards: tool phases require `tool_use_id`; expansion requires `command_name`+`command_source`;
+  a payload whose `hook_event_name` disagrees with `--phase` is a no-op. `hook_event_name` in
+  the record is the phase's canonical event.
 
 ## 4. Signal contract
 
@@ -135,7 +145,8 @@ One JSON object per line. All records carry `schema_version`, `type`, `hook_even
 
 { "schema_version":1, "type":"slash_expansion", "hook_event_name":"UserPromptExpansion",
   "session_id":"abc", "ts":"…", "transcript_basename":"f.jsonl",
-  "command_name":"brainstorming", "command_source":"plugin", "command_args":"…" }
+  "command_name":"brainstorming", "command_source":"plugin", "command_args":"…",
+  "expansion_type":"slash_command" }   // user `prompt` deliberately omitted (privacy)
 
 { "schema_version":1, "type":"skill_invocation", "hook_event_name":"PreToolUse",
   "session_id":"abc", "ts":"…", "transcript_basename":"f.jsonl",
@@ -163,17 +174,34 @@ transport task; `schema_version` lets the contract grow without breaking consume
   - `skill-marker`: each phase (`pre`/`post`/`fail`/`expansion`) emits the right record with
     the right fields; `tool_use_id` captured on tool markers; raw `slash_expansion` for a
     non-skill `/foo` (still emitted raw, not classified); `agent_id`/`agent_type` propagated.
-  - **Silence + robustness:** empty stdin, malformed JSON, partial payloads → exit 0, no
-    stdout/stderr, no throw; debug file size-cap/rotation; read-only-store skip.
-  - **Contract:** every emitted line validates against the §4 JSON shape per type.
-- **Integration (real entrypoint):** invoke `drwn hook …` as a spawned process piping a
-  fixture on stdin; assert the sink file content and that stdout/stderr are empty and exit
-  code 0 even when the repo root / store is misconfigured (guards the pre-dispatch silence).
-- **Manual smoke (documented, not automated):** a minimal `.claude/settings.json` snippet
-  registering the four events → run a real session that triggers a slash skill, a model-
-  invoked skill, and a failing skill → inspect the co-located `*.drwn-signals.jsonl`. This
-  validates the real stdin shapes (and confirms the `Skill` tool name / `tool_input` /
-  PostToolUseFailure fields) before the deferred materialization task automates registration.
+  - **Silence + robustness:** empty/malformed stdin, partial payloads, phase/event mismatch,
+    unwritable sink → exit 0, no stdout/stderr, no throw.
+  - **Contract:** a per-type required-field validator (`hook-signals.test.ts`).
+  - **Discovery:** `discoverClaudeSessions` excludes `*.drwn-signals.jsonl`
+    (`export-signal-exclusion.test.ts`).
+- **Integration (real entrypoint, `commands-hook.test.ts`):** invoke `drwn hook …` as a
+  spawned process piping a fixture on stdin; assert the sink content and that stdout/stderr
+  are empty and exit 0 even with a misconfigured repo root (guards pre-dispatch silence), plus
+  no-`card.lock`, malformed lock, missing `transcript_path`, phase/event mismatch, unwritable
+  sink (sink path is a directory).
+
+### 5a. Manual live smoke (required before marking complete)
+
+Register the hooks in a scratch `.claude/settings.json` (project or user), run a real session
+that triggers a `/slash` skill, a model-invoked skill, and a failing skill, then inspect the
+co-located `<session>.drwn-signals.jsonl`. **Save the captured stdin payloads as fixtures** to
+confirm the real `Skill` `tool_input` field, the `PostToolUseFailure` shape, and the
+`UserPromptExpansion` fields before considering the task done.
+
+```json
+{ "hooks": {
+  "UserPromptSubmit":   [ { "hooks": [ { "type": "command", "command": "drwn hook card-usage", "timeout": 5 } ] } ],
+  "UserPromptExpansion":[ { "hooks": [ { "type": "command", "command": "drwn hook skill-marker --phase expansion", "timeout": 5 } ] } ],
+  "PreToolUse":         [ { "matcher": "Skill", "hooks": [ { "type": "command", "command": "drwn hook skill-marker --phase pre", "timeout": 5 } ] } ],
+  "PostToolUse":        [ { "matcher": "Skill", "hooks": [ { "type": "command", "command": "drwn hook skill-marker --phase post", "timeout": 5 } ] } ],
+  "PostToolUseFailure": [ { "matcher": "Skill", "hooks": [ { "type": "command", "command": "drwn hook skill-marker --phase fail", "timeout": 5 } ] } ]
+} }
+```
 
 ## 6. Out of scope (deferred to follow-up tasks)
 

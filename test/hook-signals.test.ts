@@ -124,6 +124,58 @@ describe("buildSkillRecord", () => {
     expect(record).not.toHaveProperty("skill");
   });
 
+  test("returns null when a tool phase is missing tool_use_id (the anchor)", () => {
+    expect(
+      buildSkillRecord({ session_id: "abc", transcript_path: "/x/abc.jsonl", hook_event_name: "PreToolUse", tool_name: "Skill" }, "pre", NOW),
+    ).toBeNull();
+    expect(
+      buildSkillRecord({ session_id: "abc", transcript_path: "/x/abc.jsonl", hook_event_name: "PostToolUse", tool_name: "Skill" }, "post", NOW),
+    ).toBeNull();
+  });
+
+  test("returns null when expansion is missing command_name/command_source", () => {
+    expect(
+      buildSkillRecord({ session_id: "abc", transcript_path: "/x/abc.jsonl", hook_event_name: "UserPromptExpansion", command_name: "x" }, "expansion", NOW),
+    ).toBeNull();
+  });
+
+  test("returns null on phase/event mismatch", () => {
+    expect(
+      buildSkillRecord(
+        { session_id: "abc", transcript_path: "/x/abc.jsonl", hook_event_name: "PostToolUse", tool_name: "Skill", tool_use_id: "t" },
+        "pre",
+        NOW,
+      ),
+    ).toBeNull();
+  });
+
+  test("uses the phase's canonical hook_event_name even if payload omits it", () => {
+    const record = buildSkillRecord(
+      { session_id: "abc", transcript_path: "/x/abc.jsonl", tool_name: "Skill", tool_use_id: "t" },
+      "post",
+      NOW,
+    );
+    expect(record).toMatchObject({ type: "skill_result", hook_event_name: "PostToolUse" });
+  });
+
+  test("expansion includes expansion_type when present and never includes prompt", () => {
+    const record = buildSkillRecord(
+      {
+        session_id: "abc",
+        transcript_path: "/x/abc.jsonl",
+        hook_event_name: "UserPromptExpansion",
+        command_name: "brainstorming",
+        command_source: "plugin",
+        expansion_type: "slash_command",
+        prompt: "secret user text",
+      } as never,
+      "expansion",
+      NOW,
+    );
+    expect(record).toMatchObject({ expansion_type: "slash_command" });
+    expect(record).not.toHaveProperty("prompt");
+  });
+
   test("includes agent_id/agent_type only when present", () => {
     const withAgent = buildSkillRecord(
       { session_id: "abc", transcript_path: "/x/abc.jsonl", hook_event_name: "PreToolUse", tool_name: "Skill", tool_use_id: "t", agent_id: "ag1", agent_type: "Explore" },
@@ -163,6 +215,39 @@ describe("parseLastCardUsageCards", () => {
 
   test("returns null for empty input", () => {
     expect(parseLastCardUsageCards("")).toBeNull();
+  });
+});
+
+describe("contract shape", () => {
+  const COMMON = ["schema_version", "type", "hook_event_name", "session_id", "ts", "transcript_basename"];
+  const REQUIRED: Record<string, string[]> = {
+    slash_expansion: [...COMMON, "command_name", "command_source"],
+    skill_invocation: [...COMMON, "tool_use_id"],
+    skill_result: [...COMMON, "tool_use_id"],
+    skill_failure: [...COMMON, "tool_use_id"],
+  };
+
+  test("each skill record carries its required fields", () => {
+    const records = [
+      buildSkillRecord({ session_id: "a", transcript_path: "/x/a.jsonl", hook_event_name: "UserPromptExpansion", command_name: "c", command_source: "plugin" }, "expansion", NOW),
+      buildSkillRecord({ session_id: "a", transcript_path: "/x/a.jsonl", hook_event_name: "PreToolUse", tool_name: "Skill", tool_use_id: "t" }, "pre", NOW),
+      buildSkillRecord({ session_id: "a", transcript_path: "/x/a.jsonl", hook_event_name: "PostToolUse", tool_name: "Skill", tool_use_id: "t" }, "post", NOW),
+      buildSkillRecord({ session_id: "a", transcript_path: "/x/a.jsonl", hook_event_name: "PostToolUseFailure", tool_name: "Skill", tool_use_id: "t" }, "fail", NOW),
+    ];
+    for (const record of records) {
+      expect(record).not.toBeNull();
+      const r = record as Record<string, unknown>;
+      for (const key of REQUIRED[r.type as string]!) {
+        expect(r[key]).toBeDefined();
+      }
+    }
+  });
+
+  test("card_usage carries its required fields", () => {
+    const r = buildCardUsageRecord({ session_id: "a", transcript_path: "/x/a.jsonl", cwd: "/p" }, [{ name: "n", version: "1.0.0" }], NOW) as Record<string, unknown>;
+    for (const key of [...COMMON, "cards"]) {
+      expect(r[key]).toBeDefined();
+    }
   });
 });
 

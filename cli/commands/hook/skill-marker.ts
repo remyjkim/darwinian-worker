@@ -8,22 +8,10 @@ import type { HookPayload, SkillPhase } from "../../core/hook-signals";
 
 const PHASES: SkillPhase[] = ["pre", "post", "fail", "expansion"];
 
+// Internal subcommand: invoked by Claude as Skill Pre/Post/Failure + UserPromptExpansion
+// hooks, not by users. Intentionally has no `static usage` so it stays hidden from `drwn --help`.
 export class HookSkillMarkerCommand extends BaseCommand {
   static override paths = [["hook", "skill-marker"]];
-
-  static override usage = BaseCommand.Usage({
-    category: "Hooks",
-    description: "Claude Skill hook: anchor a skill invocation (pre/post/fail/expansion).",
-    details: `
-      Reads the Claude hook payload from stdin and appends a skill signal
-      (skill_invocation, skill_result, skill_failure, or raw slash_expansion) to a
-      transcript-co-located <session>.drwn-signals.jsonl. Always exits 0, prints nothing.
-    `,
-    examples: [
-      ["Anchor a Skill PreToolUse call", "drwn hook skill-marker --phase pre"],
-      ["Anchor a direct /slash expansion", "drwn hook skill-marker --phase expansion"],
-    ],
-  });
 
   phase = Option.String("--phase", {
     description: "Which Skill hook phase: pre | post | fail | expansion.",

@@ -18,6 +18,8 @@ export interface HookPayload {
   command_name?: string;
   command_source?: string;
   command_args?: string;
+  expansion_type?: string;
+  prompt?: string; // intentionally never copied into a signal (privacy)
   agent_id?: string;
   agent_type?: string;
 }
@@ -74,11 +76,18 @@ export function buildCardUsageRecord(payload: HookPayload, cards: CardRef[], now
   };
 }
 
+/** Build a skill signal, or null when the payload is partial/mismatched (no-op). */
 export function buildSkillRecord(payload: HookPayload, phase: SkillPhase, nowIso: string) {
+  const expectedEvent = PHASE_EVENT[phase];
+  // Phase is supplied by the registration; a payload whose event disagrees is a misfire.
+  if (payload.hook_event_name && payload.hook_event_name !== expectedEvent) {
+    return null;
+  }
+
   const base = {
     schema_version: SIGNAL_SCHEMA_VERSION,
     type: PHASE_TYPE[phase],
-    hook_event_name: payload.hook_event_name ?? PHASE_EVENT[phase],
+    hook_event_name: expectedEvent,
     session_id: payload.session_id,
     ts: nowIso,
     transcript_basename: transcriptBasename(payload),
@@ -86,13 +95,18 @@ export function buildSkillRecord(payload: HookPayload, phase: SkillPhase, nowIso
   };
 
   if (phase === "expansion") {
+    if (!payload.command_name || !payload.command_source) return null;
     return {
       ...base,
       command_name: payload.command_name,
       command_source: payload.command_source,
-      command_args: payload.command_args,
+      ...(payload.command_args !== undefined ? { command_args: payload.command_args } : {}),
+      ...(payload.expansion_type ? { expansion_type: payload.expansion_type } : {}),
     };
   }
+
+  // Tool phases require the anchor.
+  if (!payload.tool_use_id) return null;
 
   const skillId =
     payload.tool_input && typeof payload.tool_input.skill === "string" ? payload.tool_input.skill : undefined;
@@ -101,7 +115,7 @@ export function buildSkillRecord(payload: HookPayload, phase: SkillPhase, nowIso
     ...base,
     ...(phase === "pre" && skillId ? { skill: skillId } : {}),
     ...(payload.tool_name ? { tool_name: payload.tool_name } : {}),
-    ...(payload.tool_use_id ? { tool_use_id: payload.tool_use_id } : {}),
+    tool_use_id: payload.tool_use_id,
   };
 }
 

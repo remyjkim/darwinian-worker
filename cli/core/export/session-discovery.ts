@@ -147,7 +147,8 @@ async function walkJsonlFiles(dir: string): Promise<string[]> {
     if (entry.isDirectory()) {
       const nested = await walkJsonlFiles(fullPath);
       results.push(...nested);
-    } else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
+    } else if (entry.isFile() && entry.name.endsWith(".jsonl") && !entry.name.endsWith(".drwn-signals.jsonl")) {
+      // drwn hook signal sidecars co-locate with transcripts; never archive them as Claude logs.
       results.push(fullPath);
     }
   }

@@ -125,4 +125,47 @@ describe("drwn hook robustness", () => {
     expect(result.exitCode).toBe(0);
     expect(existsSync(p.sinkPath)).toBe(false);
   });
+
+  test("malformed card.lock → exit 0, no sink (skip silently)", async () => {
+    const p = project(false);
+    const drwnDir = join(p.root, ".agents", "drwn");
+    mkdirSync(drwnDir, { recursive: true });
+    writeFileSync(join(drwnDir, "card.lock"), "not json {{{");
+    const payload = JSON.stringify({ session_id: p.sessionId, transcript_path: p.transcriptPath, cwd: p.root });
+    const result = await runAgentsCli(["hook", "card-usage"], BARE_ENV, p.root, { stdin: payload });
+    expect(result.exitCode).toBe(0);
+    expect(existsSync(p.sinkPath)).toBe(false);
+  });
+
+  test("phase/event mismatch → exit 0, no sink", async () => {
+    const p = project(false);
+    const payload = JSON.stringify({
+      session_id: p.sessionId,
+      transcript_path: p.transcriptPath,
+      hook_event_name: "PostToolUse",
+      tool_name: "Skill",
+      tool_use_id: "t",
+    });
+    const result = await runAgentsCli(["hook", "skill-marker", "--phase", "pre"], BARE_ENV, p.root, { stdin: payload });
+    expect(result.exitCode).toBe(0);
+    expect(existsSync(p.sinkPath)).toBe(false);
+  });
+
+  test("unwritable sink → exit 0, silent (no crash)", async () => {
+    const p = project(false);
+    // Make the sink path a directory so appendFileSync fails deterministically.
+    mkdirSync(p.sinkPath, { recursive: true });
+    const payload = JSON.stringify({
+      session_id: p.sessionId,
+      transcript_path: p.transcriptPath,
+      hook_event_name: "PreToolUse",
+      tool_name: "Skill",
+      tool_use_id: "t",
+      tool_input: { skill: "x" },
+    });
+    const result = await runAgentsCli(["hook", "skill-marker", "--phase", "pre"], BARE_ENV, p.root, { stdin: payload });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toBe("");
+  });
 });

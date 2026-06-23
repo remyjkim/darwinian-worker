@@ -5,19 +5,10 @@ import { BaseCommand } from "../base";
 import { emitCardUsage } from "../../core/hook-runner";
 import type { HookPayload } from "../../core/hook-signals";
 
+// Internal subcommand: invoked by Claude as a UserPromptSubmit hook, not by users.
+// Intentionally has no `static usage` so it stays hidden from `drwn --help`.
 export class HookCardUsageCommand extends BaseCommand {
   static override paths = [["hook", "card-usage"]];
-
-  static override usage = BaseCommand.Usage({
-    category: "Hooks",
-    description: "Claude UserPromptSubmit hook: record active Harness Cards (write-on-change).",
-    details: `
-      Reads the Claude hook payload from stdin and appends a card_usage signal to
-      a transcript-co-located <session>.drwn-signals.jsonl. Requires a project
-      card.lock; otherwise it does nothing. Always exits 0 and prints nothing.
-    `,
-    examples: [["Wire as a Claude UserPromptSubmit hook (stdin is the hook JSON)", "drwn hook card-usage"]],
-  });
 
   async execute(): Promise<number> {
     try {

@@ -49,10 +49,12 @@ export async function resolveActiveCardsFromLock(cwd: string): Promise<CardRef[]
   if (!cwd) return null;
   const lockPath = findCardLock(cwd);
   if (!lockPath) return null;
+  // Permissive hot-path reader (avoids loading the semver-backed lockfile validator):
+  // skip entirely on unparseable/shape-invalid locks rather than emit a misleading row.
   try {
-    const lock = JSON.parse(readFileSync(lockPath, "utf8")) as { cards?: Array<{ name?: string; version?: string }> };
-    const cards = Array.isArray(lock.cards) ? lock.cards : [];
-    return cards
+    const lock = JSON.parse(readFileSync(lockPath, "utf8")) as { cards?: unknown };
+    if (!Array.isArray(lock.cards)) return null;
+    return (lock.cards as Array<{ name?: unknown; version?: unknown }>)
       .filter((c): c is CardRef => typeof c.name === "string" && typeof c.version === "string")
       .map((c) => ({ name: c.name, version: c.version }));
   } catch {
@@ -63,7 +65,9 @@ export async function resolveActiveCardsFromLock(cwd: string): Promise<CardRef[]
 export async function emitSkillMarker(payload: HookPayload, phase: SkillPhase, deps: SkillHookDeps = {}): Promise<void> {
   const sinkPath = resolveSinkPath(payload);
   if (!sinkPath) return;
-  appendLine(sinkPath, buildSkillRecord(payload, phase, nowIso(deps)));
+  const record = buildSkillRecord(payload, phase, nowIso(deps));
+  if (!record) return; // partial / mismatched payload → no-op
+  appendLine(sinkPath, record);
 }
 
 export async function emitCardUsage(payload: HookPayload, deps: CardUsageHookDeps = {}): Promise<void> {
