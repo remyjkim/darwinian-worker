@@ -146,8 +146,18 @@ event-specific fields):
 
 - **`drwn hook card-usage`** ← `UserPromptSubmit`. Resolves the nearest
   `.agents/drwn/card.lock` from `cwd`, reads locked card `name`+`version`, appends a
-  `card_usage` signal. Deduped: append only when the active card set differs from the
-  last `card_usage` line for the session.
+  `card_usage` signal. **Write-on-change cadence (not every turn):** the hook fires on
+  every prompt but appends a line only when the active card set differs from the last
+  `card_usage` line for the session. Concretely:
+  - First prompt of a session → one line (the initial set).
+  - User switches cards mid-session (`drwn card add/remove/apply` mutates
+    `card.lock`) → the next prompt sees a changed set → **a new line is appended**.
+  - Prompts with no change → no duplicate line.
+
+  Because every line carries `ts`, consumers read the stream as **intervals**: set `S`
+  is active from `ts₁` until the next `card_usage` line at `ts₂`. This captures
+  mid-session card switches while keeping the sidecar small, and lets DHS attribute
+  any turn to a card set by checking which interval its timestamp falls in.
 - **`drwn hook skill-marker`** ← `PreToolUse` matcher `Skill`. Reads
   `tool_input.skill`, appends a `skill_invocation` signal with a timestamp. Captures
   every Skill-tool trigger including non-`/slash`, model-invoked ones.
@@ -220,8 +230,11 @@ discriminator. All timestamps are ISO-8601 UTC.
 ```
 
 - **DHS** keys on `session_id` (matching `event.sessionId` it already parses) and the
-  distinct union of `cards` to populate a session↔card mapping, enabling
-  "filter sessions by card" and per-card aggregation.
+  distinct union of `cards` across the session's `card_usage` lines to populate a
+  session↔card mapping, enabling "filter sessions by card" and per-card aggregation.
+  Card-usage lines are emitted **on change only** (see Layer 2), so a session with a
+  stable card set has exactly one line, and a mid-session switch adds one line per
+  change; DHS treats consecutive lines as time intervals via `ts`.
 - **SA** keys on `session_id` + `ts` (+ optional `skill`) to anchor skill windows in
   the transcript, closing the non-`/slash` detection gap in its log digest.
 
@@ -289,7 +302,8 @@ enhancement, explicitly out of scope here.
 
 1. Sidecar naming: `<session_id>.drwn-signals.jsonl` vs a `signals/` subdir under the
    Claude projects dir — confirm the discovery/export approach during planning.
-2. Whether `card-usage` should also fire on `SessionStart` (once) in addition to
-   `UserPromptSubmit` (deduped), or `UserPromptSubmit` alone is sufficient.
+2. ~~Card-usage cadence~~ **Resolved:** write-on-change on `UserPromptSubmit` (a line
+   on the first prompt, then only when the active card set changes). `UserPromptSubmit`
+   alone is sufficient — no separate `SessionStart` emission needed.
 3. Default-card scope/name (`@curation-labs/session-signals`) and which bootstrap
    tier includes it.
