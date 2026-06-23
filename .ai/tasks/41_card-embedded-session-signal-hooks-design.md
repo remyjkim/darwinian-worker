@@ -3,90 +3,89 @@
 
 # Task 41: Card-Embedded Session-Signal Hooks (Design)
 
-> **For Claude:** This is a DESIGN / SPEC document produced via `superpowers:brainstorming`.
-> The implementation plan is a separate follow-up produced via `superpowers:writing-plans`.
+> **For Claude:** DESIGN / SPEC produced via `superpowers:brainstorming`. The implementation
+> plan is a separate follow-up via `superpowers:writing-plans`.
 
 **Status**: In Review
 **Created**: 2026-06-23
 **Updated**: 2026-06-23
 **Assigned**: Unassigned
 **Priority**: High
-**Estimated Effort**: 1 PR, but sliced into reviewable internal tasks/commits (schema+merge,
-effective-state+writer ownership, hook subcommands, export/analyze flags, docs) — it
-spans schema, card merge, effective state, a Claude-settings writer rename, new hidden
-commands, hot-path I/O, export/analyze plumbing, and cross-repo contracts.
+**Estimated Effort**: 1 PR, sliced into reviewable tasks (schema+merge+gating ·
+effective-state+conditional-ownership writer · wrapper+managed-file record · hook
+subcommands · export/analyze flags · docs).
 **Dependencies**:
-- `curation-labs/darwinian-harness-services` (DHS) — consumes `card_usage`; must handle `signals/` (follow-up PR)
-- `curation-labs/signal-analyzer` (SA) — consumes skill signals; classifies slash skills (follow-up PR)
-**References**: [.ai/knowledges/10_drwn-cli-architecture.md, cli/core/mcp.ts, cli/core/managed-fields.ts, cli/core/sync.ts, cli/core/effective-state.ts, cli/core/project.ts, cli/core/card-manifest.ts, cli/core/card-project.ts, cli/core/types.ts, cli/core/extensions/registry.ts, cli/core/export/archiver.ts, cli/core/export/session-discovery.ts, cli/core/analyze/inline-export.ts, cli/commands/init.ts, cli/commands/export/sessions.ts, cli/commands/analyze/sessions.ts, cli/index.ts, registry/config.json, docs-docusaurus/docs/concepts/materialization.md, docs-docusaurus/docs/reference/schemas/card-manifest.md, docs-docusaurus/docs/reference/schemas/write-record-json.md, docs-docusaurus/docs/reference/cli/export.md, docs-docusaurus/docs/reference/cli/analyze.md, docs-docusaurus/docs/reference/cli/write.md, test/core-archiver.test.ts, https://code.claude.com/docs/en/hooks]
+- DHS (`darwinian-harness-services`) — consumes `card_usage`; must skip/parse `signals/` (follow-up)
+- SA (`signal-analyzer`) — consumes skill signals; classifies slash skills (follow-up)
+**References**: [.ai/knowledges/10_drwn-cli-architecture.md, cli/core/mcp.ts, cli/core/managed-fields.ts, cli/core/sync.ts, cli/core/write-record.ts, cli/core/effective-state.ts, cli/core/project.ts, cli/core/card-manifest.ts, cli/core/card-project.ts, cli/core/types.ts, cli/core/context.ts, cli/core/export/archiver.ts, cli/core/export/session-discovery.ts, cli/core/analyze/inline-export.ts, cli/commands/init.ts, cli/commands/export/sessions.ts, cli/commands/analyze/sessions.ts, cli/index.ts, registry/config.json, docs-docusaurus/docs/concepts/materialization.md, docs-docusaurus/docs/reference/schemas/card-manifest.md, docs-docusaurus/docs/reference/schemas/write-record-json.md, docs-docusaurus/docs/reference/cli/export.md, docs-docusaurus/docs/reference/cli/analyze.md, docs-docusaurus/docs/reference/cli/write.md, test/core-archiver.test.ts, https://code.claude.com/docs/en/hooks]
 
 ---
 
 ## 1. Objective
 
-Make Claude Code **hooks** a first-class artifact in `drwn` (declarable in card
-manifests + project config, materialized into `.claude/settings.json`), and ship hook
-subcommands that emit append-only **session signals** consumed by two downstream
-services:
+Make Claude Code **hooks** a first-class artifact in `drwn` (declarable in card manifests +
+project config, materialized into `.claude/settings.json`), and ship hook subcommands that
+emit append-only **session signals** for two services:
 
-1. **Card-usage tracking (DHS session analysis).** On every user prompt, record which
-   Harness Cards are active, so analysis can filter/aggregate sessions by card.
-2. **Skill-trigger marking (SA skill extractor).** Anchor **every skill invocation**:
-   model/tool-invoked skills (the `Skill` tool — success and failure) **and** direct
-   `/slash-command` skills (slash-command expansion, emitted raw for SA to classify).
+1. **Card-usage tracking → DHS.** On every user prompt, record which Harness Cards are
+   active, so analysis can filter/aggregate sessions by card.
+2. **Skill-trigger marking → SA.** Anchor **every skill invocation**: the `Skill` tool
+   (success **and** failure) and direct `/slash` skills (emitted raw for SA to classify).
 
-Today "hooks" is declared-but-unimplemented: `ExtensionMode` lists `"hooks"`
-(`cli/core/extensions/types.ts:5`) and only **Beads** declares it
-(`cli/core/extensions/registry.ts:12`). Nothing writes hooks; the Claude writer manages
-only `mcpServers` (`cli/core/mcp.ts:75-97`).
+Today "hooks" is declared-but-unimplemented (`extensions/types.ts:5`; only Beads declares
+it, `extensions/registry.ts:12`); the Claude writer manages only `mcpServers`
+(`mcp.ts:75-97`).
 
-**Scope note:** this task delivers the hook *mechanism* + hook subcommands + signal
-contract. **Packaging into a default card and bootstrap auto-apply is OUT OF SCOPE** (§9)
-— `drwn init` only scaffolds config + registers the catalog (`cli/commands/init.ts:74,98`).
+**Scope:** the hook *mechanism* + subcommands + signal contract. **Default-card packaging &
+bootstrap auto-apply are OUT OF SCOPE** — `drwn init` only scaffolds config + registers the
+catalog (no card-apply path, `cli/commands/init.ts:74-90`).
 
 ## 1a. Success criteria
 
-- [ ] A card manifest and project config can declare `hooks`; `drwn write` materializes
-      them into project-local `.claude/settings.json` `hooks`, drift-guarded like
-      `mcpServers`, with a first-adoption guard (refuse pre-existing unmanaged `hooks`
-      unless `--force`; `--force` **replaces** + records the `_drwn.hooks` hash).
-- [ ] `drwn hook card-usage` (UserPromptSubmit) appends `card_usage` write-on-change.
+- [ ] Card manifests and project config can declare `hooks`; **card-contributed hooks are
+      default-deny** (materialized only with project opt-in, §3 Layer 1); locally-authored
+      project hooks are trusted; `enabled:false` / `hooksDisable` suppress any hook.
+- [ ] `drwn write` materializes active hooks into project `.claude/settings.json` `hooks`
+      with **conditional ownership** (§3): never writes `hooks: {}` into a project with no
+      drwn hooks; clears the managed key when previously-owned hooks go away.
+- [ ] First-adoption guard on **both** the `hooks` key and the wrapper file: refuse a
+      pre-existing unmanaged value unless `--force` (which replaces + records the hash).
+- [ ] `drwn hook card-usage` (UserPromptSubmit) appends `card_usage` write-on-change;
+      **requires `card.lock`** (skips silently if absent).
 - [ ] `drwn hook skill-marker` anchors: `skill_invocation` (PreToolUse `Skill`),
-      `skill_result` (PostToolUse `Skill`), `skill_failure` (PostToolUseFailure `Skill`),
-      and raw `slash_expansion` (UserPromptExpansion) for direct `/slash` skills.
-- [ ] Tool markers carry `tool_use_id` (hard contract); `slash_expansion` carries
-      `command_name`/`command_source`/`command_args` (no drwn-derived `skill`). All
-      records carry `transcript_basename` (+ `agent_id`/`agent_type` when present).
-- [ ] Rendered hooks point at a drwn-written **wrapper** in `.claude/hooks/` (always
-      present), carry an explicit low `timeout`, and the subcommands emit **no
-      stdout/stderr** on success or swallowed failure.
-- [ ] `--include-signals` (default off) on **both** `drwn export sessions` and
-      `drwn analyze sessions` (incl. `--fresh` inline export) excludes
-      `*.drwn-signals.jsonl` from `claude/` and bundles them collision-proof under
-      `signals/`; gated off until DHS handles `signals/`.
-- [ ] Signal lines conform to §5 and are consumable by DHS and SA per §9.
-- [ ] Unit + integration tests (§8) pass; manifest + materialization + write-record +
-      export + analyze + write docs updated.
+      `skill_result` (PostToolUse), `skill_failure` (PostToolUseFailure), raw
+      `slash_expansion` (UserPromptExpansion). Tool markers carry `tool_use_id` (hard
+      contract) + `tool_name`; all records carry `schema_version`, `hook_event_name`,
+      `transcript_basename`, `source_dir_hash`, `agent_id`/`agent_type` when present.
+- [ ] Rendered hooks point at the wrapper via `${CLAUDE_PROJECT_DIR}/.claude/hooks/drwn-hook`
+      (absolute), carry a low `timeout`, and the wrapper redirects **stdout+stderr to
+      /dev/null** and no-ops if `drwn` is missing.
+- [ ] `--include-signals` (default off) on `export` **and** `analyze` (incl. `--fresh`)
+      excludes `*.drwn-signals.jsonl` from `claude/`, bundles under collision-checked
+      `signals/<sha16(dir)>/`, and updates archive expected-count + error text.
+- [ ] Signal lines conform to §5; tests + docs (§8) updated.
 
-## 2. Background — why this shape
+## 2. Background
 
-Both services consume the Claude session transcript JSONL, and `drwn` already ships
-transcripts to the analyzer.
+Both services consume the Claude transcript JSONL; `drwn` already ships transcripts to the
+analyzer.
 
-- `drwn export sessions` scans `~/.claude/projects/<slug>/*.jsonl` and bundles into a tar
-  restricted to `claude/`/`codex/` (`archiver.ts:9,54`); it **rejects hidden dotfiles**
-  (`archiver.ts:50`, so "hide signals via a leading dot" is impossible) and validates the
-  member count == files.length (`validateArchiveMembers(expectedCount)`, `archiver.ts:32,57`).
-  The `--fresh` analyze path reuses the same discovery + archiver (`inline-export.ts:6-14`).
-- **DHS** counts any non-hidden `.jsonl` as a session log (`archive-entry.ts:1-9`) at both
-  ingest paths and can throw `too_many_session_logs` (`archive-ingest.ts:43-48`,
-  `consumer.ts:114`). No per-session card storage today.
-- **SA**'s extractor (`workers/skill-inout-extractor/src/index.ts`) reads one mounted log
-  `/workspace/logs/session.jsonl` (`index.ts:30,67`); detection is regex/heuristic
-  (`src/task-template.ts`). No `log-digest.ts`.
-
-So hooks emit append-only records co-located with the transcript and ride the existing
-export/upload path.
+- `export sessions` bundles `~/.claude/projects/<slug>/*.jsonl` into a tar limited to
+  `claude/`/`codex/`, **rejects hidden dotfiles** (`archiver.ts:50`; so "hide via dot" is
+  out) and validates member count == files.length (`validateArchiveMembers`,
+  `archiver.ts:32,57`; error text "outside claude/codex namespace", `archiver.ts:52`). The
+  `--fresh` analyze path reuses the same discovery + archiver (`inline-export.ts:6-14`).
+- **DHS** pushes every non-hidden `.jsonl` into `jsonlEntries` and throws
+  `too_many_session_logs` **at collection time, before parse** (`archive-ingest.ts:43-48`,
+  `consumer.ts:114`; entry test `archive-entry.ts:1-9`). No per-session card storage.
+- **SA** reads one mounted log `/workspace/logs/session.jsonl` (`index.ts:30,67`); detection
+  is regex/heuristic (`task-template.ts`). No `log-digest.ts`.
+- **Internals that must be expanded:** `mergeProjectConfig` returns only
+  `{config,registry,skills,extensions}` (`project.ts:86`); `EffectiveState` has no hooks
+  (`effective-state.ts:27`); `syncMcp` takes only `servers` (`sync.ts:126`); `ManagedPath`
+  has only `symlink|managed-fields|generated-symlink` (`write-record.ts:14`) and cleanup
+  removes only symlinks else warns "preserved user-owned path" (`sync.ts:101-124`); context
+  uses `AGENTS_REPO_ROOT`/`AGENTS_HOME_DIR`/`AGENTS_DIR` (`context.ts:19,25,27`).
 
 ### Decisions
 
@@ -94,317 +93,286 @@ export/upload path.
 |---|---|
 | Target tools | Claude Code first; Codex later |
 | Config layers | Cards + project config only |
-| Destination | Project-local `.claude/settings.json` (`sync.ts:138-139`) |
-| Hook logic | `drwn hook <name>` subcommands, invoked via a drwn-written wrapper |
-| Transport | Co-located sidecar; `signals/` behind `--include-signals` (default off) |
-| Card-usage cadence | Write-on-change on `UserPromptSubmit` |
-| Skill coverage | `Skill` tool Pre/Post/**Failure** + raw `/slash` (UserPromptExpansion) |
-| Slash classification | Emit raw `slash_expansion`; **SA classifies** (no drwn skill map) |
+| Destination | Project-local `.claude/settings.json` |
+| Hook logic | `drwn hook <name>` subcommands, via a managed wrapper |
+| Card-hook trust | **Default-deny**; project opt-in (`hooksAllowFromCards`); project hooks trusted |
+| Suppression/removal | `enabled:false` per hook + project `hooksDisable: string[]` |
+| Ownership | Conditional: only manage `hooks` when active hooks exist or drwn already owns it |
+| Transport | Co-located sidecar; `signals/<sha16(dir)>/` behind `--include-signals` (off) |
+| Card-usage | Write-on-change on `UserPromptSubmit`; **requires `card.lock`** else skip |
+| Skill coverage | `Skill` Pre/Post/**Failure** + raw `/slash` (UserPromptExpansion) |
+| Slash classification | Raw `slash_expansion`; **SA classifies** |
 | Tool-marker anchor | `tool_use_id` (hard contract); no `seq` |
-| `skill_result` payload | Pure flag (identifiers only) |
-| First-adoption `--force` | Replace + take ownership |
-| Generic schema (MVP) | `type:"command"` only; strictness scoped to `hooks.<id>` |
+| `--mcp-only` / `--skills-only` | Hooks are target config: written with MCP, **skipped by `--skills-only`** |
+| Event set (MVP) | The 5 used events only (extensible later) |
 | Default card + bootstrap | Out of scope (deferred) |
 
-## 3. Architecture
-
-Three layers built here (Layer 4 deferred).
+## 3. Architecture (3 layers; Layer 4 deferred)
 
 ### Layer 1 — Generic hooks-in-cards mechanism
 
-- **Types** (`cli/core/types.ts` + new `cli/core/hooks.ts`):
+- **Types** (`types.ts` + new `cli/core/hooks.ts`):
   ```ts
-  type HookEvent =
+  type HookEvent =        // MVP: exactly the events the signal hooks use
     | "UserPromptSubmit" | "UserPromptExpansion"
-    | "PreToolUse" | "PostToolUse" | "PostToolUseFailure"
-    | "SessionStart" | "SessionEnd" | "Stop";
+    | "PreToolUse" | "PostToolUse" | "PostToolUseFailure";
 
   interface HookDefinition {
     event: HookEvent;
-    matcher?: string;     // see matcher table below
-    type?: "command";     // MVP: command only
+    matcher?: string;     // tool name for Pre/Post/PostFailure; command name for
+                          // UserPromptExpansion; NOT allowed on UserPromptSubmit
+    type?: "command";
     command: string;      // wrapper path (see §7)
     args?: string[];
-    timeout?: number;     // seconds; default low (e.g. 5)
+    timeout?: number;     // seconds; default low (~5)
+    enabled?: boolean;    // default true; false suppresses
     description?: string;
   }
   ```
-  **Matcher support (encoded, not “…”)** — Claude silently ignores unsupported matchers,
-  so validation must reject a `matcher` on non-matcher events:
-  | Event | matcher |
-  |---|---|
-  | PreToolUse / PostToolUse / PostToolUseFailure | yes (tool name) |
-  | UserPromptExpansion | yes (command name) |
-  | SessionStart | yes (source) · SessionEnd | yes (reason) |
-  | UserPromptSubmit / Stop | **no** |
+  `CardManifest` (`card-manifest.ts:7`) gains `hooks?: Record<string, HookDefinition>`.
+  `ProjectConfig` (`types.ts:95`) gains `hooks?`, plus
+  `hooksAllowFromCards?: boolean | string[]` (default `false`) and `hooksDisable?: string[]`.
 
-  `CardManifest` (`card-manifest.ts:7`) and `ProjectConfig` (`types.ts:95`) gain
-  `hooks?: Record<string, HookDefinition>`.
+- **Validation** (`card-manifest.ts`): strictness **scoped to each `hooks.<id>`** (event ∈
+  set; matcher only on matcher-bearing events; `type` ∈ {command, undefined}; non-empty
+  command; reject unknown keys *within a hook def*). `validateCardManifest` stays permissive
+  about other top-level keys (`card-manifest.ts:50`).
 
-- **Validation** (`card-manifest.ts`): strictness is **scoped to each `hooks.<id>`** —
-  event ∈ set; matcher only on matcher-bearing events; `type` ∈ {command, undefined};
-  non-empty `command`; reject unknown keys *within a hook def*. `validateCardManifest`
-  stays permissive about other unknown top-level keys (`card-manifest.ts:50`).
+- **Merge + gating** (`card-project.ts:49`, then `project.ts:86`):
+  1. Start with **project-authored `hooks`** (trusted).
+  2. Add **card hooks** only if allowed by `hooksAllowFromCards` (`true` → all; `string[]` →
+     those ids; `false`/absent → none). Card hooks not allowed are dropped (with a changeset
+     note so the user can opt in).
+  3. Remove ids in `hooksDisable` or with `enabled:false`.
+  → `activeHooks`. Expose on `EffectiveState` (`effective-state.ts:27`); thread into the
+  writer via `sync.ts` (today `syncMcp` is MCP-only).
 
-- **Data path (must be expanded — today it dead-ends):**
-  - `mergeProjectConfig` returns only `{config, registry, skills, extensions}`
-    (`project.ts:86`) → add `hooks` (from `projectConfigWithCards`).
-  - `mergeCardManifestsIntoProjectConfig` (`card-project.ts:49`) folds `hooks` like
-    `servers`/`extensions` (card defines; project overrides by id).
-  - `EffectiveState` (`effective-state.ts:27`) gains `activeHooks` (derive from
-    `projectConfigWithCards`).
-  - `syncMcp` takes only `servers` (`sync.ts:126`) → pass `activeHooks` into a renamed
-    Claude-settings writer.
-
-- **Renderer** (`cli/core/hooks.ts`): `renderClaudeHooks(defs)` → Claude's nested shape;
-  `command` is the wrapper path, with an explicit `timeout`. Example hooks (tests only;
-  default-card packaging deferred):
+- **Renderer** (`cli/core/hooks.ts`): nested Claude shape; `command` =
+  `${CLAUDE_PROJECT_DIR}/.claude/hooks/drwn-hook` (absolute, per Claude exec-form guidance),
+  explicit `timeout`. Example (tests only):
   ```json
-  {
-    "UserPromptSubmit":    [ { "hooks": [ { "type":"command", "command":".claude/hooks/drwn-hook", "args":["card-usage"], "timeout":5 } ] } ],
-    "UserPromptExpansion": [ { "hooks": [ { "type":"command", "command":".claude/hooks/drwn-hook", "args":["skill-marker","--phase","expansion"], "timeout":5 } ] } ],
-    "PreToolUse":          [ { "matcher":"Skill", "hooks":[ { "type":"command", "command":".claude/hooks/drwn-hook", "args":["skill-marker","--phase","pre"], "timeout":5 } ] } ],
-    "PostToolUse":         [ { "matcher":"Skill", "hooks":[ { "type":"command", "command":".claude/hooks/drwn-hook", "args":["skill-marker","--phase","post"], "timeout":5 } ] } ],
-    "PostToolUseFailure":  [ { "matcher":"Skill", "hooks":[ { "type":"command", "command":".claude/hooks/drwn-hook", "args":["skill-marker","--phase","fail"], "timeout":5 } ] } ]
-  }
+  { "UserPromptSubmit":   [ { "hooks":[ { "type":"command","command":"${CLAUDE_PROJECT_DIR}/.claude/hooks/drwn-hook","args":["card-usage"],"timeout":5 } ] } ],
+    "UserPromptExpansion":[ { "hooks":[ { "type":"command","command":"${CLAUDE_PROJECT_DIR}/.claude/hooks/drwn-hook","args":["skill-marker","--phase","expansion"],"timeout":5 } ] } ],
+    "PreToolUse":         [ { "matcher":"Skill","hooks":[ { "type":"command","command":"${CLAUDE_PROJECT_DIR}/.claude/hooks/drwn-hook","args":["skill-marker","--phase","pre"],"timeout":5 } ] } ],
+    "PostToolUse":        [ { "matcher":"Skill","hooks":[ { "type":"command","command":"${CLAUDE_PROJECT_DIR}/.claude/hooks/drwn-hook","args":["skill-marker","--phase","post"],"timeout":5 } ] } ],
+    "PostToolUseFailure": [ { "matcher":"Skill","hooks":[ { "type":"command","command":"${CLAUDE_PROJECT_DIR}/.claude/hooks/drwn-hook","args":["skill-marker","--phase","fail"],"timeout":5 } ] } ] }
   ```
 
-- **Writer** (rename `cli/core/mcp.ts` Claude path → `claude-settings.ts`): manage `hooks`
-  as a second `_drwn` field alongside `mcpServers` via `managed-fields.ts`.
-  **First-adoption guard:** `mcp.ts:78` defaults `managedKeys` to `["mcpServers"]`, so a
-  pre-existing unmanaged `hooks` key has no recorded hash and would be overwritten
-  silently → detect that case and **refuse unless `--force`**; `--force` replaces and
-  records the hash (a future `--adopt` import is out of scope).
+- **Writer** (rename the Claude path in `mcp.ts` → `claude-settings.ts`): manage `hooks` as a
+  second `_drwn` field via `managed-fields.ts`, with **conditional ownership**:
+  | State | Action |
+  |---|---|
+  | active hooks present | write `hooks`, record `_drwn.hooks` hash (drift-guarded) |
+  | no active hooks, no prior `_drwn.hooks` | **leave `hooks` untouched** (never write `{}`) |
+  | no active hooks, prior `_drwn.hooks` exists | **remove** the managed `hooks` key + wrapper |
+  | unmanaged `hooks` exists, drwn wants to write | refuse unless `--force` (then replace + own) |
 
-- **Sync wiring** (`sync.ts:157-161`): in project scope render+merge hooks, write the
-  wrapper (below), record managed paths `fields: ["mcpServers","hooks"]` + `.claude/hooks/drwn-hook`.
+- **Wrapper as a managed file:** add a `ManagedPath` variant
+  `{ path, kind:"managed-file", contentHash, mode }` (`write-record.ts:14`); `drwn write`
+  writes `<project>/.claude/hooks/drwn-hook` (mode `0755`) and records it. Cleanup
+  (`sync.ts:101`) removes a `managed-file` only when its on-disk hash matches the recorded
+  hash (else "preserved user-owned"). **Wrapper first-adoption guard:** refuse to overwrite a
+  pre-existing unmanaged `drwn-hook` without `--force`.
 
 ### Layer 2 — Hook logic as `drwn hook <name>` subcommands
 
-Hidden subcommands in `cli/index.ts`, reading Claude's hook JSON from **stdin**. Each
-emits a **positional flag (identifiers only, not payloads)**. All records carry
-`transcript_basename` (basename of `transcript_path`) and `agent_id`/`agent_type` when
-present, so SA can pick the right transcript (subagents/multi-log archives).
+Hidden subcommands in `cli/index.ts`, reading Claude's hook JSON from **stdin**. Records are
+flags (identifiers only). Every record carries `schema_version:1`, `hook_event_name`,
+`session_id`, `ts`, `transcript_basename`, `source_dir_hash` (= `sha16(abs dirname of
+transcript)`, matching the `signals/<hash>/` archive path), and `agent_id`/`agent_type` when
+present. **If `transcript_path` is absent, skip emission silently** (so `transcript_basename`
+is always real — no null, no separate fallback sink).
 
-- **`drwn hook card-usage`** ← `UserPromptSubmit`. Resolve the active card set:
-  nearest `card.lock` from `cwd`; **if no lock**, fall back to `.agents/drwn/config.json`
-  `cards`; **if neither**, skip silently (emit nothing). Append `card_usage`
-  **write-on-change**: only when the set differs from the **last `card_usage` line** for
-  the session (must scan for the last `card_usage` record, not the last line — the sidecar
-  interleaves skill records).
-  - *Why `UserPromptSubmit` not `SessionStart`:* card set changes only via
-    `drwn card add/remove/apply`; no "lock changed" event; `UserPromptSubmit` re-observes
-    `card.lock` and catches mid-session switches.
+- **`drwn hook card-usage`** ← `UserPromptSubmit`. **Requires `card.lock`** (nearest from
+  `cwd`); if absent, skip silently (no `config.cards` fallback — refs there may be ranges/URLs,
+  not resolved `{name,version}`, and resolving is too heavy for a hot hook). Append
+  `card_usage` **write-on-change** vs the **last `card_usage` line** for the session (scan
+  for that type, not the last line — the sidecar interleaves skill records).
+  - *Why `UserPromptSubmit` not `SessionStart`:* the card set changes only via
+    `drwn card add/remove/apply`; no "lock changed" event; this event re-observes `card.lock`.
 
-- **`drwn hook skill-marker`** ← `PreToolUse`/`PostToolUse`/`PostToolUseFailure`
-  (matcher `Skill`) and `UserPromptExpansion`:
-  - `skill_invocation` (PreToolUse): `skill` (from `tool_input`), `tool_use_id`, `tool_name`.
-  - `skill_result` (PostToolUse): `tool_use_id` (pure flag).
-  - `skill_failure` (PostToolUseFailure): `tool_use_id`.
-  - `slash_expansion` (UserPromptExpansion): **raw** — `command_name`, `command_source`,
-    `command_args` (no drwn-derived `skill`). Claude's `expansion_type` is `slash_command`
-    for both skills and custom commands and `command_source` is e.g. `plugin`/`user`, so
-    drwn does **not** classify; **SA** decides which are skills.
-  - **Anchor (hard contract):** `tool_use_id` for tool markers (Pre/Post/Failure share it,
-    correlating to transcript `tool_use`/`tool_result`). No `seq`. `slash_expansion` has no
-    `tool_use_id`; it correlates via `session_id` + `transcript_basename` + `command_name`.
-  - **Fixtures (required before shipping):** capture real payloads to confirm the built-in
-    `Skill` `tool_name`/`tool_input` shape, the PostToolUseFailure shape, and the
-    UserPromptExpansion fields (`expansion_type`/`command_source`/`command_name`/`command_args`).
+- **`drwn hook skill-marker`** ← `PreToolUse`/`PostToolUse`/`PostToolUseFailure` (matcher
+  `Skill`) + `UserPromptExpansion`:
+  - `skill_invocation` (Pre): `skill` (from `tool_input`), `tool_name`, `tool_use_id`.
+  - `skill_result` (Post): `tool_use_id`, `tool_name` (+ `skill` if cheap).
+  - `skill_failure` (PostFailure): `tool_use_id`, `tool_name` (+ `skill` if cheap).
+  - `slash_expansion` (Expansion): **raw** — `command_name`, `command_source`, `command_args`
+    (no drwn `skill`; SA classifies, since `expansion_type` is `slash_command` for skills AND
+    custom commands and `command_source` is e.g. `plugin`/`user`).
+  - **Anchor:** `tool_use_id` (hard contract) for tool markers; `slash_expansion` correlates
+    via `session_id` + `transcript_basename` + `command_name`.
+  - **Fixtures (required before shipping):** capture real `Skill` Pre/Post/**PostToolUseFailure**
+    payloads (confirm `tool_name`/`tool_input`) and a real `UserPromptExpansion` payload.
 
 ### Layer 3 — Signal sink + transport
 
-- **Sink path:** `${dirname(transcript_path)}/${session_id}.drwn-signals.jsonl`. Fallback
-  when `transcript_path` is absent **or the store/dir is unwritable**:
-  `~/.agents/drwn/signals/${session_id}.drwn-signals.jsonl` — and if that store path is
-  read-only/unwritable (per `store-paths` read-only rules,
-  `.ai/knowledges/10_drwn-cli-architecture.md:27`), **skip silently**.
-- **`--include-signals` plumbing (default off):**
-  - Add `--include-signals` to `ExportSessionsCommand` (today only `--dry-run/--out/--gzip`,
-    `export/sessions.ts:31-39`) **and** `AnalyzeSessionsCommand`; thread an `includeSignals`
-    option into `runInlineExport` (today no options, `inline-export.ts:26`) and the
-    discovery/archive helpers. `--dry-run` prints the signal files that would be added under
-    `signals/` (and notes the DHS requirement).
-- **Discovery & exclusion:** `discoverClaudeSessions` (maps `.jsonl`→`claude/<basename>`,
-  `session-discovery.ts:91,150`) must **exclude `*.drwn-signals.jsonl`** from `claude/`
-  always. Under `--include-signals`, a separate signal discovery returns them.
-- **Collision-proof archive layout:** signal sidecars can share a basename across main /
-  `agents/` / worktrees. Archive each as
-  `signals/<sha8(abs dirname of source)>/<session_id>.drwn-signals.jsonl` (dir-digest
-  prefix guarantees uniqueness). `ALLOWED_PREFIXES` gains `signals/` (`archiver.ts:9`);
-  **`validateArchiveMembers` expected count must include signals when on, exclude when off**
-  (`archiver.ts:32,57`).
-- **DHS protection (gates rollout):** `signals/*.jsonl` would be counted as session logs
-  (`archive-entry.ts:1-9`) → `too_many_session_logs`. DHS must exclude `signals/` from
-  counting and parse separately. Until then `--include-signals` stays off. **Compatibility
-  gap:** a user passing `drwn analyze sessions --archive some.tar.gz` that already contains
-  `signals/*.jsonl` would still hit the old DHS gate — document that manually supplied
-  archives with `signals/` require the DHS follow-up.
+- **Sink:** `${dirname(transcript_path)}/${session_id}.drwn-signals.jsonl`. Writing the
+  debug file under `~/.agents/drwn/` respects store read-only rules (skip silently if
+  read-only); the debug file is **size-capped with rotation**.
+- **`--include-signals` (default off):** add the flag to `ExportSessionsCommand` (today only
+  `--dry-run/--out/--gzip`, `export/sessions.ts:31-39`) **and** `AnalyzeSessionsCommand`;
+  thread `includeSignals` into `runInlineExport` (today no options, `inline-export.ts:26`) and
+  discovery/archive. `--dry-run` lists the signal files that would be added and notes the DHS
+  requirement. **With an explicit `--archive`** there is nothing to add → `--include-signals`
+  is **ignored with a warning**.
+- **Exclusion + layout:** `discoverClaudeSessions` (maps `.jsonl`→`claude/<basename>`,
+  `session-discovery.ts:91,150`) always **excludes `*.drwn-signals.jsonl`** from `claude/`.
+  Under the flag, archive each signal file as
+  `signals/<sha16(abs dirname)>/<session_id>.drwn-signals.jsonl`. `ALLOWED_PREFIXES` gains
+  `signals/` and the **error text** updates from "outside claude/codex namespace"
+  (`archiver.ts:52`) to include `signals/`; `validateArchiveMembers` expected count includes
+  signals when on, excludes when off. sha16 is **collision-resistant, not guaranteed** —
+  detect a same-target collision and **error before archive write**.
 
 ### Layer 4 — Default card + bootstrap delivery (DEFERRED / OUT OF SCOPE)
-
-Packaging into `@curation-labs/session-signals` and choosing delivery (packaged default vs
-catalog vs new init/apply) is deferred; `drwn init` does not apply cards today
-(`init.ts:74,98`).
 
 ## 4. Data flow
 
 ```
-User prompt ─────────────► UserPromptSubmit ─────► wrapper → drwn hook card-usage (card.lock|config.cards)
-/slash skill ────────────► UserPromptExpansion ──► wrapper → drwn hook skill-marker (raw slash_expansion)
-Skill tool (model) ──────► PreToolUse:Skill ─────► wrapper → drwn hook skill-marker (pre)
-                         ├► PostToolUse:Skill ────► wrapper → drwn hook skill-marker (post)
-                         └► PostToolUseFailure ───► wrapper → drwn hook skill-marker (fail)
-                                                       │
-                            <session_id>.drwn-signals.jsonl  (append-only, co-located)
-                                                       │
-                 export / analyze --fresh  (excluded from claude/; signals/<dir-hash>/ behind --include-signals)
-                                                       │
-                          drwn analyze sessions ─► DRWN_ANALYZER_URL
-                                                       │
-                  ┌─────────────────────────────────────┴───────────────────────────┐
-                  ▼                                                                   ▼
-          DHS (parse signals/ separately;                              SA (mount sidecar; tool_use_id anchors;
-           card_usage → session↔card)                                  classify slash_expansion itself)
+User prompt ─────────► UserPromptSubmit ─────► wrapper → drwn hook card-usage (requires card.lock)
+/slash skill ────────► UserPromptExpansion ──► wrapper → skill-marker (raw slash_expansion)
+Skill tool ──────────► PreToolUse:Skill ─────► wrapper → skill-marker (pre)
+            ├────────► PostToolUse:Skill ────► wrapper → skill-marker (post)
+            └────────► PostToolUseFailure ───► wrapper → skill-marker (fail)
+                                                  │
+                       <session_id>.drwn-signals.jsonl  (append-only, co-located)
+                                                  │
+        export / analyze --fresh  (excluded from claude/; signals/<sha16(dir)>/ behind --include-signals)
+                                                  │
+                     drwn analyze sessions ─► DRWN_ANALYZER_URL
+                                                  │
+              ┌─────────────────────────────────────┴──────────────────────────┐
+              ▼                                                                  ▼
+      DHS (skip signals/ BEFORE the count gate; parse separately;     SA (mount sidecar; tool_use_id anchors;
+       card_usage → session↔card)                                      classify slash_expansion itself)
 ```
 
-## 5. Signal contract (stable; consumed by DHS and SA)
-
-One JSON object per line; `type` discriminator; ISO-8601 UTC `ts`. Markers are flags
-(identifiers only), not payloads. `tool_use_id` is required for tool markers only.
+## 5. Signal contract (stable, versioned)
 
 ```jsonc
-// card-usage (UserPromptSubmit) — write-on-change
-{ "type":"card_usage", "session_id":"abc", "ts":"…", "cwd":"/proj",
-  "transcript_basename":"<file>.jsonl", "agent_id":"…?", "agent_type":"…?",
+{ "schema_version":1, "type":"card_usage", "hook_event_name":"UserPromptSubmit",
+  "session_id":"abc", "ts":"…", "cwd":"/proj", "transcript_basename":"f.jsonl",
+  "source_dir_hash":"ab12cd34ef567890", "agent_id":"…?", "agent_type":"…?",
   "cards":[ { "name":"@curation-labs/improve", "version":"1.2.3" } ] }
 
-// slash_expansion (UserPromptExpansion) — RAW; SA classifies (no drwn `skill`)
-{ "type":"slash_expansion", "session_id":"abc", "ts":"…", "transcript_basename":"<file>.jsonl",
-  "command_name":"brainstorming", "command_source":"plugin", "command_args":"…",
-  "agent_id":"…?", "agent_type":"…?" }
+{ "schema_version":1, "type":"slash_expansion", "hook_event_name":"UserPromptExpansion",
+  "session_id":"abc", "ts":"…", "transcript_basename":"f.jsonl", "source_dir_hash":"…",
+  "command_name":"brainstorming", "command_source":"plugin", "command_args":"…" }
 
-// skill_invocation (PreToolUse Skill) — input anchor
-{ "type":"skill_invocation", "session_id":"abc", "ts":"…", "transcript_basename":"<file>.jsonl",
-  "skill":"superpowers:brainstorming", "tool_use_id":"toolu_…", "tool_name":"Skill",
-  "agent_id":"…?", "agent_type":"…?" }
+{ "schema_version":1, "type":"skill_invocation", "hook_event_name":"PreToolUse",
+  "session_id":"abc", "ts":"…", "transcript_basename":"f.jsonl", "source_dir_hash":"…",
+  "skill":"superpowers:brainstorming", "tool_name":"Skill", "tool_use_id":"toolu_…" }
 
-// skill_result (PostToolUse Skill) — output anchor (pure flag)
-{ "type":"skill_result", "session_id":"abc", "ts":"…", "transcript_basename":"<file>.jsonl",
-  "tool_use_id":"toolu_…" }
+{ "schema_version":1, "type":"skill_result", "hook_event_name":"PostToolUse",
+  "session_id":"abc", "ts":"…", "transcript_basename":"f.jsonl", "source_dir_hash":"…",
+  "tool_name":"Skill", "tool_use_id":"toolu_…" }
 
-// skill_failure (PostToolUseFailure Skill) — failed-run anchor
-{ "type":"skill_failure", "session_id":"abc", "ts":"…", "transcript_basename":"<file>.jsonl",
-  "tool_use_id":"toolu_…" }
+{ "schema_version":1, "type":"skill_failure", "hook_event_name":"PostToolUseFailure",
+  "session_id":"abc", "ts":"…", "transcript_basename":"f.jsonl", "source_dir_hash":"…",
+  "tool_name":"Skill", "tool_use_id":"toolu_…" }
 ```
 
-- **DHS** keys on `session_id` + distinct `cards` union (read as `ts` intervals) →
-  session↔card mapping. **Required:** exclude `signals/` from session-log counting and
-  parse separately (`archive-entry.ts`, `archive-ingest.ts`, `consumer.ts`).
+- **DHS** keys on `session_id` + distinct `cards` union (read as `ts` intervals). **Required:**
+  skip `signals/` **before** `jsonlEntries.push`/the `>50` gate (`archive-ingest.ts:43-48`),
+  not merely before parse; then parse them separately. Be blunt in docs: enabling
+  `--include-signals` against a current DHS **breaks ingestion**.
 - **SA** picks the transcript by `session_id` + `transcript_basename` (+ `agent_id` for
-  subagents); uses `tool_use_id` to locate `tool_use`/`tool_result`; classifies
-  `slash_expansion` itself via `command_name`/`command_source`. **Required SA changes:**
-  mount the sidecar at `/workspace/logs/session.drwn-signals.jsonl` alongside
-  `/workspace/logs/session.jsonl` (`index.ts:30,67`); update the extractor /
-  `task-template.ts` to read the flags + anchored blocks.
+  subagents; `source_dir_hash` disambiguates worktrees); `tool_use_id` locates
+  `tool_use`/`tool_result`; classifies `slash_expansion` itself. **Required:** mount the
+  sidecar at `/workspace/logs/session.drwn-signals.jsonl` alongside the session log
+  (`index.ts:30,67`); update the extractor/`task-template.ts`.
 
 ## 6. Error handling & robustness
 
-- Subcommands **always exit 0**; errors swallowed; never block the agent.
-- **Silence contract:** no stdout/stderr on success or swallowed failure. The hidden hook
-  commands must bypass pre-dispatch noise — `cli/index.ts:199-206` runs `validateRepoRoot`
-  and writes errors/legacy warnings to stderr before dispatch; the **wrapper sets the
-  required env** (e.g. `AGENTS_REPO_ROOT`) and redirects stderr so validation can't print,
-  and the hook path itself avoids store/legacy checks. Diagnostics go only to a
-  **size-capped** debug file under `~/.agents/drwn/` (skip if the store is read-only).
-- Missing/malformed stdin or absent `transcript_path` → fallback sink or skip.
-- Local file I/O only; small `card.lock` read; write-on-change dedup; target < 50 ms;
-  single-line `O_APPEND`. Explicit low hook `timeout` (≈5 s) bounds a hung process
-  (Claude's default is 30 s for UserPromptSubmit, ~600 s for command hooks).
+- Subcommands **always exit 0**; never block the agent.
+- **Silence contract:** the **wrapper redirects both stdout and stderr to /dev/null**
+  around the `exec`, and sets `AGENTS_REPO_ROOT` + `AGENTS_HOME_DIR` + `AGENTS_DIR` so
+  `cli/index.ts:199-206` (pre-dispatch `validateRepoRoot` + stderr writes) cannot print or
+  fail noisily. Hook subcommands also avoid store/legacy checks. Diagnostics → size-capped,
+  rotated debug file under `~/.agents/drwn/` (skip if store read-only).
+- Missing/malformed stdin or absent `transcript_path` → skip silently.
+- Local I/O only; write-on-change; target < 50 ms; single-line `O_APPEND`; explicit low hook
+  `timeout` (~5 s) bounds a hang (Claude defaults: 30 s UserPromptSubmit, ~600 s command).
 
 ## 7. Safety & command resolution
 
-Command hooks run with full user permissions.
-
-- **Wrapper script:** `drwn write` writes a managed, executable wrapper at
-  `<project>/.claude/hooks/drwn-hook`. Rendered hooks point at the wrapper (always present,
-  so Claude never fails to spawn). The wrapper: checks the recorded `drwn` invocation
-  exists → if missing, `exit 0` silently (this is why the no-op guarantee needs a wrapper —
-  pointing `command` straight at a missing binary fails at Claude's spawn, before drwn
-  runs); sets env to silence pre-dispatch; `exec`s the resolved invocation.
-- **`<drwn>` resolution cases** (recorded into the wrapper at `drwn write`; re-resolved and
-  rewritten on the next `write` if it moved):
-  | Install | Rendered invocation |
+- **Card-hook gate:** card-contributed hooks are **default-deny**; materialized only when the
+  project sets `hooksAllowFromCards` (`true` or an id list). Project-authored hooks are
+  trusted. `enabled:false`/`hooksDisable` suppress any hook. The changeset prints every hook
+  command and flags card hooks that were skipped for lacking opt-in.
+- **Wrapper** at `<project>/.claude/hooks/drwn-hook` (managed-file, `0755`): always present
+  (so Claude never fails to spawn); records the resolved `drwn` invocation; **no-ops `exit 0`**
+  if the target is missing.
+  | Install | Invocation recorded in wrapper |
   |---|---|
-  | Packaged binary | absolute path to the `drwn` executable |
-  | npm shim | absolute path to the npm bin shim |
-  | Homebrew shim | absolute path to the brew bin shim |
-  | Dev checkout | `bun <repo>/cli/index.ts` (since `process.execPath` is the Bun runtime, not `drwn`) |
-  POSIX `sh` wrapper for macOS/Linux; Windows (`.ps1`) is future work.
-- Verify the invocation at `drwn write`; test PATH-missing / moved-binary / hung-hook.
-- The changeset prints every hook command (`+ hook <id>: <event> → <command>`); docs note
-  hooks execute code. First-adoption guard prevents clobbering user hooks; `--force` = replace.
+  | Packaged binary | absolute path to `drwn` |
+  | npm shim | absolute npm bin shim path |
+  | Homebrew shim | absolute brew bin shim path |
+  | Dev checkout | `bun <repo>/cli/index.ts` (`process.execPath` is Bun, not drwn) |
+  POSIX `sh` (macOS/Linux); Windows `.ps1` is future work. Re-resolve + rewrite on next
+  `write` if it moved; wrapper first-adoption guard protects a pre-existing file.
+- A recorded-approval ledger for card hooks is future work (default-deny covers MVP).
 
 ## 8. Testing
 
-- **Unit:** renderer (all five events + timeout + wrapper path); merge of `hooks`;
-  hook-scoped validation (events, matcher table, unknown-key rejection inside `hooks.<id>`
-  only); managed-fields drift on `hooks`; **first-adoption guard** (refuse w/o `--force`;
-  `--force` replaces + records hash); subcommands via stdin fixtures — card-usage
-  write-on-change finding the **last `card_usage` line in a mixed sidecar**, no-lock
-  fallback to `config.cards` then skip; `skill_invocation`/`result`/`failure` carry
-  `tool_use_id`; raw `slash_expansion` (non-skill `/foo` still emitted raw, not classified);
-  `transcript_basename` + `agent_id`/`agent_type` propagation; **silence contract** (no
-  stdout/stderr, incl. pre-dispatch); **debug-file size cap/rotation** + malformed/large
-  stdin; read-only-store skip.
-- **Export + analyze:** sidecar excluded from `claude/` in `export sessions` and
-  `analyze sessions --fresh`; `--include-signals` adds them under `signals/<dir-hash>/`;
-  collision case (same basename in `agents/` + main) stays distinct; `validateArchiveMembers`
-  expected count includes signals when on, excludes when off (`test/core-archiver.test.ts`).
-- **Integration:** apply a card with hooks → `drwn write` → assert `.claude/settings.json`
-  `hooks` + `_drwn` meta + wrapper written + idempotent re-write; moved-`drwn` rewrite.
-- **Docs:** `CardManifest` + `card-manifest.md`; `materialization.md` (managed fields now
-  `mcpServers`+`hooks`); `write-record-json.md`; `export.md`/`analyze.md`
-  (`signals/`, `--include-signals`); `write.md` (hook changeset, first-adoption guard,
-  troubleshooting “hooks path moved → rerun `drwn write`”).
+- **Unit:** renderer (5 events, timeout, `${CLAUDE_PROJECT_DIR}` path); merge+**card-hook
+  gating** (denied by default; allowed via `hooksAllowFromCards` true/id-list; `enabled:false`
+  + `hooksDisable` suppression); hook-scoped validation + matcher table; managed-fields drift;
+  **conditional ownership** (no-active-hooks leaves existing user `hooks` untouched;
+  previously-owned→removed clears key + wrapper); first-adoption guard for **key and wrapper**;
+  malformed `.claude/settings.json` (loud for `write`, silent for hook subcommands — they don't
+  parse settings); wrapper mode `0755`; subcommands via stdin fixtures (card-usage
+  write-on-change finding last `card_usage` in a mixed sidecar; require-lock skip; all skill
+  phases incl. failure; raw slash; `schema_version`/`hook_event_name`/`source_dir_hash`/
+  `agent_*` propagation); silence contract incl. pre-dispatch; debug-file cap/rotation;
+  read-only-store skip.
+- **Export + analyze:** exclusion from `claude/` in `export` and `analyze --fresh`;
+  `--include-signals` adds `signals/<sha16>/…`; **collision** (same basename in `agents/` +
+  main) stays distinct + collision-detection errors; `validateArchiveMembers` count
+  on/off + updated error text; `--archive` + `--include-signals` warns + ignores.
+- **Integration:** apply card-with-hooks (+ opt-in) → `drwn write` → assert `hooks` +
+  `_drwn` meta + wrapper(0755) + idempotent re-write; **no-active-hooks** project leaves user
+  hooks intact; **hooks-removed** clears key + wrapper; moved-`drwn` rewrite.
+- **Docs:** `card-manifest.md` (`hooks`); `materialization.md` (managed fields now
+  `mcpServers`+`hooks`); `write-record-json.md` (new `managed-file` variant + hooks);
+  `export.md`/`analyze.md` (`signals/`, `--include-signals`, `--archive` interaction);
+  `write.md` (hook changeset, first-adoption guard, **card-hook gate**, troubleshooting
+  "hooks path moved → rerun `drwn write`").
 
 ## 9. Scope boundaries
 
-**In scope:** generic hooks mechanism (types, validation, full data path through
-merge→effective-state→writer with first-adoption `--force` replace, wrapper write, sync
-wiring); the `drwn hook` subcommands; the signal contract (§5); export/analyze
-`--include-signals` (default off) with `claude/` exclusion + collision-proof `signals/`;
-tests + docs.
+**In scope:** generic hooks mechanism (types, validation, merge+gating, conditional-ownership
+writer, managed-file wrapper, sync wiring, `--mcp-only` writes / `--skills-only` skips); the
+`drwn hook` subcommands; the signal contract (§5); `--include-signals` (default off) on
+export+analyze with `claude/` exclusion + collision-checked `signals/`; tests + docs.
 
-**Out of scope:**
-- **Default card + bootstrap delivery** — deferred.
-- **DHS:** exclude/parse `signals/` separately + session↔card storage + filter-by-card UI;
-  also note the manual `--archive`-containing-`signals/` compatibility gap.
-- **SA:** mount the sidecar + update the extractor (`index.ts`, `task-template.ts`) to
-  follow flags and **classify `slash_expansion`**.
-- **drwn:** Codex hooks writer; richer Claude hook schema (non-command types/options/more
-  events); `--adopt` import; Windows wrapper; third-party hook approval ledger.
+**Out of scope:** default card + bootstrap delivery; **DHS** (skip `signals/` before the count
+gate + parse separately; session↔card storage + UI; manual `--archive` gap); **SA** (mount
+sidecar + extractor update + classify slash); Codex hooks writer; richer hook schema
+(non-command types/options/more events); `--adopt` import; Windows wrapper; card-hook approval
+ledger.
 
 ## 9a. Risks & mitigation
 
 | Risk | Mitigation |
 |---|---|
-| Hook latency / hung process | Local I/O; < 50 ms target; explicit low `timeout` (~5 s). |
-| Hook failure blocks the agent | Always exit 0; wrapper no-ops if drwn missing. |
-| stdout/stderr pollutes context (incl. pre-dispatch) | Silence contract; wrapper sets env + redirects; diagnostics to capped debug file. |
-| First write clobbers user `hooks` | Adoption guard; `--force` = replace + own. |
-| Sidecar exported as a session log | Exclude `*.drwn-signals.jsonl` from `claude/` in export **and** analyze inline. |
-| Signal basename collisions in archive | `signals/<sha8(dir)>/…` layout; tests for `agents/` vs main. |
-| Signals counted as DHS session logs | `--include-signals` default off until DHS handles `signals/`; document manual-archive gap. |
-| Slash misclassification (skills vs custom cmds vs plugin) | Emit raw `slash_expansion`; SA classifies; no fragile drwn filter. |
-| `Skill` tool name / payload shape unverified | Required real-payload fixtures before shipping. |
-| `<drwn>` path moves / Bun execPath | Wrapper records resolved invocation per install case; re-resolve on next write; no-op if missing. |
-| Store read-only when writing fallback/debug | Respect store read-only rules; skip silently. |
+| Card hook = arbitrary code on `drwn write` | Default-deny; project opt-in; changeset prints commands; `enabled:false`/`hooksDisable`. |
+| Hijacking user-authored `hooks` in a no-drwn-hooks project | Conditional ownership: never write `hooks:{}`; first-adoption guard on key + wrapper. |
+| Wrapper file overwrites a user file / not executable | Managed-file record + guard; assert `0755`. |
+| Hook latency / hang | Local I/O; < 50 ms; explicit low `timeout`. |
+| stdout/stderr pollutes context (incl. pre-dispatch) | Wrapper redirects both to /dev/null + sets all three AGENTS_* envs. |
+| Sidecar exported as a session log | Exclude from `claude/` in export + analyze; `--include-signals` off until DHS handles `signals/`. |
+| Archive basename collisions | `signals/<sha16(dir)>/…` + pre-write collision detection; `source_dir_hash` in records. |
+| Slash misclassification | Raw `slash_expansion`; SA classifies. |
+| `Skill`/PostToolUseFailure payload shapes unverified | Required real-payload fixtures. |
+| `<drwn>` moves / Bun execPath | Wrapper records invocation per install; re-resolve on next write; no-op if missing. |
+| card-usage with no `card.lock` | Skip silently (no range/URL resolution on the hot path). |
 
-## 10. Open questions for review
+## 10. Open questions
 
-1. Sidecar naming `<session_id>.drwn-signals.jsonl` + `signals/<sha8(dir)>/` layout —
-   confirm acceptable (export now excludes the file from `claude/`).
-2. ~~Skill coverage~~ all skills incl. `/slash` and failures. ~~`skill_result`~~ pure flag.
-   ~~`--force`~~ replace. ~~Default card~~ out of scope. ~~Slash classification~~ raw + SA.
-   ~~Failures~~ `skill_failure` via PostToolUseFailure.
+1. ~~Sidecar naming/layout~~ **Decided:** `<session_id>.drwn-signals.jsonl` co-located;
+   archived at `signals/<sha16(abs dirname)>/…` with pre-write collision detection; records
+   carry `source_dir_hash`.
+2. All prior questions resolved (skill coverage incl. `/slash`+failures, raw slash + SA
+   classification, `tool_use_id` anchor, pure-flag results, `--force`=replace, default-deny
+   card hooks, default-card delivery deferred).
