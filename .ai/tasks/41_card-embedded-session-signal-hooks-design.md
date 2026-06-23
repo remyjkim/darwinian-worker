@@ -48,8 +48,10 @@ anywhere. The Claude writer manages only `mcpServers` (`cli/core/mcp.ts:75-97`).
       (idempotent re-write; refuses to clobber user edits without `--force`).
 - [ ] `drwn hook card-usage` appends a `card_usage` signal on the first prompt and on
       every active-card-set change (not every turn), and never errors the agent.
-- [ ] `drwn hook skill-marker` appends a `skill_invocation` signal for every Skill-tool
-      trigger, including non-`/slash`, model-invoked skills.
+- [ ] `drwn hook skill-marker` appends a `skill_invocation` (PreToolUse) and
+      `skill_result` (PostToolUse) flag for every Skill-tool trigger — including
+      non-`/slash`, model-invoked skills — each carrying `skill` + monotonic `seq` so
+      SA can anchor to the transcript `tool_use`/`tool_result` blocks.
 - [ ] `drwn export sessions` bundles `*.drwn-signals.jsonl` under a `signals/` namespace.
 - [ ] A default `session-signals` card carries both hooks and is included in bootstrap.
 - [ ] Signal lines conform to the §5 contract and are consumable by DHS and SA.
@@ -176,9 +178,20 @@ event-specific fields):
   is active from `ts₁` until the next `card_usage` line at `ts₂`. This captures
   mid-session card switches while keeping the sidecar small, and lets DHS attribute
   any turn to a card set by checking which interval its timestamp falls in.
-- **`drwn hook skill-marker`** ← `PreToolUse` matcher `Skill`. Reads
-  `tool_input.skill`, appends a `skill_invocation` signal with a timestamp. Captures
-  every Skill-tool trigger including non-`/slash`, model-invoked ones.
+- **`drwn hook skill-marker`** ← `PreToolUse` **and** `PostToolUse`, both matcher
+  `Skill`. The signal is a **positional anchor (a labeled flag), not the skill's
+  content** — it marks *where* a skill fired so SA can jump to the transcript's
+  `tool_use`/`tool_result` blocks, which hold the actual input/output.
+  - On `PreToolUse`: read `tool_input` (the skill identifier + args = the **input**
+    anchor), append a `skill_invocation` line.
+  - On `PostToolUse`: read `tool_output` (the **output** anchor), append a
+    `skill_result` line.
+  - Each line carries a per-session monotonic `seq` (the hook counts existing marker
+    lines for the session). Pre/Post are paired by `(skill, seq)`. This is necessary
+    because Claude's hook payload exposes **no `tool_use_id`** (confirmed against the
+    docs), so `ts` alone is a fuzzy key — `seq` + `skill` gives a stable anchor even
+    when two invocations of the same skill happen close together.
+  - Captures every Skill-tool trigger including non-`/slash`, model-invoked ones.
 
 ### Layer 3 — Signal sink + transport
 
@@ -237,15 +250,31 @@ discriminator. All timestamps are ISO-8601 UTC.
   "cards": [ { "name": "@curation-labs/improve", "version": "1.2.3" } ]
 }
 
-// Emitted by `drwn hook skill-marker` (PreToolUse matcher Skill)
+// Emitted by `drwn hook skill-marker` (PreToolUse matcher Skill) — INPUT anchor
 {
   "type": "skill_invocation",
   "session_id": "abc123",
+  "seq": 3,
   "ts": "2026-06-23T14:31:02.880Z",
   "skill": "superpowers:brainstorming",
+  "tool_input": { "skill": "superpowers:brainstorming" },
   "source": "tool_use"
 }
+
+// Emitted by `drwn hook skill-marker` (PostToolUse matcher Skill) — OUTPUT anchor
+{
+  "type": "skill_result",
+  "session_id": "abc123",
+  "seq": 3,
+  "ts": "2026-06-23T14:31:09.512Z",
+  "skill": "superpowers:brainstorming"
+}
 ```
+
+> **The marker is a flag, not the payload.** `skill_invocation`/`skill_result` mark
+> *position and identity* (`skill` + `seq` + `ts`). The actual input/output/outcome is
+> extracted by SA from the transcript's `tool_use` (input) and `tool_result` (output)
+> blocks, anchored by these flags. SA pairs Pre/Post by `(session_id, skill, seq)`.
 
 - **DHS** keys on `session_id` (matching `event.sessionId` it already parses) and the
   distinct union of `cards` across the session's `card_usage` lines to populate a
@@ -253,8 +282,15 @@ discriminator. All timestamps are ISO-8601 UTC.
   Card-usage lines are emitted **on change only** (see Layer 2), so a session with a
   stable card set has exactly one line, and a mid-session switch adds one line per
   change; DHS treats consecutive lines as time intervals via `ts`.
-- **SA** keys on `session_id` + `ts` (+ optional `skill`) to anchor skill windows in
-  the transcript, closing the non-`/slash` detection gap in its log digest.
+- **SA** uses the `skill_invocation`/`skill_result` flags as **anchors** into the
+  transcript: it locates the Skill `tool_use` block (input) and `tool_result` block
+  (output) near each flag, pairs Pre/Post by `(session_id, skill, seq)`, and runs its
+  usual window extraction. This closes the non-`/slash` detection gap and removes
+  reliance on fuzzy `ts` matching. **Required SA-side change:** its extractor currently
+  does text-regex detection and *ignores `tool_use` block names*
+  (`workers/skill-inout-extractor/src/log-digest.ts:17-20`) — it must be taught to read
+  the Skill `tool_use`/`tool_result` blocks the flags point at. The flag alone never
+  carries the input/output; SA's transcript reading does.
 
 ---
 
@@ -310,7 +346,9 @@ enhancement, explicitly out of scope here.
 **Out of scope (specified here for follow-up PRs in the other repos):**
 - **DHS:** session↔card storage + "filter by card" query/UI, reading `card_usage`
   from the `signals/` namespace.
-- **SA:** extractor change to read `skill_invocation` markers and anchor skills.
+- **SA:** extractor change to follow `skill_invocation`/`skill_result` flags, read the
+  Skill `tool_use`/`tool_result` blocks they anchor (it currently ignores `tool_use`
+  names), and pair Pre/Post by `(session_id, skill, seq)`.
 - **drwn:** Codex hooks writer (later; the renderer/types are designed to extend).
 - A recorded-approval trust ledger for third-party card hooks.
 
@@ -326,6 +364,8 @@ enhancement, explicitly out of scope here.
 | Signals mistaken for session events by JSONL parsers | Signals live in their own `signals/` archive namespace, not `claude/`/`codex/`. |
 | Third-party card ships a malicious hook command | Generic mechanism prints every hook command in the `drwn write` changeset; recorded-approval ledger noted as future work. |
 | `drwn` not on PATH where the hook runs | Hook command resolution validated at bootstrap; document the requirement. |
+| No `tool_use_id` in hook payload → can't cleanly correlate flags to transcript | Anchor on `(session_id, skill, seq, ts)` with `seq` a per-session monotonic counter; SA pairs Pre/Post and locates the nearest matching `tool_use`/`tool_result`. |
+| Subagent skill invocations interleave `seq` | Hook records `agent_id`/`agent_type` when present (available in subagent hook context) to scope ordering. |
 
 ## 10. Open questions for review
 
