@@ -1,9 +1,12 @@
+# ABOUTME: Design spec for card-embedded Claude Code hooks that emit session signals.
+# ABOUTME: Covers the generic hooks-in-cards mechanism, two drwn hook subcommands, and the signal contract for DHS/SA.
+
 # Task 41: Card-Embedded Session-Signal Hooks (Design)
 
 > **For Claude:** This is a DESIGN / SPEC document produced via `superpowers:brainstorming`.
 > The implementation plan is a separate follow-up produced via `superpowers:writing-plans`.
 
-**Status**: Design — awaiting review before planning
+**Status**: In Review
 **Created**: 2026-06-23
 **Updated**: 2026-06-23
 **Assigned**: Unassigned
@@ -36,6 +39,21 @@ Today "hooks" is a **declared-but-unimplemented** concept: `ExtensionMode` lists
 anywhere. The Claude writer manages only `mcpServers` (`cli/core/mcp.ts:75-97`).
 
 ---
+
+## 1a. Success criteria
+
+- [ ] A card manifest and project config can declare `hooks`; `drwn write` materializes
+      them into the project-local `.claude/settings.json` `hooks` block.
+- [ ] The `hooks` key is managed-fields drift-guarded exactly like `mcpServers`
+      (idempotent re-write; refuses to clobber user edits without `--force`).
+- [ ] `drwn hook card-usage` appends a `card_usage` signal on the first prompt and on
+      every active-card-set change (not every turn), and never errors the agent.
+- [ ] `drwn hook skill-marker` appends a `skill_invocation` signal for every Skill-tool
+      trigger, including non-`/slash`, model-invoked skills.
+- [ ] `drwn export sessions` bundles `*.drwn-signals.jsonl` under a `signals/` namespace.
+- [ ] A default `session-signals` card carries both hooks and is included in bootstrap.
+- [ ] Signal lines conform to the §5 contract and are consumable by DHS and SA.
+- [ ] Unit + integration tests (§8) pass; docs updated.
 
 ## 2. Background — why this shape
 
@@ -297,6 +315,17 @@ enhancement, explicitly out of scope here.
 - A recorded-approval trust ledger for third-party card hooks.
 
 ---
+
+## 9a. Risks & mitigation
+
+| Risk | Mitigation |
+|---|---|
+| Hook latency on the hot loop (every prompt/skill) | Logic is local file I/O only; fast `card.lock` read; write-on-change dedup; target < 50 ms. |
+| Hook failure blocks or aborts the agent | Both subcommands always exit 0; errors swallowed best-effort. |
+| drwn owns the whole `hooks` key, clobbering user hand-edits | Managed-fields drift detection refuses to overwrite without `--force`; users move edits into `config.json` (same contract as `mcpServers`). |
+| Signals mistaken for session events by JSONL parsers | Signals live in their own `signals/` archive namespace, not `claude/`/`codex/`. |
+| Third-party card ships a malicious hook command | Generic mechanism prints every hook command in the `drwn write` changeset; recorded-approval ledger noted as future work. |
+| `drwn` not on PATH where the hook runs | Hook command resolution validated at bootstrap; document the requirement. |
 
 ## 10. Open questions for review
 
