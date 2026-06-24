@@ -35,7 +35,7 @@ describe("mergeClaudeSettingsText hooks", () => {
       { context7: server },
       { hooks },
     );
-    const parsed = JSON.parse(merged);
+    const parsed = JSON.parse(merged.text);
 
     expect(parsed.model).toBe("sonnet");
     expect(parsed.mcpServers.context7.command).toBe("npx");
@@ -47,8 +47,8 @@ describe("mergeClaudeSettingsText hooks", () => {
 
   test("removes previously managed hooks when no hooks are desired", () => {
     const withHooks = mergeClaudeSettingsText("{}", { context7: server }, { hooks });
-    const withoutHooks = mergeClaudeSettingsText(withHooks, { context7: server });
-    const parsed = JSON.parse(withoutHooks);
+    const withoutHooks = mergeClaudeSettingsText(withHooks.text, { context7: server });
+    const parsed = JSON.parse(withoutHooks.text);
 
     expect(parsed.hooks).toBeUndefined();
     expect(parsed._drwn.managedKeys).toEqual(["mcpServers", "hooks"]);
@@ -57,7 +57,7 @@ describe("mergeClaudeSettingsText hooks", () => {
 
   test("refuses managed hook drift unless forced", () => {
     const merged = mergeClaudeSettingsText("{}", { context7: server }, { hooks });
-    const edited = JSON.parse(merged);
+    const edited = JSON.parse(merged.text);
     edited.hooks.PreToolUse[0].matcher = ".*";
     const editedText = `${JSON.stringify(edited, null, 2)}\n`;
 

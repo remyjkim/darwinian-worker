@@ -44,7 +44,7 @@ describe("drwn write", () => {
 
     const target = await runAgentsCli(["write", "--dry-run", "--target=claude"], env);
     expect(target.exitCode).toBe(0);
-    expect(target.stdout).toContain("settings.json");
+    expect(target.stdout).toContain(".claude.json");
     expect(target.stdout).not.toContain("config.toml");
 
     const mcpOnly = await runAgentsCli(["write", "--dry-run", "--mcp-only"], env);
@@ -163,7 +163,7 @@ describe("drwn write", () => {
     });
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("settings.json");
+    expect(result.stdout).toContain(".claude.json");
   });
 
   test("project-enabled user library MCP servers render during write", async () => {
@@ -196,8 +196,8 @@ describe("drwn write", () => {
     }, projectDir);
 
     expect(result.exitCode).toBe(0);
-    const settings = JSON.parse(await readFile(join(projectDir, ".claude", "settings.json"), "utf8")) as { mcpServers?: Record<string, { command?: string }> };
-    expect(settings.mcpServers?.github?.command).toBe("npx");
+    const claudeMcp = JSON.parse(await readFile(join(projectDir, ".mcp.json"), "utf8")) as { mcpServers?: Record<string, { command?: string }> };
+    expect(claudeMcp.mcpServers?.github?.command).toBe("npx");
   });
 
   test("write --dry-run annotates symlink intents with their winning layer", async () => {

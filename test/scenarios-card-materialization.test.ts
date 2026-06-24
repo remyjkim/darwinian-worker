@@ -39,6 +39,6 @@ test("project write materializes skills and servers introduced by cards", async 
   expect(write.exitCode).toBe(0);
   expect(existsSync(join(projectDir, ".claude", "skills", "alpha"))).toBe(true);
   expect(readlinkSync(join(projectDir, ".claude", "skills", "alpha"))).toBe(join(versionDir, "skills", "alpha"));
-  const settings = JSON.parse(await readFile(join(projectDir, ".claude", "settings.json"), "utf8"));
-  expect(settings.mcpServers["card-server"].command).toBe("card-run");
+  const claudeMcp = JSON.parse(await readFile(join(projectDir, ".mcp.json"), "utf8"));
+  expect(claudeMcp.mcpServers["card-server"].command).toBe("card-run");
 });

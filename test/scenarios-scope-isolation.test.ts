@@ -34,7 +34,7 @@ test("project write targets project-local agent files and leaves home files unch
 
   expect(result.exitCode).toBe(0);
   expect(await readFile(fixture.claudeSettings, "utf8")).toBe(beforeHomeClaude);
-  expect(JSON.parse(await readFile(join(projectDir, ".claude", "settings.json"), "utf8")).mcpServers.context7).toBeDefined();
+  expect(JSON.parse(await readFile(join(projectDir, ".mcp.json"), "utf8")).mcpServers.context7).toBeDefined();
   expect(await readFile(join(projectDir, ".codex", "config.toml"), "utf8")).toContain("[mcp_servers.context7]");
   expect((await lstat(join(projectDir, ".cursor", "mcp.json"))).isSymbolicLink()).toBe(true);
   expect(existsSync(join(projectDir, ".agents", "drwn", "generated", "cursor-mcp.json"))).toBe(true);

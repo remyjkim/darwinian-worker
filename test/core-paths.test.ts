@@ -23,6 +23,7 @@ describe("path resolution", () => {
     const paths = resolveToolPaths("/home/test");
 
     expect(paths.claudeSkills).toBe("/home/test/.claude/skills");
+    expect(paths.claudeMcp).toBe("/home/test/.mcp.json");
     expect(paths.codexSkills).toBe("/home/test/.codex/skills");
     expect(paths.claudeSettings).toBe("/home/test/.claude/settings.json");
   });
