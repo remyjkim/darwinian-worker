@@ -7,7 +7,7 @@ import { loadCardLock, type CardLockEntry } from "./card-lock";
 import { resolveSkillSource } from "./card-skill-resolver";
 import { mergeCardManifestsIntoProjectConfig, resolveProjectCards } from "./card-project";
 import { loadConfig } from "./config";
-import { buildActiveServers, mergeClaudeSettingsText, mergeCodexTomlText, renderCursorConfig } from "./mcp";
+import { buildActiveServers, hashCodexManagedServers, mergeClaudeSettingsText, mergeCodexTomlText, renderCursorConfig, renderJsonMcpConfig } from "./mcp";
 import { mergeUserMcpLibrary, validateDefaultReferences } from "./defaults";
 import { expandHomePath, resolveToolPaths } from "./paths";
 import { loadRegistry } from "./registry";
@@ -25,7 +25,7 @@ import { loadEffectiveConfig } from "./user-config";
 import { getExtension } from "./extensions/registry";
 import { getStoreStatus } from "./migration";
 import { resolveGlobalWriteRecordPath, resolveStoreGeneratedDir } from "./store-paths";
-import { loadWriteRecord, resolveProjectWriteRecordPath } from "./write-record";
+import { loadWriteRecord, resolveProjectWriteRecordPath, type ManagedPath } from "./write-record";
 import { isHookConsentValid } from "./hook-consent";
 import { DRWN_VERSION } from "./version";
 import type { CanonicalConfig, ProjectConfig, RegistryServer } from "./types";
@@ -443,16 +443,17 @@ async function detectMcpDrift(
   toolRoot: string,
   generatedDir: string,
   scope: "machine" | "project" = "machine",
+  previousManagedPaths: ManagedPath[] = [],
 ) {
   const drifts: string[] = [];
   const toolPaths = resolveToolPaths(toolRoot);
-  const targetConfigPath = (targetName: string, configuredPath: string) => {
+  const targetConfigPath = (targetName: string, target: { configPath: string; userMcpPath?: string }) => {
     if (scope === "project") {
-      if (targetName === "claude") return toolPaths.claudeSettings;
+      if (targetName === "claude") return toolPaths.claudeMcp;
       if (targetName === "codex") return toolPaths.codexConfig;
       return toolPaths.cursorMcp;
     }
-    return expandHomePath(configuredPath, homeDir);
+    return expandHomePath(targetName === "claude" ? (target.userMcpPath ?? target.configPath) : target.configPath, homeDir);
   };
 
   for (const [targetName, target] of Object.entries(config.targets)) {
@@ -460,11 +461,26 @@ async function detectMcpDrift(
       continue;
     }
 
-    const configPath = targetConfigPath(targetName, target.configPath);
+    const configPath = targetConfigPath(targetName, target);
 
     if (targetName === "claude" && existsSync(configPath)) {
       const current = readFileSync(configPath, "utf8");
-      const expected = mergeClaudeSettingsText(current, activeServers);
+      let expected: string;
+      try {
+        expected = scope === "project"
+          ? renderJsonMcpConfig(activeServers)
+          : mergeClaudeSettingsText(current, activeServers, {
+              inlineMeta: false,
+              mcpServerOwnership: "per-server",
+              priorFieldHashes: previousManagedPaths.find(
+                (entry): entry is Extract<ManagedPath, { kind: "managed-fields" }> =>
+                  entry.path === ".claude.json" && entry.kind === "managed-fields",
+              )?.fieldHashes ?? {},
+            }).text;
+      } catch {
+        drifts.push(`claude:${configPath}`);
+        continue;
+      }
       if (current !== expected) {
         drifts.push(`claude:${configPath}`);
       }
@@ -473,7 +489,10 @@ async function detectMcpDrift(
     if (targetName === "codex" && existsSync(configPath)) {
       const current = readFileSync(configPath, "utf8");
       const expected = mergeCodexTomlText(current, activeServers);
-      if (current !== expected) {
+      const names = Object.keys(activeServers);
+      const currentHashes = hashCodexManagedServers(current, names);
+      const expectedHashes = hashCodexManagedServers(expected, names);
+      if (names.some((name) => currentHashes[name] !== expectedHashes[name])) {
         drifts.push(`codex:${configPath}`);
       }
     }
@@ -561,7 +580,15 @@ export async function buildDoctorReport(repoRoot: string, agentsDir: string, hom
       ),
     ]),
     staleSkillSymlinks: await detectStaleSkillSymlinks(repoRoot, agentsDir, homeDir, defaultSkillOverrides),
-    mcpDrift: await detectMcpDrift(config, activeServers, homeDir, homeDir, generatedDir),
+    mcpDrift: await detectMcpDrift(
+      config,
+      activeServers,
+      homeDir,
+      homeDir,
+      generatedDir,
+      "machine",
+      loadWriteRecord(resolveGlobalWriteRecordPath(agentsDir))?.managedPaths ?? [],
+    ),
     missingGeneratedFiles: await detectMissingGeneratedFiles(config, generatedDir),
     hookIssues: [],
     projectConfigIssues: defaultIssues,

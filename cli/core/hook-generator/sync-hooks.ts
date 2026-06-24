@@ -174,13 +174,14 @@ export async function syncHooks(state: EffectiveState): Promise<SyncResult> {
       const next = mergeClaudeSettingsText(current, state.activeServers, {
         force: state.scopedOptions.force ?? false,
         hooks: claudeHooksConfig(composerPath),
+        ...(state.scopedOptions.writeScope === "machine" ? { mcpServerOwnership: "none" as const } : {}),
       });
-      writeManagedFile(settingsPath, next, state.scopedOptions.dryRun, result);
+      writeManagedFile(settingsPath, next.text, state.scopedOptions.dryRun, result);
       result.managedPaths?.push({
         path: ".claude/settings.json",
         kind: "managed-fields",
-        fields: ["mcpServers", "hooks"],
-        fieldHashes: {},
+        fields: Object.keys(next.fieldHashes),
+        fieldHashes: next.fieldHashes,
       });
       continue;
     }

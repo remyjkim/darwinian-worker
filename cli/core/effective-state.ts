@@ -50,7 +50,7 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
     await loadMcpLibrary(normalized.agentsDir),
   );
   const { config: machineConfig } = await loadEffectiveConfig(repoConfig, normalized.agentsDir);
-  const projectConfigPath = findProjectConfig(normalized.cwd ?? process.cwd());
+  const projectConfigPath = normalized.forceMachineScope ? null : findProjectConfig(normalized.cwd ?? process.cwd());
   const projectRoot = projectConfigPath ? resolveProjectRootFromConfigPath(projectConfigPath) : null;
   const baseConfig = projectConfigPath ? repoConfig : machineConfig;
   let effectiveConfig = baseConfig;

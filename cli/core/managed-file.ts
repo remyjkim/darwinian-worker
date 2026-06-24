@@ -1,7 +1,8 @@
 // ABOUTME: Writes drwn-managed files with backups and dry-run change reporting.
 // ABOUTME: Shared by MCP sync and hook materialization.
 
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, fsyncSync, openSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { ensureParentDir } from "./fs";
 import type { SyncResult } from "./types";
 
@@ -23,6 +24,25 @@ export function backupExistingPath(pathValue: string, dryRun: boolean, result: S
   }
 }
 
+function atomicWriteFile(pathValue: string, content: string) {
+  const tmpPath = `${pathValue}.tmp`;
+  const fd = openSync(tmpPath, "w");
+  try {
+    writeFileSync(fd, content);
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+
+  renameSync(tmpPath, pathValue);
+  const dirFd = openSync(dirname(pathValue), "r");
+  try {
+    fsyncSync(dirFd);
+  } finally {
+    closeSync(dirFd);
+  }
+}
+
 export function writeManagedFile(pathValue: string, nextContent: string, dryRun: boolean, result: SyncResult) {
   const exists = existsSync(pathValue);
   const currentContent = exists ? readFileSync(pathValue, "utf8") : undefined;
@@ -37,6 +57,6 @@ export function writeManagedFile(pathValue: string, nextContent: string, dryRun:
   }
   result.changes.push(`write ${pathValue}`);
   if (!dryRun) {
-    writeFileSync(pathValue, nextContent);
+    atomicWriteFile(pathValue, nextContent);
   }
 }

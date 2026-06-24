@@ -68,11 +68,16 @@ export function resolveToolPaths(scope: string | ToolScope) {
       : scope.homeDir;
   return {
     claudeSkills: join(root, ".claude", "skills"),
+    claudeMcp: join(root, ".mcp.json"),
     codexSkills: join(root, ".codex", "skills"),
     claudeSettings: join(root, ".claude", "settings.json"),
     codexConfig: join(root, ".codex", "config.toml"),
     cursorMcp: join(root, ".cursor", "mcp.json"),
   };
+}
+
+export function resolveGlobalCodexConfig(homeDir: string) {
+  return join(homeDir, ".codex", "config.toml");
 }
 
 export function resolveSkillScopeDirs(repoRoot: string) {
@@ -117,5 +122,6 @@ export function normalizeSyncPathOptions(
     target: options.target,
     force: options.force ?? false,
     strictHooks: options.strictHooks ?? false,
+    forceMachineScope: options.forceMachineScope ?? false,
   };
 }

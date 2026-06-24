@@ -19,9 +19,12 @@ export class WriteCommand extends BaseCommand {
 
       Use --dry-run to preview planned changes. Use --mcp-only or --skills-only
       to limit materialization to one surface. Use --target to write one target.
+      Use --root to write machine defaults to user-scope tool configs even when
+      running from inside a drwn-managed project.
     `,
     examples: [
       ["Preview all writes", "drwn write --dry-run"],
+      ["Preview user-scope writes", "drwn write --root --dry-run"],
       ["Write only MCP configuration", "drwn write --mcp-only"],
       ["Write only to Claude", "drwn write --target=claude"],
     ],
@@ -51,6 +54,14 @@ export class WriteCommand extends BaseCommand {
     description: "Overwrite drift in drwn-managed regions.",
   });
 
+  root = Option.Boolean("--root", false, {
+    description: "Write machine defaults to user-scope tool configs and ignore project config.",
+  });
+
+  user = Option.Boolean("--user", false, {
+    description: "Alias for --root.",
+  });
+
   strictHooks = Option.Boolean("--strict-hooks", false, {
     description: "Fail when card hooks are present but missing valid hook consent.",
   });
@@ -58,6 +69,9 @@ export class WriteCommand extends BaseCommand {
   async execute() {
     if (this.mcpOnly && this.skillsOnly) {
       throw new UsageError("Use either --mcp-only or --skills-only, not both.");
+    }
+    if (this.root && this.user) {
+      throw new UsageError("Use either --root or --user, not both.");
     }
     if (this.target && this.target !== "claude" && this.target !== "codex" && this.target !== "cursor") {
       throw new UsageError(`Unsupported target: ${this.target}`);
@@ -76,6 +90,7 @@ export class WriteCommand extends BaseCommand {
         target: this.target as "claude" | "codex" | "cursor" | undefined,
         force: this.force,
         strictHooks: this.strictHooks,
+        forceMachineScope: this.root || this.user,
       });
     } catch (error) {
       this.context.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);

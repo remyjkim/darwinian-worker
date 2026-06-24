@@ -31,6 +31,7 @@ export interface UserMcpLibrary {
 export interface TargetConfig {
   enabled: boolean;
   configPath: string;
+  userMcpPath?: string;
   format: "json-merge" | "toml-merge" | "json-standalone";
   mcpKey: string;
   symlink?: boolean;
@@ -165,6 +166,7 @@ export interface SyncOptions {
   target?: TargetName;
   force?: boolean;
   strictHooks?: boolean;
+  forceMachineScope?: boolean;
 }
 
 export interface SyncResult {
@@ -187,4 +189,5 @@ export interface NormalizedSyncOptions {
   target?: TargetName;
   force?: boolean;
   strictHooks?: boolean;
+  forceMachineScope?: boolean;
 }
