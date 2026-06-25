@@ -182,3 +182,61 @@ test("doctor reports user-scope Claude MCP drift from the per-server write recor
   const report = JSON.parse(doctor.stdout) as { mcpDrift: string[] };
   expect(report.mcpDrift.some((item) => item.includes(".claude.json"))).toBe(true);
 });
+
+// ───────────────────────────────────────────────────────────────────────────
+// Task 51 — must-have additions (M2, M3a, M3b)
+// ───────────────────────────────────────────────────────────────────────────
+
+test("write --root does not flag drift after ~/.claude.json is re-serialized with different key ordering", async () => {
+  const fixture = await scaffoldCliFixture({ curatedSkillNames: [] });
+  tempRoots.push(fixture.root);
+  await ensureContext7Default(fixture);
+  expect((await runWriteRoot(fixture)).exitCode).toBe(0);
+
+  // Simulate Claude Code rewriting the file with sorted keys (it does this on UI
+  // settings changes — keys can get re-sorted and whitespace can change).
+  const parsed = await readJson(fixture.claudeUserMcp);
+  const sortKeys = (value: any): any => {
+    if (Array.isArray(value)) return value.map(sortKeys);
+    if (value && typeof value === "object") {
+      return Object.fromEntries(Object.keys(value).sort().map((k) => [k, sortKeys(value[k])]));
+    }
+    return value;
+  };
+  await writeJson(fixture.claudeUserMcp, sortKeys(parsed));
+
+  const second = await runWriteRoot(fixture);
+  expect(second.exitCode).toBe(0);
+  expect(`${second.stdout}\n${second.stderr}`).not.toContain("Drift detected");
+  // The owned entry survives the round-trip intact.
+  expect((await readJson(fixture.claudeUserMcp)).mcpServers.context7.command).toBe("npx");
+});
+
+test("write rejects passing both --root and --user simultaneously", async () => {
+  const fixture = await scaffoldCliFixture({ curatedSkillNames: [] });
+  tempRoots.push(fixture.root);
+
+  const result = await runAgentsCli(
+    ["write", "--root", "--user", "--mcp-only", "--json"],
+    envFor(fixture),
+  );
+  expect(result.exitCode).not.toBe(0);
+  expect(`${result.stdout}\n${result.stderr}`).toMatch(/--root or --user/i);
+});
+
+test("write --user behaves identically to write --root", async () => {
+  const fixture = await scaffoldCliFixture({ curatedSkillNames: [] });
+  tempRoots.push(fixture.root);
+  await ensureContext7Default(fixture);
+
+  const result = await runAgentsCli(
+    ["write", "--user", "--mcp-only", "--json"],
+    envFor(fixture),
+  );
+  expect(result.exitCode).toBe(0);
+  expect((await readJson(fixture.claudeUserMcp)).mcpServers.context7).toBeDefined();
+
+  // Side-table records --user write the same way --root does.
+  const record = await readJson(join(fixture.agentsDir, "drwn", "global-write-record.json"));
+  expect(record.managedPaths.some((entry: any) => entry.path === ".claude.json")).toBe(true);
+});
