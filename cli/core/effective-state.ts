@@ -4,6 +4,7 @@
 import { join } from "node:path";
 import type { CardLockEntry } from "./card-lock";
 import { mergeCardManifestsIntoProjectConfig, resolveProjectCards } from "./card-project";
+import { collectCardServerDefinitions, mergeCardServerDefinitionsIntoRegistry, type CardServerDefinition } from "./card-mcp";
 import { loadCardLock } from "./card-lock";
 import { loadConfig } from "./config";
 import { mergeUserMcpLibrary } from "./defaults";
@@ -35,6 +36,7 @@ export interface EffectiveState {
   projectRoot: string | null;
   projectConfig: ProjectConfig | null;
   projectConfigWithCards: ProjectConfig | null;
+  cardServerDefinitions: CardServerDefinition[];
   lockedCards: CardLockEntry[];
   skillSelection?: SkillSyncOverrides;
   recordPath: string;
@@ -61,6 +63,7 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
   let lockedCards: CardLockEntry[] = [];
   let projectConfig: ProjectConfig | null = null;
   let projectConfigWithCards: ProjectConfig | null = null;
+  let cardServerDefinitions: CardServerDefinition[] = [];
 
   if (projectConfigPath) {
     projectConfig = await loadProjectConfig(projectConfigPath);
@@ -70,7 +73,13 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
       projectConfig,
       lockedCards.map((card) => card.manifest),
     );
-    const merged = mergeProjectConfig(baseConfig, registry, projectConfigWithCards);
+    cardServerDefinitions = collectCardServerDefinitions(lockedCards);
+    const registryWithCards = mergeCardServerDefinitionsIntoRegistry(registry, cardServerDefinitions);
+    const projectOverlay: ProjectConfig = {
+      ...projectConfigWithCards,
+      servers: projectConfig.servers,
+    };
+    const merged = mergeProjectConfig(baseConfig, registryWithCards, projectOverlay);
     effectiveConfig = merged.config;
     effectiveRegistry = merged.registry;
     skillSelection = {
@@ -100,6 +109,7 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
     projectRoot,
     projectConfig,
     projectConfigWithCards,
+    cardServerDefinitions,
     lockedCards,
     skillSelection,
     recordPath: projectRoot ? resolveProjectWriteRecordPath(projectRoot) : resolveGlobalWriteRecordPath(normalized.agentsDir),

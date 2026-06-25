@@ -100,3 +100,48 @@ test("buildEffectiveState exposes the project card, skill, MCP, extension, and t
   expect(state.projectConfigWithCards?.targets?.cursor?.enabled).toBe(false);
   expect(state.scopedOptions.writeScope).toBe("project");
 });
+
+test("buildEffectiveState activates a card-local optional MCP with a project toggle", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  await publishCardWithSkills(fixture, {
+    name: "@me/base",
+    skills: [],
+    servers: {
+      "card-local": {
+        description: "Card-local optional server",
+        transport: "stdio",
+        command: "card-local-server",
+        args: ["--from-card"],
+        optional: true,
+      },
+    },
+  });
+  const projectDir = join(fixture.root, "project");
+  const configPath = join(projectDir, ".agents", "drwn", "config.json");
+  await mkdir(dirname(configPath), { recursive: true });
+  await writeFile(
+    configPath,
+    JSON.stringify(
+      {
+        version: 1,
+        cards: ["@me/base@1.0.0"],
+        servers: {
+          "card-local": { enabled: true },
+        },
+      },
+      null,
+      2,
+    ),
+  );
+
+  const state = await buildEffectiveState({
+    repoRoot: fixture.repoRoot,
+    agentsDir: fixture.agentsDir,
+    homeDir: fixture.homeDir,
+    cwd: projectDir,
+  });
+
+  expect(state.effectiveRegistry.servers["card-local"]?.command).toBe("card-local-server");
+  expect(state.activeServers["card-local"]?.command).toBe("card-local-server");
+});

@@ -5,7 +5,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { cleanupTempRoots, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, publishCardWithSkills, runAgentsCli, scaffoldCliFixture } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -174,5 +174,39 @@ describe("drwn add mcp", () => {
       servers?: Record<string, { enabled?: boolean }>;
     };
     expect(config.servers?.github).toEqual({ enabled: true });
+  });
+
+  test("adds a card-local optional MCP server toggle to project config", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    await publishCardWithSkills(fixture, {
+      name: "@me/base",
+      skills: [],
+      servers: {
+        "card-local": {
+          description: "Card-local optional server",
+          transport: "stdio",
+          command: "card-local-server",
+          env: { CARD_LOCAL_TOKEN: "${CARD_LOCAL_TOKEN}" },
+          optional: true,
+        },
+      },
+    });
+    const projectDir = join(fixture.root, "project");
+    const configPath = join(projectDir, ".agents", "drwn", "config.json");
+    await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
+    await writeFile(configPath, JSON.stringify({ version: 1, cards: ["@me/base@1.0.0"] }, null, 2));
+
+    const result = await runAgentsCli(["add", "mcp", "card-local", "--json"], envFor(fixture), projectDir);
+
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout) as { id: string; action: string; requiredEnv: string[] };
+    expect(parsed.id).toBe("card-local");
+    expect(parsed.action).toBe("enabled");
+    expect(parsed.requiredEnv).toEqual(["CARD_LOCAL_TOKEN"]);
+    const config = JSON.parse(await readFile(configPath, "utf8")) as {
+      servers?: Record<string, { enabled?: boolean; command?: string }>;
+    };
+    expect(config.servers?.["card-local"]).toEqual({ enabled: true });
   });
 });
