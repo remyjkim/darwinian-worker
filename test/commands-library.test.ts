@@ -27,6 +27,17 @@ function envFor(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
   };
 }
 
+async function createLooseSkill(root: string, name: string, options?: { withName?: boolean }) {
+  const skillDir = join(root, name);
+  await import("node:fs/promises").then(({ mkdir }) => mkdir(skillDir, { recursive: true }));
+  const frontmatter = options?.withName === false
+    ? "---\ndescription: loose command fixture\n---\n"
+    : `---\nname: ${name}\ndescription: loose command fixture\n---\n`;
+  await writeFile(join(skillDir, "SKILL.md"), `${frontmatter}\n# ${name}\n`);
+  await writeFile(join(skillDir, "extra.txt"), "extra\n");
+  return { skillDir, skillMd: join(skillDir, "SKILL.md") };
+}
+
 describe("drwn library", () => {
   test("lists local skills and MCP servers", async () => {
     const fixture = await scaffoldCliFixture();
@@ -86,6 +97,52 @@ describe("drwn library", () => {
     expect(result.stdout).toContain("@acme/skills-sample@1.0.0");
     expect(existsSync(join(fixture.agentsDir, "packages", "skills", "@acme", "skills-sample", "current"))).toBe(true);
     expect(existsSync(join(fixture.root, ".agents", "drwn", "config.json"))).toBe(false);
+  });
+
+  test("adds loose SKILL.md and skill directories to the local library without project activation", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const direct = await createLooseSkill(fixture.root, "loose-direct");
+    const directory = await createLooseSkill(fixture.root, "loose-directory");
+
+    const directResult = await runAgentsCli(["library", "add", "skill", direct.skillMd, "--json"], envFor(fixture), fixture.root);
+    const directoryResult = await runAgentsCli(["library", "add", "skill", directory.skillDir, "--json"], envFor(fixture), fixture.root);
+
+    expect(directResult.exitCode).toBe(0);
+    expect(directoryResult.exitCode).toBe(0);
+    const directParsed = JSON.parse(directResult.stdout) as { packageName: string; activeVersion: string; skillName: string };
+    expect(directParsed.packageName).toBe("@local/loose-direct");
+    expect(directParsed.activeVersion).toBe("0.1.0");
+    expect(directParsed.skillName).toBe("loose-direct");
+    expect(existsSync(join(fixture.agentsDir, "packages", "skills", "@local", "loose-direct", "current"))).toBe(true);
+    expect(existsSync(join(fixture.agentsDir, "packages", "skills", "@local", "loose-directory", "current"))).toBe(true);
+    expect(existsSync(join(fixture.root, ".agents", "drwn", "config.json"))).toBe(false);
+
+    const listed = await runAgentsCli(["library", "list", "skills", "--json"], envFor(fixture));
+    const shown = await runAgentsCli(["library", "show", "loose-direct", "--json"], envFor(fixture));
+    const listedParsed = JSON.parse(listed.stdout) as Array<{ id: string; source: string; sourceId?: string }>;
+    const shownParsed = JSON.parse(shown.stdout) as { id: string; sourceId?: string };
+    expect(listedParsed.some((item) => item.id === "loose-direct" && item.source === "npm" && item.sourceId === "@local/loose-direct")).toBe(true);
+    expect(shownParsed.sourceId).toBe("@local/loose-direct");
+  });
+
+  test("loose skill import rejects duplicates unless --replace targets the same package", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const loose = await createLooseSkill(fixture.root, "replace-loose");
+    expect((await runAgentsCli(["library", "add", "skill", loose.skillMd], envFor(fixture), fixture.root)).exitCode).toBe(0);
+    await writeFile(loose.skillMd, "---\nname: replace-loose\ndescription: updated\n---\n");
+
+    const duplicate = await runAgentsCli(["library", "add", "skill", loose.skillMd], envFor(fixture), fixture.root);
+    const replaced = await runAgentsCli(["library", "add", "skill", loose.skillMd, "--replace", "--json"], envFor(fixture), fixture.root);
+    const repoCollision = await createLooseSkill(fixture.root, "alpha");
+    const blockedRepoReplace = await runAgentsCli(["library", "add", "skill", repoCollision.skillMd, "--replace"], envFor(fixture), fixture.root);
+
+    expect(duplicate.exitCode).not.toBe(0);
+    expect(`${duplicate.stdout}\n${duplicate.stderr}`).toContain("collision");
+    expect(replaced.exitCode).toBe(0);
+    expect(JSON.parse(replaced.stdout).packageName).toBe("@local/replace-loose");
+    expect(blockedRepoReplace.exitCode).not.toBe(0);
   });
 
   test("adds an MCP server file to the local library without activation", async () => {

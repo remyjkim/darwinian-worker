@@ -80,4 +80,35 @@ describe("drwn skills list", () => {
       skill.sourceId === "@acme/skills-sample" &&
       skill.sourceVersion === "1.0.0")).toBe(true);
   });
+
+  test("lists loose-imported skills as synthetic package-backed sources", async () => {
+    const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
+    tempRoots.push(fixture.root);
+    const looseDir = join(fixture.root, "loose-listed");
+    await mkdir(looseDir, { recursive: true });
+    await writeFile(join(looseDir, "SKILL.md"), "---\nname: loose-listed\ndescription: fixture\n---\n");
+    expect((await runAgentsCli(["library", "add", "skill", join(looseDir, "SKILL.md")], {
+      AGENTS_REPO_ROOT: fixture.repoRoot,
+      AGENTS_HOME_DIR: fixture.homeDir,
+      AGENTS_DIR: fixture.agentsDir,
+    }, fixture.root)).exitCode).toBe(0);
+
+    const result = await runAgentsCli(["skills", "list", "--json"], {
+      AGENTS_REPO_ROOT: fixture.repoRoot,
+      AGENTS_HOME_DIR: fixture.homeDir,
+      AGENTS_DIR: fixture.agentsDir,
+    });
+
+    const parsed = JSON.parse(result.stdout) as Array<{
+      name: string;
+      sourceType?: string;
+      sourceId?: string;
+      sourceVersion?: string;
+    }>;
+    expect(parsed.some((skill) =>
+      skill.name === "loose-listed" &&
+      skill.sourceType === "npm" &&
+      skill.sourceId === "@local/loose-listed" &&
+      skill.sourceVersion === "0.1.0")).toBe(true);
+  });
 });

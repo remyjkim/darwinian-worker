@@ -3,7 +3,7 @@
 
 import { Option, UsageError } from "clipanion";
 import { buildSkillInventory } from "../../../../cli/core/skills";
-import { ingestSkillPackage } from "../../../../cli/core/skill-packages";
+import { classifySkillAddInput, ingestLooseSkill, ingestSkillPackage } from "../../../../cli/core/skill-packages";
 import { renderJson } from "../../../../cli/core/output";
 import { BaseCommand } from "../../base";
 
@@ -12,11 +12,12 @@ export class SkillsPackagesAddCommand extends BaseCommand {
 
   static override usage = BaseCommand.Usage({
     category: "Skills",
-    description: "Add a package-backed skill bundle to the managed local cache.",
+    description: "Add a package-backed skill bundle or local SKILL.md to the managed local cache.",
     details: `
-      Installs a package-backed skill bundle into the managed local cache under
-      ~/.agents. Installed package skills become visible to library and add
-      commands, but are not automatically activated in any project.
+      Installs a package-backed skill bundle or loose local SKILL.md into the
+      managed local cache under ~/.agents. Installed package skills become
+      visible to library and add commands, but are not automatically activated
+      in any project.
 
       Use drwn add skill, drwn skills curate, or library defaults commands to
       opt into installed skills.
@@ -24,10 +25,32 @@ export class SkillsPackagesAddCommand extends BaseCommand {
     examples: [
       ["Install a bundle from npm", "drwn skills packages add @acme/skill-bundle"],
       ["Install a bundle from a local tarball", "drwn skills packages add ./bundle.tgz"],
+      ["Install a local loose skill", "drwn skills packages add ./SKILL.md --as import-mcp-from-claude"],
     ],
   });
 
   packageSpec = Option.String({ required: true });
+
+  as = Option.String("--as", { required: false, description: "Skill name to use when importing a loose SKILL.md." });
+
+  scope = Option.String("--scope", {
+    required: false,
+    description: "Skill scope for loose imports: shared, claude-only, codex-only, or experimental.",
+  });
+
+  packageName = Option.String("--package-name", {
+    required: false,
+    description: "Synthetic package name for a loose import. Defaults to @local/<skill-name>.",
+  });
+
+  version = Option.String("--version", {
+    required: false,
+    description: "Synthetic package version for a loose import. Defaults to 0.1.0.",
+  });
+
+  replace = Option.Boolean("--replace", false, {
+    description: "Replace an existing installed skill only when it came from the same package.",
+  });
 
   json = Option.Boolean("--json", false, {
     description: "Emit machine-readable JSON output.",
@@ -36,11 +59,32 @@ export class SkillsPackagesAddCommand extends BaseCommand {
   async execute() {
     try {
       const inventory = await buildSkillInventory(this.context.repoRoot, this.context.agentsDir, this.context.homeDir);
-      const installed = await ingestSkillPackage({
-        agentsDir: this.context.agentsDir,
-        packageSpec: this.packageSpec,
-        existingSkillNames: new Set(inventory.map((skill) => skill.name)),
-      });
+      const existingSkillNames = new Set(inventory.map((skill) => skill.name));
+      const existingSkills = inventory.map((skill) => ({
+        name: skill.name,
+        sourceType: skill.sourceType,
+        sourceId: skill.sourceId,
+      }));
+      const inputKind = classifySkillAddInput(this.packageSpec);
+      const installed = inputKind === "loose-skill"
+        ? await ingestLooseSkill({
+            agentsDir: this.context.agentsDir,
+            sourcePath: this.packageSpec,
+            existingSkillNames,
+            existingSkills,
+            as: this.as,
+            scope: this.scope as Parameters<typeof ingestLooseSkill>[0]["scope"],
+            packageName: this.packageName,
+            version: this.version,
+            replace: this.replace,
+          })
+        : await ingestSkillPackage({
+            agentsDir: this.context.agentsDir,
+            packageSpec: this.packageSpec,
+            existingSkillNames,
+            existingSkills,
+            replace: this.replace,
+          });
 
       this.context.stdout.write(this.json ? renderJson(installed) : `${installed.packageName}@${installed.activeVersion}\n`);
       return 0;

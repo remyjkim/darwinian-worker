@@ -127,7 +127,7 @@ General commands:
 - `drwn search mcp <query>`
 - `drwn library list [skills|mcp|tools]`
 - `drwn library show <id>`
-- `drwn library add skill <packageSpec>`
+- `drwn library add skill <packageSpec|SKILL.md|skillDir>`
 - `drwn library add mcp <jsonFile> --as <serverId>`
 - `drwn library defaults list`
 - `drwn library defaults add skill <skillName>`
@@ -155,7 +155,7 @@ Card commands:
 - `drwn card source list`
 - `drwn card source show <name>`
 - `drwn card source doctor [name]`
-- `drwn card source add-skill <name> <skillName>`
+- `drwn card source add-skill <name> <skillName> [--from <SKILL.md|skillDir>]`
 - `drwn card source remove-skill <name> <skillName>`
 - `drwn card source add-hook <name> <policyName>`
 - `drwn card source remove-hook <name> <policyName>`
@@ -234,7 +234,7 @@ Skill commands:
 - `drwn skills list`
 - `drwn skills curate <skillName>`
 - `drwn skills uncurate <skillName>`
-- `drwn skills packages add <packageSpec>`
+- `drwn skills packages add <packageSpec|SKILL.md|skillDir>`
 - `drwn skills packages list`
 - `drwn skills packages show <packageName>`
 
@@ -274,7 +274,7 @@ drwn analyze sessions --help
 The core model has five layers:
 
 - packaged harness defaults: config, built-in skills, and built-in MCP definitions
-- local library: package-backed skills and user MCP definitions under `~/.agents/drwn/skills` and `~/.agents/drwn/mcp-servers`
+- local library: package-backed skills, synthetic local skill snapshots, and user MCP definitions under `~/.agents/drwn/skills` and `~/.agents/drwn/mcp-servers`
 - user defaults: machine-wide active state under `~/.agents/drwn/machine.json`
 - project overlay: current-project overrides under `<project>/.agents/drwn/config.json`
 - downstream state: Claude, Codex, Cursor, and generated MCP config files
@@ -448,7 +448,7 @@ Only shared skills can be curated into `~/.agents/skills`. Claude-only and Codex
 
 ## Extension skill bundles
 
-`darwinian-harness` supports package-backed skill bundles for skills that should be available without being added to the built-in first-party tree.
+`darwinian-harness` supports package-backed skill bundles and loose local `SKILL.md` imports for skills that should be available without being added to the built-in first-party tree.
 
 Typical flow:
 
@@ -461,6 +461,14 @@ drwn write --dry-run
 drwn write
 ```
 
+Loose local skills can be imported directly. The import is a snapshot into the managed local library, not a live link to the source file:
+
+```bash
+drwn library add skill ./SKILL.md --as import-mcp-from-claude
+drwn add skill import-mcp-from-claude
+drwn write --dry-run
+```
+
 Global curation remains useful when a shared skill should be available by default across projects:
 
 ```bash
@@ -469,13 +477,22 @@ drwn skills curate <skillName>
 drwn write --skills-only
 ```
 
+For editable card sources, copy the same loose skill into the card source instead of importing it into the reusable library:
+
+```bash
+drwn card source add-skill @your-handle/backend import-mcp-from-claude --from ./SKILL.md
+drwn card source doctor @your-handle/backend
+```
+
 The distinction matters:
 
 - **added** means the bundle is available under `~/.agents/drwn/skills`
+- **loose-imported** means a local `SKILL.md` was normalized into a synthetic package-backed snapshot
+- **card-sourced** means the skill files were copied into an editable card source
 - **curated** means a shared skill is linked into `~/.agents/skills`
 - **written** means the curated skill is linked into downstream tool directories
 
-Current package-backed bundle support includes add, list, show, inventory, curation, and downstream write. Update and remove lifecycle commands are intentionally not part of the first implementation.
+Current bundle support includes add, list, show, inventory, curation, loose-skill normalization, and downstream write. Update and remove lifecycle commands are intentionally not part of the first implementation. JSON inventory currently reports synthetic local skill bundles with `sourceType: "npm"` and `sourceId: "@local/<skillName>"`.
 
 ## Extensions
 

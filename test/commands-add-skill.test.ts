@@ -3,7 +3,7 @@
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   cleanupTempRoots,
@@ -75,6 +75,26 @@ describe("drwn add skill", () => {
       skills?: { include?: string[] };
     };
     expect(config.skills?.include).toEqual(["hello-skill"]);
+  });
+
+  test("adds a loose skill after importing it into the local library", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const looseDir = join(fixture.root, "loose-activate");
+    await mkdir(looseDir, { recursive: true });
+    await writeFile(join(looseDir, "SKILL.md"), "---\nname: loose-activate\ndescription: fixture\n---\n");
+    const projectDir = join(fixture.root, "project");
+    await mkdir(projectDir, { recursive: true });
+
+    const imported = await runAgentsCli(["library", "add", "skill", join(looseDir, "SKILL.md")], envFor(fixture), fixture.root);
+    const result = await runAgentsCli(["add", "skill", "loose-activate"], envFor(fixture), projectDir);
+
+    expect(imported.exitCode).toBe(0);
+    expect(result.exitCode).toBe(0);
+    const config = JSON.parse(await readFile(join(projectDir, ".agents", "drwn", "config.json"), "utf8")) as {
+      skills?: { include?: string[] };
+    };
+    expect(config.skills?.include).toEqual(["loose-activate"]);
   });
 
   test("dry-run json does not write project config", async () => {

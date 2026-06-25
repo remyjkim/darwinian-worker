@@ -28,7 +28,7 @@ export class CardSourceAddSkillCommand extends BaseCommand {
   skillName = Option.String({ required: true });
 
   from = Option.String("--from", {
-    description: "Copy the skill from this directory instead of resolving by name.",
+    description: "Copy the skill from this SKILL.md file or skill directory instead of resolving by name.",
   });
 
   replace = Option.Boolean("--replace", false, {
