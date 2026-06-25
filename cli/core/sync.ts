@@ -284,15 +284,16 @@ export async function syncMcp(
 
     if (targetName === "codex") {
       let codexServers = servers;
+      let codexConflicts: string[] = [];
       if (options.writeScope === "project" && !options.force) {
         const globalCodexPath = resolveGlobalCodexConfig(options.homeDir);
         const globalText = await readTextIfExists(globalCodexPath, "");
-        const conflicts = detectCodexLayerConflicts(globalText, servers);
-        if (conflicts.length > 0) {
+        codexConflicts = detectCodexLayerConflicts(globalText, servers);
+        if (codexConflicts.length > 0) {
           codexServers = Object.fromEntries(
-            Object.entries(servers).filter(([name]) => !conflicts.includes(name)),
+            Object.entries(servers).filter(([name]) => !codexConflicts.includes(name)),
           );
-          for (const name of conflicts) {
+          for (const name of codexConflicts) {
             result.warnings.push(
               `Codex MCP server "${name}" is defined with a different transport in ${globalCodexPath}; skipped the project-scope entry to avoid a config collision. Remove the global entry or rerun with --force.`,
             );
@@ -300,7 +301,7 @@ export async function syncMcp(
         }
       }
       const current = await readTextIfExists(configPath, "");
-      const mergedCodex = mergeCodexTomlText(current, codexServers, previousCodexNames);
+      const mergedCodex = mergeCodexTomlText(current, codexServers, [...previousCodexNames, ...codexConflicts]);
       writeManagedFile(configPath, mergedCodex, options.dryRun, result);
       const fieldHashes = hashCodexManagedServers(mergedCodex, Object.keys(codexServers));
       if (Object.keys(fieldHashes).length > 0) {
