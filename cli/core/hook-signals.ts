@@ -77,7 +77,11 @@ export function buildCardUsageRecord(payload: HookPayload, cards: CardRef[], now
 }
 
 /** Build a skill signal, or null when the payload is partial/mismatched (no-op). */
-export function buildSkillRecord(payload: HookPayload, phase: SkillPhase, nowIso: string) {
+export interface SkillRecordContext {
+  cards?: CardRef[];
+}
+
+export function buildSkillRecord(payload: HookPayload, phase: SkillPhase, nowIso: string, context: SkillRecordContext = {}) {
   const expectedEvent = PHASE_EVENT[phase];
   // Phase is supplied by the registration; a payload whose event disagrees is a misfire.
   if (payload.hook_event_name && payload.hook_event_name !== expectedEvent) {
@@ -102,11 +106,12 @@ export function buildSkillRecord(payload: HookPayload, phase: SkillPhase, nowIso
       command_source: payload.command_source,
       ...(payload.command_args !== undefined ? { command_args: payload.command_args } : {}),
       ...(payload.expansion_type ? { expansion_type: payload.expansion_type } : {}),
+      ...(context.cards ? { cards: context.cards } : {}),
     };
   }
 
-  // Tool phases require the anchor.
-  if (!payload.tool_use_id) return null;
+  // Tool phases require the Skill matcher and the anchor.
+  if (payload.tool_name !== "Skill" || !payload.tool_use_id) return null;
 
   const skillId =
     payload.tool_input && typeof payload.tool_input.skill === "string" ? payload.tool_input.skill : undefined;

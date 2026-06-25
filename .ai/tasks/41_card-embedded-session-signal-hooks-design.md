@@ -6,7 +6,7 @@
 > **For Claude:** DESIGN / SPEC via `superpowers:brainstorming`. Implementation plan is a
 > separate follow-up via `superpowers:writing-plans`.
 
-**Status**: In Review
+**Status**: Complete
 **Created**: 2026-06-23
 **Updated**: 2026-06-23
 **Assigned**: Unassigned
@@ -41,23 +41,46 @@ These are designed elsewhere; this task only needs the signals to be **correctly
 and testable in isolation**, plus a documented manual registration snippet so the hooks can
 be smoke-tested in a real session.
 
-## 1a. Success criteria
+## 1a. Scope guard
 
-- [x] `drwn hook card-usage` and `drwn hook skill-marker` exist as **hidden** subcommands
-      (no `static usage`, so absent from `drwn --help`) in `cli/index.ts`, read Claude hook
-      JSON from stdin, and append signal lines (§4).
-- [x] `card-usage` resolves the nearest `card.lock` from the stdin `cwd` and appends
-      **write-on-change**; **requires `card.lock`** (skips silently if absent or malformed).
-- [x] `skill-marker` emits `skill_invocation`/`skill_result`/`skill_failure`/raw
-      `slash_expansion`. Tool markers **require `tool_use_id`** (else no-op); a phase/event
-      mismatch is a no-op; `slash_expansion` requires `command_name`+`command_source`.
-- [x] Both subcommands **always exit 0** with **no stdout/stderr** (malformed/empty stdin,
-      missing `transcript_path`, unwritable sink, misconfigured repo root).
-- [x] Session discovery **excludes `*.drwn-signals.jsonl`** so sidecars never archive as
-      Claude logs (damage containment; full `--include-signals` transport stays deferred).
-- [x] Signal lines validated by a per-type contract shape test; unit + integration tests pass.
-- [ ] Manual live smoke (§5a) confirms the real `Skill` / `PostToolUseFailure` /
-      `UserPromptExpansion` payload shapes before the task is considered complete.
+This task is **only** the hook subcommands and tests. Do not add card manifest `hooks`,
+project-config `hooks`, card-hook defaulting, `.claude/settings.json` materialization,
+managed `.claude/hooks/` wrappers, `--include-signals`, DHS/SA ingestion, Codex hooks, or
+default drwn-card behavior here.
+
+The one allowed export/analyze touch is a defensive exclusion: current session discovery must
+ignore `*.drwn-signals.jsonl` so manually smoke-tested sidecars are not accidentally archived as
+Claude transcript logs before the later transport task exists.
+
+## 1b. Current state vs completion criteria
+
+Already present on the current branch:
+- [x] `drwn hook card-usage` and `drwn hook skill-marker` are registered in `cli/index.ts`,
+      read Claude hook JSON from stdin, append signal lines, exit 0, and stay silent for the
+      covered malformed/missing-transcript cases.
+- [x] `card-usage` resolves the nearest `card.lock` from stdin `cwd`, skips when absent, and
+      appends **write-on-change**.
+- [x] `skill-marker` emits `skill_invocation`, `skill_result`, `skill_failure`, and raw
+      `slash_expansion` records for representative fixtures.
+- [x] Focused hook tests cover the current happy paths and basic robustness.
+
+Remaining before this task can be marked complete:
+- [x] Make the hook commands genuinely **hidden** (absent from `drwn --help`).
+- [x] Add strict per-phase guards: tool phases require matching `hook_event_name`, `tool_name:
+      "Skill"`, `tool_use_id`, and required phase fields; expansion requires
+      `UserPromptExpansion`, `command_name`, and `command_source`; mismatches no-op silently.
+- [x] Add `expansion_type` to raw `slash_expansion` when present; deliberately omit the user
+      `prompt` for privacy.
+- [x] Add spawned-process tests for unwritable sinks, malformed lockfiles, phase/event
+      mismatch, missing required marker fields, and hidden-help behavior.
+- [x] Add per-type contract-shape tests for every emitted signal line.
+- [x] Make session discovery exclude `*.drwn-signals.jsonl` so sidecars never archive as Claude
+      logs. This is damage containment, not `--include-signals` transport.
+- [x] Manual live smoke (§5a) confirms real `UserPromptSubmit`, `UserPromptExpansion`,
+      `Skill` Pre/PostToolUse, and `PostToolUseFailure` payload shapes. Fixtures are saved
+      under `test/fixtures/claude-hooks/`. Note: on Claude Code 2.1.179, an unknown `Skill`
+      produced an errored transcript `tool_result` but did not emit Skill lifecycle hooks;
+      `PostToolUseFailure` shape was captured via a failing `Bash` tool.
 
 ## 2. Background
 
@@ -77,11 +100,11 @@ Implementation notes:
   `.agents/drwn/card.lock` and parses it directly — deliberately NOT via the semver-backed
   `validateCardLockfile`, to keep the hook fast and dependency-light. It skips on
   parse/shape errors and drops entries lacking a string `name`+`version`.
-- Append uses `appendFileSync` (append mode / `O_APPEND`); concurrent appends are covered
-  by a test.
-- Signal sidecars are co-located with the transcript and **excluded from session discovery**
-  (`cli/core/export/session-discovery.ts`) so neither `drwn export sessions` nor
-  `drwn analyze sessions --fresh` archives them as Claude logs.
+- Append uses `appendFileSync` (append mode / `O_APPEND`). Add a focused regression if
+  concurrent append behavior becomes a hard contract.
+- Signal sidecars are co-located with the transcript. Because current Claude discovery walks
+  every `*.jsonl`, this task must add a narrow exclusion for `*.drwn-signals.jsonl`; it must not
+  add positive signal transport yet.
 
 ## 3. The hook subcommands
 
@@ -128,9 +151,9 @@ registration) and/or `hook_event_name`:
   The user `prompt` is **deliberately omitted** (privacy).
 - `tool_use_id` is the anchor for tool markers; `slash_expansion` has none (correlates via
   `session_id` + `transcript_basename` + `command_name`).
-- Guards: tool phases require `tool_use_id`; expansion requires `command_name`+`command_source`;
-  a payload whose `hook_event_name` disagrees with `--phase` is a no-op. `hook_event_name` in
-  the record is the phase's canonical event.
+- Guards: tool phases require `tool_name: "Skill"` and `tool_use_id`; expansion
+  requires `command_name`+`command_source`; a payload whose `hook_event_name` disagrees with
+  `--phase` is a no-op. `hook_event_name` in the record is the phase's canonical event.
 
 ## 4. Signal contract
 
@@ -178,7 +201,7 @@ transport task; `schema_version` lets the contract grow without breaking consume
     unwritable sink → exit 0, no stdout/stderr, no throw.
   - **Contract:** a per-type required-field validator (`hook-signals.test.ts`).
   - **Discovery:** `discoverClaudeSessions` excludes `*.drwn-signals.jsonl`
-    (`export-signal-exclusion.test.ts`).
+    (`core-session-discovery.test.ts` or a focused export-signal exclusion test).
 - **Integration (real entrypoint, `commands-hook.test.ts`):** invoke `drwn hook …` as a
   spawned process piping a fixture on stdin; assert the sink content and that stdout/stderr
   are empty and exit 0 even with a misconfigured repo root (guards pre-dispatch silence), plus

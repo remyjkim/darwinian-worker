@@ -1,0 +1,16 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000004",
+  "transcript_path": "/Users/example/.claude/projects/-tmp-drwn-hook-smoke/00000000-0000-4000-8000-000000000004.jsonl",
+  "cwd": "/tmp/drwn-hook-smoke",
+  "permission_mode": "bypassPermissions",
+  "hook_event_name": "PostToolUseFailure",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "false",
+    "description": "Run the false command to trigger a failure"
+  },
+  "tool_use_id": "toolu_0177oBhsNuQ1JKNymmAgxVTs",
+  "error": "Exit code 1",
+  "is_interrupt": false,
+  "duration_ms": 129
+}

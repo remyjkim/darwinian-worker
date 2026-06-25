@@ -124,12 +124,50 @@ describe("buildSkillRecord", () => {
     expect(record).not.toHaveProperty("skill");
   });
 
+  test("expansion can carry active cards for unambiguous attribution", () => {
+    const record = buildSkillRecord(
+      {
+        session_id: "abc",
+        transcript_path: "/x/abc.jsonl",
+        hook_event_name: "UserPromptExpansion",
+        command_name: "superpowers:verification-before-completion",
+        command_source: "plugin",
+        command_args: "smoke",
+      },
+      "expansion",
+      NOW,
+      { cards: [{ name: "@scope/card-beta", version: "2.0.0" }] },
+    );
+    expect(record).toMatchObject({
+      type: "slash_expansion",
+      command_name: "superpowers:verification-before-completion",
+      cards: [{ name: "@scope/card-beta", version: "2.0.0" }],
+    });
+  });
+
   test("returns null when a tool phase is missing tool_use_id (the anchor)", () => {
     expect(
       buildSkillRecord({ session_id: "abc", transcript_path: "/x/abc.jsonl", hook_event_name: "PreToolUse", tool_name: "Skill" }, "pre", NOW),
     ).toBeNull();
     expect(
       buildSkillRecord({ session_id: "abc", transcript_path: "/x/abc.jsonl", hook_event_name: "PostToolUse", tool_name: "Skill" }, "post", NOW),
+    ).toBeNull();
+  });
+
+  test("returns null when a tool phase is not the Skill tool", () => {
+    expect(
+      buildSkillRecord(
+        {
+          session_id: "abc",
+          transcript_path: "/x/abc.jsonl",
+          hook_event_name: "PreToolUse",
+          tool_name: "Write",
+          tool_use_id: "toolu_1",
+          tool_input: { skill: "superpowers:brainstorming" },
+        },
+        "pre",
+        NOW,
+      ),
     ).toBeNull();
   });
 
@@ -221,34 +259,46 @@ describe("parseLastCardUsageCards", () => {
 describe("contract shape", () => {
   const COMMON = ["schema_version", "type", "hook_event_name", "session_id", "ts", "transcript_basename"];
   const REQUIRED: Record<string, string[]> = {
+    card_usage: [...COMMON, "cards"],
     slash_expansion: [...COMMON, "command_name", "command_source"],
-    skill_invocation: [...COMMON, "tool_use_id"],
-    skill_result: [...COMMON, "tool_use_id"],
-    skill_failure: [...COMMON, "tool_use_id"],
+    skill_invocation: [...COMMON, "tool_name", "tool_use_id"],
+    skill_result: [...COMMON, "tool_name", "tool_use_id"],
+    skill_failure: [...COMMON, "tool_name", "tool_use_id"],
+  };
+  const TYPE_RECORDS = {
+    card_usage: buildCardUsageRecord({ session_id: "a", transcript_path: "/x/a.jsonl", cwd: "/p" }, [{ name: "n", version: "1.0.0" }], NOW),
+    slash_expansion: buildSkillRecord(
+      { session_id: "a", transcript_path: "/x/a.jsonl", hook_event_name: "UserPromptExpansion", command_name: "c", command_source: "plugin" },
+      "expansion",
+      NOW,
+    ),
+    skill_invocation: buildSkillRecord(
+      { session_id: "a", transcript_path: "/x/a.jsonl", hook_event_name: "PreToolUse", tool_name: "Skill", tool_use_id: "t" },
+      "pre",
+      NOW,
+    ),
+    skill_result: buildSkillRecord(
+      { session_id: "a", transcript_path: "/x/a.jsonl", hook_event_name: "PostToolUse", tool_name: "Skill", tool_use_id: "t" },
+      "post",
+      NOW,
+    ),
+    skill_failure: buildSkillRecord(
+      { session_id: "a", transcript_path: "/x/a.jsonl", hook_event_name: "PostToolUseFailure", tool_name: "Skill", tool_use_id: "t" },
+      "fail",
+      NOW,
+    ),
   };
 
-  test("each skill record carries its required fields", () => {
-    const records = [
-      buildSkillRecord({ session_id: "a", transcript_path: "/x/a.jsonl", hook_event_name: "UserPromptExpansion", command_name: "c", command_source: "plugin" }, "expansion", NOW),
-      buildSkillRecord({ session_id: "a", transcript_path: "/x/a.jsonl", hook_event_name: "PreToolUse", tool_name: "Skill", tool_use_id: "t" }, "pre", NOW),
-      buildSkillRecord({ session_id: "a", transcript_path: "/x/a.jsonl", hook_event_name: "PostToolUse", tool_name: "Skill", tool_use_id: "t" }, "post", NOW),
-      buildSkillRecord({ session_id: "a", transcript_path: "/x/a.jsonl", hook_event_name: "PostToolUseFailure", tool_name: "Skill", tool_use_id: "t" }, "fail", NOW),
-    ];
-    for (const record of records) {
+  for (const [type, record] of Object.entries(TYPE_RECORDS)) {
+    test(`${type} carries its required fields`, () => {
       expect(record).not.toBeNull();
       const r = record as Record<string, unknown>;
-      for (const key of REQUIRED[r.type as string]!) {
+      expect(r.type).toBe(type);
+      for (const key of REQUIRED[type]!) {
         expect(r[key]).toBeDefined();
       }
-    }
-  });
-
-  test("card_usage carries its required fields", () => {
-    const r = buildCardUsageRecord({ session_id: "a", transcript_path: "/x/a.jsonl", cwd: "/p" }, [{ name: "n", version: "1.0.0" }], NOW) as Record<string, unknown>;
-    for (const key of [...COMMON, "cards"]) {
-      expect(r[key]).toBeDefined();
-    }
-  });
+    });
+  }
 });
 
 describe("cardsEqual", () => {

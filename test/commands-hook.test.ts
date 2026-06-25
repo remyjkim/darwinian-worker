@@ -36,6 +36,14 @@ function readSink(path: string) {
 const BARE_ENV: Record<string, string> = {};
 
 describe("drwn hook card-usage", () => {
+  test("hook subcommands are hidden from top-level help", async () => {
+    const p = project(false);
+    const result = await runAgentsCli(["--help"], BARE_ENV, p.root);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).not.toContain("drwn hook card-usage");
+    expect(result.stdout).not.toContain("drwn hook skill-marker");
+  });
+
   test("emits a card_usage record from stdin and stays silent, exit 0", async () => {
     const p = project(true);
     const payload = JSON.stringify({
@@ -65,6 +73,21 @@ describe("drwn hook card-usage", () => {
     const result = await runAgentsCli(["hook", "card-usage"], BARE_ENV, p.root, { stdin: payload });
     expect(result.exitCode).toBe(0);
     expect(existsSync(p.sinkPath)).toBe(false);
+  });
+
+  test("unwritable sink → exit 0, silent (no crash)", async () => {
+    const p = project(true);
+    mkdirSync(p.sinkPath, { recursive: true });
+    const payload = JSON.stringify({
+      session_id: p.sessionId,
+      transcript_path: p.transcriptPath,
+      cwd: p.root,
+      hook_event_name: "UserPromptSubmit",
+    });
+    const result = await runAgentsCli(["hook", "card-usage"], BARE_ENV, p.root, { stdin: payload });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toBe("");
   });
 });
 
@@ -99,12 +122,91 @@ describe("drwn hook skill-marker", () => {
       hook_event_name: "UserPromptExpansion",
       command_name: "brainstorming",
       command_source: "plugin",
+      command_args: "topic",
+      expansion_type: "slash_command",
+      prompt: "private prompt text",
     });
     const result = await runAgentsCli(["hook", "skill-marker", "--phase", "expansion"], BARE_ENV, p.root, { stdin: payload });
     expect(result.exitCode).toBe(0);
     const lines = readSink(p.sinkPath);
-    expect(lines[0]).toMatchObject({ type: "slash_expansion", command_name: "brainstorming" });
+    expect(lines[0]).toMatchObject({
+      type: "slash_expansion",
+      command_name: "brainstorming",
+      command_args: "topic",
+      expansion_type: "slash_command",
+    });
     expect(lines[0]).not.toHaveProperty("skill");
+    expect(lines[0]).not.toHaveProperty("prompt");
+  });
+
+  test("emits slash_expansion with active cards when card.lock exists", async () => {
+    const p = project(true);
+    const payload = JSON.stringify({
+      session_id: p.sessionId,
+      transcript_path: p.transcriptPath,
+      cwd: p.root,
+      hook_event_name: "UserPromptExpansion",
+      command_name: "superpowers:verification-before-completion",
+      command_source: "plugin",
+      command_args: "topic",
+      expansion_type: "slash_command",
+    });
+    const result = await runAgentsCli(["hook", "skill-marker", "--phase", "expansion"], BARE_ENV, p.root, { stdin: payload });
+    expect(result.exitCode).toBe(0);
+    const lines = readSink(p.sinkPath);
+    expect(lines[0]).toMatchObject({
+      type: "slash_expansion",
+      command_name: "superpowers:verification-before-completion",
+      cards: [{ name: "@scope/improve", version: "1.2.3" }],
+    });
+  });
+
+  test("skips silently when a tool marker is missing required fields", async () => {
+    const p = project(false);
+    const payload = JSON.stringify({
+      session_id: p.sessionId,
+      transcript_path: p.transcriptPath,
+      hook_event_name: "PreToolUse",
+      tool_name: "Skill",
+      tool_input: { skill: "superpowers:brainstorming" },
+    });
+    const result = await runAgentsCli(["hook", "skill-marker", "--phase", "pre"], BARE_ENV, p.root, { stdin: payload });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toBe("");
+    expect(existsSync(p.sinkPath)).toBe(false);
+  });
+
+  test("skips silently when a tool marker is not the Skill tool", async () => {
+    const p = project(false);
+    const payload = JSON.stringify({
+      session_id: p.sessionId,
+      transcript_path: p.transcriptPath,
+      hook_event_name: "PreToolUse",
+      tool_name: "Write",
+      tool_use_id: "toolu_42",
+      tool_input: { skill: "superpowers:brainstorming" },
+    });
+    const result = await runAgentsCli(["hook", "skill-marker", "--phase", "pre"], BARE_ENV, p.root, { stdin: payload });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toBe("");
+    expect(existsSync(p.sinkPath)).toBe(false);
+  });
+
+  test("skips silently when expansion is missing required fields", async () => {
+    const p = project(false);
+    const payload = JSON.stringify({
+      session_id: p.sessionId,
+      transcript_path: p.transcriptPath,
+      hook_event_name: "UserPromptExpansion",
+      command_name: "brainstorming",
+    });
+    const result = await runAgentsCli(["hook", "skill-marker", "--phase", "expansion"], BARE_ENV, p.root, { stdin: payload });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toBe("");
+    expect(existsSync(p.sinkPath)).toBe(false);
   });
 });
 

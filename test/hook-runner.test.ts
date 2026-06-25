@@ -63,6 +63,51 @@ describe("emitSkillMarker", () => {
     );
     expect(readLines(t.sinkPath)).toHaveLength(20);
   });
+
+  test("adds active cards to slash expansions when a card lock is available", async () => {
+    const t = tempTranscript();
+    await emitSkillMarker(
+      {
+        session_id: t.sessionId,
+        transcript_path: t.transcriptPath,
+        cwd: "/p",
+        hook_event_name: "UserPromptExpansion",
+        command_name: "superpowers:verification-before-completion",
+        command_source: "plugin",
+        command_args: "smoke",
+      },
+      "expansion",
+      {
+        now: () => "2026-06-23T00:00:00.000Z",
+        resolveActiveCards: async () => [{ name: "@scope/card-beta", version: "2.0.0" }],
+      },
+    );
+    expect(readLines(t.sinkPath)[0]).toMatchObject({
+      type: "slash_expansion",
+      command_name: "superpowers:verification-before-completion",
+      cards: [{ name: "@scope/card-beta", version: "2.0.0" }],
+    });
+  });
+
+  test("omits cards from slash expansions when no card lock is available", async () => {
+    const t = tempTranscript();
+    await emitSkillMarker(
+      {
+        session_id: t.sessionId,
+        transcript_path: t.transcriptPath,
+        cwd: "/p",
+        hook_event_name: "UserPromptExpansion",
+        command_name: "superpowers:verification-before-completion",
+        command_source: "plugin",
+      },
+      "expansion",
+      {
+        now: () => "2026-06-23T00:00:00.000Z",
+        resolveActiveCards: async () => null,
+      },
+    );
+    expect(readLines(t.sinkPath)[0]).not.toHaveProperty("cards");
+  });
 });
 
 describe("emitCardUsage", () => {

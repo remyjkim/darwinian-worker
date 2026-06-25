@@ -136,6 +136,21 @@ describe("discoverClaudeSessions", () => {
     expect(results).toHaveLength(1);
     expect(results[0]!.absolutePath).toContain("session.jsonl");
   });
+
+  test("excludes drwn signal sidecars from Claude session discovery", async () => {
+    const projectsDir = await createTempRoot("claude-projects-");
+    const slug = "-Users-foo-myproject";
+    const slugDir = "-Users-foo-myproject";
+
+    await mkdir(join(projectsDir, slugDir));
+    await writeFile(join(projectsDir, slugDir, "session.jsonl"), '{"type":"message"}\n');
+    await writeFile(join(projectsDir, slugDir, "session.drwn-signals.jsonl"), '{"type":"card_usage"}\n');
+
+    const results = await discoverClaudeSessions(projectsDir, slug);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]!.archivePath).toBe("claude/session.jsonl");
+  });
 });
 
 describe("discoverCodexSessions", () => {

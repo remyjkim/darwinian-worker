@@ -16,6 +16,7 @@ import {
 
 export interface SkillHookDeps {
   now?: () => string;
+  resolveActiveCards?: (cwd: string) => Promise<CardRef[] | null>;
 }
 
 export interface CardUsageHookDeps {
@@ -65,7 +66,9 @@ export async function resolveActiveCardsFromLock(cwd: string): Promise<CardRef[]
 export async function emitSkillMarker(payload: HookPayload, phase: SkillPhase, deps: SkillHookDeps = {}): Promise<void> {
   const sinkPath = resolveSinkPath(payload);
   if (!sinkPath) return;
-  const record = buildSkillRecord(payload, phase, nowIso(deps));
+  const cards =
+    phase === "expansion" ? await (deps.resolveActiveCards ?? resolveActiveCardsFromLock)(payload.cwd ?? "") : null;
+  const record = buildSkillRecord(payload, phase, nowIso(deps), cards === null ? {} : { cards });
   if (!record) return; // partial / mismatched payload → no-op
   appendLine(sinkPath, record);
 }
