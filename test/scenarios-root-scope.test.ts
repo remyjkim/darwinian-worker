@@ -240,3 +240,123 @@ test("write --user behaves identically to write --root", async () => {
   const record = await readJson(join(fixture.agentsDir, "drwn", "global-write-record.json"));
   expect(record.managedPaths.some((entry: any) => entry.path === ".claude.json")).toBe(true);
 });
+
+// ───────────────────────────────────────────────────────────────────────────
+// Task 51 — should-have additions (S1, S2a/b/c, S4, S5)
+// ───────────────────────────────────────────────────────────────────────────
+
+test("write --root --dry-run produces a plan but does not modify any user-scope file", async () => {
+  const fixture = await scaffoldCliFixture({ curatedSkillNames: [] });
+  tempRoots.push(fixture.root);
+  await ensureContext7Default(fixture);
+  const beforeClaude = await readFile(fixture.claudeUserMcp, "utf8");
+  const beforeCodex = await readFile(fixture.codexConfig, "utf8");
+  const writeRecordPath = join(fixture.agentsDir, "drwn", "global-write-record.json");
+
+  const result = await runAgentsCli(
+    ["write", "--root", "--mcp-only", "--dry-run", "--json"],
+    envFor(fixture),
+  );
+
+  expect(result.exitCode).toBe(0);
+  const parsed = JSON.parse(result.stdout) as { changes: string[] };
+  expect(parsed.changes.length).toBeGreaterThan(0);
+  expect(parsed.changes.some((c) => c.includes(fixture.claudeUserMcp))).toBe(true);
+
+  // No actual writes, no write-record persistence.
+  expect(await readFile(fixture.claudeUserMcp, "utf8")).toBe(beforeClaude);
+  expect(await readFile(fixture.codexConfig, "utf8")).toBe(beforeCodex);
+  expect(existsSync(writeRecordPath)).toBe(false);
+});
+
+test("write --root --target=claude writes only ~/.claude.json", async () => {
+  const fixture = await scaffoldCliFixture({ curatedSkillNames: [] });
+  tempRoots.push(fixture.root);
+  await ensureContext7Default(fixture);
+  const beforeCodex = await readFile(fixture.codexConfig, "utf8");
+
+  const result = await runAgentsCli(
+    ["write", "--root", "--target=claude", "--mcp-only", "--json"],
+    envFor(fixture),
+  );
+
+  expect(result.exitCode).toBe(0);
+  expect((await readJson(fixture.claudeUserMcp)).mcpServers.context7).toBeDefined();
+  expect(await readFile(fixture.codexConfig, "utf8")).toBe(beforeCodex);
+});
+
+test("write --root --target=codex writes only ~/.codex/config.toml", async () => {
+  const fixture = await scaffoldCliFixture({ curatedSkillNames: [] });
+  tempRoots.push(fixture.root);
+  await ensureContext7Default(fixture);
+  const beforeClaude = await readFile(fixture.claudeUserMcp, "utf8");
+
+  const result = await runAgentsCli(
+    ["write", "--root", "--target=codex", "--mcp-only", "--json"],
+    envFor(fixture),
+  );
+
+  expect(result.exitCode).toBe(0);
+  expect(await readFile(fixture.codexConfig, "utf8")).toContain("[mcp_servers.context7]");
+  expect(await readFile(fixture.claudeUserMcp, "utf8")).toBe(beforeClaude);
+});
+
+test("write --root --target=cursor writes only ~/.cursor/mcp.json", async () => {
+  const fixture = await scaffoldCliFixture({ curatedSkillNames: [] });
+  tempRoots.push(fixture.root);
+  await ensureContext7Default(fixture);
+  const beforeClaude = await readFile(fixture.claudeUserMcp, "utf8");
+  const beforeCodex = await readFile(fixture.codexConfig, "utf8");
+
+  const result = await runAgentsCli(
+    ["write", "--root", "--target=cursor", "--mcp-only", "--json"],
+    envFor(fixture),
+  );
+
+  expect(result.exitCode).toBe(0);
+  expect((await lstat(fixture.cursorConfig)).isSymbolicLink()).toBe(true);
+  expect(await readFile(fixture.claudeUserMcp, "utf8")).toBe(beforeClaude);
+  expect(await readFile(fixture.codexConfig, "utf8")).toBe(beforeCodex);
+});
+
+test("write --root with empty defaults but prior ownership prunes without emitting the no-defaults warning", async () => {
+  const fixture = await scaffoldCliFixture({ curatedSkillNames: [] });
+  tempRoots.push(fixture.root);
+  await ensureContext7Default(fixture);
+  expect((await runWriteRoot(fixture)).exitCode).toBe(0);
+
+  // Confirm both Claude and Codex own context7 after the first write.
+  expect(await readFile(fixture.codexConfig, "utf8")).toContain("[mcp_servers.context7]");
+  expect((await readJson(fixture.claudeUserMcp)).mcpServers.context7).toBeDefined();
+
+  // Remove the default via the CLI — empties the active server set but the
+  // write-record still records prior ownership.
+  const remove = await runAgentsCli(
+    ["library", "defaults", "remove", "mcp", "context7", "--json"],
+    envFor(fixture),
+  );
+  expect(remove.exitCode).toBe(0);
+
+  const result = await runWriteRoot(fixture);
+
+  expect(result.exitCode).toBe(0);
+  const warnings = (JSON.parse(result.stdout).warnings as string[]).join("\n");
+  expect(warnings).not.toContain("no machine-default MCP servers");
+  // Cleanup actually ran across both targets.
+  expect(await readFile(fixture.codexConfig, "utf8")).not.toContain("[mcp_servers.context7]");
+  expect((await readJson(fixture.claudeUserMcp)).mcpServers?.context7).toBeUndefined();
+});
+
+test("write --root leaves no orphaned .tmp files after a successful write", async () => {
+  const fixture = await scaffoldCliFixture({ curatedSkillNames: [] });
+  tempRoots.push(fixture.root);
+  await ensureContext7Default(fixture);
+
+  expect((await runWriteRoot(fixture)).exitCode).toBe(0);
+
+  // Atomic write contract: every <path>.tmp must have been renamed away.
+  expect(existsSync(`${fixture.claudeUserMcp}.tmp`)).toBe(false);
+  expect(existsSync(`${fixture.codexConfig}.tmp`)).toBe(false);
+  const generatedCursor = join(fixture.agentsDir, "drwn", "generated", "cursor-mcp.json");
+  expect(existsSync(`${generatedCursor}.tmp`)).toBe(false);
+});

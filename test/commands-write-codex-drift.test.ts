@@ -55,3 +55,43 @@ test("write refuses managed Codex drift unless forced", async () => {
   expect(forced.exitCode).toBe(0);
   expect(await readFile(codexPath, "utf8")).not.toContain("tampered");
 });
+
+// ───────────────────────────────────────────────────────────────────────────
+// Task 51 — S3: Codex per-server removal driven through --root
+// ───────────────────────────────────────────────────────────────────────────
+
+test("write --root removes a Codex MCP entry when the default is removed and leaves user-authored servers intact", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+
+  // Seed a user-authored Codex server before drwn ever runs.
+  await writeFile(
+    fixture.codexConfig,
+    'personality = "pragmatic"\n\n[mcp_servers.user_made]\ncommand = "echo"\n',
+  );
+
+  // Register context7 as a machine default and materialize at user scope.
+  expect(
+    (await runAgentsCli(["library", "defaults", "add", "mcp", "context7", "--json"], envFor(fixture))).exitCode,
+  ).toBe(0);
+  expect(
+    (await runAgentsCli(["write", "--root", "--mcp-only", "--json"], envFor(fixture))).exitCode,
+  ).toBe(0);
+
+  // Both servers should be present at this point.
+  const seeded = await readFile(fixture.codexConfig, "utf8");
+  expect(seeded).toContain("[mcp_servers.context7]");
+  expect(seeded).toContain("[mcp_servers.user_made]");
+
+  // Remove the default and re-run --root.
+  expect(
+    (await runAgentsCli(["library", "defaults", "remove", "mcp", "context7", "--json"], envFor(fixture))).exitCode,
+  ).toBe(0);
+  expect(
+    (await runAgentsCli(["write", "--root", "--mcp-only", "--json"], envFor(fixture))).exitCode,
+  ).toBe(0);
+
+  const after = await readFile(fixture.codexConfig, "utf8");
+  expect(after).not.toContain("[mcp_servers.context7]");
+  expect(after).toContain("[mcp_servers.user_made]");
+});
