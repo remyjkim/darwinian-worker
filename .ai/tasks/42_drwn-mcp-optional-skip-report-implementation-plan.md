@@ -1,284 +1,394 @@
-# Task 42: Surface Skipped Optional MCPs During Card Install + Write
+# Task 42: Card-Declared Optional MCP Activation And Reporting
 
-**Status**: Planning
+**Status**: Completed
 **Created**: 2026-06-11
-**Updated**: 2026-06-11
+**Updated**: 2026-06-24
+**Completion**: `.ai/tasks/42_completion_drwn-mcp-optional-activation-report.md`
 **Priority**: Medium (UX trap; discoverability bug, not data loss)
 **Dependencies**: None (works against current `main`)
-**References**: [GitHub issue remyjkim/darwinian-harness#10, cli/core/mcp.ts, cli/core/effective-state.ts, cli/core/output.ts, cli/core/sync.ts, cli/commands/write.ts, cli/commands/card/add.ts, cli/commands/card/apply.ts, cli/commands/card/project-command.ts, registry/mcp-servers.json, registry/config.json, test/commands-write.test.ts, test/commands-card-consumer.test.ts]
+**References**: [GitHub issue remyjkim/darwinian-harness#10, analyses/29_harness-cards-target-architecture-v1_1.md, analyses/13_library-defaults-config-target-architecture.md, knowledges/10_drwn-cli-architecture.md, cli/core/mcp.ts, cli/core/effective-state.ts, cli/core/card-project.ts, cli/core/project.ts, cli/core/output.ts, cli/core/sync.ts, cli/commands/write.ts, cli/commands/add/mcp.ts, cli/commands/card/add.ts, cli/commands/card/apply.ts, cli/commands/card/project-command.ts, registry/mcp-servers.json, registry/config.json, test/commands-write.test.ts, test/commands-card-consumer.test.ts]
 
 ---
 
 ## Objective
 
-When a user installs a card whose manifest declares an optional MCP server (`servers.<name>.optional: true`), drwn currently filters that server out of the active set without saying anything. The user has no signal during `drwn card add/apply --write` or `drwn write` that an MCP they might have expected from the card is being skipped — they have to manually diff `card.lock` against the rendered MCP configs to notice.
+Make card-declared optional MCP activation explainable and valid.
 
-Goal state: every command that materializes a card's MCP configuration prints a per-card breakdown of optional MCP servers, indicating active vs. skipped status and the exact opt-in command for each skipped server.
+Today, when a user installs a card whose manifest declares an optional MCP server (`servers.<name>.optional: true`), `drwn` can filter that server out of the active MCP set without saying anything. The user sees a successful `drwn card add/apply --write` or `drwn write`, but an expected MCP-backed capability is absent from the rendered Claude/Codex/Cursor configuration. The only way to diagnose the gap is to manually compare the card manifest or `card.lock` with the generated MCP config.
 
-This is purely a *surfacing* fix. The filter policy itself stays untouched.
+The original version of this task treated the problem as pure reporting. That is insufficient. Card-local optional MCP definitions are not always reusable registry/library MCPs. A report that says `enable with drwn add mcp <name>` is only honest if `drwn add mcp <name>` can actually activate a card-declared optional MCP in the current project.
+
+Goal state:
+
+- `drwn write`, `drwn write --dry-run`, `drwn card add --write`, and `drwn card apply --write` report card-declared optional MCPs as active, skipped, or shadowed.
+- `drwn write --json` exposes the same information as `optionalMcpReport`.
+- `drwn add mcp <name>` can enable an optional MCP declared by a locked card in the current project, even when that MCP definition is not in the reusable MCP library.
+- Optional MCP filtering policy stays intact: card-declared optional MCPs remain opt-in.
+
+## Target Architecture References
+
+There is no single dedicated target-architecture document for this exact Task 42 edge. The closest architectural parents are:
+
+- `.ai/analyses/29_harness-cards-target-architecture-v1_1.md` section 5.2.1, which states that MCP server definitions resolve through card-inline, user library, and packaged baseline layers, while project `servers.<name> = { enabled: boolean }` toggles an existing server and full definitions add project-local servers.
+- `.ai/analyses/13_library-defaults-config-target-architecture.md` "MCP Resolution", which separates MCP definitions from activation defaults and project overrides.
+- `.ai/knowledges/10_drwn-cli-architecture.md` section 2.3, which documents the current implementation and the overloaded `ProjectConfig.servers` behavior that this task must refine for card-declared definitions.
+
+This task plan is the narrow execution source of truth for applying those architecture principles to card-declared optional MCPs and the write-time report.
+
+## Current Behavior
+
+Relevant current mechanics:
+
+- `mergeCardManifestsIntoProjectConfig()` copies card manifest `servers` into the derived project config (`cli/core/card-project.ts`).
+- `mergeProjectConfig()` then interprets each `project.servers` entry as either a toggle (`{ enabled: boolean }`) or a full `RegistryServer` (`cli/core/project.ts`).
+- `buildActiveServers()` includes optional servers only when `config.optional[name] === true`, unless explicit defaults are used (`cli/core/mcp.ts`).
+- `drwn add mcp` is project-first, but it currently searches reusable library/catalog MCP definitions, not the current project's locked card manifests (`cli/commands/add/mcp.ts`).
+
+The architecture bug is the collapsed layer: card-declared MCP definitions are merged into the same `ProjectConfig.servers` map that later receives activation toggles. If a card declares a custom optional MCP named `custom`, then the project writes:
+
+```json
+{
+  "servers": {
+    "custom": { "enabled": true }
+  }
+}
+```
+
+that toggle can shadow the full card definition. If `custom` is not in the base registry or user MCP library, the effective registry may no longer have a definition to activate.
+
+## Target State
+
+Separate MCP definition sources from activation policy.
+
+Definition layers:
+
+1. Packaged base registry (`registry/mcp-servers.json`).
+2. User MCP library (`~/.agents/drwn/mcp-servers/<id>.json`).
+3. Card-declared MCP definitions from locked card manifests.
+4. Project-local full MCP definitions.
+
+Activation layers:
+
+1. Machine defaults / optional map.
+2. Project `servers.<name> = { enabled: boolean }` toggles.
+
+Rules:
+
+- Card-declared MCP definitions are merged into the effective registry before project toggle overrides are interpreted.
+- Project `{ enabled: true }` toggles activation only. It must not erase or replace a card-declared full server definition.
+- Project full server definitions still override lower definition layers for that project.
+- The active server set remains produced by `buildActiveServers()`.
+- A card-declared optional MCP is reportable only because it came from a locked card manifest. Registry-only optional MCPs are not included in this report.
+- The report command hint must be true. In a project with a locked card declaring optional MCP `custom`, `drwn add mcp custom` must be able to enable `custom`.
 
 ## Success Criteria
 
-- [ ] `drwn write` (default flow) appends an "Optional MCP servers from cards" section to its stdout when at least one locked card declares one or more optional MCPs.
-- [ ] `drwn write --dry-run` prints the same section (it's a pure derivation, not a side effect).
-- [ ] `drwn write --json` adds an `optionalMcpReport` field to the existing JSON envelope; field is `null` when no locked cards exist or no cards declare optional MCPs.
-- [ ] `drwn card add <spec> --write` and `drwn card apply <specs> --write` print the same section after their existing `renderCardMutation` + chained-write output.
-- [ ] When zero locked cards declare optional MCPs, no section is printed (no empty "Optional MCP servers from cards:" header).
-- [ ] When run inside a project, skipped entries show `drwn add mcp <name>` as the opt-in command. When run without a project (machine scope only), they show `drwn library defaults add mcp <name>` (assumes #11 also lands; otherwise show a doc URL).
+- [ ] Card-declared MCP definitions are represented as definition-layer input, not only as derived `ProjectConfig.servers` entries.
+- [ ] A project toggle `{ "servers": { "<card-local-name>": { "enabled": true } } }` activates the card-declared MCP definition without replacing or deleting that definition.
+- [ ] Project-local full server definitions still override card-declared definitions.
+- [ ] `drwn add mcp <name>` can resolve an optional MCP from the current project's locked card manifests after reusable library/catalog lookup.
+- [ ] `drwn add mcp <name>` writes `{ enabled: true }` for card-declared optional MCPs, not a copied full server body.
+- [ ] `drwn write` appends an "Optional MCP servers from cards" section when at least one locked card declares optional MCPs.
+- [ ] `drwn write --dry-run` prints the same section.
+- [ ] `drwn write --json` adds `optionalMcpReport`; the field is `null` when no locked cards exist or no locked cards declare optional MCPs.
+- [ ] `drwn card add <spec> --write` and `drwn card apply <specs> --write` print the same section after their existing mutation output and chained write output.
+- [ ] When zero locked cards declare optional MCPs, no section is printed.
+- [ ] Report statuses include at least `active`, `skipped`, and `shadowed`.
 - [ ] All existing tests in `test/commands-write.test.ts` and `test/commands-card-consumer.test.ts` stay green.
-- [ ] New unit tests cover: (a) `computeOptionalMcpReport` against 4+ scenarios; (b) `renderOptionalMcpReport` formatting; (c) end-to-end stdout assertions on `drwn write` and `drwn card apply --write` with a fixture card declaring optional MCPs.
-- [ ] `bun test` clean, `bun run typecheck` clean, no new npm dependencies.
+- [ ] New tests cover registry optional MCPs, card-local optional MCPs, opt-in via `drwn add mcp`, JSON output, and name collision/shadowing.
+- [ ] `bun test` and `bun run typecheck` pass.
+- [ ] No new npm dependencies.
 
-## Strategy Selection
+## Locked Decisions
 
-Two viable strategies considered:
+| # | Decision | Rationale |
+|---|---|---|
+| D1 | This task fixes definition-vs-toggle layering before adding the report. | Reporting an opt-in command is misleading unless activation actually works for card-local MCPs. |
+| D2 | `drwn add mcp <name>` is extended to resolve current locked card optional MCPs. | Keeps the UX consistent with existing project-first MCP activation. |
+| D3 | Do not add a card-specific enable command. | A second enable surface would fragment user mental model. |
+| D4 | Report code lives in `cli/core/mcp-report.ts`. | Keeps `mcp.ts` focused on filtering/rendering mechanics. |
+| D5 | Avoid a heavy `effectiveSnapshot` on `SyncResult`. | Use narrow report inputs or an already-computed `optionalMcpReport` to avoid leaking internal state through JSON. |
+| D6 | The report only lists optional MCPs declared by locked cards. | The pain point is card installation hiding card-backed capability, not global registry discovery. |
+| D7 | `shadowed` is a first-class report status. | Same-name MCP definitions can differ across layers; users need to know when the active definition is not the card's definition. |
+| D8 | Optional filtering policy is unchanged. | MCPs can require credentials, external services, or sensitive local execution. Cards may suggest them but should not auto-enable them. |
 
-**Strategy A — Pure-function reporter, command-level rendering.** Add `computeOptionalMcpReport(state)` in `cli/core/mcp.ts` (or new `mcp-report.ts`). It returns a structured value derived from `state.lockedCards` and `state.activeServers`. Each command calls it after `syncRepository` and renders via a new `renderOptionalMcpReport` helper in `cli/core/output.ts`. JSON path includes the structure under a new field.
+## Report Semantics
 
-- **Pros:** Pure derivation, no I/O. Easy to test in isolation. JSON shape stable across commands. Each command stays in control of its own output.
-- **Cons:** Three call sites (`write.ts`, `card/add.ts`, `card/apply.ts`) need parallel changes. Mitigation: chained `--write` flows already share `runChainedWrite`, so most wiring centralizes there.
+Report entries should be grouped by locked card and server name.
 
-**Strategy B — Inline into `renderSyncResult`.** Extend `SyncResult` with an `optionalMcpReport` field, populate it inside `syncRepository`, and let `renderSyncResult` render it as a third section after Changes and Warnings.
+Statuses:
 
-- **Pros:** Single change site for rendering. All commands that already print sync results inherit the new section for free.
-- **Cons:** Couples a logically-distinct concept (card-level reporting) to the sync-result envelope (which today is changes/warnings of *materialization*). Future readers will wonder why a sync result tracks card optional-MCP state. Also harder to omit from commands where the report doesn't make sense (`drwn write --skills-only`).
+- `active`: the optional MCP name is present in `activeServers` and the active effective definition matches the card-declared definition for that card.
+- `skipped`: the card declares the optional MCP, and the MCP is not active.
+- `shadowed`: an MCP with the same name is active, but the effective definition does not match the card-declared definition for that card.
 
-**Decision: Strategy A.** Keeps concerns separate; the cost (three call sites) is small because `runChainedWrite` consolidates two of them.
+Suggested entry shape:
 
-## Architecture
+```ts
+export type OptionalMcpReportStatus = "active" | "skipped" | "shadowed";
 
-```
-┌─────────────────────────────────────────────────────┐
-│ drwn write / card add --write / card apply --write  │
-└────┬────────────────────────────────────────────────┘
-     │
-     ▼
-┌──────────────────┐   ┌─────────────────────────────────┐
-│ syncRepository() │──▶│ SyncResult { changes, warnings }│
-└──────────────────┘   └─────────────────────────────────┘
-     │
-     ▼
-┌──────────────────────────┐   ┌──────────────────────────┐
-│ buildEffectiveState()    │──▶│ state.lockedCards        │
-│ (already called inside   │   │ state.activeServers      │
-│  syncRepository — expose │   │ state.projectConfigPath  │
-│  via return value)       │   └──────────────────────────┘
-└──────────────────────────┘                │
-     │                                       │
-     │  (NEW: re-call or expose from result)│
-     ▼                                       ▼
-┌────────────────────────────────────────────────────────┐
-│ computeOptionalMcpReport(state) → OptionalMcpReport    │
-└────────┬───────────────────────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────────────────────────┐
-│ renderOptionalMcpReport(report) / JSON field            │
-└─────────────────────────────────────────────────────────┘
-```
-
-`buildEffectiveState` is called inside `syncRepository` today but the result is not returned. Two ways to access it from the command:
-
-- **Option 1:** Call `buildEffectiveState(options)` a second time from the command. Cheap (no network), but duplicates work and could observe a different state if a write happened in between (unlikely in normal flow but real for `--dry-run` interleaving).
-- **Option 2:** Extend `SyncResult` with `effectiveState: EffectiveState` (or a narrowed `OptionalReportInputs`) so the command gets the exact same state that drove the materialization.
-
-**Decision: Option 2.** Extending `SyncResult` is a small additive change and avoids re-derivation. Add the field as `optional` so existing consumers don't break.
-
-## Implementation Plan
-
-### Phase 0: Reproduce under test
-
-#### Task 0.1: Add fixture card with optional MCPs
-- Create `test/fixtures/cards/sample-with-optional-mcps/` containing a minimal `card.json` declaring two optional MCPs (one whose name matches a registry entry, one purely novel). Empty `skills/` directory is fine.
-- Add a helper in an existing test util file that registers this fixture in a temp store for use across tests.
-
-#### Task 0.2: Locking baseline test
-- In `test/optional-mcp-surfacing.test.ts` (new), add a test that resolves the fixture card via the store, runs `buildEffectiveState`, and asserts `state.activeServers` excludes the optional server whose `optional[name]` is `false` in the user/packaged config. This locks current behavior; the surfacing fix must keep this filter unchanged.
-
-### Phase 1: Pure reporter
-
-#### Task 1.1: Type definitions and computer
-- Add to `cli/core/mcp.ts` (or new `cli/core/mcp-report.ts` if mcp.ts feels crowded):
-
-```typescript
 export interface OptionalMcpReportEntry {
-  cardName: string;       // "@leeminseung/live-context"
-  cardVersion: string;    // "0.5.0"
-  serverName: string;     // "slack"
-  status: "active" | "skipped";
-  reason?: "optional-disabled";
-  optInCommand?: string;  // e.g. "drwn add mcp slack"
+  cardName: string;
+  cardVersion: string;
+  serverName: string;
+  status: OptionalMcpReportStatus;
+  reason?: "optional-disabled" | "definition-shadowed";
+  optInCommand?: string;
 }
 
 export interface OptionalMcpReport {
   entries: OptionalMcpReportEntry[];
   skippedCount: number;
+  shadowedCount: number;
+}
+```
+
+Suggested human output:
+
+```text
+Optional MCP servers from cards:
+  @team/live-context@0.5.0
+    + notion (active)
+    - slack (skipped - enable with `drwn add mcp slack`)
+    ! custom (shadowed - active definition differs from this card)
+```
+
+Use ASCII markers (`+`, `-`, `!`) to match existing output style and keep CI logs portable.
+
+Definition equality should be structural and deterministic. Implement a small local helper that sorts object keys recursively before comparison, or reuse an existing stable JSON helper if one is already available at implementation time.
+
+## Implementation Plan
+
+### Phase 0: Baseline Reproduction
+
+#### Task 0.1: Add fixtures
+
+Add fixture coverage for:
+
+- A card declaring a built-in/library optional MCP by name.
+- A card declaring a card-local custom optional MCP definition.
+- Two cards declaring the same optional MCP name with different definitions.
+- A project-local full definition that intentionally shadows a card definition.
+
+Use existing test helpers where possible. Do not add dependencies.
+
+#### Task 0.2: Lock current filtering behavior
+
+Add a failing or characterization test showing:
+
+- A card-declared optional MCP is absent from `activeServers` until enabled.
+- The card-declared full definition exists in the effective registry layer even while inactive.
+
+The second assertion may fail on current code and should drive Phase 1.
+
+### Phase 1: Fix MCP Definition vs Activation Layering
+
+#### Task 1.1: Add explicit card MCP definition layer
+
+Add a focused helper under `cli/core/` (name can be adjusted during implementation):
+
+```ts
+export interface CardServerDefinition {
+  cardName: string;
+  cardVersion: string;
+  serverName: string;
+  server: RegistryServer;
 }
 
-export function computeOptionalMcpReport(input: {
+export function collectCardServerDefinitions(lockedCards: CardLockEntry[]): CardServerDefinition[];
+```
+
+Then update effective-state construction so the merge model is:
+
+1. Base registry + user library.
+2. Card-declared server definitions from locked cards.
+3. Project full server definitions.
+4. Project toggle overrides into `config.optional`.
+
+Do not rely on card server definitions being collapsed into `ProjectConfig.servers` before project toggles are interpreted.
+
+Implementation options:
+
+- Add a helper beneath `buildEffectiveState()` that accepts base config, base registry, locked cards, and project config and returns `effectiveConfig`, `effectiveRegistry`, `cardServerDefinitions`, and `projectServerOverrides`.
+- Or refactor `mergeProjectConfig()` to accept an explicit pre-merged card registry layer. Keep call sites readable; do not spread card-specific logic through command classes.
+
+#### Task 1.2: Preserve existing precedence
+
+Project full definitions must still win over card definitions. Project toggles must activate/deactivate without replacing definitions.
+
+Add tests for:
+
+- Card-local optional + `{ enabled: true }` becomes active.
+- Card-local optional + `{ enabled: false }` remains inactive.
+- Project full definition with same name wins over card definition and can yield `shadowed`.
+- Existing registry/library MCP toggles continue to work.
+
+### Phase 2: Extend `drwn add mcp`
+
+#### Task 2.1: Resolve locked card optional MCPs
+
+Update `drwn add mcp <name>` so lookup order is:
+
+1. Local reusable MCP library / built-in registry behavior as today.
+2. Catalog MCP match behavior as today when `--yes` is used.
+3. Current project's locked card optional MCP definitions.
+
+For a card-declared optional MCP match:
+
+- Require a project context with a current card lock or resolvable project card specs.
+- Write `{ "servers": { "<name>": { "enabled": true } } }`.
+- Do not copy the full server definition into project config.
+- Report `action: "enabled"` and `projectChanges: [{ kind: "mcp", id, action: "enabled" }]`.
+- Include `requiredEnv` from the card server definition.
+
+If multiple locked cards declare the same optional server name with different definitions, still write the toggle, but include a warning in human/JSON output that the effective definition follows card order / layer precedence. The write-time report will surface `shadowed` where relevant.
+
+#### Task 2.2: Tests for `drwn add mcp`
+
+Add tests for:
+
+- `drwn add mcp <card-local>` enables a locked card optional MCP.
+- Dry-run reports the same planned project config change without writing.
+- JSON output includes expected `kind`, `id`, `action`, `projectConfigPath`, `projectChanges`, and `requiredEnv`.
+- Outside a project, card-local lookup is not attempted and existing error behavior is preserved.
+- Existing library/catalog lookup tests stay green.
+
+### Phase 3: Optional MCP Report Module
+
+#### Task 3.1: Add `cli/core/mcp-report.ts`
+
+Inputs should be narrow:
+
+```ts
+export interface OptionalMcpReportInput {
   lockedCards: CardLockEntry[];
   activeServers: Record<string, RegistryServer>;
-  hasProjectConfig: boolean;
-}): OptionalMcpReport {
-  const entries: OptionalMcpReportEntry[] = [];
-  let skippedCount = 0;
-  for (const card of input.lockedCards) {
-    for (const [serverName, server] of Object.entries(card.manifest.servers ?? {})) {
-      if (server.optional !== true) continue;
-      const active = input.activeServers[serverName] !== undefined;
-      const base = { cardName: card.name, cardVersion: card.version, serverName };
-      if (active) {
-        entries.push({ ...base, status: "active" });
-      } else {
-        entries.push({
-          ...base,
-          status: "skipped",
-          reason: "optional-disabled",
-          optInCommand: input.hasProjectConfig
-            ? `drwn add mcp ${serverName}`
-            : `drwn library defaults add mcp ${serverName}`,
-        });
-        skippedCount++;
-      }
-    }
-  }
-  return { entries, skippedCount };
+  effectiveRegistry: CanonicalRegistry;
+  projectConfigPath: string | null;
+  projectServerOverrides: ProjectConfig["servers"] | undefined;
 }
 ```
 
-#### Task 1.2: Renderer
-- Add to `cli/core/output.ts`:
+If implementation produces a narrower purpose-built input shape, prefer that over passing full `EffectiveState`.
 
-```typescript
-export function renderOptionalMcpReport(report: OptionalMcpReport): string {
-  if (report.entries.length === 0) return "";
+The module should export:
 
-  const byCard = new Map<string, OptionalMcpReportEntry[]>();
-  for (const entry of report.entries) {
-    const key = `${entry.cardName}@${entry.cardVersion}`;
-    let bucket = byCard.get(key);
-    if (!bucket) { bucket = []; byCard.set(key, bucket); }
-    bucket.push(entry);
-  }
+- `OptionalMcpReport`
+- `OptionalMcpReportEntry`
+- `computeOptionalMcpReport(input)`
+- any small structural comparison helper needed for `shadowed`
 
-  const lines: string[] = ["Optional MCP servers from cards:"];
-  for (const [card, entries] of byCard) {
-    lines.push(`  ${card}`);
-    for (const entry of entries) {
-      lines.push(entry.status === "active"
-        ? `    + ${entry.serverName} (active)`
-        : `    - ${entry.serverName} (skipped — enable with \`${entry.optInCommand}\`)`);
-    }
-  }
-  return lines.join("\n") + "\n";
-}
-```
+Return `null` when there are no locked cards or no locked cards declare optional MCPs. This keeps JSON and human output semantics simple.
 
-ASCII `+` / `-` over Unicode ✓ / ✗ to avoid terminal-encoding surprises; existing `renderSyncResult` uses no glyphs, so this matches house style.
+#### Task 3.2: Renderer
 
-#### Task 1.3: Pure-function tests
-- `test/optional-mcp-surfacing.test.ts`:
-  - `"reports nothing when no card declares optional servers"` — empty `entries`, empty string render.
-  - `"reports active and skipped for a card declaring both"` — verify both entries with correct status + commands.
-  - `"groups multiple cards in stable order"` — two cards, four optional servers, render keeps cards together.
-  - `"chooses project opt-in command when hasProjectConfig is true"` — string match.
-  - `"chooses machine opt-in command when hasProjectConfig is false"` — string match.
+Add `renderOptionalMcpReport(report)` to `cli/core/output.ts`, or keep rendering beside `mcp-report.ts` if that fits the local output conventions better.
 
-### Phase 2: Wire `SyncResult` to expose effective state
+Rendering requirements:
 
-#### Task 2.1: Extend SyncResult
-- In `cli/core/types.ts`, add to `SyncResult`:
+- Empty/null report renders as `""`.
+- Group by `cardName@cardVersion`.
+- Include active, skipped, and shadowed states.
+- Use `drwn add mcp <name>` as the project opt-in command for skipped entries when `projectConfigPath` is present.
+- For machine-scope runs without locked cards, report is `null`; no machine default command is needed for this card-specific report.
 
-```typescript
-export interface SyncResult {
-  changes: string[];
-  warnings: string[];
-  managedPaths?: ManagedPath[];
-  effectiveSnapshot?: {                       // NEW, optional for back-compat
-    lockedCards: CardLockEntry[];
-    activeServers: Record<string, RegistryServer>;
-    hasProjectConfig: boolean;
-  };
-}
-```
+### Phase 4: Wire Write Surfaces
 
-- In `cli/core/sync.ts syncRepository`, populate the field from the `state` already built. One-line addition.
+#### Task 4.1: Avoid heavy `effectiveSnapshot`
 
-#### Task 2.2: Verify nothing downstream breaks
-- The field is optional. `renderSyncResult` and `renderJson` already pass-through; both continue to work. No test changes required for back-compat.
+Do not add full `EffectiveState` or large lockfile/server snapshots to public `SyncResult` JSON.
 
-### Phase 3: Command-side wiring
+Acceptable implementation patterns:
 
-#### Task 3.1: `drwn write`
-- In `cli/commands/write.ts`, after the `syncRepository` call:
+- Populate `optionalMcpReport?: OptionalMcpReport | null` on `SyncResult`, with `renderSyncResult()` ignoring it.
+- Or add an internal-only `optionalMcpReportInput` field and strip it before JSON serialization.
 
-```typescript
-const result = await syncRepository(options);
-const report = result.effectiveSnapshot
-  ? computeOptionalMcpReport(result.effectiveSnapshot)
-  : { entries: [], skippedCount: 0 };
+Preferred: compute `optionalMcpReport` inside `syncRepository()` from the same `state` used for materialization, then return the report directly as part of `SyncResult`.
 
-if (this.json) {
-  this.context.stdout.write(renderJson({ ...result, optionalMcpReport: report }));
-  return 0;
-}
-this.context.stdout.write(renderSyncResult(result));
-this.context.stdout.write(renderOptionalMcpReport(report));
-return 0;
-```
+#### Task 4.2: `drwn write`
 
-- Strip `effectiveSnapshot` from JSON output before serialization (it's huge and not part of the public CLI contract) — wrap with a helper `omitEffectiveSnapshot(result)` defined alongside `renderSyncResult`.
+Update `cli/commands/write.ts`:
 
-#### Task 3.2: `drwn card add --write` and `drwn card apply --write`
-- These chain into `runChainedWrite` (`cli/commands/card/project-command.ts`). Modify `runChainedWrite` to:
-  1. Call `syncRepository` and capture the result.
-  2. Print existing changes/warnings via `renderSyncResult`.
-  3. Print the optional MCP report from `result.effectiveSnapshot`.
-- Single change site covers both commands.
+- Human output: existing sync output first, optional MCP report second.
+- JSON output: include `optionalMcpReport`; do not include any internal report inputs.
+- `--dry-run`: same report as a normal write.
 
-#### Task 3.3: Help text
-- Update `--json` documentation for `drwn write` to mention `optionalMcpReport` in the envelope (existing usage strings already document the surface; add one bullet).
+#### Task 4.3: `drwn card add --write` and `drwn card apply --write`
 
-### Phase 4: End-to-end tests
+Update `runChainedWrite()` in `cli/commands/card/project-command.ts`:
 
-#### Task 4.1: `drwn write` E2E
-- In `test/commands-write.test.ts`, add:
-  - `"reports skipped optional MCPs declared by locked cards"` — fixture project with the Phase-0 fixture card locked; expect `"Optional MCP servers from cards:"` and `"(skipped — enable with"` substrings in stdout.
-  - `"omits optional MCP section when no card declares optional servers"` — fixture project with a card that has no optional MCPs; assert section is absent.
-  - `"emits optionalMcpReport in --json output"` — assert parseable JSON, `optionalMcpReport.skippedCount > 0` and entries shape.
+- Print existing `renderSyncResult(result)`.
+- Print optional MCP report after the sync result.
 
-#### Task 4.2: `drwn card add/apply` E2E
-- In `test/commands-card-consumer.test.ts`, add:
-  - `"card apply --write surfaces optional MCP report"` — assert presence after the existing mutation output.
-  - `"card add --write surfaces optional MCP report"` — same for the add command.
+Single change site should cover both card consumer commands.
 
-### Phase 5: Documentation
+### Phase 5: Tests
 
-#### Task 5.1: README / docs site
-- Add a "Optional MCP servers" subsection under the card install section. Two paragraphs: what optional means in a manifest, how the user opts in.
+Add or extend tests in:
 
-#### Task 5.2: Issue cross-link
-- Update GitHub issue #10 body once this lands to point at this plan and the merge commit.
+- `test/commands-write.test.ts`
+- `test/commands-card-consumer.test.ts`
+- `test/commands-add-mcp.test.ts` (or the existing file that owns `drwn add mcp` behavior)
+- a focused core test such as `test/core-mcp-report.test.ts`
+
+Required cases:
+
+- Registry/library optional MCP declared by a card is skipped and report suggests `drwn add mcp <name>`.
+- Registry/library optional MCP becomes active after opt-in.
+- Card-local optional MCP is skipped and report suggests `drwn add mcp <name>`.
+- `drwn add mcp <card-local>` enables the card-local optional MCP.
+- Card-local optional MCP becomes active after opt-in and materializes into target MCP config.
+- Same-name different definition produces `shadowed`.
+- Project-local full definition wins over card definition and report says `shadowed`.
+- `drwn write --json` includes `optionalMcpReport`.
+- No report appears when locked cards declare no optional MCPs.
+- Existing optional filtering behavior remains unchanged.
+
+### Phase 6: Documentation
+
+Update active docs only (`docs-docusaurus/`, plus `docs/cli-quickref.md` if it already documents the same surface):
+
+- Explain that cards may declare optional MCPs.
+- Explain that optional card MCPs are not active until enabled.
+- Document `drwn add mcp <name>` as the opt-in path for reusable and card-declared optional MCPs in the current project.
+- Mention `optionalMcpReport` in the `drwn write --json` output contract.
+
+Do not edit deprecated `docs-astro/`.
 
 ## Verification
 
-- `bun test` clean.
-- `bun run typecheck` clean.
-- Manual smoke against `~/dev/hcards-catalog-local/`:
-  1. Detach existing cards, clear `.claude/settings.json` MCP block.
-  2. `drwn card apply '@leeminseung/live-context' --write` → expect a section listing `notion (active)` and `slack (skipped — enable with \`drwn add mcp slack\`)`.
-  3. `drwn add mcp slack && drwn write` → expect `slack (active)` and `notion (active)`.
-  4. `drwn write --json | jq .optionalMcpReport` → expect populated JSON.
+- `bun test` passes.
+- `bun run typecheck` passes.
+- Manual smoke with a card that declares:
+  - one reusable optional MCP, and
+  - one card-local custom optional MCP.
+
+Manual smoke outline:
+
+1. Create/apply a fixture card with both optional MCPs.
+2. Run `drwn card apply <card-ref> --write`.
+3. Confirm the report lists both optional MCPs as skipped with `drwn add mcp <name>` commands.
+4. Run `drwn add mcp <card-local-name>`.
+5. Run `drwn write`.
+6. Confirm the card-local MCP is active and appears in generated target MCP config.
+7. Run `drwn write --json` and confirm `.optionalMcpReport` is populated and contains no internal report inputs.
 
 ## Risks / Open Questions
 
-- **Strategy A's `effectiveSnapshot` field is heavy.** Lockfile entries + every active server. Mitigation: it's `optional`, internal-only, stripped from JSON output. If size becomes a problem at scale, swap for a narrowed `OptionalReportInputs` type carrying only the bits this report needs.
-- **Color / glyph choice.** Plain ASCII (`+`/`-`) keeps Windows terminals + CI logs clean. If the codebase adopts colors later, swap to chalk semantics centrally in `output.ts`.
-- **What if a card declares an optional MCP that's also in `registry/mcp-servers.json` with a *different* config?** `mergeProjectConfig` writes the card's variant into `nextRegistry.servers[name]`. The report is correct either way (the active-set check is name-based), but a downstream "which version of slack are you running" question is out of scope here. Tracked separately if it ever surfaces.
-- **Should the report also list optional MCPs from `registry/mcp-servers.json` not declared by cards but currently inactive?** No. The pain point is "I installed a card and a feature didn't show up." Server-only optionals aren't in that frame. Worth confirming with users before broadening scope.
+- **Definition equality.** Use deterministic structural equality, not object identity. Pay attention to optional undefined fields and ordering.
+- **Same-name definitions across multiple cards.** Follow existing layer/card order semantics. Report `shadowed` rather than trying to auto-resolve.
+- **`defaults.mcpServers` branch in `buildActiveServers()`.** That branch bypasses normal optional toggles. Tests should cover the current intended semantics so this task does not accidentally change global defaults behavior.
+- **Scope of report.** Keep the report card-specific. Server-only optional MCP discovery is a separate UX problem.
+- **JSON contract.** Only `optionalMcpReport` is public. Do not leak `EffectiveState`, report inputs, card manifests wholesale, or full registry definitions into `drwn write --json`.
 
 ## Completion Criteria
 
-- All Success Criteria checkboxes ticked.
-- Phase 0–4 tests green; Phase 5 docs updated.
-- A completion summary written at `42_completion_drwn-mcp-optional-skip-report.md` recording the verified manual smoke walkthrough above and the final commit hash.
+- All success criteria are satisfied.
+- Phase 0-5 tests are green.
+- Phase 6 docs are updated.
+- A completion summary is written at `.ai/tasks/42_completion_drwn-mcp-optional-activation-report.md` with:
+  - final implementation summary,
+  - test commands run,
+  - manual smoke result,
+  - any deviations from this plan,
+  - final commit hash if committed.

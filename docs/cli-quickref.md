@@ -292,6 +292,7 @@ Card behavior:
 - if a card and a non-card source provide the same skill name, the card copy wins
 - `drwn write --dry-run` annotates each planned skill symlink with the winning resolution layer
 - unresolved included skill names fail `drwn write` before any downstream mutation
+- card-declared optional MCP servers are skipped until enabled; write output reports them and suggests `drwn add mcp <server-name>`
 
 Run only one side when needed:
 
@@ -387,9 +388,15 @@ drwn analyze sessions --archive /tmp/sessions.tar.gz --json
 
 ## MCP registry
 
-MCP servers are defined in [`registry/mcp-servers.json`](../registry/mcp-servers.json). Target config and optional toggles live in [`registry/config.json`](../registry/config.json).
+Reusable MCP servers are defined in [`registry/mcp-servers.json`](../registry/mcp-servers.json). Target config and optional toggles live in [`registry/config.json`](../registry/config.json).
 
 User-registered MCP servers live under `~/.agents/drwn/mcp-servers`. Machine-wide active MCP defaults live in `~/.agents/drwn/machine.json` under `defaults.mcpServers`.
+
+Card-declared MCP definitions are merged into the effective registry for projects that consume those cards. They do not need to exist in the reusable registry or user library. If a card-declared server has `optional: true`, it is off by default and can be enabled in that project with:
+
+```bash
+drwn add mcp <server-name>
+```
 
 Inspect active MCP state:
 
@@ -409,6 +416,7 @@ Notes:
 
 - `platform-provided` entries can live in the registry but are excluded from generated local tool configs
 - optional servers are included only when enabled
+- `drwn write` reports optional card MCPs as active, skipped, or shadowed by a different active definition
 - Parallel MCP is controlled by `config.parallel.mcp.enabled`
 - project-local extension settings such as `extensions.parallel.mcp` are applied when commands run inside that project
 

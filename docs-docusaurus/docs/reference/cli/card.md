@@ -65,6 +65,13 @@ drwn card detach --write
 
 `drwn update` is a top-level alias for `drwn card update`.
 
+If a consumed card declares optional MCP servers, `--write` output reports whether each one is active, skipped, or shadowed by a different active definition. Skipped optional MCPs are not materialized until the project opts in:
+
+```bash
+drwn add mcp <server-name>
+drwn write --dry-run
+```
+
 List local cards:
 
 ```bash
