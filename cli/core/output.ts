@@ -1,6 +1,8 @@
 // ABOUTME: Formats human-readable and JSON command output for the drwn harness CLI.
 // ABOUTME: Keeps presentation logic separate from filesystem and sync domain logic.
 
+import type { OptionalMcpReport } from "./mcp-report";
+
 export function renderJson(value: unknown) {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
@@ -28,6 +30,37 @@ export function renderSyncResult(result: { changes: string[]; warnings: string[]
   }
 
   return `${parts.join("\n")}\n`;
+}
+
+export function renderOptionalMcpReport(report: OptionalMcpReport | null | undefined) {
+  if (!report || report.entries.length === 0) {
+    return "";
+  }
+
+  const byCard = new Map<string, typeof report.entries>();
+  for (const entry of report.entries) {
+    const key = `${entry.cardName}@${entry.cardVersion}`;
+    const existing = byCard.get(key) ?? [];
+    existing.push(entry);
+    byCard.set(key, existing);
+  }
+
+  const lines = ["Optional MCP servers from cards:"];
+  for (const [card, entries] of byCard) {
+    lines.push(`  ${card}`);
+    for (const entry of entries) {
+      if (entry.status === "active") {
+        lines.push(`    + ${entry.serverName} (active)`);
+      } else if (entry.status === "shadowed") {
+        lines.push(`    ! ${entry.serverName} (shadowed - active definition differs from this card)`);
+      } else {
+        const suffix = entry.optInCommand ? `skipped - enable with \`${entry.optInCommand}\`` : "skipped";
+        lines.push(`    - ${entry.serverName} (${suffix})`);
+      }
+    }
+  }
+
+  return `${lines.join("\n")}\n`;
 }
 
 export function renderDoctorReport(report: {

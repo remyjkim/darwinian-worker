@@ -2,7 +2,7 @@
 // ABOUTME: Provides the one-way operator vocabulary for writing effective state downstream.
 
 import { Option, UsageError } from "clipanion";
-import { renderJson, renderSyncResult } from "../core/output";
+import { renderJson, renderOptionalMcpReport, renderSyncResult } from "../core/output";
 import { syncRepository } from "../core/sync";
 import { BaseCommand } from "./base";
 
@@ -97,7 +97,9 @@ export class WriteCommand extends BaseCommand {
       return 1;
     }
 
-    this.context.stdout.write(this.json ? renderJson(result) : renderSyncResult(result));
+    this.context.stdout.write(
+      this.json ? renderJson(result) : `${renderSyncResult(result)}${renderOptionalMcpReport(result.optionalMcpReport)}`,
+    );
     return 0;
   }
 }

@@ -200,6 +200,147 @@ describe("drwn write", () => {
     expect(claudeMcp.mcpServers?.github?.command).toBe("npx");
   });
 
+  test("write --dry-run reports skipped optional MCP servers declared by locked cards", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    await publishCardWithSkills(fixture, {
+      name: "@me/base",
+      skills: [],
+      servers: {
+        "card-local": {
+          description: "Card-local optional server",
+          transport: "stdio",
+          command: "card-local-server",
+          optional: true,
+        },
+      },
+    });
+    const projectDir = join(fixture.root, "project");
+    await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
+    await writeFile(
+      join(projectDir, ".agents", "drwn", "config.json"),
+      JSON.stringify({ version: 1, cards: ["@me/base@1.0.0"] }, null, 2),
+    );
+
+    const result = await runAgentsCli(["write", "--dry-run"], envFor(fixture), projectDir);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Optional MCP servers from cards:");
+    expect(result.stdout).toContain("@me/base@1.0.0");
+    expect(result.stdout).toContain("- card-local (skipped - enable with `drwn add mcp card-local`)");
+  });
+
+  test("write --json emits optionalMcpReport for card-declared optional MCP servers", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    await publishCardWithSkills(fixture, {
+      name: "@me/base",
+      skills: [],
+      servers: {
+        "card-local": {
+          description: "Card-local optional server",
+          transport: "stdio",
+          command: "card-local-server",
+          optional: true,
+        },
+      },
+    });
+    const projectDir = join(fixture.root, "project");
+    await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
+    await writeFile(
+      join(projectDir, ".agents", "drwn", "config.json"),
+      JSON.stringify({ version: 1, cards: ["@me/base@1.0.0"] }, null, 2),
+    );
+
+    const result = await runAgentsCli(["write", "--dry-run", "--json"], envFor(fixture), projectDir);
+
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout) as {
+      optionalMcpReport?: { skippedCount: number; entries: Array<{ serverName: string; status: string }> };
+    };
+    expect(parsed.optionalMcpReport?.skippedCount).toBe(1);
+    expect(parsed.optionalMcpReport?.entries).toContainEqual(
+      expect.objectContaining({ serverName: "card-local", status: "skipped" }),
+    );
+    expect(result.stdout).not.toContain("effectiveSnapshot");
+  });
+
+  test("write reports card-local optional MCPs as active after drwn add mcp enables them", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    await publishCardWithSkills(fixture, {
+      name: "@me/base",
+      skills: [],
+      servers: {
+        "card-local": {
+          description: "Card-local optional server",
+          transport: "stdio",
+          command: "card-local-server",
+          optional: true,
+        },
+      },
+    });
+    const projectDir = join(fixture.root, "project");
+    await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
+    await writeFile(
+      join(projectDir, ".agents", "drwn", "config.json"),
+      JSON.stringify({ version: 1, cards: ["@me/base@1.0.0"] }, null, 2),
+    );
+    expect((await runAgentsCli(["add", "mcp", "card-local"], envFor(fixture), projectDir)).exitCode).toBe(0);
+
+    const result = await runAgentsCli(["write"], envFor(fixture), projectDir);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("+ card-local (active)");
+    const claudeMcp = JSON.parse(await readFile(join(projectDir, ".mcp.json"), "utf8")) as {
+      mcpServers?: Record<string, { command?: string }>;
+    };
+    expect(claudeMcp.mcpServers?.["card-local"]?.command).toBe("card-local-server");
+  });
+
+  test("write reports card-declared optional MCPs as shadowed by project-local definitions", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    await publishCardWithSkills(fixture, {
+      name: "@me/base",
+      skills: [],
+      servers: {
+        "card-local": {
+          description: "Card-local optional server",
+          transport: "stdio",
+          command: "card-local-server",
+          optional: true,
+        },
+      },
+    });
+    const projectDir = join(fixture.root, "project");
+    await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
+    await writeFile(
+      join(projectDir, ".agents", "drwn", "config.json"),
+      JSON.stringify(
+        {
+          version: 1,
+          cards: ["@me/base@1.0.0"],
+          servers: {
+            "card-local": {
+              description: "Project server",
+              transport: "stdio",
+              command: "project-server",
+              optional: false,
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const result = await runAgentsCli(["write", "--dry-run"], envFor(fixture), projectDir);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("! card-local (shadowed - active definition differs from this card)");
+  });
+
   test("write --dry-run annotates symlink intents with their winning layer", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);

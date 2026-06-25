@@ -21,6 +21,7 @@ import { ensureParentDir, lstatSafe, realpathSafe } from "./fs";
 import { backupExistingPath, writeManagedFile } from "./managed-file";
 import { diffWriteRecord, hashManagedContent, loadWriteRecord, saveWriteRecord, type ManagedPath } from "./write-record";
 import { buildEffectiveState } from "./effective-state";
+import { computeOptionalMcpReport } from "./mcp-report";
 import { DRWN_VERSION } from "./version";
 import { canonicalJsonHash } from "./managed-fields";
 import type {
@@ -325,6 +326,15 @@ export async function syncMcp(
 export async function syncRepository(options: SyncOptions = {}): Promise<SyncResult> {
   const state = await buildEffectiveState(options);
   const result: SyncResult = { changes: [], warnings: [], managedPaths: [] };
+  result.optionalMcpReport = state.normalized.skillsOnly
+    ? null
+    : computeOptionalMcpReport({
+        lockedCards: state.lockedCards,
+        activeServers: state.activeServers,
+        effectiveRegistry: state.effectiveRegistry,
+        projectConfigPath: state.projectConfigPath,
+        projectServerOverrides: state.projectConfig?.servers,
+      });
   const previousRecord = loadWriteRecord(state.recordPath);
   verifyManagedPaths(state.scopeRoot, previousRecord?.managedPaths ?? [], { force: state.normalized.force ?? false });
 

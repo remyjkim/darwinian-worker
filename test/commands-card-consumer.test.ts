@@ -103,6 +103,58 @@ test("card apply --write chains materialization after preserving mutation", asyn
   expect(existsSync(join(projectDir, ".claude", "skills", "alpha"))).toBe(true);
 });
 
+test("card apply --write surfaces skipped optional MCPs from the applied card", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  await publishCardWithSkills(fixture, {
+    name: "@me/backend",
+    skills: [],
+    servers: {
+      "card-local": {
+        description: "Card-local optional server",
+        transport: "stdio",
+        command: "card-local-server",
+        optional: true,
+      },
+    },
+  });
+  const projectDir = join(fixture.root, "project");
+  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
+  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1 }, null, 2));
+
+  const result = await runAgentsCli(["card", "apply", "@me/backend@^1.0.0", "--write"], envFor(fixture), projectDir);
+
+  expect(result.exitCode).toBe(0);
+  expect(result.stdout).toContain("Optional MCP servers from cards:");
+  expect(result.stdout).toContain("- card-local (skipped - enable with `drwn add mcp card-local`)");
+});
+
+test("card add --write surfaces skipped optional MCPs from the added card", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  await publishCardWithSkills(fixture, {
+    name: "@me/backend",
+    skills: [],
+    servers: {
+      "card-local": {
+        description: "Card-local optional server",
+        transport: "stdio",
+        command: "card-local-server",
+        optional: true,
+      },
+    },
+  });
+  const projectDir = join(fixture.root, "project");
+  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
+  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1, cards: [] }, null, 2));
+
+  const result = await runAgentsCli(["card", "add", "@me/backend@^1.0.0", "--write"], envFor(fixture), projectDir);
+
+  expect(result.exitCode).toBe(0);
+  expect(result.stdout).toContain("Optional MCP servers from cards:");
+  expect(result.stdout).toContain("- card-local (skipped - enable with `drwn add mcp card-local`)");
+});
+
 test("card add, pin, remove, detach, and outdated mutate expected files", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
