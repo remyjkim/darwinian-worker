@@ -29,6 +29,35 @@ async function runComposer(path: string, payload: unknown) {
   return { stdout, stderr, exitCode };
 }
 
+async function publishHookPolicyCard(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
+  expect((await runAgentsCli(["card", "new", "@me/policy", "--no-git"], envFor(fixture))).exitCode).toBe(0);
+  expect((await runAgentsCli(["card", "source", "add-hook", "@me/policy", "guard"], envFor(fixture))).exitCode).toBe(0);
+  const sourceDir = join(fixture.agentsDir, "drwn", "sources", "@me", "policy");
+  const policyPath = join(sourceDir, "hooks", "guard", "policy.ts");
+  await writeFile(policyPath, `
+    import { defineToolPolicy } from "darwinian-harness/hook-policy";
+    export default defineToolPolicy({
+      policyKind: "enforcement",
+      matcher: "Bash",
+      beforeToolCall() {
+        return { action: "deny", reason: "blocked" };
+      },
+    });
+  `);
+  expect((await runAgentsCli(["card", "publish", "@me/policy"], envFor(fixture))).exitCode).toBe(0);
+  return JSON.parse(await readFile(join(sourceDir, "card.json"), "utf8")) as { version: string };
+}
+
+async function createProjectWithTrustedHookCard(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
+  const manifest = await publishHookPolicyCard(fixture);
+  const projectDir = join(fixture.root, "project");
+  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
+  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1, cards: [] }, null, 2));
+  expect((await runAgentsCli(["card", "add", `@me/policy@${manifest.version}`], envFor(fixture), projectDir)).exitCode).toBe(0);
+  expect((await runAgentsCli(["card", "trust", "@me/policy", "--hooks"], envFor(fixture), projectDir)).exitCode).toBe(0);
+  return projectDir;
+}
+
 test("drwn write materializes card hook composers and runtime settings", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
@@ -112,6 +141,47 @@ test("drwn write skips untrusted hooks and --strict-hooks fails", async () => {
   expect(existsSync(join(projectDir, ".agents", "drwn", "generated", "hooks", "claude", "composer.mjs"))).toBe(false);
   expect(strict.exitCode).not.toBe(0);
   expect(strict.stderr).toContain("drwn card trust @me/policy --hooks");
+});
+
+test("drwn write --mcp-only preserves existing Claude hook entries", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  const projectDir = await createProjectWithTrustedHookCard(fixture);
+  expect((await runAgentsCli(["write", "--json"], envFor(fixture), projectDir)).exitCode).toBe(0);
+  const before = JSON.parse(await readFile(join(projectDir, ".claude", "settings.json"), "utf8"));
+
+  const mcpOnly = await runAgentsCli(["write", "--mcp-only", "--json"], envFor(fixture), projectDir);
+
+  expect(mcpOnly.exitCode).toBe(0);
+  const after = JSON.parse(await readFile(join(projectDir, ".claude", "settings.json"), "utf8"));
+  expect(after.hooks).toEqual(before.hooks);
+});
+
+test("drwn write cleans only owned Claude hooks when policies become inactive", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  const projectDir = await createProjectWithTrustedHookCard(fixture);
+  expect((await runAgentsCli(["write", "--json"], envFor(fixture), projectDir)).exitCode).toBe(0);
+  const settingsPath = join(projectDir, ".claude", "settings.json");
+  const settings = JSON.parse(await readFile(settingsPath, "utf8"));
+  const foreign = { matcher: "Skill", hooks: [{ type: "command", command: "/usr/local/bin/foreign-signal", timeout: 5 }] };
+  settings.hooks.PreToolUse.unshift(foreign);
+  await writeFile(settingsPath, `${JSON.stringify(settings, null, 2)}\n`);
+  const configPath = join(projectDir, ".agents", "drwn", "config.json");
+  const projectConfig = JSON.parse(await readFile(configPath, "utf8"));
+  projectConfig.hooks = { exclude: ["@me/policy:guard"] };
+  await writeFile(
+    configPath,
+    JSON.stringify(projectConfig, null, 2),
+  );
+
+  const write = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);
+
+  expect(write.exitCode).toBe(0);
+  const cleaned = JSON.parse(await readFile(settingsPath, "utf8"));
+  expect(cleaned.hooks.PreToolUse).toEqual([foreign]);
+  expect(cleaned.hooks.PostToolUse).toBeUndefined();
+  expect(cleaned._drwn.ownedHooks).toBeUndefined();
 });
 
 test("drwn write honors project hooks.exclude entries", async () => {

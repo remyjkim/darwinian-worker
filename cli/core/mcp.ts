@@ -3,7 +3,15 @@
 
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 import { hasExplicitMcpDefaults } from "./defaults";
-import { buildDrwnMetaBlock, canonicalJsonHash, detectManagedFieldDrift, readDrwnMetaBlock } from "./managed-fields";
+import {
+  buildDrwnMetaBlock,
+  canonicalJsonHash,
+  detectManagedFieldDrift,
+  hookEntryHash,
+  hookEntryIdentity,
+  readDrwnMetaBlock,
+  type OwnedHookEntries,
+} from "./managed-fields";
 import type { CanonicalConfig, CanonicalRegistry, RegistryServer } from "./types";
 
 export interface ClaudeCommandHook {
@@ -15,13 +23,22 @@ export interface ClaudeCommandHook {
 }
 
 export interface ClaudeHookMatcher {
-  matcher: string;
+  matcher?: string;
+  hooks: ClaudeCommandHook[];
+}
+
+export interface ClaudeHookGroup {
+  matcher?: string;
   hooks: ClaudeCommandHook[];
 }
 
 export interface ClaudeHooksConfig {
+  [event: string]: ClaudeHookGroup[] | undefined;
+  UserPromptSubmit?: ClaudeHookGroup[];
+  UserPromptExpansion?: ClaudeHookGroup[];
   PreToolUse?: ClaudeHookMatcher[];
   PostToolUse?: ClaudeHookMatcher[];
+  PostToolUseFailure?: ClaudeHookMatcher[];
 }
 
 export function buildActiveServers(registry: CanonicalRegistry, config: CanonicalConfig) {
@@ -198,6 +215,72 @@ export interface MergeClaudeSettingsResult {
   fieldHashes: Record<string, string>;
 }
 
+function readClaudeHooks(parsed: Record<string, unknown>) {
+  return (
+    parsed.hooks && typeof parsed.hooks === "object" && !Array.isArray(parsed.hooks)
+      ? parsed.hooks
+      : undefined
+  ) as Record<string, ClaudeHookGroup[]> | undefined;
+}
+
+function mergeOwnedHooks(
+  currentHooks: Record<string, ClaudeHookGroup[]> | undefined,
+  recordedOwned: OwnedHookEntries,
+  desired: ClaudeHooksConfig,
+): { hooks: Record<string, ClaudeHookGroup[]> | undefined; owned: OwnedHookEntries; drift: string[] } {
+  const events = new Set([...Object.keys(currentHooks ?? {}), ...Object.keys(recordedOwned), ...Object.keys(desired)]);
+  const nextHooks: Record<string, ClaudeHookGroup[]> = {};
+  const nextOwned: OwnedHookEntries = {};
+  const drift: string[] = [];
+
+  for (const event of events) {
+    const recorded = recordedOwned[event] ?? {};
+    const present = currentHooks?.[event] ?? [];
+    const desiredEntries = desired[event] ?? [];
+    const desiredIds = new Set(desiredEntries.map((entry) => hookEntryIdentity(event, entry)));
+    const presentOwnedIds = new Set<string>();
+    const foreign: ClaudeHookGroup[] = [];
+
+    for (const entry of present) {
+      const id = hookEntryIdentity(event, entry);
+      if (!(id in recorded)) {
+        foreign.push(entry);
+        continue;
+      }
+      presentOwnedIds.add(id);
+      if (hookEntryHash(entry) !== recorded[id]) {
+        drift.push(`${event}/${id}`);
+      }
+    }
+
+    for (const id of desiredIds) {
+      if (id in recorded && !presentOwnedIds.has(id)) {
+        drift.push(`${event}/${id}`);
+      }
+    }
+
+    const merged = [...foreign, ...desiredEntries];
+    if (merged.length > 0) {
+      nextHooks[event] = merged;
+    }
+    if (desiredEntries.length > 0) {
+      nextOwned[event] = Object.fromEntries(
+        desiredEntries.map((entry) => [hookEntryIdentity(event, entry), hookEntryHash(entry)]),
+      );
+    }
+  }
+
+  return {
+    hooks: Object.keys(nextHooks).length > 0 ? nextHooks : undefined,
+    owned: nextOwned,
+    drift,
+  };
+}
+
+function sameHookOwnership(a: OwnedHookEntries | undefined, b: OwnedHookEntries | undefined) {
+  return canonicalJsonHash(a ?? {}) === canonicalJsonHash(b ?? {});
+}
+
 export function mergeClaudeSettingsText(
   currentText: string,
   servers: Record<string, RegistryServer>,
@@ -209,12 +292,8 @@ export function mergeClaudeSettingsText(
   const meta = inlineMeta ? readDrwnMetaBlock(parsed) : null;
   const recordedHashes = inlineMeta ? (meta?.fieldHashes ?? {}) : (options.priorFieldHashes ?? {});
   const managesMcp = mcpServerOwnership !== "none";
-  const previouslyManagedKeys = meta?.managedKeys ?? (managesMcp ? ["mcpServers"] : []);
-  const shouldManageHooks = options.hooks !== undefined || previouslyManagedKeys.includes("hooks");
-  const managedKeys = [
-    ...(managesMcp ? ["mcpServers"] : []),
-    ...(shouldManageHooks ? ["hooks"] : []),
-  ];
+  const shouldManageHooks = options.hooks !== undefined;
+  const managedKeys = [...(managesMcp ? ["mcpServers"] : [])];
   const fieldHashes: Record<string, string> = {};
 
   if (mcpServerOwnership === "per-server") {
@@ -262,37 +341,45 @@ export function mergeClaudeSettingsText(
     );
   }
 
+  let ownedHooks = meta?.ownedHooks;
   if (shouldManageHooks) {
-    if (options.hooks !== undefined) {
-      parsed.hooks = options.hooks;
+    const mergedHooks = mergeOwnedHooks(readClaudeHooks(parsed), meta?.ownedHooks ?? {}, options.hooks ?? {});
+    if (mergedHooks.drift.length > 0 && !options.force) {
+      throw new Error(
+        `Drift detected in drwn-owned Claude hook entries: ${mergedHooks.drift.join(", ")}. Move your change into .agents/drwn/config.json or rerun drwn write --force to overwrite.`,
+      );
+    }
+    if (mergedHooks.hooks) {
+      parsed.hooks = mergedHooks.hooks;
     } else {
       delete parsed.hooks;
     }
+    ownedHooks = Object.keys(mergedHooks.owned).length > 0 ? mergedHooks.owned : undefined;
   }
 
   const nextValues: Record<string, unknown> = {};
   if (managesMcp) {
     nextValues.mcpServers = parsed.mcpServers;
   }
-  if (shouldManageHooks) {
-    nextValues.hooks = parsed.hooks ?? null;
-  }
 
   if (mcpServerOwnership === "field") {
     for (const key of managedKeys) {
       fieldHashes[key] = canonicalJsonHash(nextValues[key]);
     }
-  } else if (shouldManageHooks) {
-    fieldHashes.hooks = canonicalJsonHash(nextValues.hooks);
   }
 
   if (inlineMeta) {
-    const nextMeta = buildDrwnMetaBlock(managedKeys, nextValues);
+    const nextMeta = buildDrwnMetaBlock(managedKeys, nextValues, ownedHooks);
     const hashesUnchanged = managedKeys.every((key) => meta?.fieldHashes?.[key] === nextMeta.fieldHashes?.[key]);
-    if (meta && hashesUnchanged) {
+    const hookOwnershipUnchanged = sameHookOwnership(meta?.ownedHooks, nextMeta.ownedHooks);
+    if (meta && hashesUnchanged && hookOwnershipUnchanged) {
       nextMeta.lastWriteAt = meta.lastWriteAt;
     }
-    parsed._drwn = nextMeta;
+    if ((nextMeta.managedKeys?.length ?? 0) > 0 || nextMeta.ownedHooks) {
+      parsed._drwn = nextMeta;
+    } else {
+      delete parsed._drwn;
+    }
   } else {
     delete parsed._drwn;
   }

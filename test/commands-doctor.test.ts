@@ -226,6 +226,32 @@ describe("drwn doctor", () => {
     expect(parsed.hookIssues.join("\n")).toContain("drwn card trust @me/policy --hooks");
   });
 
+  test("does not report MCP drift for a synced project with Claude hooks", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    expect((await runAgentsCli(["card", "new", "@me/policy", "--no-git"], envFor(fixture))).exitCode).toBe(0);
+    expect((await runAgentsCli(["card", "source", "add-hook", "@me/policy", "guard"], envFor(fixture))).exitCode).toBe(0);
+    const sourceDir = join(fixture.agentsDir, "drwn", "sources", "@me", "policy");
+    await writeFile(join(sourceDir, "hooks", "guard", "policy.ts"), `
+      import { defineToolPolicy } from "darwinian-harness/hook-policy";
+      export default defineToolPolicy({ policyKind: "observer" });
+    `);
+    expect((await runAgentsCli(["card", "publish", "@me/policy"], envFor(fixture))).exitCode).toBe(0);
+    const manifest = JSON.parse(await readFile(join(sourceDir, "card.json"), "utf8"));
+    const projectDir = join(fixture.root, "project");
+    await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
+    await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1, cards: [] }, null, 2));
+    expect((await runAgentsCli(["card", "add", `@me/policy@${manifest.version}`], envFor(fixture), projectDir)).exitCode).toBe(0);
+    expect((await runAgentsCli(["card", "trust", "@me/policy", "--hooks"], envFor(fixture), projectDir)).exitCode).toBe(0);
+    expect((await runAgentsCli(["write"], envFor(fixture), projectDir)).exitCode).toBe(0);
+
+    const result = await runAgentsCli(["doctor", "--json"], envFor(fixture), projectDir);
+
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout) as { mcpDrift: string[] };
+    expect(parsed.mcpDrift).toEqual([]);
+  });
+
   test("reports stale generated hook composers", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);

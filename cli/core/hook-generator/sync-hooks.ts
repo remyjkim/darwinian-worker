@@ -134,15 +134,27 @@ function readExistingContent(pathValue: string) {
   return existsSync(pathValue) ? readFileSync(pathValue, "utf8") : null;
 }
 
+function hasOwnedClaudeHooks(settingsText: string) {
+  try {
+    const parsed = JSON.parse(settingsText) as { _drwn?: { ownedHooks?: unknown } };
+    return Boolean(
+      parsed._drwn?.ownedHooks &&
+        typeof parsed._drwn.ownedHooks === "object" &&
+        Object.keys(parsed._drwn.ownedHooks as Record<string, unknown>).length > 0
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function syncHooks(state: EffectiveState): Promise<SyncResult> {
   const result: SyncResult = { changes: [], warnings: [], managedPaths: [] };
-  const exclusions = new Set(state.projectConfigWithCards?.hooks?.exclude ?? state.projectConfig?.hooks?.exclude ?? []);
+  const projectHookConfig = state.projectConfigWithCards?.hooks ?? state.projectConfig?.hooks;
+  const exclusions = new Set(projectHookConfig?.exclude ?? []);
   const policies = collectPolicies(state.lockedCards, exclusions, result, state.normalized.strictHooks ?? false);
-  if (policies.length === 0) {
-    return result;
-  }
+  const hasPolicies = policies.length > 0;
 
-  if (!state.scopedOptions.dryRun) {
+  if (!state.scopedOptions.dryRun && hasPolicies) {
     assertStoreWritable();
   }
 
@@ -158,22 +170,27 @@ export async function syncHooks(state: EffectiveState): Promise<SyncResult> {
 
     if (runtime === "claude-code") {
       const composerPath = join(outputDir, "composer.mjs");
-      const beforeContent = readExistingContent(composerPath);
-      if (!state.scopedOptions.dryRun) {
-        await bundleHookComposer({ runtime, outputDir, policies });
-      } else {
-        result.changes.push(`write ${composerPath}`);
-        result.managedPaths?.push(recordManagedContent(state.scopeRoot, composerPath, "sha256-dry-run"));
-      }
-      if (!state.scopedOptions.dryRun) {
-        recordComposer(result, state.scopeRoot, composerPath, beforeContent, state.scopedOptions.dryRun);
+      if (hasPolicies) {
+        const beforeContent = readExistingContent(composerPath);
+        if (!state.scopedOptions.dryRun) {
+          await bundleHookComposer({ runtime, outputDir, policies });
+        } else {
+          result.changes.push(`write ${composerPath}`);
+          result.managedPaths?.push(recordManagedContent(state.scopeRoot, composerPath, "sha256-dry-run"));
+        }
+        if (!state.scopedOptions.dryRun) {
+          recordComposer(result, state.scopeRoot, composerPath, beforeContent, state.scopedOptions.dryRun);
+        }
       }
 
       const settingsPath = targetConfigPath(state, "claude", state.effectiveConfig.targets.claude.configPath);
-      const current = await readTextIfExists(settingsPath, "{}\n");
+      const current = await readTextIfExists(settingsPath, hasPolicies ? "{}\n" : "");
+      if (!hasPolicies && !hasOwnedClaudeHooks(current)) {
+        continue;
+      }
       const next = mergeClaudeSettingsText(current, state.activeServers, {
         force: state.scopedOptions.force ?? false,
-        hooks: claudeHooksConfig(composerPath),
+        hooks: hasPolicies ? claudeHooksConfig(composerPath) : {},
         ...(state.scopedOptions.writeScope === "machine" ? { mcpServerOwnership: "none" as const } : {}),
       });
       writeManagedFile(settingsPath, next.text, state.scopedOptions.dryRun, result);
@@ -183,6 +200,10 @@ export async function syncHooks(state: EffectiveState): Promise<SyncResult> {
         fields: Object.keys(next.fieldHashes),
         fieldHashes: next.fieldHashes,
       });
+      continue;
+    }
+
+    if (!hasPolicies) {
       continue;
     }
 

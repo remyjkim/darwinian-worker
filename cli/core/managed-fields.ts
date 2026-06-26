@@ -7,8 +7,11 @@ export interface DrwnMetaBlock {
   version: 1;
   managedKeys?: string[];
   fieldHashes?: Record<string, string>;
+  ownedHooks?: OwnedHookEntries;
   lastWriteAt: string;
 }
+
+export type OwnedHookEntries = Record<string, Record<string, string>>;
 
 function canonicalize(value: unknown): unknown {
   if (value === null || typeof value !== "object") return value;
@@ -40,11 +43,30 @@ export function readDrwnMetaBlock(parsed: Record<string, unknown>): DrwnMetaBloc
   return candidate as DrwnMetaBlock;
 }
 
-export function buildDrwnMetaBlock(fields: string[], values: Record<string, unknown>): DrwnMetaBlock {
+export function hookEntryIdentity(_event: string, entry: { matcher?: unknown; hooks?: unknown[] }): string {
+  if (typeof entry.matcher === "string" && entry.matcher.length > 0) {
+    return `m:${entry.matcher}`;
+  }
+  const commandHook = entry.hooks?.[0] as { command?: unknown; args?: unknown } | undefined;
+  const command = typeof commandHook?.command === "string" ? commandHook.command : "";
+  const args = Array.isArray(commandHook?.args) ? ` ${commandHook.args.join(" ")}` : "";
+  return `c:${command}${args}`;
+}
+
+export function hookEntryHash(entry: unknown) {
+  return canonicalJsonHash(entry);
+}
+
+export function buildDrwnMetaBlock(
+  fields: string[],
+  values: Record<string, unknown>,
+  ownedHooks?: OwnedHookEntries,
+): DrwnMetaBlock {
   return {
     version: 1,
     managedKeys: fields,
     fieldHashes: Object.fromEntries(fields.map((field) => [field, canonicalJsonHash(values[field])])),
+    ...(ownedHooks && Object.keys(ownedHooks).length > 0 ? { ownedHooks } : {}),
     lastWriteAt: new Date().toISOString(),
   };
 }

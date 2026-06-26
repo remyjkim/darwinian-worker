@@ -29,7 +29,7 @@ const hooks = {
 };
 
 describe("mergeClaudeSettingsText hooks", () => {
-  test("adds hooks and records separate managed-field hashes", () => {
+  test("adds hooks and records per-entry hook ownership", () => {
     const merged = mergeClaudeSettingsText(
       JSON.stringify({ model: "sonnet", mcpServers: { old: { command: "old" } } }, null, 2),
       { context7: server },
@@ -40,19 +40,35 @@ describe("mergeClaudeSettingsText hooks", () => {
     expect(parsed.model).toBe("sonnet");
     expect(parsed.mcpServers.context7.command).toBe("npx");
     expect(parsed.hooks).toEqual(hooks);
-    expect(parsed._drwn.managedKeys).toEqual(["mcpServers", "hooks"]);
+    expect(parsed._drwn.managedKeys).toEqual(["mcpServers"]);
     expect(parsed._drwn.fieldHashes.mcpServers).toStartWith("sha256-");
-    expect(parsed._drwn.fieldHashes.hooks).toStartWith("sha256-");
+    expect(parsed._drwn.fieldHashes.hooks).toBeUndefined();
+    expect(parsed._drwn.ownedHooks.PreToolUse["m:Bash"]).toStartWith("sha256-");
+    expect(parsed._drwn.ownedHooks.PostToolUse["m:Bash"]).toStartWith("sha256-");
   });
 
-  test("removes previously managed hooks when no hooks are desired", () => {
+  test("does not touch hooks when hooks option is omitted", () => {
     const withHooks = mergeClaudeSettingsText("{}", { context7: server }, { hooks });
     const withoutHooks = mergeClaudeSettingsText(withHooks.text, { context7: server });
     const parsed = JSON.parse(withoutHooks.text);
 
-    expect(parsed.hooks).toBeUndefined();
-    expect(parsed._drwn.managedKeys).toEqual(["mcpServers", "hooks"]);
-    expect(parsed._drwn.fieldHashes.hooks).toStartWith("sha256-");
+    expect(parsed.hooks).toEqual(hooks);
+    expect(parsed._drwn.managedKeys).toEqual(["mcpServers"]);
+    expect(parsed._drwn.ownedHooks.PreToolUse["m:Bash"]).toStartWith("sha256-");
+  });
+
+  test("cleans previously owned hooks when an empty hooks config is desired", () => {
+    const withHooks = mergeClaudeSettingsText(
+      JSON.stringify({ hooks: { PreToolUse: [{ matcher: "Skill", hooks: [{ type: "command", command: "foreign" }] }] } }, null, 2),
+      { context7: server },
+      { hooks },
+    );
+    const withoutOwnedHooks = mergeClaudeSettingsText(withHooks.text, { context7: server }, { hooks: {} });
+    const parsed = JSON.parse(withoutOwnedHooks.text);
+
+    expect(parsed.hooks).toEqual({ PreToolUse: [{ matcher: "Skill", hooks: [{ type: "command", command: "foreign" }] }] });
+    expect(parsed._drwn.managedKeys).toEqual(["mcpServers"]);
+    expect(parsed._drwn.ownedHooks).toBeUndefined();
   });
 
   test("refuses managed hook drift unless forced", () => {
@@ -61,7 +77,7 @@ describe("mergeClaudeSettingsText hooks", () => {
     edited.hooks.PreToolUse[0].matcher = ".*";
     const editedText = `${JSON.stringify(edited, null, 2)}\n`;
 
-    expect(() => mergeClaudeSettingsText(editedText, { context7: server }, { hooks })).toThrow("hooks");
+    expect(() => mergeClaudeSettingsText(editedText, { context7: server }, { hooks })).toThrow("drwn-owned Claude hook entries");
     expect(() => mergeClaudeSettingsText(editedText, { context7: server }, { force: true, hooks })).not.toThrow();
   });
 });
