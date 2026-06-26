@@ -1,8 +1,8 @@
-# Harness Cards Manual Test Guide
+# Mind Cards Manual Test Guide
 
 ## Purpose
 
-Use this guide to manually test the full Harness Cards feature on your local machine against the **current implementation**, not an aspirational architecture.
+Use this guide to manually test the full Mind Cards feature on your local machine against the **current implementation**, not an aspirational architecture.
 
 It is designed for two use cases:
 
@@ -72,7 +72,7 @@ Recommended shell setup:
 ```bash
 set -euo pipefail
 
-export HARNESS_REPO=/Users/pureicis/dev/darwinian-harness
+export HARNESS_REPO=/Users/pureicis/dev/darwinian-mind
 export ENTRYPOINT="$HARNESS_REPO/cli/index.ts"
 export SANDBOX="$(mktemp -d /tmp/drwn-cards-XXXXXX)"
 export AGENTS_HOME_DIR="$SANDBOX/home"

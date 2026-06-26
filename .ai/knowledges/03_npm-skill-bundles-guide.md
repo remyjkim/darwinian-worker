@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document explains the implemented package-backed skill bundle model in `darwinian-harness`.
+This document explains the implemented package-backed skill bundle model in `darwinian-mind`.
 
 Use it for:
 
@@ -228,7 +228,7 @@ That means:
 
 - the repo is still the default first-party source
 - bundles are additive extension sources
-- `darwinian-harness` remains a single first-party harness package
+- `darwinian-mind` remains a single first-party harness package
 
 This is intentional. The project is not splitting first-party skills into separate packages by default.
 

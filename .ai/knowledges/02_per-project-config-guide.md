@@ -6,7 +6,7 @@ Use per-project config when one project should see a different effective `drwn` 
 
 This lets a project:
 
-- apply reusable Harness Cards
+- apply reusable Mind Cards
 - enable or disable MCP servers locally
 - add project-local MCP server definitions
 - enable extensions locally
@@ -120,7 +120,7 @@ Supported top-level keys:
 
 ## Cards
 
-`cards` is an ordered array of Harness Card refs. Supported refs include local
+`cards` is an ordered array of Mind Card refs. Supported refs include local
 store refs such as `@me/backend@^1.0.0`, exact refs such as
 `@me/backend@1.0.0`, and local development refs such as
 `file:../cards/backend`.
@@ -443,7 +443,7 @@ drwn write
 
 ## What Cards Pins And What Cards Does Not
 
-Harness Cards pin **harness state** — the skills, MCP server definitions, extensions, and downstream targets a project should run on. Cards do not pin the *surrounding* environment. Being explicit about this prevents the "partial pinning" trap where a lockfile creates the illusion of reproducibility without the substance.
+Mind Cards pin **harness state** — the skills, MCP server definitions, extensions, and downstream targets a project should run on. Cards do not pin the *surrounding* environment. Being explicit about this prevents the "partial pinning" trap where a lockfile creates the illusion of reproducibility without the substance.
 
 What cards pin (today):
 
@@ -485,7 +485,7 @@ Recommended composition for a project that needs full environmental reproducibil
 
 Each layer's tool pins what it owns. Together they remove "works on my machine" friction across every typical dimension. Cards is the Layer-8 piece; it composes with — does not replace — the rest of the stack.
 
-For background on the layered-reproducibility model and where cards sits in the broader landscape, see `analyses/32_harness-cards-vs-flox-and-conda.md`.
+For background on the layered-reproducibility model and where cards sits in the broader landscape, see `analyses/32_mind-cards-vs-flox-and-conda.md`.
 
 ## Anti-Patterns
 

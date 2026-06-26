@@ -20,9 +20,9 @@ For focused subsystem docs, see:
 
 ## What `drwn` Is
 
-`drwn` is the operator CLI for `darwinian-harness`.
+`drwn` is the operator CLI for `darwinian-mind`.
 
-`darwinian-harness` is the local meta-harness control plane around the agent tools you already use. It organizes reusable inventory, machine-wide defaults, project overlays, downstream tool state, and diagnostics into one local harness.
+`darwinian-mind` is the local meta-harness control plane around the agent tools you already use. It organizes reusable inventory, machine-wide defaults, project overlays, downstream tool state, and diagnostics into one local harness.
 
 It operates on this model:
 
@@ -397,7 +397,7 @@ entries appear. `drwn init` registers the public Curation Labs community catalog
 by default:
 
 ```text
-https://github.com/curation-labs/dh-cards-catalog-v1.git
+https://github.com/curation-labs/dm-cards-catalog-v1.git
 ```
 
 ## Library Commands
@@ -428,7 +428,7 @@ drwn library defaults remove mcp <server-name>
 
 `library catalog` manages Git-backed card catalogs used by `drwn search card`.
 The default community catalog is
-`https://github.com/curation-labs/dh-cards-catalog-v1.git` with scope
+`https://github.com/curation-labs/dm-cards-catalog-v1.git` with scope
 `@community`. `drwn init` pre-registers and shallow-clones it when reachable
 unless `--no-default-catalogs` is passed.
 `library catalog add` clones the catalog and records it in
@@ -1013,7 +1013,7 @@ drwn add git+<card-git-url>#v1.0.0
 
 ## Optional Extensions
 
-`darwinian-harness` supports optional local extensions, including:
+`darwinian-mind` supports optional local extensions, including:
 
 - `bd` for Beads project issue tracking
 - `parallel-cli` for Parallel-backed skills
@@ -1037,4 +1037,4 @@ These are optional and machine-dependent. Their absence should not block the bas
 - [03_npm-skill-bundles-guide.md](./03_npm-skill-bundles-guide.md)
 - [04_homebrew-release-checklist.md](./04_homebrew-release-checklist.md)
 - [05_npm-publishing-analysis-and-manual.md](./05_npm-publishing-analysis-and-manual.md)
-- [09_harness-cards-manual-test-guide.md](./09_harness-cards-manual-test-guide.md)
+- [09_mind-cards-manual-test-guide.md](./09_mind-cards-manual-test-guide.md)
