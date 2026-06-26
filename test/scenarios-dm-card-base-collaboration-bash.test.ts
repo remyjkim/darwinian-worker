@@ -1,14 +1,14 @@
-// ABOUTME: Exercises dh-card-base catalog collaboration through real Bash CLI workflows.
+// ABOUTME: Exercises dm-card-base catalog collaboration through real Bash CLI workflows.
 // ABOUTME: Covers producer publish, consumer follow/search/install, refresh, outdated, and update.
 
 import { afterEach, expect, test } from "bun:test";
 import { cleanupTempRoots, envFor, scaffoldCliFixture } from "./helpers";
 import {
-  createDhCardBaseCatalogRemote,
-  createDhCardBaseRemote,
-  DH_CARD_BASE_NAME,
-  tagDhCardBaseVersion,
-} from "./fixtures/dh-card-base-fixture";
+  createDmCardBaseCatalogRemote,
+  createDmCardBaseRemote,
+  DM_CARD_BASE_NAME,
+  tagDmCardBaseVersion,
+} from "./fixtures/dm-card-base-fixture";
 
 const tempRoots: string[] = [];
 
@@ -20,8 +20,8 @@ test("bash workflow covers team catalog follow, install bootstrap, refresh, and 
   const producer = await scaffoldCliFixture();
   const consumer = await scaffoldCliFixture();
   const freshConsumer = await scaffoldCliFixture();
-  const cardRemote = await createDhCardBaseRemote();
-  const catalog = await createDhCardBaseCatalogRemote("@remyjkim");
+  const cardRemote = await createDmCardBaseRemote();
+  const catalog = await createDmCardBaseCatalogRemote("@remyjkim");
   tempRoots.push(producer.root, consumer.root, freshConsumer.root, cardRemote.tempDir, catalog.tempDir);
 
   await runBash(
@@ -44,7 +44,7 @@ const path = require('path');
 const projectDir = process.argv[2];
 const expected = process.argv[3];
 const lock = JSON.parse(fs.readFileSync(path.join(projectDir, '.agents/drwn/card.lock'), 'utf8'));
-if (lock.cards.length !== 1 || lock.cards[0].name !== process.env.DH_CARD_BASE_NAME || lock.cards[0].version !== expected) {
+if (lock.cards.length !== 1 || lock.cards[0].name !== process.env.DM_CARD_BASE_NAME || lock.cards[0].version !== expected) {
   throw new Error('unexpected lock: ' + JSON.stringify(lock));
 }
 NODE
@@ -67,7 +67,7 @@ PINNED_PROJECT="$CONSUMER_ROOT/bash-pinned-project"
 RANGE_PROJECT="$CONSUMER_ROOT/bash-range-project"
 mkdir -p "$PINNED_PROJECT" "$RANGE_PROJECT"
 
-drwn_producer card catalog publish "git+$CARD_REMOTE_URL#v0.1.0" --catalog "$CATALOG_URL" --mode direct --name dh-card-base --tag bash --tag team --json > "$PUBLISH_INITIAL_JSON"
+drwn_producer card catalog publish "git+$CARD_REMOTE_URL#v0.1.0" --catalog "$CATALOG_URL" --mode direct --name dm-card-base --tag bash --tag team --json > "$PUBLISH_INITIAL_JSON"
 node - "$PUBLISH_INITIAL_JSON" <<'NODE'
 const fs = require('fs');
 const payload = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
@@ -77,7 +77,7 @@ if (!payload.ok || payload.entry.url !== 'git+' + process.env.CARD_REMOTE_URL + 
 NODE
 
 drwn_consumer library catalog add "$CATALOG_URL"
-drwn_consumer search card dh-card-base --scope @remyjkim --json > "$SEARCH_INITIAL_JSON"
+drwn_consumer search card dm-card-base --scope @remyjkim --json > "$SEARCH_INITIAL_JSON"
 node - "$SEARCH_INITIAL_JSON" <<'NODE'
 const fs = require('fs');
 const payload = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
@@ -116,7 +116,7 @@ assert_lock_version "$RANGE_PROJECT" 0.1.0
       CONSUMER_ROOT: consumer.root,
       CARD_REMOTE_URL: cardRemote.url,
       CATALOG_URL: catalog.url,
-      DH_CARD_BASE_NAME,
+      DM_CARD_BASE_NAME,
       PUBLISH_INITIAL_JSON: `${consumer.root}/publish-initial.json`,
       SEARCH_INITIAL_JSON: `${consumer.root}/search-initial.json`,
       FRESH_CATALOGS_JSON: `${consumer.root}/fresh-catalogs.json`,
@@ -125,7 +125,7 @@ assert_lock_version "$RANGE_PROJECT" 0.1.0
     },
   );
 
-  await tagDhCardBaseVersion(cardRemote, "0.1.1");
+  await tagDmCardBaseVersion(cardRemote, "0.1.1");
 
   await runBash(
     `
@@ -147,7 +147,7 @@ const path = require('path');
 const projectDir = process.argv[2];
 const expected = process.argv[3];
 const lock = JSON.parse(fs.readFileSync(path.join(projectDir, '.agents/drwn/card.lock'), 'utf8'));
-if (lock.cards.length !== 1 || lock.cards[0].name !== process.env.DH_CARD_BASE_NAME || lock.cards[0].version !== expected) {
+if (lock.cards.length !== 1 || lock.cards[0].name !== process.env.DM_CARD_BASE_NAME || lock.cards[0].version !== expected) {
   throw new Error('unexpected lock: ' + JSON.stringify(lock));
 }
 NODE
@@ -159,9 +159,9 @@ assert_skill() {
 PINNED_PROJECT="$CONSUMER_ROOT/bash-pinned-project"
 RANGE_PROJECT="$CONSUMER_ROOT/bash-range-project"
 
-drwn_producer card catalog publish "git+$CARD_REMOTE_URL#v0.1.1" --catalog "$CATALOG_URL" --mode direct --name dh-card-base --replace --json > "$PUBLISH_UPDATE_JSON"
+drwn_producer card catalog publish "git+$CARD_REMOTE_URL#v0.1.1" --catalog "$CATALOG_URL" --mode direct --name dm-card-base --replace --json > "$PUBLISH_UPDATE_JSON"
 
-drwn_consumer search card dh-card-base --scope @remyjkim --json > "$SEARCH_STALE_JSON"
+drwn_consumer search card dm-card-base --scope @remyjkim --json > "$SEARCH_STALE_JSON"
 node - "$SEARCH_STALE_JSON" <<'NODE'
 const fs = require('fs');
 const payload = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
@@ -171,7 +171,7 @@ if (payload.results.length !== 1 || payload.results[0].url !== 'git+' + process.
 NODE
 
 drwn_consumer library catalog refresh @remyjkim
-drwn_consumer search card dh-card-base --scope @remyjkim --json > "$SEARCH_REFRESHED_JSON"
+drwn_consumer search card dm-card-base --scope @remyjkim --json > "$SEARCH_REFRESHED_JSON"
 node - "$SEARCH_REFRESHED_JSON" <<'NODE'
 const fs = require('fs');
 const payload = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
@@ -184,7 +184,7 @@ NODE
 node - "$OUTDATED_JSON" <<'NODE'
 const fs = require('fs');
 const payload = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-const expected = [{ name: process.env.DH_CARD_BASE_NAME, current: '0.1.0', latest: '0.1.1' }];
+const expected = [{ name: process.env.DM_CARD_BASE_NAME, current: '0.1.0', latest: '0.1.1' }];
 if (JSON.stringify(payload.outdated) !== JSON.stringify(expected)) {
   throw new Error('unexpected outdated payload: ' + JSON.stringify(payload));
 }
@@ -206,7 +206,7 @@ assert_skill "$PINNED_PROJECT" bootstrap-project
       CONSUMER_ROOT: consumer.root,
       CARD_REMOTE_URL: cardRemote.url,
       CATALOG_URL: catalog.url,
-      DH_CARD_BASE_NAME,
+      DM_CARD_BASE_NAME,
       PUBLISH_UPDATE_JSON: `${consumer.root}/publish-update.json`,
       SEARCH_STALE_JSON: `${consumer.root}/search-stale.json`,
       SEARCH_REFRESHED_JSON: `${consumer.root}/search-refreshed.json`,

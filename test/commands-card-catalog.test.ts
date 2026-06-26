@@ -17,7 +17,7 @@ import {
 } from "../cli/core/git";
 
 const tempRoots: string[] = [];
-const CURATION_LABS_CATALOG_URL = "https://github.com/curation-labs/dh-cards-catalog-v1.git";
+const CURATION_LABS_CATALOG_URL = "https://github.com/curation-labs/dm-cards-catalog-v1.git";
 
 afterEach(async () => {
   await cleanupTempRoots(tempRoots);

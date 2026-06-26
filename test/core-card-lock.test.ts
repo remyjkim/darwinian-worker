@@ -1,4 +1,4 @@
-// ABOUTME: Verifies Harness Card lockfile v2 read/write helpers.
+// ABOUTME: Verifies Mind Card lockfile v2 read/write helpers.
 // ABOUTME: Protects origin metadata and Git commit persistence for project cards.
 
 import { afterEach, expect, test } from "bun:test";

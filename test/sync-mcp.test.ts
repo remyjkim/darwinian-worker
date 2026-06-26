@@ -25,7 +25,7 @@ afterEach(async () => {
 });
 
 async function createTempRoot() {
-  const root = await mkdtemp(join(tmpdir(), "darwinian-harness-"));
+  const root = await mkdtemp(join(tmpdir(), "darwinian-mind-"));
   tempRoots.push(root);
   return root;
 }
