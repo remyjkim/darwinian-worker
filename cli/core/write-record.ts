@@ -2,7 +2,19 @@
 // ABOUTME: Records only drwn-owned paths so cleanup never guesses ownership.
 
 import { createHash } from "node:crypto";
-import { closeSync, existsSync, fsyncSync, openSync, readFileSync, renameSync, writeFileSync, mkdirSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  lstatSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  readdirSync,
+  readlinkSync,
+  renameSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 
 export interface WriteRecord {
@@ -16,10 +28,36 @@ export type ManagedPath =
   | { path: string; kind: "symlink"; target: string }
   | { path: string; kind: "managed-fields"; fields: string[]; fieldHashes: Record<string, string> }
   | { path: string; kind: "generated-symlink"; generatedPath: string }
-  | { path: string; kind: "managed-content"; contentHash: string };
+  | { path: string; kind: "managed-content"; contentHash: string }
+  | { path: string; kind: "managed-directory"; contentHash: string };
 
 export function hashManagedContent(content: string | Uint8Array) {
   return `sha256-${createHash("sha256").update(content).digest("hex")}`;
+}
+
+export function hashManagedDirectory(dirPath: string) {
+  const records: Array<{ path: string; kind: "file" | "dir" | "symlink"; hash?: string; target?: string }> = [];
+
+  function walk(absPath: string, relPath: string) {
+    const stats = lstatSync(absPath);
+    if (stats.isSymbolicLink()) {
+      records.push({ path: relPath, kind: "symlink", target: readlinkSync(absPath) });
+      return;
+    }
+    if (stats.isDirectory()) {
+      records.push({ path: relPath, kind: "dir" });
+      for (const entry of readdirSync(absPath).sort((a, b) => a.localeCompare(b))) {
+        walk(join(absPath, entry), relPath ? `${relPath}/${entry}` : entry);
+      }
+      return;
+    }
+    if (stats.isFile()) {
+      records.push({ path: relPath, kind: "file", hash: hashManagedContent(readFileSync(absPath)) });
+    }
+  }
+
+  walk(dirPath, "");
+  return hashManagedContent(JSON.stringify(records));
 }
 
 export function resolveProjectWriteRecordPath(projectRoot: string) {

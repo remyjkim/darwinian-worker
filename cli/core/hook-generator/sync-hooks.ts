@@ -166,7 +166,7 @@ export async function syncHooks(state: EffectiveState): Promise<SyncResult> {
   const projectHookConfig = state.projectConfigWithCards?.hooks ?? state.projectConfig?.hooks;
   const exclusions = new Set(projectHookConfig?.exclude ?? []);
   const signalsEnabled = projectHookConfig?.signals?.enabled === true;
-  const policies = collectPolicies(state.lockedCards, exclusions, result, state.normalized.strictHooks ?? false);
+  const policies = collectPolicies(state.activeCards, exclusions, result, state.normalized.strictHooks ?? false);
   const hasPolicies = policies.length > 0;
 
   if (!state.scopedOptions.dryRun && hasPolicies) {

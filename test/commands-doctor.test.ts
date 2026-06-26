@@ -234,7 +234,10 @@ describe("drwn doctor", () => {
     const sourceDir = join(fixture.agentsDir, "drwn", "sources", "@me", "policy");
     await writeFile(join(sourceDir, "hooks", "guard", "policy.ts"), `
       import { defineToolPolicy } from "darwinian-mind/hook-policy";
-      export default defineToolPolicy({ policyKind: "observer" });
+      export default defineToolPolicy({
+        policyKind: "enforcement",
+        beforeToolCall() { return { action: "allow" }; },
+      });
     `);
     expect((await runAgentsCli(["card", "publish", "@me/policy"], envFor(fixture))).exitCode).toBe(0);
     const manifest = JSON.parse(await readFile(join(sourceDir, "card.json"), "utf8"));
@@ -242,6 +245,7 @@ describe("drwn doctor", () => {
     await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
     await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1, cards: [] }, null, 2));
     expect((await runAgentsCli(["card", "add", `@me/policy@${manifest.version}`], envFor(fixture), projectDir)).exitCode).toBe(0);
+    expect((await runAgentsCli(["mind", "use", "@me/policy"], envFor(fixture), projectDir)).exitCode).toBe(0);
     expect((await runAgentsCli(["card", "trust", "@me/policy", "--hooks"], envFor(fixture), projectDir)).exitCode).toBe(0);
     expect((await runAgentsCli(["write"], envFor(fixture), projectDir)).exitCode).toBe(0);
 
@@ -270,7 +274,7 @@ describe("drwn doctor", () => {
     expect((await runAgentsCli(["card", "add", `@me/policy@${manifest.version}`], envFor(fixture), projectDir)).exitCode).toBe(0);
     expect((await runAgentsCli(["card", "trust", "@me/policy", "--hooks"], envFor(fixture), projectDir)).exitCode).toBe(0);
     expect((await runAgentsCli(["write"], envFor(fixture), projectDir)).exitCode).toBe(0);
-    const composerPath = join(projectDir, ".agents", "drwn", "generated", "hooks", "claude", "composer.mjs");
+    const composerPath = join(projectDir, ".agents", "drwn", "generated", "minds", "@me", "policy", "hooks", "claude", "composer.mjs");
     const composer = await readFile(composerPath, "utf8");
     await writeFile(composerPath, composer.replace(/drwn-version:\s*[^\n]+/, "drwn-version: 0.0.0"));
 

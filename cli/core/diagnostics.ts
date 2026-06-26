@@ -533,11 +533,7 @@ function detectHookIssues(cards: CardLockEntry[], generatedDir: string) {
     }
   }
 
-  for (const pathValue of [
-    join(generatedDir, "hooks", "claude", "composer.mjs"),
-    join(generatedDir, "hooks", "codex", "composer.mjs"),
-    join(generatedDir, "hooks", "mastra", "composer.ts"),
-  ]) {
+  for (const pathValue of generatedComposerPaths(generatedDir)) {
     if (!existsSync(pathValue)) {
       continue;
     }
@@ -548,6 +544,34 @@ function detectHookIssues(cards: CardLockEntry[], generatedDir: string) {
   }
 
   return issues;
+}
+
+function generatedComposerPaths(generatedDir: string) {
+  const paths = [
+    join(generatedDir, "hooks", "claude", "composer.mjs"),
+    join(generatedDir, "hooks", "codex", "composer.mjs"),
+    join(generatedDir, "hooks", "mastra", "composer.ts"),
+  ];
+  const mindsDir = join(generatedDir, "minds");
+  if (!existsSync(mindsDir)) {
+    return paths;
+  }
+
+  function walk(dir: string) {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const pathValue = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(pathValue);
+        continue;
+      }
+      if (entry.isFile() && (entry.name === "composer.mjs" || entry.name === "composer.ts")) {
+        paths.push(pathValue);
+      }
+    }
+  }
+
+  walk(mindsDir);
+  return paths;
 }
 
 export async function buildDoctorReport(repoRoot: string, agentsDir: string, homeDir: string): Promise<DoctorReport> {

@@ -24,7 +24,7 @@ test("cards bundle skills not in skills/shared/ and write symlinks into the card
   await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
   await writeFile(
     join(projectDir, ".agents", "drwn", "config.json"),
-    JSON.stringify({ version: 1, cards: ["@me/frontend-design@^1.0.0"] }, null, 2),
+    JSON.stringify({ version: 1, cards: ["@me/frontend-design@^1.0.0"], activeMinds: ["@me/frontend-design"] }, null, 2),
   );
 
   const write = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);

@@ -162,6 +162,14 @@ export function resolveStoreGeneratedDir(agentsDir: string) {
   return join(resolveStoreRoot(agentsDir), "generated");
 }
 
+export function resolveGeneratedMindsDir(generatedDir: string) {
+  return join(generatedDir, "minds");
+}
+
+export function resolveGeneratedMindDir(generatedDir: string, name: string) {
+  return join(resolveGeneratedMindsDir(generatedDir), ...splitCardName(name));
+}
+
 export function resolveGeneratedHooksDir(generatedDir: string, runtime: Runtime) {
   if (runtime === "claude-code") {
     return join(generatedDir, "hooks", "claude");

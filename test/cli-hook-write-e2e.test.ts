@@ -54,6 +54,7 @@ async function createProjectWithTrustedHookCard(fixture: Awaited<ReturnType<type
   await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
   await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1, cards: [] }, null, 2));
   expect((await runAgentsCli(["card", "add", `@me/policy@${manifest.version}`], envFor(fixture), projectDir)).exitCode).toBe(0);
+  expect((await runAgentsCli(["mind", "use", "@me/policy"], envFor(fixture), projectDir)).exitCode).toBe(0);
   expect((await runAgentsCli(["card", "trust", "@me/policy", "--hooks"], envFor(fixture), projectDir)).exitCode).toBe(0);
   return projectDir;
 }
@@ -82,6 +83,7 @@ test("drwn write materializes card hook composers and runtime settings", async (
   await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
   await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1, cards: [] }, null, 2));
   expect((await runAgentsCli(["card", "add", `@me/policy@${manifest.version}`], envFor(fixture), projectDir)).exitCode).toBe(0);
+  expect((await runAgentsCli(["mind", "use", "@me/policy"], envFor(fixture), projectDir)).exitCode).toBe(0);
   expect((await runAgentsCli(["card", "trust", "@me/policy", "--hooks"], envFor(fixture), projectDir)).exitCode).toBe(0);
 
   const write = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);
@@ -131,6 +133,7 @@ test("drwn write skips untrusted hooks and --strict-hooks fails", async () => {
   await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
   await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1, cards: [] }, null, 2));
   expect((await runAgentsCli(["card", "add", `@me/policy@${manifest.version}`], envFor(fixture), projectDir)).exitCode).toBe(0);
+  expect((await runAgentsCli(["mind", "use", "@me/policy"], envFor(fixture), projectDir)).exitCode).toBe(0);
 
   const write = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);
   const strict = await runAgentsCli(["write", "--strict-hooks"], envFor(fixture), projectDir);
@@ -276,6 +279,7 @@ test("drwn write honors project hooks.exclude entries", async () => {
     JSON.stringify({ version: 1, cards: [], hooks: { exclude: ["@me/policy:guard"] } }, null, 2),
   );
   expect((await runAgentsCli(["card", "add", `@me/policy@${manifest.version}`], envFor(fixture), projectDir)).exitCode).toBe(0);
+  expect((await runAgentsCli(["mind", "use", "@me/policy"], envFor(fixture), projectDir)).exitCode).toBe(0);
 
   const write = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);
 

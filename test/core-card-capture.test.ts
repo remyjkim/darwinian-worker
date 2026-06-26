@@ -43,6 +43,7 @@ test("captureProjectAsCard snapshots effective project state as a self-contained
       {
         version: 1,
         cards: ["@me/base@1.0.0"],
+        activeMinds: ["@me/base"],
         skills: { include: ["beta"] },
         servers: {
           "project-server": {

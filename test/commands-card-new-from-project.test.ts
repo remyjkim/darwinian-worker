@@ -20,7 +20,10 @@ test("card new --from-project captures a project and the captured source can be 
   const projectDir = join(fixture.root, "project");
   const configPath = join(projectDir, ".agents", "drwn", "config.json");
   await mkdir(dirname(configPath), { recursive: true });
-  await writeFile(configPath, JSON.stringify({ version: 1, cards: ["@me/base@1.0.0"], skills: { include: ["beta"] } }, null, 2));
+  await writeFile(
+    configPath,
+    JSON.stringify({ version: 1, cards: ["@me/base@1.0.0"], activeMinds: ["@me/base"], skills: { include: ["beta"] } }, null, 2),
+  );
 
   const capture = await runAgentsCli(["card", "new", "@me/captured", "--from-project", projectDir, "--no-git"], envFor(fixture));
 
