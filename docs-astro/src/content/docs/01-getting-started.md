@@ -1,6 +1,6 @@
 ---
 title: "Getting Started"
-description: "Install and configure darwinian-harness in minutes."
+description: "Install and configure darwinian-mind in minutes."
 date: 2026-04-28
 order: 1
 ---
@@ -17,19 +17,20 @@ order: 1
 ### Published package
 
 ```bash
-npm install -g darwinian-harness
+npm install -g darwinian-mind
 drwn status
 ```
 
 The published package includes built-in harness defaults. By default, global `drwn` uses that packaged harness source.
+The package also installs `dminds` as a secondary alias for the same CLI.
 
 ### Work from a checkout
 
 Use this mode if you want to edit the registry, maintain your own fork, add built-in skills, or develop the CLI:
 
 ```bash
-git clone https://github.com/remyjkim/darwinian-harness.git
-cd darwinian-harness
+git clone https://github.com/remyjkim/darwinian-mind.git
+cd darwinian-mind
 bun install
 bun run drwn -- status
 ```
@@ -37,7 +38,7 @@ bun run drwn -- status
 You can also point a global install at a checkout:
 
 ```bash
-export AGENTS_REPO_ROOT=/path/to/darwinian-harness
+export AGENTS_REPO_ROOT=/path/to/darwinian-mind
 drwn status
 ```
 
@@ -103,7 +104,7 @@ When `drwn write` runs inside a project with `.agents/drwn/config.json`, it
 writes project-local `.claude`, `.codex`, and `.cursor` state instead of
 writing to your home-directory tool config.
 
-### Apply a Harness Card
+### Apply a Mind Card
 
 Cards package reusable project harness intent:
 

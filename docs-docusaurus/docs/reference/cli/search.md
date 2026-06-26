@@ -48,7 +48,7 @@ drwn search card backend --scope @team
 drwn search card backend --json
 ```
 
-Card search reads `catalog.json` entries inside catalogs registered via `drwn library catalog add`. `drwn init` registers the Curation Labs `@community` catalog (`https://github.com/curation-labs/dh-cards-catalog-v1.git`) unless `--no-default-catalogs` is passed. Producers add entries with `drwn card catalog publish <cardRef> --catalog <scope|git-url|path> --mode <local|direct>`.
+Card search reads `catalog.json` entries inside catalogs registered via `drwn library catalog add`. `drwn init` registers the Curation Labs `@community` catalog (`https://github.com/curation-labs/dm-cards-catalog-v1.git`) unless `--no-default-catalogs` is passed. Producers add entries with `drwn card catalog publish <cardRef> --catalog <scope|git-url|path> --mode <local|direct>`.
 
 `--scope` limits results to a single catalog scope (e.g. `@team`).
 

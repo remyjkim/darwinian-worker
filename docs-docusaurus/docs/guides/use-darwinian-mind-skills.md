@@ -2,14 +2,14 @@
 sidebar_position: 5
 ---
 
-# Use Darwinian Harness Skills
+# Use Darwinian Mind Skills
 
-Darwinian Harness Skills is the workflow skill pack for operating `drwn` from
+Darwinian Mind Skills is the workflow skill pack for operating `drwn` from
 agent runtimes. Install it when you want agents to follow the same inspect,
 dry-run, approval, mutation, and verification sequence you would use manually.
 
 The full skill bodies live in the
-[darwinian-harness-skills](https://github.com/remyjkim/darwinian-harness-skills)
+[darwinian-mind-skills](https://github.com/remyjkim/darwinian-mind-skills)
 repo. This page covers installation, activation, and choosing the right skill.
 
 ## Install The Bundle
@@ -17,16 +17,16 @@ repo. This page covers installation, activation, and choosing the right skill.
 Install from GitHub:
 
 ```bash
-drwn library add skill github:remyjkim/darwinian-harness-skills
-drwn skills packages show darwinian-harness-skills
+drwn library add skill github:remyjkim/darwinian-mind-skills
+drwn skills packages show darwinian-mind-skills
 ```
 
 For local development, install from a checkout:
 
 ```bash
-git clone git@github.com:remyjkim/darwinian-harness-skills.git
-drwn library add skill ./darwinian-harness-skills
-drwn skills packages show darwinian-harness-skills
+git clone git@github.com:remyjkim/darwinian-mind-skills.git
+drwn library add skill ./darwinian-mind-skills
+drwn skills packages show darwinian-mind-skills
 ```
 
 Installing a bundle makes its skills available. It does not activate them in a
@@ -61,10 +61,10 @@ layer at `~/.agents/skills`.
 
 ## Use The Stable Card During Development
 
-The skills repo also ships a stable Harness Card source. From a checkout:
+The skills repo also ships a stable Mind Card source. From a checkout:
 
 ```bash
-drwn apply file:/path/to/darwinian-harness-skills/cards/harness-skills
+drwn apply file:/path/to/darwinian-mind-skills/cards/harness-skills
 drwn write --dry-run
 ```
 
@@ -78,9 +78,9 @@ selection.
 | --- | --- |
 | Set up this repo | `bootstrap-project` |
 | I cloned this repo and it has `card.lock` | `install-harness-project` |
-| Apply or update a card | `apply-harness-card` |
-| Create or publish a card | `author-harness-card` |
-| Push, fetch, or clone a card through Git | `share-harness-card` |
+| Apply or update a card | `apply-mind-card` |
+| Create or publish a card | `author-mind-card` |
+| Push, fetch, or clone a card through Git | `share-mind-card` |
 | Add a skill or MCP server to this project | `materialize-harness` |
 | Write generated Claude, Codex, or Cursor state | `materialize-harness` |
 | Install a bundle, MCP definition, or card catalog | `manage-harness-library` |

@@ -3,7 +3,7 @@ import type { Config } from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
-  title: 'Darwinian Harness',
+  title: 'Darwinian Mind',
   tagline: 'A local meta-harness for AI agent tools',
   favicon: 'img/favicon.svg',
 
@@ -14,7 +14,7 @@ const config: Config = {
   url: 'https://docs.darwiniantools.com',
   baseUrl: '/',
   organizationName: 'remyjkim',
-  projectName: 'darwinian-harness',
+  projectName: 'darwinian-mind',
 
   onBrokenLinks: 'throw',
   onBrokenAnchors: 'throw',
@@ -40,7 +40,7 @@ const config: Config = {
         docs: {
           sidebarPath: './sidebars.ts',
           routeBasePath: '/',
-          editUrl: 'https://github.com/remyjkim/darwinian-harness/tree/main/docs-docusaurus/',
+          editUrl: 'https://github.com/remyjkim/darwinian-mind/tree/main/docs-docusaurus/',
         },
         blog: false,
         theme: {
@@ -56,9 +56,9 @@ const config: Config = {
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'Darwinian Harness',
+      title: 'Darwinian Mind',
       logo: {
-        alt: 'Darwinian Harness',
+        alt: 'Darwinian Mind',
         src: 'img/logo.svg',
         srcDark: 'img/logo-dark.svg',
       },
@@ -70,7 +70,7 @@ const config: Config = {
           label: 'Docs',
         },
         {
-          href: 'https://github.com/remyjkim/darwinian-harness',
+          href: 'https://github.com/remyjkim/darwinian-mind',
           label: 'GitHub',
           position: 'right',
         },
@@ -93,16 +93,16 @@ const config: Config = {
           items: [
             {
               label: 'GitHub',
-              href: 'https://github.com/remyjkim/darwinian-harness',
+              href: 'https://github.com/remyjkim/darwinian-mind',
             },
             {
               label: 'Issues',
-              href: 'https://github.com/remyjkim/darwinian-harness/issues',
+              href: 'https://github.com/remyjkim/darwinian-mind/issues',
             },
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Darwinian Harness. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} Darwinian Mind. Built with Docusaurus.`,
     },
     prism: {
       theme: prismThemes.github,

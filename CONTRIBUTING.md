@@ -2,10 +2,10 @@
 
 ## Cloning
 
-Clone with submodules so the `darwinian-harness-skills/` working tree is populated:
+Clone with submodules so the `darwinian-mind-skills/` working tree is populated:
 
 ```bash
-git clone --recurse-submodules https://github.com/remyjkim/darwinian-harness.git
+git clone --recurse-submodules https://github.com/remyjkim/darwinian-mind.git
 ```
 
 If you already cloned without `--recurse-submodules`:

@@ -6,7 +6,7 @@ Reduce root-level clutter by moving packaged harness source data out of the repo
 
 ## Current Layout Problem
 
-The root currently mixes normal package metadata with darwinian-harness source data:
+The root currently mixes normal package metadata with darwinian-mind source data:
 
 - `config.json`
 - `mcp-servers.json`

@@ -1,13 +1,13 @@
 ---
-title: "Harness Cards"
-description: "Author, publish, apply, and update reusable project harness cards."
+title: "Mind Cards"
+description: "Author, publish, apply, and update reusable project mind cards."
 date: 2026-05-20
 order: 10
 ---
 
 ## What Cards Are
 
-Harness Cards are versioned bundles of project harness intent. A card can
+Mind Cards are versioned bundles of project harness intent. A card can
 include skills, MCP server definitions, extension settings, target settings,
 and metadata.
 

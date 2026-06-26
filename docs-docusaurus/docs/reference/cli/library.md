@@ -29,7 +29,7 @@ These commands make inventory available. They do not activate it in a project; u
 Card catalogs are Git repositories with a root `catalog.json`. Register a catalog locally before searching it:
 
 ```bash
-drwn library catalog add https://github.com/curation-labs/dh-cards-catalog-v1.git
+drwn library catalog add https://github.com/curation-labs/dm-cards-catalog-v1.git
 drwn library catalog add <catalog-git-url>
 drwn library catalog list
 drwn library catalog refresh

@@ -4,7 +4,7 @@ sidebar_position: 6
 
 # Share a Harness with a Team
 
-Use Harness Cards when a reusable project setup should move between teammates. A card is the immutable harness package; a card catalog is the discoverable index that points people to installable card Git refs.
+Use Mind Cards when a reusable project setup should move between teammates. A card is the immutable harness package; a card catalog is the discoverable index that points people to installable card Git refs.
 
 ## Producer Flow
 
