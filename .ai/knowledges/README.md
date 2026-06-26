@@ -24,11 +24,11 @@ This directory holds internal operator and maintainer knowledge that is more spe
 
 ## Concepts
 
-- [08_harness_engineering_resources.md](./08_harness_engineering_resources.md): origin and current framing of "harness engineering" as the practice darwinian-harness is built around
+- [08_harness_engineering_resources.md](./08_harness_engineering_resources.md): origin and current framing of "harness engineering" as the practice darwinian-mind is built around
 
 ## Manual Validation
 
-- [09_harness-cards-manual-test-guide.md](./09_harness-cards-manual-test-guide.md): sandbox-first end-to-end manual for authoring, publishing, applying, writing, and diagnosing Harness Cards locally
+- [09_mind-cards-manual-test-guide.md](./09_mind-cards-manual-test-guide.md): sandbox-first end-to-end manual for authoring, publishing, applying, writing, and diagnosing Mind Cards locally
 
 ## Scope
 

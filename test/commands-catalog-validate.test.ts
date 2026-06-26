@@ -18,13 +18,13 @@ test("catalog validate accepts the current public catalog shape", async () => {
   const catalogPath = await writeCatalogFixture(fixture.root, {
     catalogVersion: 1,
     scope: "@community",
-    description: "Curation Labs Darwinian Harness Cards Catalog V1",
-    homepage: "https://github.com/curation-labs/dh-cards-catalog-v1",
+    description: "Curation Labs Darwinian Mind Cards Catalog V1",
+    homepage: "https://github.com/curation-labs/dm-cards-catalog-v1",
     cards: [
       {
-        name: "dh-card-base",
-        url: "git+https://github.com/remyjkim/dh-card-base.git#v0.1.0",
-        description: "Personal base card bundling the current-lane Darwinian Harness skills.",
+        name: "dm-card-base",
+        url: "git+https://github.com/remyjkim/dm-card-base.git#v0.1.0",
+        description: "Personal base card bundling the current-lane Darwinian Mind skills.",
         tags: ["harness", "skills"],
       },
     ],

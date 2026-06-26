@@ -24,7 +24,7 @@ This creates:
 
 Project config can:
 
-- Apply reusable Harness Cards
+- Apply reusable Mind Cards
 - Enable or disable MCP servers for one project
 - Add project-local MCP server definitions
 - Enable extensions such as Parallel, Beads, or MarkItDown for one project
@@ -64,7 +64,7 @@ Discovery walks upward from the current working directory and uses the nearest c
 
 ## Cards And Lockfiles
 
-`cards` is an ordered array of Harness Card refs. The lockfile records exact
+`cards` is an ordered array of Mind Card refs. The lockfile records exact
 resolved versions:
 
 ```text

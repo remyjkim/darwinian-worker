@@ -1,4 +1,4 @@
-// ABOUTME: Defines and validates Harness Card manifests.
+// ABOUTME: Defines and validates Mind Card manifests.
 // ABOUTME: Keeps authoring and consumer commands aligned on schema rules.
 
 import type { ProjectExtensionConfig, ServerOverride, TargetName } from "./types";

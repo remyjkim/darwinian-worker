@@ -65,7 +65,7 @@ describe("assertSourceTrusted", () => {
 describe("assertCatalogSourceTrusted", () => {
   test("applies trusted git host and explicit ref rules to catalog URLs", () => {
     expect(() =>
-      assertCatalogSourceTrusted("https://github.com/curation-labs/dh-cards-catalog-v1.git", {
+      assertCatalogSourceTrusted("https://github.com/curation-labs/dm-cards-catalog-v1.git", {
         strict: true,
         gitHosts: ["github.com"],
       }),

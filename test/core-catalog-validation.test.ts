@@ -5,17 +5,17 @@ import { describe, expect, test } from "bun:test";
 import { validateCatalogJson } from "../cli/core/catalog-validation";
 
 describe("validateCatalogJson", () => {
-  test("accepts the current community catalog shape with dh-card-base", () => {
+  test("accepts the current community catalog shape with dm-card-base", () => {
     const result = validateCatalogJson({
       catalogVersion: 1,
       scope: "@community",
-      description: "Curation Labs Darwinian Harness Cards Catalog V1",
-      homepage: "https://github.com/curation-labs/dh-cards-catalog-v1",
+      description: "Curation Labs Darwinian Mind Cards Catalog V1",
+      homepage: "https://github.com/curation-labs/dm-cards-catalog-v1",
       cards: [
         {
-          name: "dh-card-base",
-          url: "git+https://github.com/remyjkim/dh-card-base.git#v0.1.0",
-          description: "Personal base card bundling the current-lane Darwinian Harness skills.",
+          name: "dm-card-base",
+          url: "git+https://github.com/remyjkim/dm-card-base.git#v0.1.0",
+          description: "Personal base card bundling the current-lane Darwinian Mind skills.",
           tags: ["harness", "skills"],
         },
       ],
@@ -24,7 +24,7 @@ describe("validateCatalogJson", () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.catalog.cards[0]?.name).toBe("dh-card-base");
+      expect(result.catalog.cards[0]?.name).toBe("dm-card-base");
     }
   });
 

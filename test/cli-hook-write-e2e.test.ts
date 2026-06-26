@@ -35,7 +35,7 @@ async function publishHookPolicyCard(fixture: Awaited<ReturnType<typeof scaffold
   const sourceDir = join(fixture.agentsDir, "drwn", "sources", "@me", "policy");
   const policyPath = join(sourceDir, "hooks", "guard", "policy.ts");
   await writeFile(policyPath, `
-    import { defineToolPolicy } from "darwinian-harness/hook-policy";
+    import { defineToolPolicy } from "darwinian-mind/hook-policy";
     export default defineToolPolicy({
       policyKind: "enforcement",
       matcher: "Bash",
@@ -66,7 +66,7 @@ test("drwn write materializes card hook composers and runtime settings", async (
   const sourceDir = join(fixture.agentsDir, "drwn", "sources", "@me", "policy");
   const policyPath = join(sourceDir, "hooks", "guard", "policy.ts");
   await writeFile(policyPath, `
-    import { defineToolPolicy } from "darwinian-harness/hook-policy";
+    import { defineToolPolicy } from "darwinian-mind/hook-policy";
     export default defineToolPolicy({
       policyKind: "enforcement",
       matcher: "Bash",
@@ -119,7 +119,7 @@ test("drwn write skips untrusted hooks and --strict-hooks fails", async () => {
   expect((await runAgentsCli(["card", "source", "add-hook", "@me/policy", "guard"], envFor(fixture))).exitCode).toBe(0);
   const sourceDir = join(fixture.agentsDir, "drwn", "sources", "@me", "policy");
   await writeFile(join(sourceDir, "hooks", "guard", "policy.ts"), `
-    import { defineToolPolicy } from "darwinian-harness/hook-policy";
+    import { defineToolPolicy } from "darwinian-mind/hook-policy";
     export default defineToolPolicy({
       policyKind: "enforcement",
       beforeToolCall() { return { action: "deny", reason: "blocked" }; },
@@ -260,7 +260,7 @@ test("drwn write honors project hooks.exclude entries", async () => {
   expect((await runAgentsCli(["card", "source", "add-hook", "@me/policy", "guard"], envFor(fixture))).exitCode).toBe(0);
   const sourceDir = join(fixture.agentsDir, "drwn", "sources", "@me", "policy");
   await writeFile(join(sourceDir, "hooks", "guard", "policy.ts"), `
-    import { defineToolPolicy } from "darwinian-harness/hook-policy";
+    import { defineToolPolicy } from "darwinian-mind/hook-policy";
     export default defineToolPolicy({
       policyKind: "enforcement",
       beforeToolCall() { return { action: "deny", reason: "blocked" }; },

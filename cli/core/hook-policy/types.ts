@@ -1,4 +1,4 @@
-// ABOUTME: Runtime-agnostic policy contract types for Harness Card hooks.
+// ABOUTME: Runtime-agnostic policy contract types for Mind Card hooks.
 // ABOUTME: Imported by author policy modules and generated composition runtimes.
 
 export type Runtime = "claude-code" | "codex" | "mastra";

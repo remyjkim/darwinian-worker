@@ -1,4 +1,4 @@
-// ABOUTME: Classifies structural differences between two Harness Card manifests.
+// ABOUTME: Classifies structural differences between two Mind Card manifests.
 // ABOUTME: Gives authors deterministic version-bump guidance before publishing.
 
 import type { CardManifest } from "./card-manifest";

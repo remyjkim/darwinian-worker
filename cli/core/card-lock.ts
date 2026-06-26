@@ -1,4 +1,4 @@
-// ABOUTME: Reads and writes project Harness Card lockfiles.
+// ABOUTME: Reads and writes project Mind Card lockfiles.
 // ABOUTME: Keeps card resolution deterministic once a project has selected cards.
 
 import { existsSync } from "node:fs";

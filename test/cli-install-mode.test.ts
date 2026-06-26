@@ -12,10 +12,11 @@ describe("CLI install mode", () => {
       bin?: string | Record<string, string>;
     };
 
-    expect(pkg.name).toBe("darwinian-harness");
+    expect(pkg.name).toBe("darwinian-mind");
     expect(pkg.scripts?.drwn).toBe("bun run cli/index.ts");
     expect(typeof pkg.bin).toBe("object");
     expect((pkg.bin as Record<string, string>).drwn).toBe("cli/index.ts");
-    expect((pkg.bin as Record<string, string>)["drwn-hx"]).toBe("cli/index.ts");
+    expect((pkg.bin as Record<string, string>).dminds).toBe("cli/index.ts");
+    expect((pkg.bin as Record<string, string>)["drwn-hx"]).toBeUndefined();
   });
 });

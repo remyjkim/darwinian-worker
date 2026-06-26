@@ -1,6 +1,6 @@
-# darwinian-harness docs
+# darwinian-mind docs
 
-Docusaurus 3 site for [darwinian-harness](https://github.com/remyjkim/darwinian-harness). Published at https://darwiniantools.com.
+Docusaurus 3 site for [darwinian-mind](https://github.com/remyjkim/darwinian-mind). Published at https://darwiniantools.com.
 
 ## Local development
 

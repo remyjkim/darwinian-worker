@@ -23,7 +23,7 @@
     }
   },
   "defaults": {
-    "communityCatalogUrl": "https://github.com/curation-labs/dh-cards-catalog-v1.git"
+    "communityCatalogUrl": "https://github.com/curation-labs/dm-cards-catalog-v1.git"
   },
   "parallel": {
     "cli": {

@@ -1,5 +1,5 @@
 // ABOUTME: Barrel export for the hook-policy author and runtime surface.
-// ABOUTME: Subpath-exported as darwinian-harness/hook-policy for card authors.
+// ABOUTME: Subpath-exported as darwinian-mind/hook-policy for card authors.
 
 export { composeToolHooks } from "./compose-tool-hooks";
 export { defineToolPolicy } from "./define-tool-policy";

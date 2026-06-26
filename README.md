@@ -1,25 +1,26 @@
 <p align="center">
-  <img src="./docs/assets/darwinian-harness-logo.png" alt="Darwinian Harness" width="120" height="120" />
+  <img src="./docs/assets/darwinian-mind-logo.png" alt="Darwinian Mind" width="120" height="120" />
 </p>
 
-# darwinian-harness
+# darwinian-mind
 
-`darwinian-harness` is a local meta-harness for AI agent tools — a CLI that organizes the skills, MCP servers, extensions, defaults, project overlays, and downstream tool state surrounding the agents you already use.
+`darwinian-mind` is a local meta-harness for AI agent tools — a CLI that organizes the skills, MCP servers, extensions, defaults, project overlays, and downstream tool state surrounding the agents you already use.
 
-The package is `darwinian-harness`. The command is `drwn`.
+The package is `darwinian-mind`. The command is `drwn`. The secondary package
+alias is `dminds`.
 
 ## Install
 
 ```bash
-npm install -g darwinian-harness
+npm install -g darwinian-mind
 drwn status
 ```
 
 Or work from a checkout:
 
 ```bash
-git clone https://github.com/remyjkim/darwinian-harness.git
-cd darwinian-harness
+git clone https://github.com/remyjkim/darwinian-mind.git
+cd darwinian-mind
 bun install
 bun run drwn -- status
 ```
@@ -35,7 +36,7 @@ For a project-local harness, run `drwn init` in the project root, then `drwn add
 
 ## Claude Session Signals Beta
 
-`drwn` includes hidden Claude Code hook commands that can record active Harness Cards and
+`drwn` includes hidden Claude Code hook commands that can record active Mind Cards and
 skill usage beside Claude transcript files. This is an opt-in beta and is disabled by
 default.
 

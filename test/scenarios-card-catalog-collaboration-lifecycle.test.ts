@@ -1,4 +1,4 @@
-// ABOUTME: Exercises a full team catalog collaboration lifecycle for dh-card-base.
+// ABOUTME: Exercises a full team catalog collaboration lifecycle for dm-card-base.
 // ABOUTME: Covers follow, discovery, install, catalog refresh, fetch, update, and pinned behavior.
 
 import { afterEach, expect, test } from "bun:test";
@@ -8,12 +8,12 @@ import { join } from "node:path";
 import { loadCardLock } from "../cli/core/card-lock";
 import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture } from "./helpers";
 import {
-  createDhCardBaseCatalogRemote,
-  createDhCardBaseRemote,
-  DH_CARD_BASE_NAME,
-  DH_CARD_BASE_SKILLS,
-  tagDhCardBaseVersion,
-} from "./fixtures/dh-card-base-fixture";
+  createDmCardBaseCatalogRemote,
+  createDmCardBaseRemote,
+  DM_CARD_BASE_NAME,
+  DM_CARD_BASE_SKILLS,
+  tagDmCardBaseVersion,
+} from "./fixtures/dm-card-base-fixture";
 
 const tempRoots: string[] = [];
 
@@ -21,12 +21,12 @@ afterEach(async () => {
   await cleanupTempRoots(tempRoots);
 });
 
-test("team follows a dh-card-base catalog, installs it, refreshes catalog updates, and updates range-tracked projects", async () => {
+test("team follows a dm-card-base catalog, installs it, refreshes catalog updates, and updates range-tracked projects", async () => {
   const producer = await scaffoldCliFixture();
   const consumer = await scaffoldCliFixture();
   const freshConsumer = await scaffoldCliFixture();
-  const cardRemote = await createDhCardBaseRemote();
-  const catalog = await createDhCardBaseCatalogRemote("@remyjkim");
+  const cardRemote = await createDmCardBaseRemote();
+  const catalog = await createDmCardBaseCatalogRemote("@remyjkim");
   tempRoots.push(producer.root, consumer.root, freshConsumer.root, cardRemote.tempDir, catalog.tempDir);
 
   const initialPublish = await runAgentsCli(
@@ -40,7 +40,7 @@ test("team follows a dh-card-base catalog, installs it, refreshes catalog update
       "--mode",
       "direct",
       "--name",
-      "dh-card-base",
+      "dm-card-base",
       "--tag",
       "base",
       "--tag",
@@ -51,16 +51,16 @@ test("team follows a dh-card-base catalog, installs it, refreshes catalog update
   );
   expect(initialPublish.exitCode, initialPublish.stderr).toBe(0);
   expect(JSON.parse(initialPublish.stdout).entry).toMatchObject({
-    name: "dh-card-base",
+    name: "dm-card-base",
     url: `git+${cardRemote.url}#v0.1.0`,
     tags: ["base", "skills"],
   });
 
   expect((await runAgentsCli(["library", "catalog", "add", catalog.url], envFor(consumer))).exitCode).toBe(0);
-  const discovered = await searchDhCardBase(consumer);
+  const discovered = await searchDmCardBase(consumer);
   expect(discovered).toEqual(
     expect.objectContaining({
-      name: "dh-card-base",
+      name: "dm-card-base",
       scope: "@remyjkim",
       url: `git+${cardRemote.url}#v0.1.0`,
     }),
@@ -71,7 +71,7 @@ test("team follows a dh-card-base catalog, installs it, refreshes catalog update
   const pinnedApply = await runAgentsCli(["card", "apply", discovered.url, "--write"], envFor(consumer), pinnedProject);
   expect(pinnedApply.exitCode, pinnedApply.stderr).toBe(0);
   const initialPinnedLock = await expectLockVersion(pinnedProject, "0.1.0");
-  expectMaterializedSkills(pinnedProject, ["bootstrap-project", "author-harness-card", "share-harness-card"]);
+  expectMaterializedSkills(pinnedProject, ["bootstrap-project", "author-mind-card", "share-mind-card"]);
 
   await rm(join(pinnedProject, ".claude"), { recursive: true, force: true });
   await rm(join(pinnedProject, ".codex"), { recursive: true, force: true });
@@ -85,7 +85,7 @@ test("team follows a dh-card-base catalog, installs it, refreshes catalog update
   const freshInstall = await runAgentsCli(["install"], envFor(freshConsumer), pinnedProject);
   expect(freshInstall.exitCode, freshInstall.stderr).toBe(0);
   await expectLockVersion(pinnedProject, "0.1.0");
-  expectMaterializedSkills(pinnedProject, ["bootstrap-project", "author-harness-card", "share-harness-card"]);
+  expectMaterializedSkills(pinnedProject, ["bootstrap-project", "author-mind-card", "share-mind-card"]);
 
   const rangeProject = join(consumer.root, "range-project");
   await initProject(consumer, rangeProject);
@@ -93,7 +93,7 @@ test("team follows a dh-card-base catalog, installs it, refreshes catalog update
   expect(rangeApply.exitCode, rangeApply.stderr).toBe(0);
   await expectLockVersion(rangeProject, "0.1.0");
 
-  await tagDhCardBaseVersion(cardRemote, "0.1.1");
+  await tagDmCardBaseVersion(cardRemote, "0.1.1");
   const updateCatalog = await runAgentsCli(
     [
       "card",
@@ -105,7 +105,7 @@ test("team follows a dh-card-base catalog, installs it, refreshes catalog update
       "--mode",
       "direct",
       "--name",
-      "dh-card-base",
+      "dm-card-base",
       "--replace",
       "--json",
     ],
@@ -113,15 +113,15 @@ test("team follows a dh-card-base catalog, installs it, refreshes catalog update
   );
   expect(updateCatalog.exitCode, updateCatalog.stderr).toBe(0);
 
-  expect((await searchDhCardBase(consumer)).url).toBe(`git+${cardRemote.url}#v0.1.0`);
+  expect((await searchDmCardBase(consumer)).url).toBe(`git+${cardRemote.url}#v0.1.0`);
   const refreshed = await runAgentsCli(["library", "catalog", "refresh", "@remyjkim"], envFor(consumer));
   expect(refreshed.exitCode, refreshed.stderr).toBe(0);
-  expect((await searchDhCardBase(consumer)).url).toBe(`git+${cardRemote.url}#v0.1.1`);
+  expect((await searchDmCardBase(consumer)).url).toBe(`git+${cardRemote.url}#v0.1.1`);
 
   const outdated = await runAgentsCli(["card", "outdated", "--fetch", "--json"], envFor(consumer), rangeProject);
   expect(outdated.exitCode, outdated.stderr).toBe(0);
   expect(JSON.parse(outdated.stdout).outdated).toEqual([
-    { name: DH_CARD_BASE_NAME, current: "0.1.0", latest: "0.1.1" },
+    { name: DM_CARD_BASE_NAME, current: "0.1.0", latest: "0.1.1" },
   ]);
   const check = await runAgentsCli(["card", "outdated", "--fetch", "--check"], envFor(consumer), rangeProject);
   expect(check.exitCode).not.toBe(0);
@@ -150,8 +150,8 @@ async function initProject(fixture: Awaited<ReturnType<typeof scaffoldCliFixture
   expect(result.exitCode, result.stderr).toBe(0);
 }
 
-async function searchDhCardBase(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
-  const result = await runAgentsCli(["search", "card", "dh-card-base", "--scope", "@remyjkim", "--json"], envFor(fixture));
+async function searchDmCardBase(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
+  const result = await runAgentsCli(["search", "card", "dm-card-base", "--scope", "@remyjkim", "--json"], envFor(fixture));
   expect(result.exitCode, result.stderr).toBe(0);
   const parsed = JSON.parse(result.stdout);
   expect(parsed.results).toHaveLength(1);
@@ -162,7 +162,7 @@ async function expectLockVersion(projectDir: string, version: string) {
   const lock = await loadCardLock(projectDir);
   expect(lock?.cards).toHaveLength(1);
   expect(lock!.cards[0]).toMatchObject({
-    name: DH_CARD_BASE_NAME,
+    name: DM_CARD_BASE_NAME,
     version,
   });
   return lock!;
@@ -170,7 +170,7 @@ async function expectLockVersion(projectDir: string, version: string) {
 
 function expectMaterializedSkills(projectDir: string, skills: string[]) {
   for (const skill of skills) {
-    expect(DH_CARD_BASE_SKILLS).toContain(skill);
+    expect(DM_CARD_BASE_SKILLS).toContain(skill);
     expect(existsSync(join(projectDir, ".claude", "skills", skill))).toBe(true);
   }
 }

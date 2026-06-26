@@ -1,4 +1,4 @@
-// ABOUTME: Live smoke test for the public remyjkim/dh-card-base card repo.
+// ABOUTME: Live smoke test for the public remyjkim/dm-card-base card repo.
 // ABOUTME: Verifies catalog discovery and lockfile bootstrap against GitHub when explicitly enabled.
 
 import { afterEach, expect, test } from "bun:test";
@@ -8,27 +8,27 @@ import { join } from "node:path";
 import { loadCardLock } from "../cli/core/card-lock";
 import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture } from "./helpers";
 import {
-  createDhCardBaseCatalogRemote,
-  DH_CARD_BASE_NAME,
-  DH_CARD_BASE_REMOTE,
-  DH_CARD_BASE_SKILLS,
-  DH_CARD_BASE_VERSION,
-} from "./fixtures/dh-card-base-fixture";
+  createDmCardBaseCatalogRemote,
+  DM_CARD_BASE_NAME,
+  DM_CARD_BASE_REMOTE,
+  DM_CARD_BASE_SKILLS,
+  DM_CARD_BASE_VERSION,
+} from "./fixtures/dm-card-base-fixture";
 
 const tempRoots: string[] = [];
-const liveTest = process.env.DRWN_LIVE_DH_CARD_BASE === "1" ? test : test.skip;
+const liveTest = process.env.DRWN_LIVE_DM_CARD_BASE === "1" ? test : test.skip;
 
 afterEach(async () => {
   await cleanupTempRoots(tempRoots);
 });
 
-liveTest("publishes and consumes the live dh-card-base GitHub repo through a catalog", async () => {
+liveTest("publishes and consumes the live dm-card-base GitHub repo through a catalog", async () => {
   const producer = await scaffoldCliFixture();
   const consumer = await scaffoldCliFixture();
   const freshConsumer = await scaffoldCliFixture();
-  const catalog = await createDhCardBaseCatalogRemote("@remyjkim");
+  const catalog = await createDmCardBaseCatalogRemote("@remyjkim");
   tempRoots.push(producer.root, consumer.root, freshConsumer.root, catalog.tempDir);
-  const liveRef = `git+${DH_CARD_BASE_REMOTE}#v${DH_CARD_BASE_VERSION}`;
+  const liveRef = `git+${DM_CARD_BASE_REMOTE}#v${DM_CARD_BASE_VERSION}`;
 
   const published = await runAgentsCli(
     [
@@ -41,7 +41,7 @@ liveTest("publishes and consumes the live dh-card-base GitHub repo through a cat
       "--mode",
       "direct",
       "--name",
-      "dh-card-base",
+      "dm-card-base",
       "--tag",
       "live-smoke",
       "--json",
@@ -50,16 +50,16 @@ liveTest("publishes and consumes the live dh-card-base GitHub repo through a cat
   );
   expect(published.exitCode, published.stderr).toBe(0);
   expect(JSON.parse(published.stdout).entry).toMatchObject({
-    name: "dh-card-base",
+    name: "dm-card-base",
     url: liveRef,
   });
 
   expect((await runAgentsCli(["library", "catalog", "add", catalog.url], envFor(consumer))).exitCode).toBe(0);
-  const search = await runAgentsCli(["search", "card", "dh-card-base", "--scope", "@remyjkim", "--json"], envFor(consumer));
+  const search = await runAgentsCli(["search", "card", "dm-card-base", "--scope", "@remyjkim", "--json"], envFor(consumer));
   expect(search.exitCode, search.stderr).toBe(0);
   expect(JSON.parse(search.stdout).results).toEqual([
     expect.objectContaining({
-      name: "dh-card-base",
+      name: "dm-card-base",
       scope: "@remyjkim",
       url: liveRef,
     }),
@@ -73,7 +73,7 @@ liveTest("publishes and consumes the live dh-card-base GitHub repo through a cat
   expect(applied.exitCode, applied.stderr).toBe(0);
   const initialLock = await expectLiveLock(projectDir);
   expectLiveSkill(projectDir, "bootstrap-project");
-  expectLiveSkill(projectDir, "author-harness-card");
+  expectLiveSkill(projectDir, "author-mind-card");
 
   const outdated = await runAgentsCli(["card", "outdated", "--fetch", "--json"], envFor(consumer), projectDir);
   expect(outdated.exitCode, outdated.stderr).toBe(0);
@@ -96,13 +96,13 @@ async function expectLiveLock(projectDir: string) {
   const lock = await loadCardLock(projectDir);
   expect(lock?.cards).toHaveLength(1);
   expect(lock!.cards[0]).toMatchObject({
-    name: DH_CARD_BASE_NAME,
-    version: DH_CARD_BASE_VERSION,
+    name: DM_CARD_BASE_NAME,
+    version: DM_CARD_BASE_VERSION,
   });
   return lock!;
 }
 
 function expectLiveSkill(projectDir: string, skill: string) {
-  expect(DH_CARD_BASE_SKILLS).toContain(skill);
+  expect(DM_CARD_BASE_SKILLS).toContain(skill);
   expect(existsSync(join(projectDir, ".claude", "skills", skill))).toBe(true);
 }

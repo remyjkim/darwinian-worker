@@ -53,21 +53,21 @@ Birgitta Böckeler's framework identifies the two fundamental directions:
 
 Without both, you get either an agent repeating mistakes (feedback-only) or an agent encoding rules but never verifying them (feedforward-only).
 
-## Where darwinian-harness Fits
+## Where darwinian-mind Fits
 
-`darwinian-harness` occupies the local operator layer of harness engineering. Its job is to make scattered local agent configuration explicit and governable:
+`darwinian-mind` occupies the local operator layer of harness engineering. Its job is to make scattered local agent configuration explicit and governable:
 
 - Skills become feedforward guidance
 - MCP servers become controlled tool surfaces
 - Extensions become reusable harness modules
 - The cards-era local store becomes reusable capability inventory
 - Machine config becomes the machine-wide baseline harness
-- Harness Cards become reusable project harness intent
+- Mind Cards become reusable project harness intent
 - Project config and card locks become the project-specific source of truth
 - Write records make materialization ownership inspectable
 - Apply, write, status, and doctor become the materialization and verification loop
 
-This is why the name is `darwinian-harness` — it is the starting harness layer around every local agent setup, not a replacement for any one agent.
+This is why the name is `darwinian-mind` — it is the starting harness layer around every local agent setup, not a replacement for any one agent.
 
 ## Further Reading
 

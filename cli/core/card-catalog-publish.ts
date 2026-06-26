@@ -1,4 +1,4 @@
-// ABOUTME: Publishes already-versioned Harness Cards into Git-backed catalog manifests.
+// ABOUTME: Publishes already-versioned Mind Cards into Git-backed catalog manifests.
 // ABOUTME: Keeps producer-side catalog authoring separate from local catalog registration/search.
 
 import { existsSync } from "node:fs";

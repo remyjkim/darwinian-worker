@@ -8,11 +8,11 @@
 
 ## Executive Summary
 
-Drwn Harness Cards will gain a third bundled artifact class — **hooks** — alongside `skills` and `servers` (MCP). A hook is a TypeScript **policy module** that runs at the tool-call boundary of an LLM runtime. Three runtimes are targeted in v1: Claude Code (local), Codex (local and inside Cloudflare Sandbox containers via `containerized-cli-harness`), and Mastra (inside CCH containers). Card authors write one runtime-agnostic policy module per concern; `drwn write` materializes per-runtime **composer shims** that bundle every locked card's policies into a single executable (`.mjs` for Claude/Codex command hooks, `.ts` for Mastra agent-construction wiring).
+Drwn Mind Cards will gain a third bundled artifact class — **hooks** — alongside `skills` and `servers` (MCP). A hook is a TypeScript **policy module** that runs at the tool-call boundary of an LLM runtime. Three runtimes are targeted in v1: Claude Code (local), Codex (local and inside Cloudflare Sandbox containers via `containerized-cli-harness`), and Mastra (inside CCH containers). Card authors write one runtime-agnostic policy module per concern; `drwn write` materializes per-runtime **composer shims** that bundle every locked card's policies into a single executable (`.mjs` for Claude/Codex command hooks, `.ts` for Mastra agent-construction wiring).
 
-The architecture is a direct application of the *shared policy engine + thin per-runtime adapters* pattern from analysis 59, adapted to the harness card lifecycle (`source → published → consumed`) already established by skills and MCP. The new surface preserves all existing invariants: store-path safety, content-addressed extraction, lockfile reproducibility, managed-fields drift detection, and the `trustedSources` gate. It adds one new gate — **per-card hook consent**, recorded in the lockfile — because executing third-party TypeScript inside the tool-call path is qualitatively riskier than installing Markdown skills or registering MCP server commands, and merits an explicit second consent step that does not silently piggyback on `card add`.
+The architecture is a direct application of the *shared policy engine + thin per-runtime adapters* pattern from analysis 59, adapted to the mind card lifecycle (`source → published → consumed`) already established by skills and MCP. The new surface preserves all existing invariants: store-path safety, content-addressed extraction, lockfile reproducibility, managed-fields drift detection, and the `trustedSources` gate. It adds one new gate — **per-card hook consent**, recorded in the lockfile — because executing third-party TypeScript inside the tool-call path is qualitatively riskier than installing Markdown skills or registering MCP server commands, and merits an explicit second consent step that does not silently piggyback on `card add`.
 
-The Containerized-CLI-Harness integration is intentionally *zero-coupling*. CCH is harness-card-unaware today; drwn writes its hook artifacts to deterministic project-relative paths (`./.agents/drwn/generated/hooks/...`), and a CCH consumer's existing `mountPreExecAssets` callback or Dockerfile `COPY` ships those paths into the container. No coordinated release across the two repos is required for v1.
+The Containerized-CLI-Harness integration is intentionally *zero-coupling*. CCH is mind-card-unaware today; drwn writes its hook artifacts to deterministic project-relative paths (`./.agents/drwn/generated/hooks/...`), and a CCH consumer's existing `mountPreExecAssets` callback or Dockerfile `COPY` ships those paths into the container. No coordinated release across the two repos is required for v1.
 
 ---
 
@@ -20,7 +20,7 @@ The Containerized-CLI-Harness integration is intentionally *zero-coupling*. CCH 
 
 ### Why now
 
-The harness card has matured to the point where skills (Markdown content) and MCP servers (external processes) cover most of what a card needs to ship. The remaining gap is the *tool-call boundary*: there is no portable way for a card to express "block destructive shell commands" or "redact this output before the model sees it" or "log this tool call to a tenant audit sink". Each runtime (Claude Code, Codex, Mastra) provides a hook surface; without harness-level abstraction, every card author would have to author the same policy three times in three different formats. Analysis 59 establishes the portable-policy + runtime-adapter pattern; this document operationalizes it inside drwn.
+The mind card has matured to the point where skills (Markdown content) and MCP servers (external processes) cover most of what a card needs to ship. The remaining gap is the *tool-call boundary*: there is no portable way for a card to express "block destructive shell commands" or "redact this output before the model sees it" or "log this tool call to a tenant audit sink". Each runtime (Claude Code, Codex, Mastra) provides a hook surface; without harness-level abstraction, every card author would have to author the same policy three times in three different formats. Analysis 59 establishes the portable-policy + runtime-adapter pattern; this document operationalizes it inside drwn.
 
 ### Why the policy-engine pattern, not declarative pass-through
 
@@ -128,7 +128,7 @@ interface CardLockfile {
 **Authoring surface**. A policy module under `hooks/<name>/policy.ts` is a TS file with a default export produced by a defining helper:
 
 ```ts
-import { defineToolPolicy } from "darwinian-harness/hook-policy";
+import { defineToolPolicy } from "darwinian-mind/hook-policy";
 
 export default defineToolPolicy({
   policyKind: "enforcement",     // "enforcement" | "observer"
@@ -148,7 +148,7 @@ export default defineToolPolicy({
 **Helper module location**: `cli/core/hook-policy/` inside the drwn CLI source tree, exposed to authors as a subpath export from the existing CLI package:
 
 ```json
-// package.json (darwinian-harness)
+// package.json (darwinian-mind)
 {
   "exports": {
     "./hook-policy": "./cli/core/hook-policy/index.ts"
@@ -156,7 +156,7 @@ export default defineToolPolicy({
 }
 ```
 
-Card sources add `"darwinian-harness": "^0.2.x"` as a dev dependency. The contract evolves in lockstep with the CLI — no separate `@curation-labs/*` package is published in v1. If/when an external community card author needs decoupled versioning, extracting to `@curation-labs/drwn-hook-policy` is a pure refactor (move files + re-export from CLI for back-compat). YAGNI for v1.
+Card sources add `"darwinian-mind": "^0.2.x"` as a dev dependency. The contract evolves in lockstep with the CLI — no separate `@curation-labs/*` package is published in v1. If/when an external community card author needs decoupled versioning, extracting to `@curation-labs/drwn-hook-policy` is a pure refactor (move files + re-export from CLI for back-compat). YAGNI for v1.
 
 **Runtime-agnostic types**:
 
@@ -242,7 +242,7 @@ Exit code 0 on success; non-zero only on shim-internal failure (the host runtime
 
 ```ts
 // Generated; do not edit. Source: <card refs>
-import { defineToolPolicy } from "darwinian-harness/hook-policy";
+import { defineToolPolicy } from "darwinian-mind/hook-policy";
 import policy_remyjkim_personalHarness_audit
   from "/Users/.../extracted/<sha>/hooks/audit-tool-calls/policy.ts";
 import policy_remyjkim_personalHarness_denyRm
@@ -253,7 +253,7 @@ export const policies = [
   policy_remyjkim_personalHarness_audit,
 ];
 
-export { composeToolHooks } from "darwinian-harness/hook-policy";
+export { composeToolHooks } from "darwinian-mind/hook-policy";
 ```
 
 Consumer wiring:
@@ -279,7 +279,7 @@ For **CCH builds**, the consumer's bundler (e.g., `tsup`) must rewrite the absol
 
 **Adapter regeneration triggers**. The composer is regenerated when: locked card list changes, any locked card's integrity hash changes (policy code edited), or the drwn CLI version changes (composition runtime updated). The existing `write-record` integrity tracking covers the first two; the third is handled by including the drwn version in the meta block so binary upgrades trigger re-bundle.
 
-**CCH integration**. Verified by reading CCH at `/Users/pureicis/dev/containerized-cli-harness/packages/runtime/src/container-cli-base.ts`: CCH is *harness-card-unaware* — its `prepareWorkspace()` only sets up `/workspace/{prompt,output,schema,trajectory,logs,stderr}`; nothing reads `.agents/drwn/`. The CCH integration for hooks is therefore *no change to CCH*. Drwn writes per-runtime artifacts to deterministic project-relative paths; a CCH consumer's existing `mountPreExecAssets` callback (or Dockerfile `COPY`) ships them into `/workspace/` (Codex picks up `.codex/hooks.json` natively) or into the Mastra agent build (which imports `composer.ts`).
+**CCH integration**. Verified by reading CCH at `/Users/pureicis/dev/containerized-cli-harness/packages/runtime/src/container-cli-base.ts`: CCH is *mind-card-unaware* — its `prepareWorkspace()` only sets up `/workspace/{prompt,output,schema,trajectory,logs,stderr}`; nothing reads `.agents/drwn/`. The CCH integration for hooks is therefore *no change to CCH*. Drwn writes per-runtime artifacts to deterministic project-relative paths; a CCH consumer's existing `mountPreExecAssets` callback (or Dockerfile `COPY`) ships them into `/workspace/` (Codex picks up `.codex/hooks.json` natively) or into the Mastra agent build (which imports `composer.ts`).
 
 ### 4. Trust, consent, gate chain
 
@@ -393,7 +393,7 @@ Added @remyjkim/personal-harness@0.2.0. Card declares 2 hook policies; they will
 
 **Rollout phases (single feature branch)**:
 
-1. **Foundations**. `cli/core/hook-policy/` (types, helpers, composition runtime); `darwinian-harness/hook-policy` subpath export; manifest schema, validation, diff, publish validation; lockfile v3 read/write. No CLI surface yet. All unit-testable.
+1. **Foundations**. `cli/core/hook-policy/` (types, helpers, composition runtime); `darwinian-mind/hook-policy` subpath export; manifest schema, validation, diff, publish validation; lockfile v3 read/write. No CLI surface yet. All unit-testable.
 
 2. **Source-side authoring**. `card source add-hook`, `card source remove-hook`, extended `card source doctor`. Authors can scaffold + publish hooked cards.
 

@@ -73,15 +73,15 @@ describe("documentation readiness", () => {
     expect(brewGuide).toContain("Homebrew");
     expect(brewGuide).toContain("tagged release");
     expect(brewGuide).toContain("drwn");
-    expect(brewGuide).toContain("darwinian-harness");
+    expect(brewGuide).toContain("darwinian-mind");
 
     // Slim README: brand identity, pitch, install, first run, doc pointers,
     // contributing. Deep content (Disciplines, Safety model, "What it
     // harnesses", "Why this exists") lives in the docs site; the README links
     // to the corresponding concepts pages.
     expect(readme).toContain("local meta-harness");
-    expect(readme).toContain("The package is `darwinian-harness`. The command is `drwn`.");
-    expect(readme).toContain("<img src=\"./docs/assets/darwinian-harness-logo.png\"");
+    expect(readme).toContain("The package is `darwinian-mind`. The command is `drwn`.");
+    expect(readme).toContain("<img src=\"./docs/assets/darwinian-mind-logo.png\"");
     expect(readme).toContain("Install");
     expect(readme).toContain("First run");
     expect(readme).toContain("Documentation");
@@ -105,7 +105,7 @@ describe("documentation readiness", () => {
     expect(quickref).toContain("drwn library defaults remove skill");
     expect(quickref).toContain("drwn library defaults remove mcp");
     expect(quickref).toContain("--mode direct");
-    expect(quickref).toContain("https://github.com/curation-labs/dh-cards-catalog-v1.git");
+    expect(quickref).toContain("https://github.com/curation-labs/dm-cards-catalog-v1.git");
     expect(quickref).toContain("@community");
     expect(quickref).toContain("registry/config.json");
     expect(quickref).toContain("registry/mcp-servers.json");
@@ -122,9 +122,9 @@ describe("documentation readiness", () => {
     expect(usageGuide).toContain("drwn library defaults add");
     expect(usageGuide).toContain("drwn card catalog publish");
     expect(usageGuide).toContain("library catalog refresh");
-    expect(usageGuide).toContain("https://github.com/curation-labs/dh-cards-catalog-v1.git");
+    expect(usageGuide).toContain("https://github.com/curation-labs/dm-cards-catalog-v1.git");
     expect(usageGuide).toContain("repo-native and installed package-backed skills");
-    expect(usageGuide).toContain("darwinian-harness");
+    expect(usageGuide).toContain("darwinian-mind");
     expect(usageGuide).toContain("local harness");
     expect(usageGuide).toContain("drwn apply");
     expect(projectGuide).toContain("Discovery walks upward");
@@ -148,7 +148,7 @@ describe("documentation readiness", () => {
     expect(docsDocusaurus).toContain("drwn extensions add");
     expect(docsDocusaurus).toContain("drwn card");
     expect(docsDocusaurus).toContain("drwn card catalog publish");
-    expect(docsDocusaurus).toContain("https://github.com/curation-labs/dh-cards-catalog-v1.git");
+    expect(docsDocusaurus).toContain("https://github.com/curation-labs/dm-cards-catalog-v1.git");
     expect(docsDocusaurus).toContain("@community");
     expect(docsDocusaurus).toContain("drwn store");
     expect(docsDocusaurus).toContain("drwn apply");
@@ -186,6 +186,6 @@ describe("documentation readiness", () => {
     expect(releaseProcess).toContain("bun run verify:release");
     expect(releaseProcess).toContain("git tag -a v");
     expect(releaseProcess).toContain("npm-publish");
-    expect(releaseProcess).toContain("npm view darwinian-harness@");
+    expect(releaseProcess).toContain("npm view darwinian-mind@");
   });
 });

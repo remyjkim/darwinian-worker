@@ -73,7 +73,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - run: npm install -g darwinian-harness
+      - run: npm install -g darwinian-mind
       - run: drwn install --frozen
       - run: drwn doctor --json
       - run: drwn card outdated --check --json

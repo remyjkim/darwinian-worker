@@ -4,7 +4,7 @@ sidebar_position: 10
 
 # Card
 
-`drwn card` manages harness cards from authoring through project consumption.
+`drwn card` manages mind cards from authoring through project consumption.
 
 Author and publish:
 

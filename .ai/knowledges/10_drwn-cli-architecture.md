@@ -12,9 +12,9 @@
 
 ## Overview
 
-`drwn` is a single-process, Bun-executed, Clipanion-based CLI that manages local AI agent harness configuration: skills, MCP servers, target enablement, project overlays, and Harness Cards. There is no daemon, no IPC, and no persistent cache outside the filesystem. Every invocation is a fresh process that reads from a fixed set of on-disk surfaces, computes an effective state, and either reports or materializes that state into downstream agent-tool config files.
+`drwn` is a single-process, Bun-executed, Clipanion-based CLI that manages local AI agent harness configuration: skills, MCP servers, target enablement, project overlays, and Mind Cards. There is no daemon, no IPC, and no persistent cache outside the filesystem. Every invocation is a fresh process that reads from a fixed set of on-disk surfaces, computes an effective state, and either reports or materializes that state into downstream agent-tool config files.
 
-This document describes the **as-built** architecture against the code on the current branch (`remyjkim/harness-card-v1.1`, package `darwinian-harness@0.1.0`). It is grounded in `cli/index.ts` (the entrypoint), the `cli/commands/` tree (the user-facing surface), and the `cli/core/` modules (the engine). Every concrete claim cites `path/to/file.ts:LINE`. Where current behavior diverges from `analyses/52_drwn-target-architecture-post-wave-1.md` (the canonical target doc), the divergence is called out in **Appendix C**.
+This document describes the **as-built** architecture against the code on the current branch (`remyjkim/mind-card-v1.1`, package `darwinian-mind@0.1.0`). It is grounded in `cli/index.ts` (the entrypoint), the `cli/commands/` tree (the user-facing surface), and the `cli/core/` modules (the engine). Every concrete claim cites `path/to/file.ts:LINE`. Where current behavior diverges from `analyses/52_drwn-target-architecture-post-wave-1.md` (the canonical target doc), the divergence is called out in **Appendix C**.
 
 This is a reference doc. It does not prescribe how to extend the CLI; it describes what is true today so that future changes can be made without recreating the analysis. When code changes, this doc must change with it.
 
@@ -562,7 +562,7 @@ Eight subcommands under `cli/commands/card/source/*` mutate authoring state owne
 
 ### 3.10 Card hooks
 
-Card hooks add a third card artifact class beside skills and MCP server definitions. The target architecture is analysis 60 (`.ai/analyses/60_drwn-card-hooks-target-architecture.md`). Authors declare policy modules in `card.json` as `hooks.include: string[]`; each policy lives at `hooks/<policy>/policy.ts` and imports the public `darwinian-harness/hook-policy` subpath.
+Card hooks add a third card artifact class beside skills and MCP server definitions. The target architecture is analysis 60 (`.ai/analyses/60_drwn-card-hooks-target-architecture.md`). Authors declare policy modules in `card.json` as `hooks.include: string[]`; each policy lives at `hooks/<policy>/policy.ts` and imports the public `darwinian-mind/hook-policy` subpath.
 
 The source commands `card source add-hook` and `card source remove-hook` mutate both `card.json` and the `hooks/<policy>/` directory. `card source doctor` checks missing hook directories, missing `policy.ts`, orphaned hook directories, and best-effort TypeScript build failures.
 
@@ -903,7 +903,7 @@ Flags (`:40-58`):
 | `--force` | Overwrite existing config (passed to `scaffoldProjectConfig`) |
 | `--no-default-catalogs` | Skip pre-registering the default Curation Labs community card catalog (`:86-88`) |
 
-Side effects: scaffold `config.json` (`:75, 95`); in guided mode, conditional Parallel/Beads extension entries (`:101-105, 112-115`); default community catalog registration for `https://github.com/curation-labs/dh-cards-catalog-v1.git` unless `--no-default-catalogs`; `.gitignore` is read but never mutated — a warning is appended if it excludes `.agents` (`:79-84`).
+Side effects: scaffold `config.json` (`:75, 95`); in guided mode, conditional Parallel/Beads extension entries (`:101-105, 112-115`); default community catalog registration for `https://github.com/curation-labs/dm-cards-catalog-v1.git` unless `--no-default-catalogs`; `.gitignore` is read but never mutated — a warning is appended if it excludes `.agents` (`:79-84`).
 
 ### 5.5 Status and doctor
 

@@ -4,9 +4,9 @@ sidebar_position: 7
 
 # FAQ
 
-## What is the difference between `darwinian-harness` and the agent itself (Claude, Codex)?
+## What is the difference between `darwinian-mind` and the agent itself (Claude, Codex)?
 
-`darwinian-harness` (the `drwn` CLI) is a control plane around the agent tools you already have installed. The agents — Claude Code, Codex, Cursor — execute the tasks. `drwn` decides which skills, MCP servers, and extensions each agent has access to, then writes that decision into `~/.claude`, `~/.codex`, and `~/.cursor` so the agents can find it. `drwn` does not run agents and does not call models.
+`darwinian-mind` (the `drwn` CLI) is a control plane around the agent tools you already have installed. The agents — Claude Code, Codex, Cursor — execute the tasks. `drwn` decides which skills, MCP servers, and extensions each agent has access to, then writes that decision into `~/.claude`, `~/.codex`, and `~/.cursor` so the agents can find it. `drwn` does not run agents and does not call models.
 
 See [Concepts overview](./concepts/layered-model) for the layered model.
 
@@ -24,7 +24,7 @@ Because the right fix depends on intent that `drwn` does not have. A stale skill
 
 The first wave of package-backed skill bundles intentionally ships `add`, `list`, `show`, curate, and downstream-write only. Update and remove were left out because their semantics (in-place upgrade vs reinstall, dangling references when a bundle is removed) need more design before they ship. For now, remove a bundle by deleting the directory under `~/.agents/drwn/skills/` and re-running `drwn write`; upgrade by re-adding the new version.
 
-See the [extension skill bundles section](./reference/cli/library) and [npm skill bundles guide](https://github.com/remyjkim/darwinian-harness/blob/main/.ai/knowledges/03_npm-skill-bundles-guide.md) for the current surface.
+See the [extension skill bundles section](./reference/cli/library) and [npm skill bundles guide](https://github.com/remyjkim/darwinian-mind/blob/main/.ai/knowledges/03_npm-skill-bundles-guide.md) for the current surface.
 
 ## Can I run `drwn` without writing anything?
 
@@ -50,4 +50,4 @@ Today `drwn scan` is a verified placeholder. It emits a fixed JSON payload descr
 
 ## How is this different from Docker, Flox, or Nix?
 
-`drwn` pins **harness state** — skills, MCP servers, extensions, and downstream targets. It does not pin runtimes, system libraries, services, or shell environment. Docker pins service stacks (Postgres, Redis). Flox and Nix pin the runtime layer (Node, Python, system libs). asdf and mise pin toolchain versions. These tools compose: use `drwn card apply` for the harness, pair with Flox or Nix for the runtime layer, and Docker Compose for the service layer. Each tool pins what it owns. See the layered reproducibility section of [the CLI quick reference](https://github.com/remyjkim/darwinian-harness/blob/main/docs/cli-quickref.md#layered-reproducibility) for the composition.
+`drwn` pins **harness state** — skills, MCP servers, extensions, and downstream targets. It does not pin runtimes, system libraries, services, or shell environment. Docker pins service stacks (Postgres, Redis). Flox and Nix pin the runtime layer (Node, Python, system libs). asdf and mise pin toolchain versions. These tools compose: use `drwn card apply` for the harness, pair with Flox or Nix for the runtime layer, and Docker Compose for the service layer. Each tool pins what it owns. See the layered reproducibility section of [the CLI quick reference](https://github.com/remyjkim/darwinian-mind/blob/main/docs/cli-quickref.md#layered-reproducibility) for the composition.

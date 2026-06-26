@@ -8,7 +8,7 @@ There are four ways people typically arrive at `drwn`. Each has a dedicated page
 
 ## Use a Team's Harness
 
-You joined a project or a team that already publishes a harness card and you want to consume it. The card encodes which skills, MCP servers, and extensions the team has agreed on; you install it into the project and let `drwn write` materialize the downstream state. This path is right for you when somebody else owns the harness intent and you just need to run it.
+You joined a project or a team that already publishes a mind card and you want to consume it. The card encodes which skills, MCP servers, and extensions the team has agreed on; you install it into the project and let `drwn write` materialize the downstream state. This path is right for you when somebody else owns the harness intent and you just need to run it.
 
 See [Use a Team's Harness](./use-team-harness).
 

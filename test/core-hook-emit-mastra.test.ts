@@ -33,6 +33,6 @@ describe("emitMastraComposer", () => {
     expect(text).toContain(`from ${JSON.stringify(first)}`);
     expect(text).toContain(`from ${JSON.stringify(second)}`);
     expect(text).toContain("export const policies = [policy_0__me_security_deny, policy_1__me_audit_audit];");
-    expect(text).toContain('export { composeToolHooks } from "darwinian-harness/hook-policy";');
+    expect(text).toContain('export { composeToolHooks } from "darwinian-mind/hook-policy";');
   });
 });
