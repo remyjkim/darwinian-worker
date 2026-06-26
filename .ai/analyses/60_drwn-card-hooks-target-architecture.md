@@ -267,11 +267,13 @@ For **CCH builds**, the consumer's bundler (e.g., `tsup`) must rewrite the absol
 
 **Settings file rendering**:
 
-- **Claude (`.claude/settings.json`)**: extends `mergeClaudeSettingsText` (`cli/core/mcp.ts:75`) to manage two keys: `mcpServers` (existing) and `hooks` (new). The `_drwn` meta block (`cli/core/managed-fields.ts`) becomes `managedKeys: ["mcpServers", "hooks"]` with separate `fieldHashes` for each. Drift detection (`detectManagedFieldDrift`) already iterates `fields: string[]` — works as-is. Existing `_drwn` blocks with only `mcpServers` get `hooks` added on the next write.
+- **Claude (`.claude/settings.json`)**: `mergeClaudeSettingsText` (`cli/core/mcp.ts`) keeps `mcpServers` as a managed field and merges hook entries into the shared `hooks` object. The `_drwn` meta block (`cli/core/managed-fields.ts`) records `managedKeys: ["mcpServers"]` plus an `ownedHooks` side table keyed by event and hook-entry identity. Drift detection for `mcpServers` remains whole-field hashing; drift detection for hooks is per owned entry, so user-authored and signal-hook entries under the same `hooks` key are preserved.
 
 - **Codex (`.codex/hooks.json`)**: a new fully-drwn-owned file. New `ManagedPath` kind `"managed-content"` added to `cli/core/write-record.ts`, carrying a `contentHash: string`. Sync writes the file from scratch on every run, refuses to overwrite if its content hash drifts from what we last wrote (unless `--force`).
 
 - **Mastra (`composer.ts`)**: no drift concept — drwn owns the path, no human edits expected. Recorded in write-record as a generated artifact for cleanup tracking when cards are removed.
+
+**Session-signal hook coexistence**. The same `.claude/settings.json` `hooks` key also hosts drwn's first-party *session-signal* hooks (analysis 73, Task 55) — observational `drwn hook card-usage` / `skill-marker` commands that record card and skill usage beside the transcript. These are **not** card policies: they are first-party, require no consent, and cover non-tool-use events the policy engine does not (`UserPromptSubmit`, `UserPromptExpansion`) plus `Skill`-matched `PreToolUse`/`PostToolUse` (the `PostToolUseFailure`/`fail` phase is deferred pending a captured real failure payload). When `project.hooks.signals.enabled === true`, `syncHooks` composes the signal entries with the card composer entries via `mergeClaudeHookConfigs` and writes them in a single `mergeClaudeSettingsText` call; the per-entry `ownedHooks` side table lets the `.*` composer entries and the `Skill` signal entries coexist under `PreToolUse`/`PostToolUse` without clobbering each other or foreign user entries. The signal command resolves to the running interpreter + CLI entrypoint (`process.execPath run <abs cli/index.ts>`), so it fires without a global `drwn` install. Opt-in, default-off.
 
 **Matcher derivation**. Each `defineToolPolicy` accepts an optional `matcher` regex. The settings entry's matcher is the union of all included policies' matchers (joined `|`), defaulting to `.*` if any policy omits it. Pure optimization to avoid spawning the composer for every tool call when only a subset of tools is interesting. Correctness lives in the composer (re-checks per policy).
 
@@ -408,7 +410,7 @@ Added @remyjkim/personal-harness@0.2.0. Card declares 2 hook policies; they will
 - Sandbox / worker_threads isolation (C from Q5).
 - `card audit --diff` body — command shell ships in Phase 5 as a no-op.
 - `trustedSources.autoConsentHooks` — no enterprise user demand yet.
-- Non-tool-use events (UserPromptSubmit, SessionStart, Stop, etc.).
+- Non-tool-use events (UserPromptSubmit, SessionStart, Stop, etc.) are handled by the separate session-signal hook mechanism (analysis 73 / Task 55), not by card policy hooks.
 - Project-local policies — only card-supplied in v1.
 - Inline-bundling Mastra composer (`--bundle` flag for self-contained `composer.ts`).
 - Hot-reload — dev loop is "edit `policy.ts`, run `drwn write`".
@@ -417,7 +419,7 @@ Added @remyjkim/personal-harness@0.2.0. Card declares 2 hook policies; they will
 
 - **Mastra path rewriting in CCH containers**. The emitted Mastra `composer.ts` uses absolute `import` paths into `~/.agents/drwn/extracted/<sha>/`. CCH consumers must rewrite these in their bundler. If painful when first tried on `@beginning-agents`, prioritize the `--bundle` flag.
 - **Composer startup latency**. Bun cold-starts a bundled `.mjs` in ~30–50ms. Heavy tool-call users (dozens of calls/minute) may notice. v1.1 candidate: persistent composer over a Unix socket (Claude Code supports `type: "http"` hooks).
-- **`_drwn` meta-block schema bump**. Extending `managedKeys` from `["mcpServers"]` to `["mcpServers", "hooks"]` means a drwn binary downgrade no longer recognizes `hooks` as managed; on next downgrade-write, the user gets drift errors. Acceptable; documented escape via `store migrate --backward` later if needed.
+- **`_drwn` hook ownership metadata**. The `ownedHooks` side table is required to distinguish drwn-owned hook entries from user-authored entries inside the shared Claude `hooks` object. A downgrade that does not understand `ownedHooks` may stop cleaning or drift-checking card hook entries; forward writes restore the side table from desired hook materialization.
 
 ---
 
@@ -443,8 +445,8 @@ Added @remyjkim/personal-harness@0.2.0. Card declares 2 hook policies; they will
 | `cli/core/card-lock.ts` | Bump `lockfileVersion` to 3; `validateCardLockfile` accepts both; `validateCardLockEntry` validates `hooks: string[]` and optional `hookConsent`. |
 | `cli/core/card-project.ts` | `resolveProjectCards` populates `hooks` from manifest; `mergeCardManifestsIntoProjectConfig` honors project-side `hooks.exclude`. |
 | `cli/core/sync.ts` | `syncRepository` calls a new `syncHooks` after `syncMcp` + `syncSkillsCore`. |
-| `cli/core/mcp.ts` | `mergeClaudeSettingsText` extends managed keys to `["mcpServers", "hooks"]`. |
-| `cli/core/managed-fields.ts` | No change (already iterates `fields: string[]`). |
+| `cli/core/mcp.ts` | `mergeClaudeSettingsText` merges drwn-owned hook entries into Claude settings and preserves foreign hook entries. |
+| `cli/core/managed-fields.ts` | Adds `ownedHooks` plus hook entry identity/hash helpers for per-entry hook drift and cleanup. |
 | `cli/core/write-record.ts` | Add `managed-content` kind with `contentHash: string`. |
 | `cli/core/store-paths.ts` | Add `resolveGeneratedHooksDir(scope, runtime)` helper. |
 | `cli/core/hook-policy/` | NEW module: types + helpers + composition runtime + Bun-build wrapper. |
