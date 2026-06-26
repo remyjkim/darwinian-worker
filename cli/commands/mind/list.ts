@@ -37,18 +37,23 @@ export class MindListCommand extends BaseCommand {
   async execute() {
     const projectRoot = requireProjectRoot(this);
     const config = readProjectConfigForWrite(projectRoot);
-    const activeMinds = config.activeMinds ?? [];
+    const installed = await readInstalledMinds(projectRoot);
+    const defaultActiveMinds = config.activeMinds === undefined;
+    const activeMinds = defaultActiveMinds ? installed.map((mind) => mind.name) : config.activeMinds ?? [];
     const activeSet = new Set(activeMinds);
-    const minds = (await readInstalledMinds(projectRoot)).map((mind) => ({
+    const minds = installed.map((mind) => ({
       ...mind,
       active: activeSet.has(mind.name),
     }));
 
     if (this.json) {
-      this.context.stdout.write(renderJson({ minds, activeMinds }));
+      this.context.stdout.write(renderJson({ minds, activeMinds, defaultActiveMinds }));
       return 0;
     }
     this.context.stdout.write(renderTable(["mind", "version", "active"], minds.map((mind) => [mind.name, mind.version ?? "", mind.active ? "yes" : ""])));
+    if (defaultActiveMinds && minds.length > 0) {
+      this.context.stdout.write("\nDefault: all installed minds are active. Run `drwn mind use` to pin an explicit stack.\n");
+    }
     return 0;
   }
 }

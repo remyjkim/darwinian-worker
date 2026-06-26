@@ -40,15 +40,19 @@ export function resolveCardsRoot(agentsDir: string) {
   return join(resolveStoreRoot(agentsDir), "cards");
 }
 
+export function isSafePathPart(value: string): boolean {
+  return (
+    Boolean(value) &&
+    !value.includes("..") &&
+    !value.includes("/") &&
+    !value.includes("\\") &&
+    !value.startsWith("/") &&
+    !value.startsWith(".")
+  );
+}
+
 export function assertSafePathPart(value: string, label: string) {
-  if (
-    !value ||
-    value.includes("..") ||
-    value.includes("/") ||
-    value.includes("\\") ||
-    value.startsWith("/") ||
-    value.startsWith(".")
-  ) {
+  if (!isSafePathPart(value)) {
     throw new Error(`Invalid ${label}: ${value}`);
   }
 }
@@ -164,6 +168,10 @@ export function resolveStoreGeneratedDir(agentsDir: string) {
 
 export function resolveGeneratedMindsDir(generatedDir: string) {
   return join(generatedDir, "minds");
+}
+
+export function resolveGeneratedComposedMindDir(generatedDir: string) {
+  return join(generatedDir, "mind");
 }
 
 export function resolveGeneratedMindDir(generatedDir: string, name: string) {

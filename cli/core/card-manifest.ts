@@ -3,6 +3,7 @@
 
 import type { ProjectExtensionConfig, ServerOverride, TargetName } from "./types";
 import { isStrictSemver, validRange } from "./semver-utils";
+import { isSafePathPart } from "./store-paths";
 
 export type MindContentVisibility = "private" | "internal" | "public";
 export type MemoryLayerName = "l4" | "l5" | "l6";
@@ -71,15 +72,6 @@ function isHttpUrl(value: string) {
   }
 }
 
-function isSafeEntryName(value: string) {
-  return Boolean(value) &&
-    !value.includes("..") &&
-    !value.includes("/") &&
-    !value.includes("\\") &&
-    !value.startsWith("/") &&
-    !value.startsWith(".");
-}
-
 function validateMindContentSection(
   label: string,
   input: unknown,
@@ -105,7 +97,7 @@ function validateMindContentSection(
   }
   if (Array.isArray(include)) {
     for (const entry of include) {
-      if (typeof entry !== "string" || !isSafeEntryName(entry)) {
+      if (typeof entry !== "string" || !isSafePathPart(entry)) {
         errors.push(`${label}.include contains invalid entry: ${String(entry)}`);
       }
     }

@@ -72,7 +72,7 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
     projectConfig = await loadProjectConfig(projectConfigPath);
     const cardLock = projectRoot ? await loadCardLock(projectRoot) : null;
     lockedCards = cardLock?.cards ?? (projectConfig.cards ? await resolveProjectCards(normalized.agentsDir, projectConfig.cards) : []);
-    activeCards = selectActiveCards(lockedCards, projectConfig.activeMinds ?? []);
+    activeCards = selectActiveCards(lockedCards, projectConfig.activeMinds);
     projectConfigWithCards = mergeCardManifestsIntoProjectConfig(
       projectConfig,
       activeCards.map((card) => card.manifest),
@@ -123,7 +123,10 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
   };
 }
 
-function selectActiveCards(lockedCards: CardLockEntry[], activeMinds: string[]) {
+function selectActiveCards(lockedCards: CardLockEntry[], activeMinds?: string[]) {
+  if (activeMinds === undefined) {
+    return lockedCards;
+  }
   if (activeMinds.length === 0) {
     return [];
   }

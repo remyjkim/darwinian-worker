@@ -30,7 +30,14 @@ cd "$PROJECT_DIR"
 test -f .agents/drwn/generated/minds.json
 test -d .agents/drwn/generated/minds/@team/base
 test -d .agents/drwn/generated/minds/@team/overlay
+test -d .agents/drwn/generated/mind
+test -L .claude/skills/alpha
+test -L .claude/skills/beta
+"$BUN_BIN" run "$DRWN_ENTRYPOINT" mind clear --json > "$CLEAR_ONE"
+"$BUN_BIN" run "$DRWN_ENTRYPOINT" write --json > "$WRITE_CLEAR"
 test ! -e .claude/skills/alpha
+test ! -e .claude/skills/beta
+test ! -e .agents/drwn/generated/mind
 "$BUN_BIN" run "$DRWN_ENTRYPOINT" mind use @team/base --json > "$USE_ONE"
 "$BUN_BIN" run "$DRWN_ENTRYPOINT" write --json > "$WRITE_TWO"
 test -L .claude/skills/alpha
@@ -49,8 +56,10 @@ NODE
       ...envFor(fixture),
       PROJECT_DIR: projectDir,
       WRITE_ONE: join(fixture.root, "write-one.json"),
+      WRITE_CLEAR: join(fixture.root, "write-clear.json"),
       WRITE_TWO: join(fixture.root, "write-two.json"),
       WRITE_THREE: join(fixture.root, "write-three.json"),
+      CLEAR_ONE: join(fixture.root, "clear-one.json"),
       USE_ONE: join(fixture.root, "use-one.json"),
       USE_TWO: join(fixture.root, "use-two.json"),
     },

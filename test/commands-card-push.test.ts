@@ -65,3 +65,16 @@ test("card push allows explicit unsafe public override with an audit warning", a
   expect(pushed.exitCode).toBe(0);
   expect(pushed.stderr).toContain("unsafe");
 });
+
+test("card push blocks a network remote for private mind content before contacting it", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  await publishMindCard(fixture);
+  // A network remote classifies as unknown; the gate must refuse before any push is attempted.
+  expect((await runAgentsCli(["card", "remote", "add", "@team/mind", "https://github.com/example/mind.git"], envFor(fixture))).exitCode).toBe(0);
+
+  const blocked = await runAgentsCli(["card", "push", "@team/mind"], envFor(fixture));
+
+  expect(blocked.exitCode).not.toBe(0);
+  expect(blocked.stderr).toContain("unknown");
+});

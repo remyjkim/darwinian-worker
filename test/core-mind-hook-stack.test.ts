@@ -55,3 +55,42 @@ test("active mind hooks project as one stack composer and preserve signals", asy
   expect(settings._drwn.ownedHooks.PreToolUse["m:.*"]).toStartWith("sha256-");
   expect(settings._drwn.ownedHooks.PreToolUse["m:Skill"]).toStartWith("sha256-");
 });
+
+test("clearing the active stack drops the card composer entry while signal hooks survive", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  await publishHookCard(fixture, "@me/base", "guard");
+  const projectDir = join(fixture.root, "project");
+  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
+  await writeFile(
+    join(projectDir, ".agents", "drwn", "config.json"),
+    JSON.stringify(
+      {
+        version: 1,
+        cards: ["@me/base@1.0.0"],
+        activeMinds: ["@me/base"],
+        hooks: { signals: { enabled: true } },
+      },
+      null,
+      2,
+    ),
+  );
+  expect((await runAgentsCli(["card", "apply", "@me/base@1.0.0"], envFor(fixture), projectDir)).exitCode).toBe(0);
+  expect((await runAgentsCli(["card", "trust", "@me/base", "--hooks"], envFor(fixture), projectDir)).exitCode).toBe(0);
+
+  // Active stack: both the card composer (.*) and the signal (Skill) entries are owned.
+  expect((await runAgentsCli(["write", "--target", "claude"], envFor(fixture), projectDir)).exitCode).toBe(0);
+  const active = JSON.parse(await readFile(join(projectDir, ".claude", "settings.json"), "utf8"));
+  expect(active.hooks.PreToolUse.filter((entry: { matcher?: string }) => entry.matcher === ".*")).toHaveLength(1);
+  expect(active._drwn.ownedHooks.PreToolUse["m:.*"]).toStartWith("sha256-");
+  expect(active._drwn.ownedHooks.PreToolUse["m:Skill"]).toStartWith("sha256-");
+
+  // Deactivate the stack and re-project: the card composer entry is dropped, signals remain.
+  expect((await runAgentsCli(["mind", "clear"], envFor(fixture), projectDir)).exitCode).toBe(0);
+  expect((await runAgentsCli(["write", "--target", "claude"], envFor(fixture), projectDir)).exitCode).toBe(0);
+  const cleared = JSON.parse(await readFile(join(projectDir, ".claude", "settings.json"), "utf8"));
+  expect(cleared.hooks.PreToolUse.some((entry: { matcher?: string }) => entry.matcher === ".*")).toBe(false);
+  expect(cleared.hooks.PreToolUse.some((entry: { matcher?: string }) => entry.matcher === "Skill")).toBe(true);
+  expect(cleared._drwn.ownedHooks.PreToolUse["m:.*"]).toBeUndefined();
+  expect(cleared._drwn.ownedHooks.PreToolUse["m:Skill"]).toStartWith("sha256-");
+});

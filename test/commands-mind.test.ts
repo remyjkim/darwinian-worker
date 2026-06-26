@@ -27,8 +27,11 @@ test("mind list/use/clear manage the ordered active stack", async () => {
   const listed = await runAgentsCli(["mind", "list", "--json"], envFor(fixture), projectDir);
 
   expect(listed.exitCode).toBe(0);
-  expect(JSON.parse(listed.stdout).minds.map((mind: { name: string }) => mind.name)).toEqual(["@me/base", "@me/overlay"]);
-  expect(JSON.parse(listed.stdout).activeMinds).toEqual([]);
+  const listedPayload = JSON.parse(listed.stdout);
+  expect(listedPayload.minds.map((mind: { name: string }) => mind.name)).toEqual(["@me/base", "@me/overlay"]);
+  expect(listedPayload.minds.map((mind: { active: boolean }) => mind.active)).toEqual([true, true]);
+  expect(listedPayload.activeMinds).toEqual(["@me/base", "@me/overlay"]);
+  expect(listedPayload.defaultActiveMinds).toBe(true);
 
   const use = await runAgentsCli(["mind", "use", "@me/base", "@me/overlay", "--json"], envFor(fixture), projectDir);
   expect(use.exitCode).toBe(0);
