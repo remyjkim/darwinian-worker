@@ -41,6 +41,12 @@ These are designed elsewhere; this task only needs the signals to be **correctly
 and testable in isolation**, plus a documented manual registration snippet so the hooks can
 be smoke-tested in a real session.
 
+> **Materialization status:** the deferred `.claude/settings.json` materialization is now
+> implemented. See analysis 73 (the card-hooks ↔ signal-hooks coexistence decision and the
+> per-entry conditional-ownership writer) and Task 55 (`drwn write` registers the signal hooks
+> through that writer, opt-in via `project.hooks.signals.enabled`, default-off). The manual
+> registration snippet is superseded by that opt-in flag.
+
 ## 1a. Scope guard
 
 This task is **only** the hook subcommands and tests. Do not add card manifest `hooks`,

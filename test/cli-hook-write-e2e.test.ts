@@ -4,7 +4,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture } from "./helpers";
 
 const tempRoots: string[] = [];
@@ -182,6 +182,75 @@ test("drwn write cleans only owned Claude hooks when policies become inactive", 
   expect(cleaned.hooks.PreToolUse).toEqual([foreign]);
   expect(cleaned.hooks.PostToolUse).toBeUndefined();
   expect(cleaned._drwn.ownedHooks).toBeUndefined();
+});
+
+test("drwn write leaves session-signal hooks off by default", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  const projectDir = join(fixture.root, "project");
+  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
+  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1 }, null, 2));
+
+  const write = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);
+
+  expect(write.exitCode).toBe(0);
+  expect(existsSync(join(projectDir, ".claude", "settings.json"))).toBe(false);
+});
+
+test("drwn write materializes enabled session-signal hooks with absolute invocation", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  const projectDir = join(fixture.root, "project");
+  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
+  await writeFile(
+    join(projectDir, ".agents", "drwn", "config.json"),
+    JSON.stringify({ version: 1, hooks: { signals: { enabled: true } } }, null, 2),
+  );
+
+  const write = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);
+
+  expect(write.exitCode).toBe(0);
+  const settings = JSON.parse(await readFile(join(projectDir, ".claude", "settings.json"), "utf8"));
+  const cardUsage = settings.hooks.UserPromptSubmit[0].hooks[0];
+  expect(isAbsolute(cardUsage.command)).toBe(true);
+  expect(cardUsage.command).not.toBe("drwn");
+  expect(cardUsage.args.slice(-2)).toEqual(["hook", "card-usage"]);
+  expect(settings.hooks.UserPromptExpansion[0].hooks[0].args.slice(-4)).toEqual(["hook", "skill-marker", "--phase", "expansion"]);
+  expect(settings.hooks.PreToolUse).toMatchObject([{ matcher: "Skill" }]);
+  expect(settings.hooks.PostToolUse).toMatchObject([{ matcher: "Skill" }]);
+  expect(settings.hooks.PostToolUseFailure).toBeUndefined();
+});
+
+test("drwn write composes and removes session signals without disturbing card or foreign hooks", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  const projectDir = await createProjectWithTrustedHookCard(fixture);
+  const configPath = join(projectDir, ".agents", "drwn", "config.json");
+  const projectConfig = JSON.parse(await readFile(configPath, "utf8"));
+  projectConfig.hooks = { signals: { enabled: true } };
+  await writeFile(configPath, `${JSON.stringify(projectConfig, null, 2)}\n`);
+  const settingsPath = join(projectDir, ".claude", "settings.json");
+  const foreign = { matcher: "Bash", hooks: [{ type: "command", command: "/usr/local/bin/foreign-audit", timeout: 5 }] };
+  await mkdir(join(projectDir, ".claude"), { recursive: true });
+  await writeFile(settingsPath, `${JSON.stringify({ hooks: { PreToolUse: [foreign] } }, null, 2)}\n`);
+
+  const enabled = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);
+
+  expect(enabled.exitCode).toBe(0);
+  const withSignals = JSON.parse(await readFile(settingsPath, "utf8"));
+  expect(withSignals.hooks.PreToolUse.map((entry: { matcher?: string }) => entry.matcher)).toEqual(["Bash", ".*", "Skill"]);
+  expect(withSignals.hooks.PostToolUse.map((entry: { matcher?: string }) => entry.matcher)).toEqual([".*", "Skill"]);
+  expect(withSignals.hooks.UserPromptSubmit).toBeDefined();
+
+  projectConfig.hooks = { signals: { enabled: false } };
+  await writeFile(configPath, `${JSON.stringify(projectConfig, null, 2)}\n`);
+  const disabled = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);
+
+  expect(disabled.exitCode).toBe(0);
+  const withoutSignals = JSON.parse(await readFile(settingsPath, "utf8"));
+  expect(withoutSignals.hooks.PreToolUse.map((entry: { matcher?: string }) => entry.matcher)).toEqual(["Bash", ".*"]);
+  expect(withoutSignals.hooks.PostToolUse.map((entry: { matcher?: string }) => entry.matcher)).toEqual([".*"]);
+  expect(withoutSignals.hooks.UserPromptSubmit).toBeUndefined();
 });
 
 test("drwn write honors project hooks.exclude entries", async () => {

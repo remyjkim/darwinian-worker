@@ -126,6 +126,9 @@ export interface ProjectConfig {
       codex?: { enabled: boolean };
       mastra?: { enabled: boolean };
     };
+    signals?: {
+      enabled?: boolean;
+    };
   };
   extensions?: Record<string, ProjectExtensionConfig>;
   targets?: Partial<Record<TargetName, { enabled: boolean }>>;

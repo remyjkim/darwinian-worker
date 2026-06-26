@@ -298,15 +298,15 @@ The separation between as-written and as-active is the load-bearing distinction 
 
 ### 2.7 Managed-field discipline
 
-`managed-fields.ts` enforces drift detection on fields drwn writes into user-owned files. The `_drwn` meta block (`managed-fields.ts:6-11`):
+`managed-fields.ts` enforces drift detection on fields and hook entries drwn writes into user-owned files. The `_drwn` meta block (`managed-fields.ts:6-11`):
 
 ```
-{ version: 1, managedKeys, fieldHashes, lastWriteAt }
+{ version: 1, managedKeys, fieldHashes, ownedHooks, lastWriteAt }
 ```
 
-`canonicalJsonHash` (`managed-fields.ts:13-25`) sorts object keys recursively before sha256 so semantically-equivalent edits do not register as drift. `detectManagedFieldDrift` (`managed-fields.ts:27-33`) compares recorded vs recomputed hashes.
+`canonicalJsonHash` (`managed-fields.ts:13-25`) sorts object keys recursively before sha256 so semantically-equivalent edits do not register as drift. `detectManagedFieldDrift` (`managed-fields.ts:27-33`) compares recorded vs recomputed hashes for whole managed fields. `ownedHooks` records Claude hook entries by event and stable entry identity so drwn can update or clean only the hook entries it created while preserving foreign entries under the same `hooks` key.
 
-`mergeClaudeSettingsText` (`mcp.ts:75-97`) writes the block into `~/.claude/settings.json`. On each write: parse current file → read prior `_drwn` block (line 77) → abort if any managed key has drifted (lines 80-85) unless `--force` → rewrite `mcpServers` → persist fresh meta via `buildDrwnMetaBlock` (`managed-fields.ts:43-50`). `lastWriteAt` is preserved when the hash is unchanged (`mcp.ts:91-93`) so timestamps reflect actual content changes.
+`mergeClaudeSettingsText` (`mcp.ts`) writes the block into Claude settings. On each MCP write: parse current file → read prior `_drwn` block → abort if any managed MCP field/server has drifted unless `--force` → rewrite the owned MCP projection → persist fresh meta via `buildDrwnMetaBlock`. When hook materialization passes a `hooks` option, the same writer merges desired drwn-owned hook entries into the existing `hooks` object, compares only entries recorded in `ownedHooks`, and removes only previously owned entries that are no longer desired. `lastWriteAt` is preserved when field hashes and hook ownership are unchanged so timestamps reflect actual content changes.
 
 `mergeCodexTomlText` does not use the meta block — it rewrites the entire `mcp_servers` section via `stripTomlSections` (`mcp.ts:99-121`), a coarser discipline without drift detection. Cursor uses `json-standalone` format with a symlink (`registry/config.json:20`), so drwn owns the whole file and the protocol is unnecessary.
 
@@ -581,6 +581,13 @@ Hook materialization is consent-gated. `card trust <card> --hooks [--range <rang
 Runtime selection is hook-specific, not a new `TargetName`: `claude-code` follows `targets.claude.enabled`, `codex` follows `targets.codex.enabled`, and `mastra` is disabled unless `project.hooks.runtimes.mastra.enabled === true`. Project `hooks.exclude` entries skip policies by bare policy name or `@scope/card:policy-name`.
 
 Codex has an independent native trust flow. drwn consent permits materialization, but Codex may still require `/hooks` review before project-local command hooks execute.
+
+### 3.11 Session-signal hooks
+
+Beside card *policy* hooks, drwn ships first-party *session-signal* hooks — hidden `drwn hook card-usage` and `drwn hook skill-marker --phase {pre|post|expansion}` subcommands that Claude Code invokes as command hooks and that append observational records (active cards, skill invocations, slash expansions) to a `<session-id>.drwn-signals.jsonl` sidecar next to the transcript. They are observational (always exit 0, no decision), first-party (no consent gate, unlike card policy hooks), and read the nearest `card.lock` directly via a permissive hot-path reader. Design: analyses 73 and 41 (Task 55).
+
+`drwn write` materializes these into `.claude/settings.json` only when `project.hooks.signals.enabled === true` (opt-in, default-off). `syncHooks` builds the registrations with `signalHooksConfig` (`hook-generator/sync-signals.ts`) — `UserPromptSubmit`→`card-usage`, `UserPromptExpansion`→`skill-marker --phase expansion`, and `Skill`-matched `PreToolUse`/`PostToolUse`→`--phase pre|post` (the `fail`/`PostToolUseFailure` phase is deferred until a real Skill-failure payload is validated) — and composes them with the card composer config via `mergeClaudeHookConfigs` for a single `mergeClaudeSettingsText` write. The `_drwn.ownedHooks` per-entry side table lets signal entries and the card composer's `.*` entries coexist under the same events, and preserves any user-authored hook entries. The materialized command is `process.execPath run <abs cli/index.ts>` (`resolveDrwnHookCommand`), resolving the running interpreter + entrypoint rather than assuming a global `drwn` on PATH. Codex signal hooks are out of scope. The session-discovery walker excludes `*.drwn-signals.jsonl` sidecars so they are never archived as Claude transcripts.
+
 | `card show <ref>` | resolved card + `git.log --max-count=10`; surfaces quality fields | `resolveCard` + `git.log` (`commands/card/show.ts:33-58`) |
 | `card status [--explain]` | project specs + locked versions + outdated table | `readProjectCardStatus` (`card-project.ts:153-161`); `explainStatus` (`diagnostics.ts`) |
 | `card deprecate <ref> [--message]` | set `drwn.deprecated.<v>` config | `deprecateCardVersion` (`card-store.ts:723-729`) |

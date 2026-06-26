@@ -16,6 +16,7 @@ import { hashManagedContent, type ManagedPath } from "../write-record";
 import { bundleHookComposer, type HookPolicyBundleInput } from "./bundle-composer";
 import { emitMastraComposer } from "./emit-mastra-composer";
 import { resolveHookRuntimes } from "./runtime-selection";
+import { resolveDrwnHookCommand, signalHooksConfig } from "./sync-signals";
 
 const COMMAND_TIMEOUT_SECONDS = 30;
 
@@ -97,6 +98,19 @@ function claudeHooksConfig(composerPath: string): ClaudeHooksConfig {
   };
 }
 
+function mergeClaudeHookConfigs(...configs: ClaudeHooksConfig[]): ClaudeHooksConfig {
+  const merged: ClaudeHooksConfig = {};
+  for (const config of configs) {
+    for (const [event, entries] of Object.entries(config)) {
+      if (!entries || entries.length === 0) {
+        continue;
+      }
+      merged[event] = [...(merged[event] ?? []), ...entries];
+    }
+  }
+  return merged;
+}
+
 function codexHooksConfig(composerPath: string) {
   const hook = {
     type: "command",
@@ -151,6 +165,7 @@ export async function syncHooks(state: EffectiveState): Promise<SyncResult> {
   const result: SyncResult = { changes: [], warnings: [], managedPaths: [] };
   const projectHookConfig = state.projectConfigWithCards?.hooks ?? state.projectConfig?.hooks;
   const exclusions = new Set(projectHookConfig?.exclude ?? []);
+  const signalsEnabled = projectHookConfig?.signals?.enabled === true;
   const policies = collectPolicies(state.lockedCards, exclusions, result, state.normalized.strictHooks ?? false);
   const hasPolicies = policies.length > 0;
 
@@ -184,13 +199,17 @@ export async function syncHooks(state: EffectiveState): Promise<SyncResult> {
       }
 
       const settingsPath = targetConfigPath(state, "claude", state.effectiveConfig.targets.claude.configPath);
-      const current = await readTextIfExists(settingsPath, hasPolicies ? "{}\n" : "");
-      if (!hasPolicies && !hasOwnedClaudeHooks(current)) {
+      const current = await readTextIfExists(settingsPath, hasPolicies || signalsEnabled ? "{}\n" : "");
+      if (!hasPolicies && !signalsEnabled && !hasOwnedClaudeHooks(current)) {
         continue;
       }
+      const desiredHooks = mergeClaudeHookConfigs(
+        hasPolicies ? claudeHooksConfig(composerPath) : {},
+        signalsEnabled ? signalHooksConfig(resolveDrwnHookCommand()) : {},
+      );
       const next = mergeClaudeSettingsText(current, state.activeServers, {
         force: state.scopedOptions.force ?? false,
-        hooks: hasPolicies ? claudeHooksConfig(composerPath) : {},
+        hooks: desiredHooks,
         ...(state.scopedOptions.writeScope === "machine" ? { mcpServerOwnership: "none" as const } : {}),
       });
       writeManagedFile(settingsPath, next.text, state.scopedOptions.dryRun, result);
