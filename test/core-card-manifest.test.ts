@@ -68,6 +68,45 @@ test("validateCardManifest rejects non-array hooks.include", () => {
   expect(result.errors).toContain("hooks.include must be an array");
 });
 
+test("validateCardManifest accepts persona, beliefs, and memory sections with explicit visibility", () => {
+  const result = validateCardManifest({
+    name: "@me/x",
+    version: "1.0.0",
+    persona: { include: ["voice"], visibility: "internal" },
+    beliefs: { include: ["engineering"], visibility: "public" },
+    memory: {
+      l4: { include: ["reflections"], visibility: "internal" },
+      l6: { include: ["transcripts"], visibility: "private", format: "jsonl" },
+    },
+  });
+
+  expect(result).toEqual({ ok: true, errors: [] });
+});
+
+test("validateCardManifest rejects malformed mind content sections", () => {
+  const result = validateCardManifest({
+    name: "@me/x",
+    version: "1.0.0",
+    persona: { include: ["../voice"], visibility: "team", exclude: ["x"], shared: ["y"] },
+    beliefs: { include: "engineering", visibility: "internal" },
+    memory: {
+      l4: { include: ["reflections"] },
+      l6: { include: ["raw"], visibility: "private", format: "csv" },
+    },
+  });
+
+  expect(result.ok).toBe(false);
+  expect(result.errors).toEqual(expect.arrayContaining([
+    "persona.exclude is not allowed in card manifests",
+    "persona.shared is not allowed in card manifests",
+    "persona.visibility must be private, internal, or public",
+    "persona.include contains invalid entry: ../voice",
+    "beliefs.include must be an array",
+    "memory.l4.visibility is required when include is non-empty",
+    "memory.l6.format must be md, jsonl, or mixed",
+  ]));
+});
+
 test("validateCardManifest accepts optional quality fields", () => {
   expect(
     validateCardManifest({

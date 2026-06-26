@@ -98,8 +98,12 @@ test("card apply --write chains materialization after preserving mutation", asyn
   await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1 }, null, 2));
 
   const result = await runAgentsCli(["card", "apply", "@me/backend@^1.0.0", "--write"], envFor(fixture), projectDir);
+  const use = await runAgentsCli(["mind", "use", "@me/backend"], envFor(fixture), projectDir);
+  const write = await runAgentsCli(["write"], envFor(fixture), projectDir);
 
   expect(result.exitCode).toBe(0);
+  expect(use.exitCode).toBe(0);
+  expect(write.exitCode).toBe(0);
   expect(existsSync(join(projectDir, ".claude", "skills", "alpha"))).toBe(true);
 });
 

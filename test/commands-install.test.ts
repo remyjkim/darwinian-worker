@@ -27,6 +27,8 @@ async function scaffoldLockedGitProject(options?: { apply?: boolean }) {
   await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1 }, null, 2));
   const apply = await runAgentsCli(["card", "apply", `git+${remote.url}#v1.0.0`], envFor(fixture), projectDir);
   expect(apply.exitCode).toBe(0);
+  const use = await runAgentsCli(["mind", "use", "@team/backend"], envFor(fixture), projectDir);
+  expect(use.exitCode).toBe(0);
   await rm(join(fixture.agentsDir, "drwn"), { recursive: true, force: true });
   if (options?.apply) {
     await mkdir(join(projectDir, ".claude"), { recursive: true });

@@ -114,6 +114,7 @@ export type ProjectExtensionConfig = {
 export interface ProjectConfig {
   version: number;
   cards?: string[];
+  activeMinds?: string[];
   servers?: Record<string, ServerOverride>;
   skills?: {
     include?: string[];

@@ -1,7 +1,7 @@
 // ABOUTME: Orchestrates MCP and skill syncing using the extracted core modules.
 // ABOUTME: Shared by the Clipanion commands and the legacy sync-mcp compatibility wrapper.
 
-import { existsSync, readlinkSync, rmSync, symlinkSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readlinkSync, rmSync, symlinkSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expandHomePath, resolveGlobalCodexConfig, resolveToolPaths } from "./paths";
@@ -17,13 +17,22 @@ import {
 } from "./mcp";
 import { syncSkills as syncSkillsCore } from "./skills";
 import { syncHooks } from "./hook-generator/sync-hooks";
+import { syncMinds } from "./mind-generator/sync-mind";
 import { ensureParentDir, lstatSafe, realpathSafe } from "./fs";
 import { backupExistingPath, writeManagedFile } from "./managed-file";
-import { diffWriteRecord, hashManagedContent, loadWriteRecord, saveWriteRecord, type ManagedPath } from "./write-record";
+import {
+  diffWriteRecord,
+  hashManagedContent,
+  hashManagedDirectory,
+  loadWriteRecord,
+  saveWriteRecord,
+  type ManagedPath,
+} from "./write-record";
 import { buildEffectiveState } from "./effective-state";
 import { computeOptionalMcpReport } from "./mcp-report";
 import { DRWN_VERSION } from "./version";
 import { canonicalJsonHash } from "./managed-fields";
+import { resolveGeneratedComposedMindDir } from "./store-paths";
 import type {
   CanonicalConfig,
   NormalizedSyncOptions,
@@ -103,6 +112,18 @@ export function cleanupRemovedManagedPaths(scopeRoot: string, previous: ManagedP
       result.warnings.push(`preserved user-owned path: ${absolutePath}`);
       continue;
     }
+    if (entry.kind === "managed-directory") {
+      const stats = lstatSafe(absolutePath);
+      if (stats?.isDirectory() && hashManagedDirectory(absolutePath) === entry.contentHash) {
+        result.changes.push(`remove ${absolutePath}`);
+        if (!dryRun) {
+          rmSync(absolutePath, { recursive: true, force: true });
+        }
+        continue;
+      }
+      result.warnings.push(`preserved user-owned path: ${absolutePath}`);
+      continue;
+    }
     if (entry.kind === "managed-fields" && hasClaudePerServerHashes(entry)) {
       const text = readFileSync(absolutePath, "utf8");
       let parsed: Record<string, unknown>;
@@ -166,6 +187,30 @@ export function cleanupRemovedManagedPaths(scopeRoot: string, previous: ManagedP
   }
 }
 
+function pruneEmptyDirectoryTree(root: string, dryRun: boolean, result: SyncResult, removeRoot: boolean) {
+  const stats = lstatSafe(root);
+  if (!stats?.isDirectory()) {
+    return false;
+  }
+
+  for (const entry of readdirSync(root)) {
+    const path = join(root, entry);
+    const childStats = lstatSafe(path);
+    if (childStats?.isDirectory()) {
+      pruneEmptyDirectoryTree(path, dryRun, result, true);
+    }
+  }
+
+  if (removeRoot && readdirSync(root).length === 0) {
+    result.changes.push(`remove ${root}`);
+    if (!dryRun) {
+      rmSync(root, { recursive: true, force: true });
+    }
+    return true;
+  }
+  return false;
+}
+
 export function verifyManagedPaths(scopeRoot: string, previous: ManagedPath[], options?: { force?: boolean }) {
   if (options?.force) {
     return;
@@ -187,6 +232,18 @@ export function verifyManagedPaths(scopeRoot: string, previous: ManagedPath[], o
       continue;
     }
     if (entry.kind !== "managed-content") {
+      if (entry.kind === "managed-directory") {
+        const absolutePath = managedPathToAbsolute(scopeRoot, entry.path);
+        if (!existsSync(absolutePath)) {
+          continue;
+        }
+        const stats = lstatSafe(absolutePath);
+        if (stats?.isDirectory() && hashManagedDirectory(absolutePath) !== entry.contentHash) {
+          throw new Error(
+            `Refusing to overwrite managed directory drift at ${absolutePath}. Rerun drwn write --force to overwrite.`,
+          );
+        }
+      }
       continue;
     }
     const absolutePath = managedPathToAbsolute(scopeRoot, entry.path);
@@ -339,6 +396,13 @@ export async function syncRepository(options: SyncOptions = {}): Promise<SyncRes
   const previousRecord = loadWriteRecord(state.recordPath);
   verifyManagedPaths(state.scopeRoot, previousRecord?.managedPaths ?? [], { force: state.normalized.force ?? false });
 
+  if (state.projectRoot) {
+    const mindsResult = await syncMinds(state);
+    result.changes.push(...mindsResult.changes);
+    result.warnings.push(...mindsResult.warnings);
+    result.managedPaths?.push(...(mindsResult.managedPaths ?? []));
+  }
+
   if (!state.normalized.skillsOnly) {
     const mcpResult = await syncMcp(state.scopedOptions, state.effectiveConfig, state.activeServers, previousRecord?.managedPaths ?? []);
     result.changes.push(...mcpResult.changes);
@@ -347,7 +411,7 @@ export async function syncRepository(options: SyncOptions = {}): Promise<SyncRes
   }
 
   if (!state.normalized.mcpOnly) {
-    const skillsResult = await syncSkillsCore(state.scopedOptions, state.skillSelection, state.lockedCards);
+    const skillsResult = await syncSkillsCore(state.scopedOptions, state.skillSelection, state.activeCards);
     result.changes.push(...skillsResult.changes);
     result.warnings.push(...skillsResult.warnings);
     result.managedPaths?.push(...(skillsResult.managedPaths ?? []));
@@ -363,6 +427,14 @@ export async function syncRepository(options: SyncOptions = {}): Promise<SyncRes
   const desiredManagedPaths = uniqueManagedPaths(result.managedPaths ?? []);
   const { toRemove } = diffWriteRecord(previousRecord, desiredManagedPaths);
   cleanupRemovedManagedPaths(state.scopeRoot, toRemove, state.normalized.dryRun, result);
+  if (state.projectRoot && state.scopedOptions.generatedDir) {
+    pruneEmptyDirectoryTree(
+      resolveGeneratedComposedMindDir(state.scopedOptions.generatedDir),
+      state.normalized.dryRun,
+      result,
+      state.activeCards.length === 0,
+    );
+  }
   result.managedPaths = desiredManagedPaths;
   if (!state.normalized.dryRun) {
     saveWriteRecord(state.recordPath, {

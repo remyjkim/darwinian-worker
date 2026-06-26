@@ -38,6 +38,7 @@ export interface EffectiveState {
   projectConfigWithCards: ProjectConfig | null;
   cardServerDefinitions: CardServerDefinition[];
   lockedCards: CardLockEntry[];
+  activeCards: CardLockEntry[];
   skillSelection?: SkillSyncOverrides;
   recordPath: string;
   scopeRoot: string;
@@ -62,6 +63,7 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
     ? { include: [...baseDefaultSkills] }
     : undefined;
   let lockedCards: CardLockEntry[] = [];
+  let activeCards: CardLockEntry[] = [];
   let projectConfig: ProjectConfig | null = null;
   let projectConfigWithCards: ProjectConfig | null = null;
   let cardServerDefinitions: CardServerDefinition[] = [];
@@ -70,12 +72,13 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
     projectConfig = await loadProjectConfig(projectConfigPath);
     const cardLock = projectRoot ? await loadCardLock(projectRoot) : null;
     lockedCards = cardLock?.cards ?? (projectConfig.cards ? await resolveProjectCards(normalized.agentsDir, projectConfig.cards) : []);
+    activeCards = selectActiveCards(lockedCards, projectConfig.activeMinds);
     projectConfigWithCards = mergeCardManifestsIntoProjectConfig(
       projectConfig,
-      lockedCards.map((card) => card.manifest),
+      activeCards.map((card) => card.manifest),
     );
     cardServerDefinitions = collectCardServerDefinitions(lockedCards);
-    const registryWithCards = mergeCardServerDefinitionsIntoRegistry(registry, cardServerDefinitions);
+    const registryWithCards = mergeCardServerDefinitionsIntoRegistry(registry, collectCardServerDefinitions(activeCards));
     const projectOverlay: ProjectConfig = {
       ...projectConfigWithCards,
       servers: projectConfig.servers,
@@ -112,9 +115,24 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
     projectConfigWithCards,
     cardServerDefinitions,
     lockedCards,
+    activeCards,
     skillSelection,
     recordPath: projectRoot ? resolveProjectWriteRecordPath(projectRoot) : resolveGlobalWriteRecordPath(normalized.agentsDir),
     scopeRoot,
     scopedOptions,
   };
+}
+
+function selectActiveCards(lockedCards: CardLockEntry[], activeMinds?: string[]) {
+  if (activeMinds === undefined) {
+    return lockedCards;
+  }
+  if (activeMinds.length === 0) {
+    return [];
+  }
+  const byName = new Map(lockedCards.map((card) => [card.name, card]));
+  return activeMinds.flatMap((name) => {
+    const card = byName.get(name);
+    return card ? [card] : [];
+  });
 }

@@ -219,7 +219,7 @@ describe("drwn write", () => {
     await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
     await writeFile(
       join(projectDir, ".agents", "drwn", "config.json"),
-      JSON.stringify({ version: 1, cards: ["@me/base@1.0.0"] }, null, 2),
+      JSON.stringify({ version: 1, cards: ["@me/base@1.0.0"], activeMinds: ["@me/base"] }, null, 2),
     );
 
     const result = await runAgentsCli(["write", "--dry-run"], envFor(fixture), projectDir);
@@ -249,7 +249,7 @@ describe("drwn write", () => {
     await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
     await writeFile(
       join(projectDir, ".agents", "drwn", "config.json"),
-      JSON.stringify({ version: 1, cards: ["@me/base@1.0.0"] }, null, 2),
+      JSON.stringify({ version: 1, cards: ["@me/base@1.0.0"], activeMinds: ["@me/base"] }, null, 2),
     );
 
     const result = await runAgentsCli(["write", "--dry-run", "--json"], envFor(fixture), projectDir);
@@ -284,7 +284,7 @@ describe("drwn write", () => {
     await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
     await writeFile(
       join(projectDir, ".agents", "drwn", "config.json"),
-      JSON.stringify({ version: 1, cards: ["@me/base@1.0.0"] }, null, 2),
+      JSON.stringify({ version: 1, cards: ["@me/base@1.0.0"], activeMinds: ["@me/base"] }, null, 2),
     );
     expect((await runAgentsCli(["add", "mcp", "card-local"], envFor(fixture), projectDir)).exitCode).toBe(0);
 
@@ -349,14 +349,16 @@ describe("drwn write", () => {
     await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
     await writeFile(
       join(projectDir, ".agents", "drwn", "config.json"),
-      JSON.stringify({ version: 1, cards: ["@me/backend@^1.0.0"] }, null, 2),
+      JSON.stringify({ version: 1, cards: ["@me/backend@^1.0.0"], activeMinds: ["@me/backend"] }, null, 2),
     );
 
     const dryRun = await runAgentsCli(["write", "--dry-run", "--json"], envFor(fixture), projectDir);
 
     expect(dryRun.exitCode).toBe(0);
     const parsed = JSON.parse(dryRun.stdout) as { changes: string[] };
-    const symlinkLines = parsed.changes.filter((change) => change.startsWith("symlink ") && change.includes("alpha"));
+    const symlinkLines = parsed.changes.filter(
+      (change) => change.startsWith("symlink ") && change.includes("alpha") && /\.(claude|codex)\/skills/.test(change),
+    );
     expect(symlinkLines).toHaveLength(2);
     for (const line of symlinkLines) {
       expect(line).toContain("← card @me/backend@1.0.0");
@@ -371,7 +373,7 @@ describe("drwn write", () => {
     await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
     await writeFile(
       join(projectDir, ".agents", "drwn", "config.json"),
-      JSON.stringify({ version: 1, cards: ["@me/backend@^1.0.0"] }, null, 2),
+      JSON.stringify({ version: 1, cards: ["@me/backend@^1.0.0"], activeMinds: ["@me/backend"] }, null, 2),
     );
 
     const dryRun = await runAgentsCli(["write", "--dry-run", "--json"], envFor(fixture), projectDir);

@@ -70,6 +70,7 @@ test("team follows a dm-card-base catalog, installs it, refreshes catalog update
   await initProject(consumer, pinnedProject);
   const pinnedApply = await runAgentsCli(["card", "apply", discovered.url, "--write"], envFor(consumer), pinnedProject);
   expect(pinnedApply.exitCode, pinnedApply.stderr).toBe(0);
+  await activateDmCardBase(consumer, pinnedProject);
   const initialPinnedLock = await expectLockVersion(pinnedProject, "0.1.0");
   expectMaterializedSkills(pinnedProject, ["bootstrap-project", "author-mind-card", "share-mind-card"]);
 
@@ -91,6 +92,7 @@ test("team follows a dm-card-base catalog, installs it, refreshes catalog update
   await initProject(consumer, rangeProject);
   const rangeApply = await runAgentsCli(["card", "apply", `git+${cardRemote.url}@^0.1.0`, "--write"], envFor(consumer), rangeProject);
   expect(rangeApply.exitCode, rangeApply.stderr).toBe(0);
+  await activateDmCardBase(consumer, rangeProject);
   await expectLockVersion(rangeProject, "0.1.0");
 
   await tagDmCardBaseVersion(cardRemote, "0.1.1");
@@ -166,6 +168,13 @@ async function expectLockVersion(projectDir: string, version: string) {
     version,
   });
   return lock!;
+}
+
+async function activateDmCardBase(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>, projectDir: string) {
+  const use = await runAgentsCli(["mind", "use", DM_CARD_BASE_NAME], envFor(fixture), projectDir);
+  expect(use.exitCode, use.stderr).toBe(0);
+  const write = await runAgentsCli(["write"], envFor(fixture), projectDir);
+  expect(write.exitCode, write.stderr).toBe(0);
 }
 
 function expectMaterializedSkills(projectDir: string, skills: string[]) {
