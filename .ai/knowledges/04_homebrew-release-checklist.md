@@ -7,7 +7,7 @@ This checklist is future-facing. Homebrew distribution is not implemented yet, b
 - package name finalization
 - current package name: `darwinian-mind`
 - finalize the public package/repository name
-- current CLI binary name: `drwn`
+- current CLI binary names: `drwn` (primary) and `dminds` (alias) — both map to the same entrypoint
 - ensure there is no naming collision with existing formulae or packages
 
 ## Release Artifact

@@ -72,6 +72,7 @@ Current schema:
 {
   "version": 1,
   "cards": ["@me/backend@^1.0.0"],
+  "activeMinds": ["@me/backend"],
   "servers": {
     "server-name": { "enabled": false },
     "custom-server": {
@@ -85,6 +86,24 @@ Current schema:
   "skills": {
     "include": ["skill-a"],
     "exclude": ["skill-b"]
+  },
+  "hooks": {
+    "exclude": ["hook-name"],
+    "runtimes": {
+      "claude-code": { "enabled": true },
+      "codex": { "enabled": false },
+      "mastra": { "enabled": false }
+    },
+    "signals": {
+      "enabled": true
+    }
+  },
+  "trustedSources": {
+    "strict": true,
+    "gitHosts": ["github.com"],
+    "gitOwners": ["my-org"],
+    "catalogScopes": ["@me"],
+    "refs": ["@me/backend@^1.0.0"]
   },
   "extensions": {
     "parallel": {
@@ -113,10 +132,13 @@ Supported top-level keys:
 
 - `version`
 - `cards`
+- `activeMinds`
 - `servers`
 - `skills`
+- `hooks`
 - `extensions`
 - `targets`
+- `trustedSources`
 
 ## Cards
 
@@ -138,8 +160,18 @@ the manifest used to compute effective state.
 Effective project state is:
 
 ```text
-built-in defaults -> user library -> cards in declared order -> project overlay
+built-in defaults -> user library -> active cards in stack order -> project overlay
 ```
+
+`cards` records every installed card in the lockfile, but only the *active*
+subset projects downstream. The active subset is selected by `selectActiveCards`
+in `cli/core/effective-state.ts`, driven by the `activeMinds` key (see Active
+Minds below):
+
+- when `activeMinds` is absent, every installed card is active and projects in
+  declared lockfile order
+- when `activeMinds` is set, only the named cards project, in the order they
+  appear in `activeMinds` (the active-mind stack)
 
 For skill materialization specifically, bundled card content is authoritative.
 If an applied card ships a skill with the same name as a repo-native or
@@ -148,6 +180,25 @@ the immutable card store.
 
 Machine-only defaults from `~/.agents/drwn/machine.json` do not apply when a
 project config is present.
+
+## Active Minds
+
+`activeMinds` selects which installed cards are active for downstream write.
+Installing a card (recorded in `cards` / `card.lock`) is separate from
+activating it. The key has three states:
+
+- **absent** — every installed card is active (the default). This is the state
+  of a freshly scaffolded or card-applied project that never ran `drwn mind`.
+- **`[]`** — explicitly no active cards. Installed card bundles remain in the
+  lockfile but none project downstream. `drwn mind clear` writes this state.
+- **`["@me/backend", "@me/web"]`** — an explicit ordered stack. Only the named
+  cards project, in array order. `drwn mind use` writes this state.
+
+`activeMinds` is consumed by `selectActiveCards`
+(`cli/core/effective-state.ts`). The selected cards become `activeCards`, which
+drive the effective registry, project overlay merge, and the composed mind
+bundle. `drwn mind list` reports the active set and whether it is the absent
+default.
 
 ## Project-local Materialization
 
@@ -445,11 +496,20 @@ drwn write
 
 Mind Cards pin **harness state** — the skills, MCP server definitions, extensions, and downstream targets a project should run on. Cards do not pin the *surrounding* environment. Being explicit about this prevents the "partial pinning" trap where a lockfile creates the illusion of reproducibility without the substance.
 
+Beyond harness state, a card may also carry **mind content** — `persona`,
+`beliefs`, and layered `memory` (`l4`/`l5`/`l6`) sections declared in its
+manifest (`cli/core/card-manifest.ts`). During write, `cli/core/mind-generator/sync-mind.ts`
+materializes each installed card to a per-mind bundle under
+`.agents/drwn/generated/minds/<scope>/<name>/` (persona text plus symlinks into
+the immutable card store for beliefs/memory/skills, an MCP `servers.json`, and a
+`mind.json` index), and composes the active subset into a single
+`.agents/drwn/generated/mind/` bundle.
+
 What cards pin (today):
 
 - Card versions in `card.lock` (byte-identical across machines via content-tree integrity hashes)
 - Per-card bundled skill attribution in `card.lock`
-- Inline content shipped in a card (skills, MCP server definitions) by sha256 content hashing
+- Inline content shipped in a card (skills, MCP server definitions, persona/beliefs/memory mind content) by sha256 content hashing
 - The project overlay (`servers`, `skills`, `extensions`, `targets` fields in `config.json`)
 
 What cards do not pin:
