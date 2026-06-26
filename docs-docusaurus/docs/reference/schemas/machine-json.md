@@ -66,6 +66,8 @@ Purpose: the machine-scope drwn configuration. Holds target enablement, machine-
 | `optional` | `Record<string, boolean>` | yes | Per-name optional toggles. The map exists even when empty so consumers can write into it. | `cli/core/types.ts:68` |
 | `authoring.scope` | `string` (`@scope` shape) | no | Default npm-style scope applied to `drwn card new` when the supplied name is unscoped. | Read at `card-store.ts:231-233`; written at `card-store.ts:236-240` |
 
+For `defaults.skills` and `defaults.mcpServers`, any array — including an empty array (`[]`) — is treated as an explicit machine override; an empty array activates nothing. Only a missing field means "uninitialized": reads fall back to the resolved defaults, and `drwn library defaults add|remove ...` seeds the list with the currently resolved defaults before applying the mutation. An explicit empty array is preserved as-is.
+
 ## How it gets there
 
 - **Initial creation** — `ensureStoreInitialized` writes `{ "version": 1, "optional": {} }` when no machine.json exists (`cli/core/card-store.ts:103-106`).

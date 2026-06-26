@@ -4,9 +4,9 @@
 import { Option, UsageError } from "clipanion";
 import { existsSync } from "node:fs";
 import { loadConfig } from "../../../core/config";
-import { removeDefaultValue } from "../../../core/defaults";
+import { ensureSkillDefaultsInitialized, removeDefaultValue } from "../../../core/defaults";
 import { loadRegistry } from "../../../core/registry";
-import { findAvailableSkill, uncurateSkill } from "../../../core/skills";
+import { findAvailableSkill, listCuratedSkills, uncurateSkill } from "../../../core/skills";
 import { loadOrInitializeUserConfig, saveUserConfig } from "../../../core/user-config";
 import { renderJson } from "../../../core/output";
 import { BaseCommand } from "../../base";
@@ -44,15 +44,19 @@ export class LibraryDefaultsRemoveSkillCommand extends BaseCommand {
       throw new UsageError(`Unknown skill: ${this.skillName}`);
     }
 
-    const [repoConfig, registry] = await Promise.all([loadConfig(this.context.repoRoot), loadRegistry(this.context.repoRoot)]);
+    const [repoConfig, registry, curatedSkills] = await Promise.all([
+      loadConfig(this.context.repoRoot),
+      loadRegistry(this.context.repoRoot),
+      listCuratedSkills(this.context.agentsDir),
+    ]);
     const { path, config } = await loadOrInitializeUserConfig({
       repoConfig,
       registry,
       agentsDir: this.context.agentsDir,
     });
-    config.defaults ??= {};
-    const wasDefault = config.defaults.skills?.includes(this.skillName) === true;
-    config.defaults.skills = removeDefaultValue(config.defaults.skills, this.skillName);
+    const defaults = ensureSkillDefaultsInitialized(config, curatedSkills.map((skill) => skill.name));
+    const wasDefault = defaults.includes(this.skillName);
+    config.defaults!.skills = removeDefaultValue(defaults, this.skillName);
 
     if (!this.dryRun) {
       await saveUserConfig(path, config);

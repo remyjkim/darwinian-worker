@@ -3,9 +3,9 @@
 
 import { Option, UsageError } from "clipanion";
 import { loadConfig } from "../../../core/config";
-import { addDefaultValue } from "../../../core/defaults";
+import { addDefaultValue, ensureSkillDefaultsInitialized } from "../../../core/defaults";
 import { loadRegistry } from "../../../core/registry";
-import { curateSkill, findAvailableSkill } from "../../../core/skills";
+import { curateSkill, findAvailableSkill, listCuratedSkills } from "../../../core/skills";
 import { loadOrInitializeUserConfig, saveUserConfig } from "../../../core/user-config";
 import { renderJson } from "../../../core/output";
 import { BaseCommand } from "../../base";
@@ -50,15 +50,19 @@ export class LibraryDefaultsAddSkillCommand extends BaseCommand {
       throw new UsageError(`Only shared skills can be global defaults: ${this.skillName}`);
     }
 
-    const [repoConfig, registry] = await Promise.all([loadConfig(this.context.repoRoot), loadRegistry(this.context.repoRoot)]);
+    const [repoConfig, registry, curatedSkills] = await Promise.all([
+      loadConfig(this.context.repoRoot),
+      loadRegistry(this.context.repoRoot),
+      listCuratedSkills(this.context.agentsDir),
+    ]);
     const { path, config } = await loadOrInitializeUserConfig({
       repoConfig,
       registry,
       agentsDir: this.context.agentsDir,
     });
-    config.defaults ??= {};
-    const alreadyDefault = config.defaults.skills?.includes(this.skillName) === true;
-    config.defaults.skills = addDefaultValue(config.defaults.skills, this.skillName);
+    const defaults = ensureSkillDefaultsInitialized(config, curatedSkills.map((skill) => skill.name));
+    const alreadyDefault = defaults.includes(this.skillName);
+    config.defaults!.skills = addDefaultValue(defaults, this.skillName);
 
     if (!this.dryRun) {
       await saveUserConfig(path, config);

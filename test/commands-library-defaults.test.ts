@@ -3,7 +3,7 @@
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { cleanupTempRoots, createInstalledSkillBundle, runAgentsCli, scaffoldCliFixture } from "./helpers";
 
@@ -23,6 +23,22 @@ function envFor(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
 
 async function readUserConfig(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
   return JSON.parse(await readFile(join(fixture.agentsDir, "drwn", "config.json"), "utf8")) as {
+    defaults?: { skills?: string[]; mcpServers?: string[] };
+  };
+}
+
+async function writeMachineConfig(
+  fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>,
+  config: { version: 1; optional: Record<string, boolean>; defaults?: { skills?: string[]; mcpServers?: string[] }; authoring?: { scope?: string } },
+) {
+  const storeDir = join(fixture.agentsDir, "drwn");
+  await mkdir(storeDir, { recursive: true });
+  await writeFile(join(storeDir, "store.json"), JSON.stringify({ schemaVersion: 1, initAt: "2026-06-11T00:00:00.000Z" }, null, 2));
+  await writeFile(join(storeDir, "machine.json"), `${JSON.stringify(config, null, 2)}\n`);
+}
+
+async function readMachineConfig(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
+  return JSON.parse(await readFile(join(fixture.agentsDir, "drwn", "machine.json"), "utf8")) as {
     defaults?: { skills?: string[]; mcpServers?: string[] };
   };
 }
@@ -119,5 +135,57 @@ describe("drwn library defaults", () => {
     const list = await runAgentsCli(["library", "defaults", "list", "--json"], envFor(fixture));
     const parsed = JSON.parse(list.stdout) as { mcpServers: Array<{ id: string; source: string; status: string }> };
     expect(parsed.mcpServers).toContainEqual({ id: "github", status: "resolved", source: "library" });
+  });
+
+  test("adds an MCP to uninitialized machine defaults without dropping resolved defaults", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    await writeMachineConfig(fixture, { version: 1, optional: {}, authoring: { scope: "@test" } });
+
+    const result = await runAgentsCli(["library", "defaults", "add", "mcp", "parallel-search", "--json"], envFor(fixture));
+
+    expect(result.exitCode).toBe(0);
+    expect((JSON.parse(result.stdout) as { action: string }).action).toBe("added");
+    expect((await readMachineConfig(fixture)).defaults?.mcpServers).toEqual(["context7", "parallel-search"]);
+  });
+
+  test("adds an MCP to an explicit empty machine default without re-seeding the resolved set", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    await writeMachineConfig(fixture, { version: 1, optional: {}, defaults: { mcpServers: [] } });
+
+    const result = await runAgentsCli(["library", "defaults", "add", "mcp", "parallel-search", "--json"], envFor(fixture));
+
+    expect(result.exitCode).toBe(0);
+    expect((await readMachineConfig(fixture)).defaults?.mcpServers).toEqual(["parallel-search"]);
+  });
+
+  test("adds a skill to uninitialized machine defaults without dropping curated defaults", async () => {
+    const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
+    tempRoots.push(fixture.root);
+    await writeMachineConfig(fixture, { version: 1, optional: {} });
+
+    const result = await runAgentsCli(["library", "defaults", "add", "skill", "beta", "--json"], envFor(fixture));
+
+    expect(result.exitCode).toBe(0);
+    expect((JSON.parse(result.stdout) as { action: string }).action).toBe("added");
+    expect((await readMachineConfig(fixture)).defaults?.skills).toEqual(["alpha", "beta"]);
+    expect(existsSync(join(fixture.agentsDir, "skills", "beta"))).toBe(true);
+  });
+
+  test("explicit empty machine default arrays activate nothing", async () => {
+    const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
+    tempRoots.push(fixture.root);
+    await writeMachineConfig(fixture, { version: 1, optional: {}, defaults: { mcpServers: [], skills: [] } });
+    const { buildEffectiveState } = await import("../cli/core/effective-state");
+
+    const state = await buildEffectiveState({
+      repoRoot: fixture.repoRoot,
+      agentsDir: fixture.agentsDir,
+      homeDir: fixture.homeDir,
+      cwd: fixture.root,
+    });
+
+    expect(Object.keys(state.activeServers)).toEqual([]);
   });
 });
