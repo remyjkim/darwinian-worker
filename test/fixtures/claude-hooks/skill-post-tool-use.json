@@ -1,0 +1,18 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000003",
+  "transcript_path": "/Users/example/.claude/projects/-tmp-drwn-hook-smoke/00000000-0000-4000-8000-000000000003.jsonl",
+  "cwd": "/tmp/drwn-hook-smoke",
+  "permission_mode": "bypassPermissions",
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Skill",
+  "tool_input": {
+    "skill": "superpowers:brainstorming"
+  },
+  "tool_response": {
+    "success": true,
+    "commandName": "superpowers:brainstorming"
+  },
+  "tool_use_id": "toolu_013mVwArvvmYqLkwNw9PDDjC",
+  "duration_ms": 3
+}
+

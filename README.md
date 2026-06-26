@@ -33,6 +33,83 @@ drwn write
 
 For a project-local harness, run `drwn init` in the project root, then `drwn add skill <name>` and `drwn write`.
 
+## Claude Session Signals Beta
+
+`drwn` includes hidden Claude Code hook commands that can record active Harness Cards and
+skill usage beside Claude transcript files. This is a manual opt-in beta; automatic hook
+materialization from cards or project config is not enabled yet.
+
+Add this to a Claude `.claude/settings.json` file for the project you want to observe:
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "drwn hook card-usage",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "UserPromptExpansion": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "drwn hook skill-marker --phase expansion",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "drwn hook skill-marker --phase pre",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "drwn hook skill-marker --phase post",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "drwn hook skill-marker --phase fail",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Signals are appended next to Claude transcripts as `<session-id>.drwn-signals.jsonl`.
+The hook commands always exit successfully and stay silent so they do not interrupt Claude
+sessions.
+
 ## Documentation
 
 - **Public docs:** [docs.darwiniantools.com](https://docs.darwiniantools.com) — concepts, getting-started paths, guides, troubleshooting, CLI reference. Source in [`docs-docusaurus/`](./docs-docusaurus).

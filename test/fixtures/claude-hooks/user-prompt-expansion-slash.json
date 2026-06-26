@@ -1,0 +1,13 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000002",
+  "transcript_path": "/Users/example/.claude/projects/-tmp-drwn-hook-smoke/00000000-0000-4000-8000-000000000002.jsonl",
+  "cwd": "/tmp/drwn-hook-smoke",
+  "permission_mode": "bypassPermissions",
+  "hook_event_name": "UserPromptExpansion",
+  "expansion_type": "slash_command",
+  "command_name": "superpowers:brainstorming",
+  "command_args": "smoke-test topic",
+  "command_source": "plugin",
+  "prompt": "/superpowers:brainstorming smoke-test topic"
+}
+
