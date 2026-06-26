@@ -124,6 +124,71 @@ test("writeCardLock preserves hooks and consent in v3", async () => {
   expect(loaded?.cards[0]?.hookConsent?.consentedRange).toBe("^1.0.0");
 });
 
+test("writeCardLock creates a v4 lockfile with mind content metadata", async () => {
+  const root = await createTempRoot("card-lock-");
+  tempRoots.push(root);
+
+  await writeCardLock(root, [
+    {
+      name: "@me/mind",
+      requested: "@me/mind@^1.0.0",
+      version: "1.0.0",
+      path: "/cards/@me/mind/1.0.0",
+      integrity: "sha256-test",
+      manifest: {
+        name: "@me/mind",
+        version: "1.0.0",
+        persona: { include: ["voice"], visibility: "internal" },
+        beliefs: { include: ["engineering"], visibility: "public" },
+        memory: { l6: { include: ["raw"], visibility: "private", format: "jsonl" } },
+      },
+      skills: [],
+      hooks: [],
+      persona: { include: ["voice"], visibility: "internal" },
+      beliefs: { include: ["engineering"], visibility: "public" },
+      memory: { l6: { include: ["raw"], visibility: "private", format: "jsonl" } },
+      registry: null,
+      origin: "store",
+      git: { commit: "f".repeat(40) },
+    },
+  ]);
+
+  const raw = JSON.parse(await readFile(cardLockPath(root), "utf8"));
+  const loaded = await loadCardLock(root);
+
+  expect(raw.lockfileVersion).toBe(4);
+  expect(loaded?.lockfileVersion).toBe(4);
+  expect(loaded?.cards[0]?.persona).toEqual({ include: ["voice"], visibility: "internal" });
+  expect(loaded?.cards[0]?.beliefs).toEqual({ include: ["engineering"], visibility: "public" });
+  expect(loaded?.cards[0]?.memory?.l6).toEqual({ include: ["raw"], visibility: "private", format: "jsonl" });
+});
+
+test("validateCardLockfile reads v3 entries with absent mind content metadata", () => {
+  const lock = validateCardLockfile({
+    lockfileVersion: 3,
+    cards: [
+      {
+        name: "@me/backend",
+        requested: "@me/backend@^1.0.0",
+        version: "1.0.0",
+        path: "/cards/@me/backend/1.0.0",
+        integrity: "sha256-test",
+        manifest: { name: "@me/backend", version: "1.0.0" },
+        skills: [],
+        hooks: [],
+        registry: null,
+        origin: "store",
+        git: { commit: "a".repeat(40) },
+      },
+    ],
+  });
+
+  expect(lock.lockfileVersion).toBe(3);
+  expect(lock.cards[0]?.persona).toBeUndefined();
+  expect(lock.cards[0]?.beliefs).toBeUndefined();
+  expect(lock.cards[0]?.memory).toBeUndefined();
+});
+
 test("validateCardLockfile rejects invalid hookConsent", () => {
   expect(() =>
     validateCardLockfile({
