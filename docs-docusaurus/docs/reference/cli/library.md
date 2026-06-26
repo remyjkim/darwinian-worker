@@ -62,4 +62,4 @@ drwn library defaults remove mcp <server-id>
 
 Machine defaults are written under `~/.agents/drwn/machine.json`. Project-local selections should use `drwn add ...` instead.
 
-For `defaults.skills` and `defaults.mcpServers`, a non-empty array is an explicit machine allowlist. A missing field or empty array is treated as uninitialized and resolves through the packaged defaults plus machine toggles. On first `add` or `remove` against an uninitialized list, `drwn` seeds the list with the currently resolved defaults before applying the requested change.
+For `defaults.skills` and `defaults.mcpServers`, any array — including an empty array — is an explicit machine allowlist; an empty array activates nothing. Only a missing field is treated as uninitialized, resolving through the packaged defaults plus machine toggles. On first `add` or `remove` against an uninitialized (missing) list, `drwn` seeds the list with the currently resolved defaults before applying the requested change; an explicit empty array is preserved as-is.

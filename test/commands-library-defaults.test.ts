@@ -149,7 +149,7 @@ describe("drwn library defaults", () => {
     expect((await readMachineConfig(fixture)).defaults?.mcpServers).toEqual(["context7", "parallel-search"]);
   });
 
-  test("adds an MCP to empty machine defaults by treating the empty list as uninitialized", async () => {
+  test("adds an MCP to an explicit empty machine default without re-seeding the resolved set", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     await writeMachineConfig(fixture, { version: 1, optional: {}, defaults: { mcpServers: [] } });
@@ -157,7 +157,7 @@ describe("drwn library defaults", () => {
     const result = await runAgentsCli(["library", "defaults", "add", "mcp", "parallel-search", "--json"], envFor(fixture));
 
     expect(result.exitCode).toBe(0);
-    expect((await readMachineConfig(fixture)).defaults?.mcpServers).toEqual(["context7", "parallel-search"]);
+    expect((await readMachineConfig(fixture)).defaults?.mcpServers).toEqual(["parallel-search"]);
   });
 
   test("adds a skill to uninitialized machine defaults without dropping curated defaults", async () => {
@@ -173,7 +173,7 @@ describe("drwn library defaults", () => {
     expect(existsSync(join(fixture.agentsDir, "skills", "beta"))).toBe(true);
   });
 
-  test("empty machine default arrays resolve like absent defaults", async () => {
+  test("explicit empty machine default arrays activate nothing", async () => {
     const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
     tempRoots.push(fixture.root);
     await writeMachineConfig(fixture, { version: 1, optional: {}, defaults: { mcpServers: [], skills: [] } });
@@ -186,7 +186,6 @@ describe("drwn library defaults", () => {
       cwd: fixture.root,
     });
 
-    expect(Object.keys(state.activeServers)).toEqual(["context7"]);
-    expect(state.skillSelection).toBeUndefined();
+    expect(Object.keys(state.activeServers)).toEqual([]);
   });
 });

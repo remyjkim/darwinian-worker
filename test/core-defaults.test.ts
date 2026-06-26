@@ -13,7 +13,7 @@ function paths() {
 }
 
 describe("core defaults", () => {
-  test("explicit default predicates treat empty arrays as uninitialized", async () => {
+  test("explicit default predicates treat absent arrays as uninitialized and empty arrays as explicit", async () => {
     const { hasExplicitMcpDefaults, hasExplicitSkillDefaults } = await import("../cli/core/defaults");
     const config = createFixtureConfig(paths(), false);
 
@@ -21,8 +21,8 @@ describe("core defaults", () => {
     expect(hasExplicitSkillDefaults(config)).toBe(false);
 
     config.defaults = { mcpServers: [], skills: [] };
-    expect(hasExplicitMcpDefaults(config)).toBe(false);
-    expect(hasExplicitSkillDefaults(config)).toBe(false);
+    expect(hasExplicitMcpDefaults(config)).toBe(true);
+    expect(hasExplicitSkillDefaults(config)).toBe(true);
 
     config.defaults = { mcpServers: ["context7"], skills: ["alpha"] };
     expect(hasExplicitMcpDefaults(config)).toBe(true);
@@ -37,7 +37,7 @@ describe("core defaults", () => {
     expect(resolveDefaultMcpNames(config, registry)).toEqual(["context7"]);
   });
 
-  test("empty MCP defaults fall back to current MCP activation", async () => {
+  test("empty MCP defaults activate nothing while absent defaults fall back to current activation", async () => {
     const { resolveDefaultMcpNames } = await import("../cli/core/defaults");
     const { buildActiveServers } = await import("../cli/core/mcp");
     const registry = createFixtureRegistry();
@@ -45,8 +45,10 @@ describe("core defaults", () => {
     const empty = createFixtureConfig(paths(), false);
     empty.defaults = { mcpServers: [] };
 
-    expect(resolveDefaultMcpNames(empty, registry)).toEqual(resolveDefaultMcpNames(absent, registry));
-    expect(Object.keys(buildActiveServers(registry, empty))).toEqual(Object.keys(buildActiveServers(registry, absent)));
+    expect(resolveDefaultMcpNames(empty, registry)).toEqual([]);
+    expect(Object.keys(buildActiveServers(registry, empty))).toEqual([]);
+    expect(resolveDefaultMcpNames(absent, registry)).toEqual(["context7"]);
+    expect(Object.keys(buildActiveServers(registry, absent))).toEqual(["context7"]);
   });
 
   test("explicit MCP defaults control active MCP names", async () => {
@@ -60,16 +62,25 @@ describe("core defaults", () => {
     expect(Object.keys(buildActiveServers(registry, applyMcpDefaultsToConfig(config)))).toEqual(["parallel-search"]);
   });
 
-  test("ensure helpers seed empty defaults and preserve non-empty defaults", async () => {
+  test("ensure helpers seed absent defaults and preserve explicit defaults including empty", async () => {
     const { ensureMcpDefaultsInitialized, ensureSkillDefaultsInitialized } = await import("../cli/core/defaults");
-    const config = createFixtureConfig(paths(), false);
-    config.defaults = { mcpServers: [], skills: [] };
 
-    expect(ensureMcpDefaultsInitialized(config, ["context7"])).toEqual(["context7"]);
-    expect(ensureSkillDefaultsInitialized(config, ["alpha"])).toEqual(["alpha"]);
+    // Absent defaults are seeded with the resolved set.
+    const absent = createFixtureConfig(paths(), false);
+    expect(ensureMcpDefaultsInitialized(absent, ["context7"])).toEqual(["context7"]);
+    expect(ensureSkillDefaultsInitialized(absent, ["alpha"])).toEqual(["alpha"]);
 
-    expect(ensureMcpDefaultsInitialized(config, ["parallel-search"])).toEqual(["context7"]);
-    expect(ensureSkillDefaultsInitialized(config, ["beta"])).toEqual(["alpha"]);
+    // Explicit empty defaults are preserved, not re-seeded.
+    const empty = createFixtureConfig(paths(), false);
+    empty.defaults = { mcpServers: [], skills: [] };
+    expect(ensureMcpDefaultsInitialized(empty, ["context7"])).toEqual([]);
+    expect(ensureSkillDefaultsInitialized(empty, ["alpha"])).toEqual([]);
+
+    // Non-empty explicit defaults are preserved.
+    const explicit = createFixtureConfig(paths(), false);
+    explicit.defaults = { mcpServers: ["context7"], skills: ["alpha"] };
+    expect(ensureMcpDefaultsInitialized(explicit, ["parallel-search"])).toEqual(["context7"]);
+    expect(ensureSkillDefaultsInitialized(explicit, ["beta"])).toEqual(["alpha"]);
   });
 
   test("merges user MCP library entries without mutating built-in registry", async () => {

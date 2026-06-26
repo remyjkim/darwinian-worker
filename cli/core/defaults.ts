@@ -8,11 +8,11 @@ function isParallelMcpName(name: string) {
 }
 
 export function hasExplicitSkillDefaults(config: CanonicalConfig): boolean {
-  return Array.isArray(config.defaults?.skills) && config.defaults.skills.length > 0;
+  return Array.isArray(config.defaults?.skills);
 }
 
 export function hasExplicitMcpDefaults(config: CanonicalConfig): boolean {
-  return Array.isArray(config.defaults?.mcpServers) && config.defaults.mcpServers.length > 0;
+  return Array.isArray(config.defaults?.mcpServers);
 }
 
 export function resolveDefaultSkillNames(config: CanonicalConfig): string[] {
