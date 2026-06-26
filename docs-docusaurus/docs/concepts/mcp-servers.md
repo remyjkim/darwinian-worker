@@ -6,7 +6,7 @@ sidebar_position: 5
 
 MCP servers are reusable tool definitions that `drwn` can activate globally, attach to a project, bundle into a card source, and write into downstream agent tool configs.
 
-Built-in definitions come from the harness registry. User definitions live under `~/.agents/drwn/mcp-servers`. Machine defaults live in `~/.agents/drwn/machine.json`; project choices live in `.agents/drwn/config.json`.
+Built-in definitions come from the harness registry. User definitions live under `~/.agents/drwn/mcp-servers`. Card-declared definitions come from the locked cards consumed by the current project. Machine defaults live in `~/.agents/drwn/machine.json`; project choices live in `.agents/drwn/config.json`.
 
 Inspect active MCP state:
 
@@ -32,6 +32,12 @@ drwn card source add-mcp @your-handle/backend context7
 drwn card source add-mcp @your-handle/backend context7 --from ./context7.json
 drwn card source remove-mcp @your-handle/backend context7
 drwn card source doctor @your-handle/backend
+```
+
+Card-local MCP definitions do not have to be reusable library entries. If a card ships a definition with `optional: true`, consuming the card does not activate that server immediately. `drwn write` reports the skipped optional MCP, and the project can opt in with:
+
+```bash
+drwn add mcp context7
 ```
 
 Write the effective MCP config:

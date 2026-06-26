@@ -53,6 +53,13 @@ async function createBundleFixture(root: string, options?: { packageName?: strin
   return { bundleRoot, packageName, version, skillName };
 }
 
+async function createLooseSkill(root: string, name: string) {
+  const skillDir = join(root, name);
+  await mkdir(skillDir, { recursive: true });
+  await writeFile(join(skillDir, "SKILL.md"), `---\nname: ${name}\ndescription: loose package command fixture\n---\n`);
+  return { skillDir, skillMd: join(skillDir, "SKILL.md") };
+}
+
 describe("drwn skills packages", () => {
   test("add installs a bundle into the managed cache", async () => {
     const fixture = await scaffoldCliFixture();
@@ -73,6 +80,31 @@ describe("drwn skills packages", () => {
       ),
     ) as { bundleName: string };
     expect(manifest.bundleName).toBe("@acme/skills-sample");
+  });
+
+  test("add installs a loose SKILL.md through the same managed cache", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const loose = await createLooseSkill(fixture.root, "package-loose");
+
+    const result = await runAgentsCli(["skills", "packages", "add", loose.skillMd, "--json"], {
+      AGENTS_REPO_ROOT: fixture.repoRoot,
+      AGENTS_HOME_DIR: fixture.homeDir,
+      AGENTS_DIR: fixture.agentsDir,
+    });
+
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout) as { packageName: string; activeVersion: string; skillName: string };
+    expect(parsed.packageName).toBe("@local/package-loose");
+    expect(parsed.activeVersion).toBe("0.1.0");
+    expect(parsed.skillName).toBe("package-loose");
+    const manifest = JSON.parse(
+      await readFile(
+        join(fixture.agentsDir, "packages", "skills", "@local", "package-loose", "0.1.0", "bundle.json"),
+        "utf8",
+      ),
+    ) as { bundleName: string };
+    expect(manifest.bundleName).toBe("@local/package-loose");
   });
 
   test("list shows installed bundles", async () => {

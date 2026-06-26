@@ -4,6 +4,8 @@
 import { join } from "node:path";
 import type { CardLockEntry } from "./card-lock";
 import { mergeCardManifestsIntoProjectConfig, resolveProjectCards } from "./card-project";
+import { collectCardServerDefinitions, mergeCardServerDefinitionsIntoRegistry, type CardServerDefinition } from "./card-mcp";
+import { loadCardLock } from "./card-lock";
 import { loadConfig } from "./config";
 import { mergeUserMcpLibrary } from "./defaults";
 import { loadMcpLibrary } from "./mcp-library";
@@ -34,6 +36,7 @@ export interface EffectiveState {
   projectRoot: string | null;
   projectConfig: ProjectConfig | null;
   projectConfigWithCards: ProjectConfig | null;
+  cardServerDefinitions: CardServerDefinition[];
   lockedCards: CardLockEntry[];
   skillSelection?: SkillSyncOverrides;
   recordPath: string;
@@ -49,7 +52,7 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
     await loadMcpLibrary(normalized.agentsDir),
   );
   const { config: machineConfig } = await loadEffectiveConfig(repoConfig, normalized.agentsDir);
-  const projectConfigPath = findProjectConfig(normalized.cwd ?? process.cwd());
+  const projectConfigPath = normalized.forceMachineScope ? null : findProjectConfig(normalized.cwd ?? process.cwd());
   const projectRoot = projectConfigPath ? resolveProjectRootFromConfigPath(projectConfigPath) : null;
   const baseConfig = projectConfigPath ? repoConfig : machineConfig;
   let effectiveConfig = baseConfig;
@@ -60,15 +63,23 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
   let lockedCards: CardLockEntry[] = [];
   let projectConfig: ProjectConfig | null = null;
   let projectConfigWithCards: ProjectConfig | null = null;
+  let cardServerDefinitions: CardServerDefinition[] = [];
 
   if (projectConfigPath) {
     projectConfig = await loadProjectConfig(projectConfigPath);
-    lockedCards = projectConfig.cards ? await resolveProjectCards(normalized.agentsDir, projectConfig.cards) : [];
+    const cardLock = projectRoot ? await loadCardLock(projectRoot) : null;
+    lockedCards = cardLock?.cards ?? (projectConfig.cards ? await resolveProjectCards(normalized.agentsDir, projectConfig.cards) : []);
     projectConfigWithCards = mergeCardManifestsIntoProjectConfig(
       projectConfig,
       lockedCards.map((card) => card.manifest),
     );
-    const merged = mergeProjectConfig(baseConfig, registry, projectConfigWithCards);
+    cardServerDefinitions = collectCardServerDefinitions(lockedCards);
+    const registryWithCards = mergeCardServerDefinitionsIntoRegistry(registry, cardServerDefinitions);
+    const projectOverlay: ProjectConfig = {
+      ...projectConfigWithCards,
+      servers: projectConfig.servers,
+    };
+    const merged = mergeProjectConfig(baseConfig, registryWithCards, projectOverlay);
     effectiveConfig = merged.config;
     effectiveRegistry = merged.registry;
     skillSelection = {
@@ -98,6 +109,7 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
     projectRoot,
     projectConfig,
     projectConfigWithCards,
+    cardServerDefinitions,
     lockedCards,
     skillSelection,
     recordPath: projectRoot ? resolveProjectWriteRecordPath(projectRoot) : resolveGlobalWriteRecordPath(normalized.agentsDir),

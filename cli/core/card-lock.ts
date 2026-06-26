@@ -24,16 +24,23 @@ export interface CardLockEntry {
   integrity: string;
   manifest: CardManifest;
   skills: string[];
+  hooks: string[];
+  hookConsent?: {
+    consentedAt: string;
+    consentedRange: string;
+  };
   registry: null;
   origin: CardOrigin;
   git?: GitLockInfo;
 }
 
 export interface CardLockfile {
-  lockfileVersion: 2;
+  lockfileVersion: 2 | 3;
   store?: { minDrwnVersion?: string };
   cards: CardLockEntry[];
 }
+
+const HOOKS_MIN_DRWN_VERSION = "0.3.0";
 
 export function cardLockPath(projectRoot: string) {
   return join(projectRoot, ".agents", "drwn", "card.lock");
@@ -49,21 +56,28 @@ export async function loadCardLock(projectRoot: string): Promise<CardLockfile | 
 
 export async function writeCardLock(projectRoot: string, cards: CardLockEntry[]) {
   const path = cardLockPath(projectRoot);
-  const lockfile = validateCardLockfile({ lockfileVersion: 2, cards });
+  const lockfile = validateCardLockfile({
+    lockfileVersion: 3,
+    store: { minDrwnVersion: HOOKS_MIN_DRWN_VERSION },
+    cards,
+  });
   await writeAtomically(path, `${JSON.stringify(lockfile, null, 2)}\n`);
   return path;
 }
 
 export function validateCardLockfile(input: unknown, source = "card lockfile"): CardLockfile {
-  if (!isObject(input) || input.lockfileVersion !== 2 || !Array.isArray(input.cards)) {
-    throw new Error(`Invalid card lockfile ${source}: expected lockfileVersion: 2`);
+  if (!isObject(input) || (input.lockfileVersion !== 2 && input.lockfileVersion !== 3) || !Array.isArray(input.cards)) {
+    throw new Error(`Invalid card lockfile ${source}: expected lockfileVersion: 2 or 3`);
   }
-  const cards = input.cards.map((entry, index) => validateCardLockEntry(entry, `${source} cards[${index}]`));
+  const lockfileVersion = input.lockfileVersion;
+  const cards = input.cards.map((entry, index) =>
+    validateCardLockEntry(entry, `${source} cards[${index}]`, lockfileVersion),
+  );
   const store = isObject(input.store) ? { minDrwnVersion: stringOrUndefined(input.store.minDrwnVersion) } : undefined;
-  return store ? { lockfileVersion: 2, store, cards } : { lockfileVersion: 2, cards };
+  return store ? { lockfileVersion, store, cards } : { lockfileVersion, cards };
 }
 
-function validateCardLockEntry(input: unknown, source: string): CardLockEntry {
+function validateCardLockEntry(input: unknown, source: string, lockfileVersion: 2 | 3): CardLockEntry {
   if (!isObject(input)) {
     throw new Error(`Invalid card lock entry ${source}: expected object`);
   }
@@ -80,6 +94,10 @@ function validateCardLockEntry(input: unknown, source: string): CardLockEntry {
   if (!Array.isArray(input.skills) || !input.skills.every((skill) => typeof skill === "string")) {
     throw new Error(`Invalid card lock entry ${source}: skills must be string[]`);
   }
+  if (lockfileVersion === 3 && (!Array.isArray(input.hooks) || !input.hooks.every((hook) => typeof hook === "string"))) {
+    throw new Error(`Invalid card lock entry ${source}: hooks must be string[]`);
+  }
+  const hookConsent = validateHookConsent(input.hookConsent, source);
   if (input.registry !== null) {
     throw new Error(`Invalid card lock entry ${source}: registry must be null`);
   }
@@ -93,9 +111,29 @@ function validateCardLockEntry(input: unknown, source: string): CardLockEntry {
     integrity: input.integrity,
     manifest: input.manifest,
     skills: [...input.skills],
+    hooks: Array.isArray(input.hooks) ? [...input.hooks] : [],
+    ...(hookConsent ? { hookConsent } : {}),
     registry: null,
     origin,
     ...(git ? { git } : {}),
+  };
+}
+
+function validateHookConsent(input: unknown, source: string): CardLockEntry["hookConsent"] | undefined {
+  if (input === undefined) {
+    return undefined;
+  }
+  if (!isObject(input)) {
+    throw new Error(`Invalid card lock entry ${source}: hookConsent must be an object`);
+  }
+  assertString(input.consentedAt, `${source}.hookConsent.consentedAt`);
+  assertString(input.consentedRange, `${source}.hookConsent.consentedRange`);
+  if (Number.isNaN(Date.parse(input.consentedAt)) || new Date(input.consentedAt).toISOString() !== input.consentedAt) {
+    throw new Error(`Invalid card lock entry ${source}: hookConsent.consentedAt must be an ISO timestamp`);
+  }
+  return {
+    consentedAt: input.consentedAt,
+    consentedRange: input.consentedRange,
   };
 }
 

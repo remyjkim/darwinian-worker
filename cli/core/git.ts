@@ -60,7 +60,7 @@ export interface GitLogOptions {
 export async function runGit(args: string[], opts: GitRunOpts = {}): Promise<GitRunResult> {
   const proc = Bun.spawn(["git", ...args], {
     cwd: opts.cwd,
-    env: opts.env ? { ...process.env, ...opts.env } : undefined,
+    env: { ...process.env, ...opts.env },
     stdin: opts.stdin ? "pipe" : undefined,
     stdout: "pipe",
     stderr: "pipe",
@@ -100,6 +100,13 @@ export async function initBare(path: string): Promise<void> {
   await mkdir(path, { recursive: true });
   const result = await runGit(["init", "--bare", path]);
   throwForFailure(result, "GIT_INIT_FAILED", `git init --bare failed`, ["init", "--bare", path]);
+  const headResult = await runInRepo(path, ["symbolic-ref", "HEAD", "refs/heads/main"]);
+  throwForFailure(
+    headResult,
+    "GIT_INIT_HEAD_FAILED",
+    "git symbolic-ref HEAD refs/heads/main failed",
+    ["symbolic-ref", "HEAD", "refs/heads/main"],
+  );
 }
 
 export async function revParse(repoPath: string, ref: string): Promise<string> {

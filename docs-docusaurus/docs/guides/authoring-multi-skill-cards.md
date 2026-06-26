@@ -24,7 +24,10 @@ Add any MCP definitions the card should carry:
 
 ```bash
 drwn card source add-mcp @team/review-stack context7
+drwn card source add-mcp @team/review-stack team-tools --from ./team-tools.json
 ```
+
+Use `optional: true` in an MCP definition when the card can work without that server or when the server needs per-project credentials. Consumers will see the skipped optional server during `drwn write` and can enable it with `drwn add mcp <server-name>`.
 
 Set metadata before publishing:
 

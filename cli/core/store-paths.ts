@@ -2,6 +2,7 @@
 // ABOUTME: Keeps store layout decisions separate from legacy path helpers.
 
 import { join } from "node:path";
+import type { Runtime } from "./hook-policy/types";
 import { DrwnError } from "./errors";
 
 export function resolveStoreRoot(agentsDir: string) {
@@ -39,8 +40,15 @@ export function resolveCardsRoot(agentsDir: string) {
   return join(resolveStoreRoot(agentsDir), "cards");
 }
 
-function assertSafePathPart(value: string, label: string) {
-  if (!value || value.includes("..") || value.includes("\\") || value.startsWith("/") || value.startsWith(".")) {
+export function assertSafePathPart(value: string, label: string) {
+  if (
+    !value ||
+    value.includes("..") ||
+    value.includes("/") ||
+    value.includes("\\") ||
+    value.startsWith("/") ||
+    value.startsWith(".")
+  ) {
     throw new Error(`Invalid ${label}: ${value}`);
   }
 }
@@ -152,6 +160,16 @@ export function resolveStoreMcpServerFile(agentsDir: string, serverId: string) {
 
 export function resolveStoreGeneratedDir(agentsDir: string) {
   return join(resolveStoreRoot(agentsDir), "generated");
+}
+
+export function resolveGeneratedHooksDir(generatedDir: string, runtime: Runtime) {
+  if (runtime === "claude-code") {
+    return join(generatedDir, "hooks", "claude");
+  }
+  if (runtime === "codex" || runtime === "mastra") {
+    return join(generatedDir, "hooks", runtime);
+  }
+  throw new Error(`Invalid hook runtime: ${String(runtime)}`);
 }
 
 export function resolveGlobalWriteRecordPath(agentsDir: string) {

@@ -1,0 +1,148 @@
+// ABOUTME: Verifies drwn write materializes card hook composers end to end.
+// ABOUTME: Protects source-to-publish-to-project hook wiring across runtimes.
+
+import { afterEach, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
+import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture } from "./helpers";
+
+const tempRoots: string[] = [];
+
+afterEach(async () => {
+  await cleanupTempRoots(tempRoots);
+});
+
+async function runComposer(path: string, payload: unknown) {
+  const proc = Bun.spawn([process.execPath, path], {
+    stdin: "pipe",
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  proc.stdin.write(JSON.stringify(payload));
+  proc.stdin.end();
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+  return { stdout, stderr, exitCode };
+}
+
+test("drwn write materializes card hook composers and runtime settings", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  expect((await runAgentsCli(["card", "new", "@me/policy", "--no-git"], envFor(fixture))).exitCode).toBe(0);
+  expect((await runAgentsCli(["card", "source", "add-hook", "@me/policy", "guard"], envFor(fixture))).exitCode).toBe(0);
+  const sourceDir = join(fixture.agentsDir, "drwn", "sources", "@me", "policy");
+  const policyPath = join(sourceDir, "hooks", "guard", "policy.ts");
+  await writeFile(policyPath, `
+    import { defineToolPolicy } from "darwinian-harness/hook-policy";
+    export default defineToolPolicy({
+      policyKind: "enforcement",
+      matcher: "Bash",
+      beforeToolCall(event) {
+        return { action: "deny", reason: \`blocked by \${event.runtime}\` };
+      },
+    });
+  `);
+  expect((await runAgentsCli(["card", "publish", "@me/policy"], envFor(fixture))).exitCode).toBe(0);
+  const manifest = JSON.parse(await readFile(join(sourceDir, "card.json"), "utf8"));
+
+  const projectDir = join(fixture.root, "project");
+  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
+  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1, cards: [] }, null, 2));
+  expect((await runAgentsCli(["card", "add", `@me/policy@${manifest.version}`], envFor(fixture), projectDir)).exitCode).toBe(0);
+  expect((await runAgentsCli(["card", "trust", "@me/policy", "--hooks"], envFor(fixture), projectDir)).exitCode).toBe(0);
+
+  const write = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);
+
+  expect(write.exitCode).toBe(0);
+  const writeResult = JSON.parse(write.stdout);
+  expect(writeResult.warnings.join("\n")).toContain("/hooks");
+  const claudeComposer = join(projectDir, ".agents", "drwn", "generated", "hooks", "claude", "composer.mjs");
+  const codexComposer = join(projectDir, ".agents", "drwn", "generated", "hooks", "codex", "composer.mjs");
+  expect(existsSync(claudeComposer)).toBe(true);
+  expect(existsSync(codexComposer)).toBe(true);
+  const resolvedClaudeComposer = await realpath(claudeComposer);
+  const resolvedCodexComposer = await realpath(codexComposer);
+  const claudeSettings = JSON.parse(await readFile(join(projectDir, ".claude", "settings.json"), "utf8"));
+  expect(claudeSettings.hooks.PreToolUse[0].hooks[0].args).toEqual([resolvedClaudeComposer]);
+  const codexHooks = JSON.parse(await readFile(join(projectDir, ".codex", "hooks.json"), "utf8"));
+  expect(codexHooks.hooks.PreToolUse[0].hooks[0].command).toContain(resolvedCodexComposer);
+
+  const composer = await runComposer(claudeComposer, {
+    hook_event_name: "PreToolUse",
+    tool_name: "Bash",
+    tool_input: { command: "rm -rf /" },
+  });
+  expect(composer.exitCode).toBe(0);
+  expect(JSON.parse(composer.stdout).hookSpecificOutput).toMatchObject({
+    permissionDecision: "deny",
+    permissionDecisionReason: "blocked by claude-code",
+  });
+});
+
+test("drwn write skips untrusted hooks and --strict-hooks fails", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  expect((await runAgentsCli(["card", "new", "@me/policy", "--no-git"], envFor(fixture))).exitCode).toBe(0);
+  expect((await runAgentsCli(["card", "source", "add-hook", "@me/policy", "guard"], envFor(fixture))).exitCode).toBe(0);
+  const sourceDir = join(fixture.agentsDir, "drwn", "sources", "@me", "policy");
+  await writeFile(join(sourceDir, "hooks", "guard", "policy.ts"), `
+    import { defineToolPolicy } from "darwinian-harness/hook-policy";
+    export default defineToolPolicy({
+      policyKind: "enforcement",
+      beforeToolCall() { return { action: "deny", reason: "blocked" }; },
+    });
+  `);
+  expect((await runAgentsCli(["card", "publish", "@me/policy"], envFor(fixture))).exitCode).toBe(0);
+  const manifest = JSON.parse(await readFile(join(sourceDir, "card.json"), "utf8"));
+  const projectDir = join(fixture.root, "project");
+  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
+  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1, cards: [] }, null, 2));
+  expect((await runAgentsCli(["card", "add", `@me/policy@${manifest.version}`], envFor(fixture), projectDir)).exitCode).toBe(0);
+
+  const write = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);
+  const strict = await runAgentsCli(["write", "--strict-hooks"], envFor(fixture), projectDir);
+
+  expect(write.exitCode).toBe(0);
+  const result = JSON.parse(write.stdout);
+  expect(result.warnings.join("\n")).toContain("drwn card trust @me/policy --hooks");
+  expect(existsSync(join(projectDir, ".agents", "drwn", "generated", "hooks", "claude", "composer.mjs"))).toBe(false);
+  expect(strict.exitCode).not.toBe(0);
+  expect(strict.stderr).toContain("drwn card trust @me/policy --hooks");
+});
+
+test("drwn write honors project hooks.exclude entries", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  expect((await runAgentsCli(["card", "new", "@me/policy", "--no-git"], envFor(fixture))).exitCode).toBe(0);
+  expect((await runAgentsCli(["card", "source", "add-hook", "@me/policy", "guard"], envFor(fixture))).exitCode).toBe(0);
+  const sourceDir = join(fixture.agentsDir, "drwn", "sources", "@me", "policy");
+  await writeFile(join(sourceDir, "hooks", "guard", "policy.ts"), `
+    import { defineToolPolicy } from "darwinian-harness/hook-policy";
+    export default defineToolPolicy({
+      policyKind: "enforcement",
+      beforeToolCall() { return { action: "deny", reason: "blocked" }; },
+    });
+  `);
+  expect((await runAgentsCli(["card", "publish", "@me/policy"], envFor(fixture))).exitCode).toBe(0);
+  const manifest = JSON.parse(await readFile(join(sourceDir, "card.json"), "utf8"));
+
+  const projectDir = join(fixture.root, "project");
+  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
+  await writeFile(
+    join(projectDir, ".agents", "drwn", "config.json"),
+    JSON.stringify({ version: 1, cards: [], hooks: { exclude: ["@me/policy:guard"] } }, null, 2),
+  );
+  expect((await runAgentsCli(["card", "add", `@me/policy@${manifest.version}`], envFor(fixture), projectDir)).exitCode).toBe(0);
+
+  const write = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);
+
+  expect(write.exitCode).toBe(0);
+  expect(existsSync(join(projectDir, ".agents", "drwn", "generated", "hooks", "claude", "composer.mjs"))).toBe(false);
+  expect(existsSync(join(projectDir, ".claude", "settings.json"))).toBe(false);
+  const claudeMcp = JSON.parse(await readFile(join(projectDir, ".mcp.json"), "utf8"));
+  expect(claudeMcp.mcpServers.context7).toBeDefined();
+});

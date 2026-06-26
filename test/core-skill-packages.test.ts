@@ -2,7 +2,7 @@
 // ABOUTME: Protects the npm-pack-based extension source model before command-layer wiring is added.
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { access, mkdtemp, mkdir, readlink, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { access, mkdtemp, mkdir, readFile, readlink, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -72,6 +72,18 @@ async function createBundleFixture(root: string, options?: { packageName?: strin
   return { bundleRoot, packageName, version, skillName };
 }
 
+async function createLooseSkillFixture(root: string, options?: { skillName?: string; body?: string; withName?: boolean }) {
+  const skillName = options?.skillName ?? "loose-skill";
+  const skillRoot = join(root, skillName);
+  await mkdir(skillRoot, { recursive: true });
+  const frontmatter = options?.withName === false
+    ? "---\ndescription: loose fixture\n---\n"
+    : `---\nname: ${skillName}\ndescription: loose fixture\n---\n`;
+  await writeFile(join(skillRoot, "SKILL.md"), `${frontmatter}\n${options?.body ?? "# Loose skill\n"}`);
+  await writeFile(join(skillRoot, "notes.md"), "auxiliary file\n");
+  return { skillRoot, skillName, skillMd: join(skillRoot, "SKILL.md") };
+}
+
 describe("core skill packages", () => {
   test("loadBundleManifest parses a valid bundle manifest", async () => {
     const root = await createTempRoot();
@@ -135,6 +147,19 @@ describe("core skill packages", () => {
     await expect(validateBundleManifest(bundleRoot, manifest, new Set(["alpha"]), packageName, version)).rejects.toThrow(/collision/i);
   });
 
+  test("classifySkillAddInput preserves package specs with slashes for npm pack", async () => {
+    const root = await createTempRoot();
+    const loose = await createLooseSkillFixture(root, { skillName: "classified-loose" });
+
+    const { classifySkillAddInput } = await import("../cli/core/skill-packages");
+
+    expect(classifySkillAddInput(loose.skillMd)).toBe("loose-skill");
+    expect(classifySkillAddInput(loose.skillRoot)).toBe("loose-skill");
+    expect(classifySkillAddInput("github:owner/repo")).toBe("package-spec");
+    expect(classifySkillAddInput("git+https://github.com/owner/repo.git")).toBe("package-spec");
+    expect(() => classifySkillAddInput("./missing/SKILL.md")).toThrow(/does not exist/i);
+  });
+
   test("listInstalledSkillBundles discovers installed bundles from the filesystem layout", async () => {
     const root = await createTempRoot();
     const agentsDir = join(root, "home", ".agents");
@@ -195,5 +220,176 @@ describe("core skill packages", () => {
     });
 
     await expect(access(join(bundleRoot, "prepack-ran.txt"))).rejects.toThrow();
+  });
+
+  test("installSkillBundleRoot installs a prepared bundle root", async () => {
+    const root = await createTempRoot();
+    const agentsDir = join(root, "home", ".agents");
+    const { bundleRoot, packageName, version, skillName } = await createBundleFixture(root);
+
+    const { installSkillBundleRoot } = await import("../cli/core/skill-packages");
+    const installed = await installSkillBundleRoot({
+      agentsDir,
+      bundleRoot,
+      packageName,
+      version,
+      existingSkillNames: new Set(),
+    });
+
+    expect(installed.packageName).toBe(packageName);
+    expect(await readlink(join(agentsDir, "packages", "skills", "@acme", "skills-sample", "current"))).toBe(version);
+    expect(await readFile(join(installed.versionRoot, "skills", "shared", skillName, "SKILL.md"), "utf8")).toContain(`name: ${skillName}`);
+  });
+
+  test("installSkillBundleRoot --replace allows same package and rejects other collisions", async () => {
+    const root = await createTempRoot();
+    const agentsDir = join(root, "home", ".agents");
+    const first = await createBundleFixture(join(root, "first"), { skillName: "replace-me" });
+    const second = await createBundleFixture(join(root, "second"), { skillName: "replace-me" });
+    await writeFile(join(second.bundleRoot, "skills", "shared", "replace-me", "SKILL.md"), "---\nname: replace-me\ndescription: replaced\n---\n");
+
+    const { installSkillBundleRoot } = await import("../cli/core/skill-packages");
+    const initial = await installSkillBundleRoot({
+      agentsDir,
+      bundleRoot: first.bundleRoot,
+      packageName: first.packageName,
+      version: first.version,
+      existingSkillNames: new Set(),
+    });
+    expect(await readFile(join(initial.versionRoot, "skills", "shared", "replace-me", "SKILL.md"), "utf8")).toContain("fixture");
+
+    const replaced = await installSkillBundleRoot({
+      agentsDir,
+      bundleRoot: second.bundleRoot,
+      packageName: second.packageName,
+      version: second.version,
+      existingSkillNames: new Set(["replace-me"]),
+      existingSkills: [{ name: "replace-me", sourceType: "npm", sourceId: second.packageName }],
+      replace: true,
+    });
+    expect(await readFile(join(replaced.versionRoot, "skills", "shared", "replace-me", "SKILL.md"), "utf8")).toContain("replaced");
+
+    const repoCollision = await createBundleFixture(join(root, "repo-collision"), { skillName: "alpha" });
+    await expect(installSkillBundleRoot({
+      agentsDir,
+      bundleRoot: repoCollision.bundleRoot,
+      packageName: repoCollision.packageName,
+      version: repoCollision.version,
+      existingSkillNames: new Set(["alpha"]),
+      existingSkills: [{ name: "alpha", sourceType: "repo" }],
+      replace: true,
+    })).rejects.toThrow(/collision|replace/i);
+
+    const packageCollision = await createBundleFixture(join(root, "package-collision"), { packageName: "@acme/other", skillName: "hello-skill" });
+    await expect(installSkillBundleRoot({
+      agentsDir,
+      bundleRoot: packageCollision.bundleRoot,
+      packageName: packageCollision.packageName,
+      version: packageCollision.version,
+      existingSkillNames: new Set(["hello-skill"]),
+      existingSkills: [{ name: "hello-skill", sourceType: "npm", sourceId: "@acme/skills-sample" }],
+      replace: true,
+    })).rejects.toThrow(/collision|replace/i);
+  });
+
+  test("ingestLooseSkill imports direct files and directories as synthetic bundles", async () => {
+    const root = await createTempRoot();
+    const agentsDir = join(root, "home", ".agents");
+    const dirSkill = await createLooseSkillFixture(root, { skillName: "loose-dir" });
+    const fileSkill = await createLooseSkillFixture(root, { skillName: "loose-file" });
+
+    const { ingestLooseSkill } = await import("../cli/core/skill-packages");
+    const installedDir = await ingestLooseSkill({
+      agentsDir,
+      sourcePath: dirSkill.skillRoot,
+      existingSkillNames: new Set(),
+    });
+    const installedFile = await ingestLooseSkill({
+      agentsDir,
+      sourcePath: fileSkill.skillMd,
+      existingSkillNames: new Set(["loose-dir"]),
+      existingSkills: [{ name: "loose-dir", sourceType: "npm", sourceId: "@local/loose-dir" }],
+    });
+
+    expect(installedDir.packageName).toBe("@local/loose-dir");
+    expect(installedDir.activeVersion).toBe("0.1.0");
+    expect(installedDir.skillName).toBe("loose-dir");
+    expect(installedDir.frontmatterRewritten).toBe(false);
+    expect(await readFile(join(installedDir.versionRoot, "skills", "shared", "loose-dir", "notes.md"), "utf8")).toContain("auxiliary");
+    expect(installedFile.packageName).toBe("@local/loose-file");
+    expect(await readFile(join(installedFile.versionRoot, "skills", "shared", "loose-file", "SKILL.md"), "utf8")).toContain("name: loose-file");
+  });
+
+  test("ingestLooseSkill rewrites copied frontmatter for --as without changing the source", async () => {
+    const root = await createTempRoot();
+    const agentsDir = join(root, "home", ".agents");
+    const loose = await createLooseSkillFixture(root, { skillName: "source-name", withName: false });
+
+    const { ingestLooseSkill } = await import("../cli/core/skill-packages");
+    const installed = await ingestLooseSkill({
+      agentsDir,
+      sourcePath: loose.skillMd,
+      existingSkillNames: new Set(),
+      as: "target-name",
+    });
+
+    expect(installed.skillName).toBe("target-name");
+    expect(installed.frontmatterRewritten).toBe(true);
+    expect(await readFile(loose.skillMd, "utf8")).not.toContain("name: target-name");
+    expect(await readFile(join(installed.versionRoot, "skills", "shared", "target-name", "SKILL.md"), "utf8")).toContain("name: target-name");
+  });
+
+  test("ingestLooseSkill validates missing names, scopes, symlinks, package names, and store read-only", async () => {
+    const root = await createTempRoot();
+    const agentsDir = join(root, "home", ".agents");
+    const missingName = await createLooseSkillFixture(root, { skillName: "missing-name", withName: false });
+    const withSymlink = await createLooseSkillFixture(root, { skillName: "with-symlink" });
+    await symlink(join(withSymlink.skillRoot, "notes.md"), join(withSymlink.skillRoot, "linked.md"));
+
+    const { ingestLooseSkill } = await import("../cli/core/skill-packages");
+    await expect(ingestLooseSkill({
+      agentsDir,
+      sourcePath: missingName.skillRoot,
+      existingSkillNames: new Set(),
+    })).rejects.toThrow(/name|--as/i);
+    await expect(ingestLooseSkill({
+      agentsDir,
+      sourcePath: withSymlink.skillRoot,
+      existingSkillNames: new Set(),
+    })).rejects.toThrow(/symlink/i);
+    await expect(ingestLooseSkill({
+      agentsDir,
+      sourcePath: missingName.skillRoot,
+      existingSkillNames: new Set(),
+      as: "bad-package",
+      packageName: "../bad",
+    })).rejects.toThrow(/package/i);
+    await expect(ingestLooseSkill({
+      agentsDir,
+      sourcePath: missingName.skillRoot,
+      existingSkillNames: new Set(),
+      as: "bad-scope",
+      scope: "bad" as never,
+    })).rejects.toThrow(/scope/i);
+
+    const storeAgentsDir = join(root, "store-home", ".agents");
+    await mkdir(join(storeAgentsDir, "drwn"), { recursive: true });
+    await writeFile(join(storeAgentsDir, "drwn", "store.json"), JSON.stringify({ schemaVersion: 1, initAt: "2026-06-24T00:00:00.000Z" }));
+    const prior = process.env.DRWN_STORE_READONLY;
+    process.env.DRWN_STORE_READONLY = "1";
+    try {
+      await expect(ingestLooseSkill({
+        agentsDir: storeAgentsDir,
+        sourcePath: missingName.skillRoot,
+        existingSkillNames: new Set(),
+        as: "readonly-skill",
+      })).rejects.toThrow(/read-only/i);
+    } finally {
+      if (prior === undefined) {
+        delete process.env.DRWN_STORE_READONLY;
+      } else {
+        process.env.DRWN_STORE_READONLY = prior;
+      }
+    }
   });
 });

@@ -14,6 +14,19 @@ test("adding a skill is classified as minor", () => {
   expect(diffCards(base, { ...base, version: "1.1.0", skills: { include: ["alpha", "beta"] } }).classification).toBe("minor");
 });
 
+test("removing a hook is classified as major", () => {
+  expect(
+    diffCards(
+      { ...base, hooks: { include: ["audit"] } },
+      { ...base, version: "2.0.0", hooks: { include: [] } },
+    ).classification,
+  ).toBe("major");
+});
+
+test("adding a hook is classified as minor", () => {
+  expect(diffCards(base, { ...base, version: "1.1.0", hooks: { include: ["audit"] } }).classification).toBe("minor");
+});
+
 test("changing description only is classified as patch", () => {
   expect(diffCards(base, { ...base, version: "1.0.1", description: "new" }).classification).toBe("patch");
 });

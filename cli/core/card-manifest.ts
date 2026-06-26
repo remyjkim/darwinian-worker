@@ -13,6 +13,7 @@ export interface CardManifest {
   harness?: { minVersion?: string };
   bundles?: Record<string, string>;
   skills?: { include?: string[]; exclude?: string[]; shared?: string[] };
+  hooks?: { include?: string[]; exclude?: string[]; shared?: string[] };
   servers?: Record<string, ServerOverride>;
   extensions?: Record<string, ProjectExtensionConfig>;
   targets?: Partial<Record<TargetName, { enabled: boolean }>>;
@@ -94,6 +95,15 @@ export function validateCardManifest(input: unknown): CardManifestValidationResu
     } else if (manifest.skills.shared.length > 0) {
       errors.push("skills.shared is reserved for Wave 2 (registry references). Wave 1 supports only bundled skills.");
     }
+  }
+  if (manifest.hooks?.exclude) {
+    errors.push("hooks.exclude is not allowed in card manifests");
+  }
+  if (manifest.hooks?.shared) {
+    errors.push("hooks.shared is not allowed in card manifests");
+  }
+  if (manifest.hooks?.include && !Array.isArray(manifest.hooks.include)) {
+    errors.push("hooks.include must be an array");
   }
   for (const [bundle, range] of Object.entries(manifest.bundles ?? {})) {
     if (!bundle || typeof range !== "string" || !validRange(range)) {

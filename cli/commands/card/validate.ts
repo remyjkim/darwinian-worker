@@ -2,6 +2,8 @@
 // ABOUTME: Resolves a card ref and reports manifest, integrity, and bundled skill validity.
 
 import { Option } from "clipanion";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { resolveCard } from "../../core/card-store";
 import { DrwnError } from "../../core/errors";
 import { renderJson } from "../../core/output";
@@ -43,6 +45,12 @@ export class CardValidateCommand extends BaseCommand {
         repoRoot: this.context.repoRoot,
         cwd: this.context.cwd,
       });
+      for (const hook of card.manifest.hooks?.include ?? []) {
+        const policyPath = join(card.dir, "hooks", hook, "policy.ts");
+        if (!existsSync(policyPath)) {
+          throw new Error(`missing hook policy: ${policyPath}`);
+        }
+      }
       const payload = { ok: true, card: { name: card.name, version: card.version, integrity: card.integrity, origin: card.origin } };
       this.context.stdout.write(this.json ? renderJson(payload) : `Valid ${card.name}@${card.version}\n`);
       return 0;

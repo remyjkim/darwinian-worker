@@ -4,6 +4,14 @@
     "drwn": "cli/index.ts",
     "drwn-hx": "cli/index.ts"
   },
+  "exports": {
+    "./hook-policy": {
+      "types": "./cli/core/hook-policy/index.ts",
+      "import": "./cli/core/hook-policy/index.ts",
+      "default": "./cli/core/hook-policy/index.ts"
+    },
+    "./package.json": "./package.json"
+  },
   "type": "module",
   "description": "Local meta-harness CLI for managing AI agent skills, MCP servers, extensions, defaults, and project overlays.",
   "version": "0.2.1",

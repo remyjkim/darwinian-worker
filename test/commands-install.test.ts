@@ -98,6 +98,7 @@ test("install validates file-origin entries without fetching", async () => {
       integrity,
       manifest: { name: "@file/backend", version: "1.0.0" },
       skills: [],
+      hooks: [],
       registry: null,
       origin: "file",
     },

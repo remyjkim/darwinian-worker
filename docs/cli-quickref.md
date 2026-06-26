@@ -127,7 +127,7 @@ General commands:
 - `drwn search mcp <query>`
 - `drwn library list [skills|mcp|tools]`
 - `drwn library show <id>`
-- `drwn library add skill <packageSpec>`
+- `drwn library add skill <packageSpec|SKILL.md|skillDir>`
 - `drwn library add mcp <jsonFile> --as <serverId>`
 - `drwn library defaults list`
 - `drwn library defaults add skill <skillName>`
@@ -155,8 +155,10 @@ Card commands:
 - `drwn card source list`
 - `drwn card source show <name>`
 - `drwn card source doctor [name]`
-- `drwn card source add-skill <name> <skillName>`
+- `drwn card source add-skill <name> <skillName> [--from <SKILL.md|skillDir>]`
 - `drwn card source remove-skill <name> <skillName>`
+- `drwn card source add-hook <name> <policyName>`
+- `drwn card source remove-hook <name> <policyName>`
 - `drwn card source set <name> [options]`
 - `drwn card source add-mcp <name> <serverName>`
 - `drwn card source remove-mcp <name> <serverName>`
@@ -170,17 +172,31 @@ Card commands:
 - `drwn card list`
 - `drwn card show <cardRef>`
 - `drwn card status [--explain]`
+- `drwn card trust <name> --hooks [--range <semverRange>]`
+- `drwn card untrust <name> --hooks`
+- `drwn card audit`
 - `drwn card diff <beforeRef> <afterRef>`
 - `drwn card deprecate <cardRef>`
 - `drwn card validate <cardRef>`
 
 Card source commands operate on editable sources under `~/.agents/drwn/sources/<scope>/<name>/`. Published cards are immutable store releases under `~/.agents/drwn/cards/`, and consumed cards are the refs and locks recorded by a project.
 
+Card hooks:
+
+- Authors scaffold policies with `drwn card source add-hook <card> <policyName>`. This creates `hooks/<policyName>/policy.ts` and adds the policy to `card.json` under `hooks.include`.
+- Consumers must explicitly consent before hook code is materialized: `drwn card trust <card> --hooks`. Consent is stored in `card.lock` with a semver range; `card untrust <card> --hooks` clears it.
+- `drwn write` silently skips hook policies without valid consent and reports a warning. Use `drwn write --strict-hooks` in CI when missing hook consent should fail the write.
+- Claude Code and Codex hook generation follow the existing `targets.claude.enabled` and `targets.codex.enabled` settings. Cursor has no hook runtime in this release.
+- Mastra hook generation is opt-in per project with `hooks.runtimes.mastra.enabled: true` in `<project>/.agents/drwn/config.json`.
+- `hooks.exclude` can skip a policy by bare policy name or by `@scope/card:policy-name`.
+- drwn hook consent only gates drwn materialization. Codex project-local hooks may still require Codex's own `/hooks` review/trust flow before they run.
+
 Typical source authoring:
 
 ```bash
 drwn card new @your-handle/backend --no-git
 drwn card source add-skill @your-handle/backend reviewer
+drwn card source add-hook @your-handle/backend audit-tool-calls
 drwn card source add-mcp @your-handle/backend context7
 drwn card source set @your-handle/backend --description "Backend review harness" --version 0.1.0 --stability stable --last-validated-with 0.1.0 --test-status-badge https://example.com/status.svg
 drwn card source doctor @your-handle/backend
@@ -218,7 +234,7 @@ Skill commands:
 - `drwn skills list`
 - `drwn skills curate <skillName>`
 - `drwn skills uncurate <skillName>`
-- `drwn skills packages add <packageSpec>`
+- `drwn skills packages add <packageSpec|SKILL.md|skillDir>`
 - `drwn skills packages list`
 - `drwn skills packages show <packageName>`
 
@@ -258,7 +274,7 @@ drwn analyze sessions --help
 The core model has five layers:
 
 - packaged harness defaults: config, built-in skills, and built-in MCP definitions
-- local library: package-backed skills and user MCP definitions under `~/.agents/drwn/skills` and `~/.agents/drwn/mcp-servers`
+- local library: package-backed skills, synthetic local skill snapshots, and user MCP definitions under `~/.agents/drwn/skills` and `~/.agents/drwn/mcp-servers`
 - user defaults: machine-wide active state under `~/.agents/drwn/machine.json`
 - project overlay: current-project overrides under `<project>/.agents/drwn/config.json`
 - downstream state: Claude, Codex, Cursor, and generated MCP config files
@@ -276,6 +292,7 @@ Card behavior:
 - if a card and a non-card source provide the same skill name, the card copy wins
 - `drwn write --dry-run` annotates each planned skill symlink with the winning resolution layer
 - unresolved included skill names fail `drwn write` before any downstream mutation
+- card-declared optional MCP servers are skipped until enabled; write output reports them and suggests `drwn add mcp <server-name>`
 
 Run only one side when needed:
 
@@ -371,9 +388,15 @@ drwn analyze sessions --archive /tmp/sessions.tar.gz --json
 
 ## MCP registry
 
-MCP servers are defined in [`registry/mcp-servers.json`](../registry/mcp-servers.json). Target config and optional toggles live in [`registry/config.json`](../registry/config.json).
+Reusable MCP servers are defined in [`registry/mcp-servers.json`](../registry/mcp-servers.json). Target config and optional toggles live in [`registry/config.json`](../registry/config.json).
 
 User-registered MCP servers live under `~/.agents/drwn/mcp-servers`. Machine-wide active MCP defaults live in `~/.agents/drwn/machine.json` under `defaults.mcpServers`.
+
+Card-declared MCP definitions are merged into the effective registry for projects that consume those cards. They do not need to exist in the reusable registry or user library. If a card-declared server has `optional: true`, it is off by default and can be enabled in that project with:
+
+```bash
+drwn add mcp <server-name>
+```
 
 Inspect active MCP state:
 
@@ -393,6 +416,7 @@ Notes:
 
 - `platform-provided` entries can live in the registry but are excluded from generated local tool configs
 - optional servers are included only when enabled
+- `drwn write` reports optional card MCPs as active, skipped, or shadowed by a different active definition
 - Parallel MCP is controlled by `config.parallel.mcp.enabled`
 - project-local extension settings such as `extensions.parallel.mcp` are applied when commands run inside that project
 
@@ -424,7 +448,7 @@ Only shared skills can be curated into `~/.agents/skills`. Claude-only and Codex
 
 ## Extension skill bundles
 
-`darwinian-harness` supports package-backed skill bundles for skills that should be available without being added to the built-in first-party tree.
+`darwinian-harness` supports package-backed skill bundles and loose local `SKILL.md` imports for skills that should be available without being added to the built-in first-party tree.
 
 Typical flow:
 
@@ -437,6 +461,14 @@ drwn write --dry-run
 drwn write
 ```
 
+Loose local skills can be imported directly. The import is a snapshot into the managed local library, not a live link to the source file:
+
+```bash
+drwn library add skill ./SKILL.md --as import-mcp-from-claude
+drwn add skill import-mcp-from-claude
+drwn write --dry-run
+```
+
 Global curation remains useful when a shared skill should be available by default across projects:
 
 ```bash
@@ -445,13 +477,22 @@ drwn skills curate <skillName>
 drwn write --skills-only
 ```
 
+For editable card sources, copy the same loose skill into the card source instead of importing it into the reusable library:
+
+```bash
+drwn card source add-skill @your-handle/backend import-mcp-from-claude --from ./SKILL.md
+drwn card source doctor @your-handle/backend
+```
+
 The distinction matters:
 
 - **added** means the bundle is available under `~/.agents/drwn/skills`
+- **loose-imported** means a local `SKILL.md` was normalized into a synthetic package-backed snapshot
+- **card-sourced** means the skill files were copied into an editable card source
 - **curated** means a shared skill is linked into `~/.agents/skills`
 - **written** means the curated skill is linked into downstream tool directories
 
-Current package-backed bundle support includes add, list, show, inventory, curation, and downstream write. Update and remove lifecycle commands are intentionally not part of the first implementation.
+Current bundle support includes add, list, show, inventory, curation, loose-skill normalization, and downstream write. Update and remove lifecycle commands are intentionally not part of the first implementation. JSON inventory currently reports synthetic local skill bundles with `sourceType: "npm"` and `sourceId: "@local/<skillName>"`.
 
 ## Extensions
 

@@ -195,6 +195,48 @@ function verifyDocsPresence() {
   } satisfies CheckResult;
 }
 
+async function verifySchemaPackageReachable() {
+  const pkg = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8")) as {
+    dependencies?: Record<string, string>;
+  };
+  const dep = pkg.dependencies?.["drwn-catalog-schema"];
+
+  if (!dep) {
+    return {
+      name: "schema package coupling",
+      ok: false,
+      details: "Missing dependency: drwn-catalog-schema",
+    } satisfies CheckResult;
+  }
+
+  if (dep.startsWith("file:") || dep.startsWith("link:") || dep.startsWith("workspace:")) {
+    return {
+      name: "schema package coupling",
+      ok: true,
+      details: `drwn-catalog-schema resolves locally (${dep}); skipping registry check`,
+    } satisfies CheckResult;
+  }
+
+  const proc = Bun.spawn(["npm", "view", `drwn-catalog-schema@${dep}`, "version"], {
+    cwd: repoRoot,
+    stdout: "pipe",
+    stderr: "pipe",
+    env: process.env,
+  });
+  const stdout = await new Response(proc.stdout).text();
+  const stderr = await new Response(proc.stderr).text();
+  const exitCode = await proc.exited;
+
+  return {
+    name: "schema package coupling",
+    ok: exitCode === 0,
+    details:
+      exitCode === 0
+        ? `drwn-catalog-schema@${dep} resolves to ${stdout.trim()}`
+        : `drwn-catalog-schema@${dep} not resolvable on npm: ${stderr.trim()}`,
+  } satisfies CheckResult;
+}
+
 async function main() {
   const checks: CheckResult[] = [];
   const warnings: string[] = [];
@@ -218,6 +260,7 @@ async function main() {
   warnings.push(...packageResult.warnings);
 
   checks.push(verifyDocsPresence());
+  checks.push(await verifySchemaPackageReachable());
   checks.push(await verifyPackageContents());
 
   const report: GateReport = {

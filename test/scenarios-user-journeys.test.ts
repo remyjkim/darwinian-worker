@@ -175,7 +175,7 @@ describe("user journeys", () => {
 
     result = await runAgentsCli(["write", "--dry-run"], env, projectDir);
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain(join(projectDir, ".claude", "settings.json"));
+    expect(result.stdout).toContain(join(projectDir, ".mcp.json"));
 
     result = await runAgentsCli(["write"], env, projectDir);
     expect(result.exitCode).toBe(0);

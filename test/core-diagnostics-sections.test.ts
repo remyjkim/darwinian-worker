@@ -31,6 +31,7 @@ test("diagnostics sections compose cards, store, and write-record state", async 
       integrity: "sha256-test",
       manifest: { name: "@me/backend", version: "1.0.0", skills: { include: ["alpha"] } },
       skills: ["alpha"],
+      hooks: [],
       registry: null,
       origin: "store",
       git: { commit: "d".repeat(40) },

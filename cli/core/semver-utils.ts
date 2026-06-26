@@ -11,8 +11,8 @@ export function validRange(range: string) {
   return semver.validRange(range) !== null;
 }
 
-export function satisfies(version: string, range: string) {
-  return semver.satisfies(version, range, { includePrerelease: false });
+export function satisfies(version: string, range: string, options?: { includePrerelease?: boolean }) {
+  return semver.satisfies(version, range, { includePrerelease: options?.includePrerelease ?? false });
 }
 
 export function maxSatisfying(versions: string[], range: string) {

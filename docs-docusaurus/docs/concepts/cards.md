@@ -12,6 +12,8 @@ The model separates authoring from consumption:
 - published cards live under `~/.agents/drwn/cards/@scope/name.git` with version tags
 - projects consume cards through `.agents/drwn/config.json` and lock exact resolutions in `.agents/drwn/card.lock`
 
+Card MCP definitions become definition sources for consuming projects. Optional card MCPs stay inactive until the project enables them, so a card can advertise a credentialed or heavyweight capability without silently changing the user's live agent config.
+
 Common card commands:
 
 ```bash

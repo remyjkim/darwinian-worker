@@ -3,11 +3,13 @@
 
 import { describe, expect, test } from "bun:test";
 import {
+  assertSafePathPart,
   resolveCardBareRepoPath,
   resolveCatalogPath,
   resolveCatalogsDir,
   resolveCatalogsIndexPath,
   resolveExtractedPath,
+  resolveGeneratedHooksDir,
 } from "../cli/core/store-paths";
 
 describe("Git-backed store paths", () => {
@@ -30,5 +32,23 @@ describe("Git-backed store paths", () => {
     expect(resolveCatalogsIndexPath("/agents")).toBe("/agents/drwn/catalogs.json");
     expect(resolveCatalogPath("/agents", "https://github.com/team/cards.git"))
       .toBe("/agents/drwn/catalogs/github.com_team_cards");
+  });
+
+  test("assertSafePathPart rejects path traversal and separators", () => {
+    expect(() => assertSafePathPart("policy-name", "hook policy")).not.toThrow();
+
+    for (const value of ["", "..", ".hidden", "a/b", "a\\b", "/abs"]) {
+      expect(() => assertSafePathPart(value, "hook policy")).toThrow(`Invalid hook policy: ${value}`);
+    }
+  });
+
+  test("resolveGeneratedHooksDir maps hook runtimes into generated hook directories", () => {
+    expect(resolveGeneratedHooksDir("/project/.agents/drwn/generated", "claude-code"))
+      .toBe("/project/.agents/drwn/generated/hooks/claude");
+    expect(resolveGeneratedHooksDir("/project/.agents/drwn/generated", "codex"))
+      .toBe("/project/.agents/drwn/generated/hooks/codex");
+    expect(resolveGeneratedHooksDir("/project/.agents/drwn/generated", "mastra"))
+      .toBe("/project/.agents/drwn/generated/hooks/mastra");
+    expect(() => resolveGeneratedHooksDir("/generated", "cursor" as never)).toThrow("Invalid hook runtime: cursor");
   });
 });

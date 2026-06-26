@@ -82,6 +82,7 @@ function diffTargets(before?: CardManifest["targets"], after?: CardManifest["tar
 export function diffCards(before: CardManifest, after: CardManifest): CardDiffResult {
   const changes: CardDiffChange[] = [
     ...diffStringSet("skills.include", sortedValues(before.skills?.include), sortedValues(after.skills?.include)),
+    ...diffStringSet("hooks.include", sortedValues(before.hooks?.include), sortedValues(after.hooks?.include)),
     ...diffRecordKeys("servers", before.servers, after.servers),
     ...diffRecordKeys("extensions", before.extensions, after.extensions),
     ...diffTargets(before.targets, after.targets),

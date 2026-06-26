@@ -1,0 +1,230 @@
+// ABOUTME: Materializes card hook policies into runtime-specific composer artifacts.
+// ABOUTME: Wires generated composers into Claude Code, Codex, and Mastra surfaces.
+
+import { existsSync, readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { join, relative } from "node:path";
+import type { CardLockEntry } from "../card-lock";
+import type { EffectiveState } from "../effective-state";
+import { isHookConsentValid } from "../hook-consent";
+import { expandHomePath, resolveToolPaths } from "../paths";
+import { type ClaudeHooksConfig, mergeClaudeSettingsText } from "../mcp";
+import { writeManagedFile } from "../managed-file";
+import { assertStoreWritable, resolveGeneratedHooksDir, resolveStoreGeneratedDir } from "../store-paths";
+import type { SyncResult, TargetName } from "../types";
+import { hashManagedContent, type ManagedPath } from "../write-record";
+import { bundleHookComposer, type HookPolicyBundleInput } from "./bundle-composer";
+import { emitMastraComposer } from "./emit-mastra-composer";
+import { resolveHookRuntimes } from "./runtime-selection";
+
+const COMMAND_TIMEOUT_SECONDS = 30;
+
+async function readTextIfExists(pathValue: string, fallback: string) {
+  try {
+    return await readFile(pathValue, "utf8");
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      return fallback;
+    }
+    throw error;
+  }
+}
+
+function managedPath(scopeRoot: string, absolutePath: string) {
+  return relative(scopeRoot, absolutePath).replace(/\\/g, "/");
+}
+
+function targetConfigPath(state: EffectiveState, targetName: TargetName, configuredPath: string) {
+  const toolPaths = resolveToolPaths(state.scopedOptions.toolRoot ?? state.scopedOptions.homeDir);
+  if (state.scopedOptions.writeScope === "project") {
+    if (targetName === "claude") return toolPaths.claudeSettings;
+    if (targetName === "codex") return toolPaths.codexConfig;
+    return toolPaths.cursorMcp;
+  }
+  return expandHomePath(configuredPath, state.scopedOptions.homeDir);
+}
+
+function isPolicyExcluded(cardName: string, policyName: string, exclusions: Set<string>) {
+  return exclusions.has(policyName) || exclusions.has(`${cardName}:${policyName}`);
+}
+
+function hookConsentWarning(card: CardLockEntry) {
+  return `Skipping hooks for ${card.name}@${card.version}: missing or out-of-range hook consent. Run drwn card trust ${card.name} --hooks to materialize them.`;
+}
+
+function collectPolicies(
+  cards: CardLockEntry[],
+  exclusions: Set<string>,
+  result: SyncResult,
+  strictHooks: boolean,
+): HookPolicyBundleInput[] {
+  const policies: HookPolicyBundleInput[] = [];
+  const consentWarnings: string[] = [];
+
+  for (const card of cards) {
+    const activeHooks = card.hooks.filter((policyName) => !isPolicyExcluded(card.name, policyName, exclusions));
+    if (activeHooks.length === 0) {
+      continue;
+    }
+    if (!isHookConsentValid(card)) {
+      consentWarnings.push(hookConsentWarning(card));
+      continue;
+    }
+    for (const policyName of activeHooks) {
+      policies.push({
+        cardName: card.name,
+        policyName,
+        policyTsPath: join(card.path, "hooks", policyName, "policy.ts"),
+      });
+    }
+  }
+
+  if (consentWarnings.length > 0) {
+    if (strictHooks) {
+      throw new Error(consentWarnings.join("\n"));
+    }
+    result.warnings.push(...consentWarnings);
+  }
+
+  return policies;
+}
+
+function claudeHooksConfig(composerPath: string): ClaudeHooksConfig {
+  const hook = { type: "command" as const, command: "node", args: [composerPath], timeout: COMMAND_TIMEOUT_SECONDS };
+  return {
+    PreToolUse: [{ matcher: ".*", hooks: [hook] }],
+    PostToolUse: [{ matcher: ".*", hooks: [hook] }],
+  };
+}
+
+function codexHooksConfig(composerPath: string) {
+  const hook = {
+    type: "command",
+    command: `node ${JSON.stringify(composerPath)}`,
+    timeout: COMMAND_TIMEOUT_SECONDS,
+    statusMessage: "Checking drwn card hook policy",
+  };
+  return {
+    hooks: {
+      PreToolUse: [{ matcher: ".*", hooks: [hook] }],
+      PostToolUse: [{ matcher: ".*", hooks: [{ ...hook, statusMessage: "Recording drwn card hook result" }] }],
+    },
+  };
+}
+
+function recordManagedContent(scopeRoot: string, pathValue: string, contentHash: string): ManagedPath {
+  return { path: managedPath(scopeRoot, pathValue), kind: "managed-content", contentHash };
+}
+
+function recordComposer(result: SyncResult, scopeRoot: string, composerPath: string, beforeContent: string | null, dryRun: boolean) {
+  if (dryRun) {
+    result.changes.push(`write ${composerPath}`);
+    result.managedPaths?.push(recordManagedContent(scopeRoot, composerPath, "sha256-dry-run"));
+    return;
+  }
+
+  const nextContent = readFileSync(composerPath);
+  if (!beforeContent || hashManagedContent(beforeContent) !== hashManagedContent(nextContent)) {
+    result.changes.push(`write ${composerPath}`);
+  }
+  result.managedPaths?.push(recordManagedContent(scopeRoot, composerPath, hashManagedContent(nextContent)));
+}
+
+function readExistingContent(pathValue: string) {
+  return existsSync(pathValue) ? readFileSync(pathValue, "utf8") : null;
+}
+
+export async function syncHooks(state: EffectiveState): Promise<SyncResult> {
+  const result: SyncResult = { changes: [], warnings: [], managedPaths: [] };
+  const exclusions = new Set(state.projectConfigWithCards?.hooks?.exclude ?? state.projectConfig?.hooks?.exclude ?? []);
+  const policies = collectPolicies(state.lockedCards, exclusions, result, state.normalized.strictHooks ?? false);
+  if (policies.length === 0) {
+    return result;
+  }
+
+  if (!state.scopedOptions.dryRun) {
+    assertStoreWritable();
+  }
+
+  const generatedDir = state.scopedOptions.generatedDir ?? resolveStoreGeneratedDir(state.scopedOptions.agentsDir);
+  const runtimes = resolveHookRuntimes({
+    effectiveConfig: state.effectiveConfig,
+    projectConfig: state.projectConfigWithCards ?? state.projectConfig,
+    target: state.scopedOptions.target,
+  });
+
+  for (const runtime of runtimes) {
+    const outputDir = resolveGeneratedHooksDir(generatedDir, runtime);
+
+    if (runtime === "claude-code") {
+      const composerPath = join(outputDir, "composer.mjs");
+      const beforeContent = readExistingContent(composerPath);
+      if (!state.scopedOptions.dryRun) {
+        await bundleHookComposer({ runtime, outputDir, policies });
+      } else {
+        result.changes.push(`write ${composerPath}`);
+        result.managedPaths?.push(recordManagedContent(state.scopeRoot, composerPath, "sha256-dry-run"));
+      }
+      if (!state.scopedOptions.dryRun) {
+        recordComposer(result, state.scopeRoot, composerPath, beforeContent, state.scopedOptions.dryRun);
+      }
+
+      const settingsPath = targetConfigPath(state, "claude", state.effectiveConfig.targets.claude.configPath);
+      const current = await readTextIfExists(settingsPath, "{}\n");
+      const next = mergeClaudeSettingsText(current, state.activeServers, {
+        force: state.scopedOptions.force ?? false,
+        hooks: claudeHooksConfig(composerPath),
+        ...(state.scopedOptions.writeScope === "machine" ? { mcpServerOwnership: "none" as const } : {}),
+      });
+      writeManagedFile(settingsPath, next.text, state.scopedOptions.dryRun, result);
+      result.managedPaths?.push({
+        path: ".claude/settings.json",
+        kind: "managed-fields",
+        fields: Object.keys(next.fieldHashes),
+        fieldHashes: next.fieldHashes,
+      });
+      continue;
+    }
+
+    if (runtime === "codex") {
+      const composerPath = join(outputDir, "composer.mjs");
+      const beforeContent = readExistingContent(composerPath);
+      if (!state.scopedOptions.dryRun) {
+        await bundleHookComposer({ runtime, outputDir, policies });
+      } else {
+        result.changes.push(`write ${composerPath}`);
+        result.managedPaths?.push(recordManagedContent(state.scopeRoot, composerPath, "sha256-dry-run"));
+      }
+      if (!state.scopedOptions.dryRun) {
+        recordComposer(result, state.scopeRoot, composerPath, beforeContent, state.scopedOptions.dryRun);
+      }
+
+      const codexHooksPath = join(state.scopeRoot, ".codex", "hooks.json");
+      const content = `${JSON.stringify(codexHooksConfig(composerPath), null, 2)}\n`;
+      writeManagedFile(codexHooksPath, content, state.scopedOptions.dryRun, result);
+      result.managedPaths?.push(recordManagedContent(state.scopeRoot, codexHooksPath, hashManagedContent(content)));
+      if (state.scopedOptions.writeScope === "project") {
+        result.warnings.push(
+          "Codex project-local hooks may require Codex /hooks review/trust before generated drwn hooks run.",
+        );
+      }
+      continue;
+    }
+
+    if (runtime === "mastra") {
+      const composerPath = join(outputDir, "composer.ts");
+      const beforeContent = readExistingContent(composerPath);
+      if (!state.scopedOptions.dryRun) {
+        await emitMastraComposer({ outputDir, policies });
+      } else {
+        result.changes.push(`write ${composerPath}`);
+        result.managedPaths?.push(recordManagedContent(state.scopeRoot, composerPath, "sha256-dry-run"));
+      }
+      if (!state.scopedOptions.dryRun) {
+        recordComposer(result, state.scopeRoot, composerPath, beforeContent, state.scopedOptions.dryRun);
+      }
+    }
+  }
+
+  return result;
+}

@@ -2,7 +2,7 @@
 // ABOUTME: Keeps card consumer commands consistent and side-effect-light.
 
 import { dirname } from "node:path";
-import { loadCardLock, writeCardLock, type CardLockEntry } from "./card-lock";
+import { cardLockPath, loadCardLock, writeCardLock, type CardLockEntry } from "./card-lock";
 import {
   cardNamesEqual,
   formatCardSpec,
@@ -16,12 +16,19 @@ import { loadProjectConfig, resolveProjectRootFromConfigPath } from "./project";
 import { projectConfigPath, readProjectConfigForWrite, writeProjectConfigForWrite } from "./project-writes";
 import type { CardManifest } from "./card-manifest";
 import type { ProjectConfig } from "./types";
+import { satisfies, validRange } from "./semver-utils";
 
 export interface CardProjectMutation {
   projectConfigPath: string;
   lockPath: string;
   cards: string[];
   locked: CardLockEntry[];
+  warnings?: string[];
+}
+
+export interface CardTrustMutation {
+  lockPath: string;
+  card: CardLockEntry;
 }
 
 export async function resolveProjectCards(
@@ -39,6 +46,7 @@ export async function resolveProjectCards(
       integrity: card.integrity,
       manifest: card.manifest,
       skills: card.manifest.skills?.include ?? [],
+      hooks: card.manifest.hooks?.include ?? [],
       registry: null as null,
       origin: card.origin,
       ...(card.git ? { git: card.git } : {}),
@@ -105,11 +113,29 @@ export async function writeProjectCards(
   options: ResolveCardOptions = {},
 ): Promise<CardProjectMutation> {
   const config = readProjectConfigForWrite(projectRoot);
+  const previousLock = await loadCardLock(projectRoot);
   config.cards = [...specs];
   const configPath = writeProjectConfigForWrite(projectRoot, config);
-  const locked = await resolveProjectCards(agentsDir, config.cards, options);
+  const resolved = await resolveProjectCards(agentsDir, config.cards, options);
+  const warnings: string[] = [];
+  const previousByName = new Map((previousLock?.cards ?? []).map((card) => [card.name, card]));
+  const locked = resolved.map((card) => {
+    const previous = previousByName.get(card.name);
+    if (!previous?.hookConsent) {
+      return card;
+    }
+    if (satisfies(card.version, previous.hookConsent.consentedRange, { includePrerelease: true })) {
+      return { ...card, hookConsent: previous.hookConsent };
+    }
+    if (card.hooks.length > 0) {
+      warnings.push(
+        `${card.name} hook consent dropped: locked ${card.version} is outside consent range ${previous.hookConsent.consentedRange}. Run drwn card trust ${card.name} --hooks to re-consent.`,
+      );
+    }
+    return card;
+  });
   const lockPath = await writeCardLock(projectRoot, locked);
-  return { projectConfigPath: configPath, lockPath, cards: config.cards, locked };
+  return { projectConfigPath: configPath, lockPath, cards: config.cards, locked, warnings };
 }
 
 export async function getCurrentProjectCardSpecs(projectRoot: string) {
@@ -179,6 +205,66 @@ export async function updateProjectCardLock(
   return await writeProjectCards(projectRoot, agentsDir, await getCurrentProjectCardSpecs(projectRoot), options);
 }
 
+function findLockedCard(cards: CardLockEntry[], cardNameOrRef: string) {
+  const name = parseCardRef(cardNameOrRef).name;
+  return cards.find((card) => cardNamesEqual(card.name, name)) ?? null;
+}
+
+export async function setHookConsent(projectRoot: string, cardNameOrRef: string, range?: string): Promise<CardTrustMutation> {
+  const lock = await loadCardLock(projectRoot);
+  if (!lock) {
+    throw new Error("Card lockfile not found. Run drwn card update first.");
+  }
+  const target = findLockedCard(lock.cards, cardNameOrRef);
+  if (!target) {
+    throw new Error(`Card is not in project lockfile: ${parseCardRef(cardNameOrRef).name}`);
+  }
+  const consentedRange = range ?? `^${target.version}`;
+  if (!validRange(consentedRange)) {
+    throw new Error(`Invalid hook consent range: ${consentedRange}`);
+  }
+  const nextCards = lock.cards.map((card) =>
+    card === target
+      ? {
+          ...card,
+          hookConsent: {
+            consentedAt: new Date().toISOString(),
+            consentedRange,
+          },
+        }
+      : card,
+  );
+  await writeCardLock(projectRoot, nextCards);
+  return {
+    lockPath: cardLockPath(projectRoot),
+    card: nextCards.find((card) => cardNamesEqual(card.name, target.name))!,
+  };
+}
+
+export async function clearHookConsent(projectRoot: string, cardNameOrRef: string): Promise<CardTrustMutation> {
+  const lock = await loadCardLock(projectRoot);
+  if (!lock) {
+    throw new Error("Card lockfile not found. Run drwn card update first.");
+  }
+  const target = findLockedCard(lock.cards, cardNameOrRef);
+  if (!target) {
+    throw new Error(`Card is not in project lockfile: ${parseCardRef(cardNameOrRef).name}`);
+  }
+  const nextCards = lock.cards.map((card) => {
+    if (card !== target) {
+      return card;
+    }
+    const { hookConsent, ...rest } = card;
+    void hookConsent;
+    return rest;
+  });
+  await writeCardLock(projectRoot, nextCards);
+  return {
+    lockPath: cardLockPath(projectRoot),
+    card: nextCards.find((card) => cardNamesEqual(card.name, target.name))!,
+  };
+}
+
 export async function readProjectCardStatus(projectConfigPath: string, agentsDir: string) {
   const projectRoot = resolveProjectRootFromConfigPath(projectConfigPath);
   const config = await loadProjectConfig(projectConfigPath);
@@ -199,7 +285,7 @@ export async function findOutdatedProjectCards(
   agentsDir: string,
   options: ResolveCardOptions = {},
 ) {
-  const outdated: Array<{ name: string; current: string; latest: string }> = [];
+  const outdated: Array<{ name: string; current: string; latest: string; hookConsentRequiresRegrant?: boolean }> = [];
   const lock = await loadCardLock(projectRoot);
   const currentByName = new Map((lock?.cards ?? []).map((entry) => [entry.name, entry]));
   const resolved = await resolveProjectCards(agentsDir, await getCurrentProjectCardSpecs(projectRoot), options);
@@ -210,13 +296,27 @@ export async function findOutdatedProjectCards(
       continue;
     }
     if (isNewerVersion(next.version, current.version)) {
-      outdated.push({ name: next.name, current: current.version, latest: next.version });
+      outdated.push({
+        name: next.name,
+        current: current.version,
+        latest: next.version,
+        ...(current.hookConsent && current.hooks.length > 0 && !satisfies(next.version, current.hookConsent.consentedRange, { includePrerelease: true })
+          ? { hookConsentRequiresRegrant: true }
+          : {}),
+      });
       continue;
     }
 
     const latest = await highestPublishedVersion(agentsDir, next.name);
     if (latest && isNewerVersion(latest, next.version)) {
-      outdated.push({ name: next.name, current: next.version, latest });
+      outdated.push({
+        name: next.name,
+        current: next.version,
+        latest,
+        ...(current.hookConsent && current.hooks.length > 0 && !satisfies(latest, current.hookConsent.consentedRange, { includePrerelease: true })
+          ? { hookConsentRequiresRegrant: true }
+          : {}),
+      });
     }
   }
   return outdated;

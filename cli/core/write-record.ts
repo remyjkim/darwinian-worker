@@ -1,6 +1,7 @@
 // ABOUTME: Reads and writes drwn materialization records for drift detection and safe cleanup.
 // ABOUTME: Records only drwn-owned paths so cleanup never guesses ownership.
 
+import { createHash } from "node:crypto";
 import { closeSync, existsSync, fsyncSync, openSync, readFileSync, renameSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 
@@ -14,7 +15,12 @@ export interface WriteRecord {
 export type ManagedPath =
   | { path: string; kind: "symlink"; target: string }
   | { path: string; kind: "managed-fields"; fields: string[]; fieldHashes: Record<string, string> }
-  | { path: string; kind: "generated-symlink"; generatedPath: string };
+  | { path: string; kind: "generated-symlink"; generatedPath: string }
+  | { path: string; kind: "managed-content"; contentHash: string };
+
+export function hashManagedContent(content: string | Uint8Array) {
+  return `sha256-${createHash("sha256").update(content).digest("hex")}`;
+}
 
 export function resolveProjectWriteRecordPath(projectRoot: string) {
   return join(projectRoot, ".agents", "drwn", "write-record.json");

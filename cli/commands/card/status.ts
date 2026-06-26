@@ -4,8 +4,20 @@
 import { Option } from "clipanion";
 import { readProjectCardStatus } from "../../core/card-project";
 import { explainStatus } from "../../core/diagnostics";
+import { isHookConsentValid } from "../../core/hook-consent";
 import { renderJson } from "../../core/output";
 import { BaseCommand } from "../base";
+import type { CardLockEntry } from "../../core/card-lock";
+
+function formatHookConsent(card: CardLockEntry) {
+  if (!card.hookConsent) {
+    return "absent";
+  }
+  if (isHookConsentValid(card)) {
+    return `granted (${card.hookConsent.consentedRange})`;
+  }
+  return `out-of-range (consented: ${card.hookConsent.consentedRange}, locked: ${card.version})`;
+}
 
 export class CardStatusCommand extends BaseCommand {
   static override paths = [["card", "status"]];
@@ -41,7 +53,13 @@ export class CardStatusCommand extends BaseCommand {
     }
     const status = await readProjectCardStatus(this.context.projectConfigPath, this.context.agentsDir);
     if (this.json) {
-      this.context.stdout.write(renderJson(status));
+      this.context.stdout.write(renderJson({
+        ...status,
+        locked: status.locked.map((card) => ({
+          ...card,
+          hookConsent: card.hookConsent ?? null,
+        })),
+      }));
       return 0;
     }
     this.context.stdout.write(
@@ -50,7 +68,9 @@ export class CardStatusCommand extends BaseCommand {
         `Specs: ${status.specs.join(", ") || "none"}`,
         status.locked.length === 0
           ? "Locked: none"
-          : `Locked:\n${status.locked.map((card) => `- ${card.name}@${card.version} (${card.requested})`).join("\n")}`,
+          : `Locked:\n${status.locked.map((card) =>
+              `- ${card.name}@${card.version} (${card.requested}) hook-consent: ${formatHookConsent(card)}`
+            ).join("\n")}`,
         status.outdated.length === 0
           ? "Outdated: none"
           : `Outdated:\n${status.outdated.map((card) => `- ${card.name} ${card.current} -> ${card.latest}`).join("\n")}`,

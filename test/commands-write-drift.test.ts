@@ -19,13 +19,13 @@ function envFor(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
   };
 }
 
-test("write refuses when Claude mcpServers has been hand-edited", async () => {
+test("write refuses when a drwn-owned user-scope Claude MCP server has been hand-edited", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   expect((await runAgentsCli(["write"], envFor(fixture))).exitCode).toBe(0);
-  const settings = JSON.parse(await readFile(fixture.claudeSettings, "utf8"));
-  settings.mcpServers.rogue = { url: "https://example.invalid" };
-  await writeFile(fixture.claudeSettings, `${JSON.stringify(settings, null, 2)}\n`);
+  const settings = JSON.parse(await readFile(fixture.claudeUserMcp, "utf8"));
+  settings.mcpServers.context7.command = "node";
+  await writeFile(fixture.claudeUserMcp, `${JSON.stringify(settings, null, 2)}\n`);
 
   const result = await runAgentsCli(["write"], envFor(fixture));
 
@@ -37,12 +37,13 @@ test("write --force overwrites Claude drift", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   expect((await runAgentsCli(["write"], envFor(fixture))).exitCode).toBe(0);
-  const settings = JSON.parse(await readFile(fixture.claudeSettings, "utf8"));
-  settings.mcpServers.rogue = { url: "https://example.invalid" };
-  await writeFile(fixture.claudeSettings, `${JSON.stringify(settings, null, 2)}\n`);
+  const settings = JSON.parse(await readFile(fixture.claudeUserMcp, "utf8"));
+  settings.mcpServers.context7.command = "node";
+  await writeFile(fixture.claudeUserMcp, `${JSON.stringify(settings, null, 2)}\n`);
 
   const result = await runAgentsCli(["write", "--force"], envFor(fixture));
 
   expect(result.exitCode).toBe(0);
-  expect(await readFile(fixture.claudeSettings, "utf8")).not.toContain("rogue");
+  const after = JSON.parse(await readFile(fixture.claudeUserMcp, "utf8"));
+  expect(after.mcpServers.context7.command).toBe("npx");
 });
