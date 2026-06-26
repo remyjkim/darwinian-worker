@@ -1,8 +1,8 @@
 {
-  "name": "darwinian-harness",
+  "name": "darwinian-mind",
   "bin": {
     "drwn": "cli/index.ts",
-    "drwn-hx": "cli/index.ts"
+    "dminds": "cli/index.ts"
   },
   "exports": {
     "./hook-policy": {
@@ -13,30 +13,31 @@
     "./package.json": "./package.json"
   },
   "type": "module",
-  "description": "Local meta-harness CLI for managing AI agent skills, MCP servers, extensions, defaults, and project overlays.",
+  "description": "Local Darwinian Mind CLI for managing AI agent skills, MCP servers, extensions, defaults, and project overlays.",
   "version": "0.2.2",
   "license": "Apache-2.0",
   "author": "remyjkim <jkkim123@gmail.com>",
-  "homepage": "https://github.com/remyjkim/darwinian-harness",
+  "homepage": "https://github.com/remyjkim/darwinian-mind",
   "bugs": {
-    "url": "https://github.com/remyjkim/darwinian-harness/issues"
+    "url": "https://github.com/remyjkim/darwinian-mind/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/remyjkim/darwinian-harness.git"
+    "url": "git+https://github.com/remyjkim/darwinian-mind.git"
   },
   "files": [
     "cli",
     "registry",
     "skills",
     "README.md",
-    "docs/assets/darwinian-harness-logo.png",
+    "docs/assets/darwinian-mind-logo.png",
     "LICENSE",
     "CONTRIBUTING.md"
   ],
   "keywords": [
-    "darwinian-harness",
+    "darwinian-mind",
     "drwn",
+    "mind",
     "harness",
     "meta-harness",
     "agents",

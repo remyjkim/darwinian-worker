@@ -1,4 +1,4 @@
-// ABOUTME: Inspects and diagnoses editable local Harness Card sources.
+// ABOUTME: Inspects and diagnoses editable local Mind Card sources.
 // ABOUTME: Separates source authoring state from published card consumption state.
 
 import { existsSync } from "node:fs";
@@ -313,7 +313,7 @@ async function validatePolicyModule(path: string, issues: CardSourceIssue[]) {
       target: "node",
       format: "esm",
       write: false,
-      external: ["darwinian-harness/hook-policy"],
+      external: ["darwinian-mind/hook-policy"],
     } as Parameters<typeof Bun.build>[0] & { write: false };
     const result = await Bun.build(buildConfig);
     if (!result.success) {
@@ -508,7 +508,7 @@ function hookPolicyTemplate(policyName: string) {
   return `// ABOUTME: Tool-call policy for ${policyName}.
 // ABOUTME: Replace this stub with your enforcement or observer logic.
 
-import { defineToolPolicy } from "darwinian-harness/hook-policy";
+import { defineToolPolicy } from "darwinian-mind/hook-policy";
 
 export default defineToolPolicy({
   policyKind: "observer",

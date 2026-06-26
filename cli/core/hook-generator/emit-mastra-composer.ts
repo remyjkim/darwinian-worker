@@ -28,7 +28,7 @@ ${imports.join("\n")}
 
 export const policies = [${ids.join(", ")}];
 
-export { composeToolHooks } from "darwinian-harness/hook-policy";
+export { composeToolHooks } from "darwinian-mind/hook-policy";
 `;
 }
 

@@ -1,4 +1,4 @@
-// ABOUTME: Implements removal of explicit hook consent for locked Harness Cards.
+// ABOUTME: Implements removal of explicit hook consent for locked Mind Cards.
 // ABOUTME: Lets users stop materializing a card's hook policies without removing the card.
 
 import { Option, UsageError } from "clipanion";

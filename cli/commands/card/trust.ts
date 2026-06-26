@@ -1,4 +1,4 @@
-// ABOUTME: Implements explicit hook consent for locked Harness Cards.
+// ABOUTME: Implements explicit hook consent for locked Mind Cards.
 // ABOUTME: Records user-reviewed version ranges in card.lock.
 
 import { Option, UsageError } from "clipanion";
