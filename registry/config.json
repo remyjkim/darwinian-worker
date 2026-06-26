@@ -4,6 +4,7 @@
     "claude": {
       "enabled": true,
       "configPath": "~/.claude/settings.json",
+      "userMcpPath": "~/.claude.json",
       "format": "json-merge",
       "mcpKey": "mcpServers"
     },

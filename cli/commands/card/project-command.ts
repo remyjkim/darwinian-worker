@@ -4,7 +4,7 @@
 import { UsageError } from "clipanion";
 import { resolveProjectRootFromConfigPath } from "../../core/project";
 import type { CardProjectMutation } from "../../core/card-project";
-import { renderSyncResult } from "../../core/output";
+import { renderOptionalMcpReport, renderSyncResult } from "../../core/output";
 import { syncRepository } from "../../core/sync";
 import type { BaseCommand } from "../base";
 
@@ -36,7 +36,7 @@ export async function runChainedWrite(command: BaseCommand) {
       homeDir: command.context.homeDir,
       cwd: command.context.cwd,
     });
-    command.context.stdout.write(renderSyncResult(result));
+    command.context.stdout.write(`${renderSyncResult(result)}${renderOptionalMcpReport(result.optionalMcpReport)}`);
     return 0;
   } catch (error) {
     command.context.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);

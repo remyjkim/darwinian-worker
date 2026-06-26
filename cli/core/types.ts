@@ -1,6 +1,8 @@
 // ABOUTME: Defines the shared domain types used by the drwn harness CLI core and compatibility wrapper.
 // ABOUTME: Centralizes registry, config, target, and sync result types to avoid drift.
 
+import type { OptionalMcpReport } from "./mcp-report";
+
 export type Transport = "stdio" | "http" | "sse" | "platform-provided";
 export type TargetName = "claude" | "codex" | "cursor";
 
@@ -31,6 +33,7 @@ export interface UserMcpLibrary {
 export interface TargetConfig {
   enabled: boolean;
   configPath: string;
+  userMcpPath?: string;
   format: "json-merge" | "toml-merge" | "json-standalone";
   mcpKey: string;
   symlink?: boolean;
@@ -165,12 +168,14 @@ export interface SyncOptions {
   target?: TargetName;
   force?: boolean;
   strictHooks?: boolean;
+  forceMachineScope?: boolean;
 }
 
 export interface SyncResult {
   changes: string[];
   warnings: string[];
   managedPaths?: import("./write-record").ManagedPath[];
+  optionalMcpReport?: OptionalMcpReport | null;
 }
 
 export interface NormalizedSyncOptions {
@@ -187,4 +192,5 @@ export interface NormalizedSyncOptions {
   target?: TargetName;
   force?: boolean;
   strictHooks?: boolean;
+  forceMachineScope?: boolean;
 }

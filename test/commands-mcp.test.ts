@@ -129,10 +129,10 @@ describe("drwn mcp", () => {
     }, projectDir);
 
     expect(result.exitCode).toBe(0);
-    const claudeSettings = JSON.parse(await readFile(join(projectDir, ".claude", "settings.json"), "utf8")) as {
+    const claudeMcp = JSON.parse(await readFile(join(projectDir, ".mcp.json"), "utf8")) as {
       mcpServers: Record<string, unknown>;
     };
-    expect(claudeSettings.mcpServers["parallel-search"]).toBeDefined();
+    expect(claudeMcp.mcpServers["parallel-search"]).toBeDefined();
   });
 
   test("write --target=claude limits output scope", async () => {
@@ -146,7 +146,7 @@ describe("drwn mcp", () => {
     });
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("settings.json");
+    expect(result.stdout).toContain(".claude.json");
     expect(result.stdout).not.toContain("config.toml");
     expect(result.stdout).not.toContain("cursor");
   });

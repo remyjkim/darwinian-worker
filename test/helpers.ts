@@ -43,13 +43,19 @@ export function createFixtureRegistry(): CanonicalRegistry {
 }
 
 export function createFixtureConfig(
-  paths: { claudeSettings: string; codexConfig: string; cursorConfig: string },
+  paths: { claudeSettings: string; codexConfig: string; cursorConfig: string; claudeUserMcp?: string },
   parallelMcpEnabled = false,
 ): CanonicalConfig {
   return {
     version: 1,
     targets: {
-      claude: { enabled: true, configPath: paths.claudeSettings, format: "json-merge", mcpKey: "mcpServers" },
+      claude: {
+        enabled: true,
+        configPath: paths.claudeSettings,
+        ...(paths.claudeUserMcp ? { userMcpPath: paths.claudeUserMcp } : {}),
+        format: "json-merge",
+        mcpKey: "mcpServers",
+      },
       codex: { enabled: true, configPath: paths.codexConfig, format: "toml-merge", mcpKey: "mcp_servers" },
       cursor: { enabled: true, configPath: paths.cursorConfig, format: "json-standalone", mcpKey: "mcpServers", symlink: true },
     },
@@ -68,6 +74,7 @@ export async function scaffoldCliFixture(options?: { parallelMcpEnabled?: boolea
   const homeDir = join(root, "home");
   const agentsDir = join(homeDir, ".agents");
   const claudeSettings = join(homeDir, ".claude", "settings.json");
+  const claudeUserMcp = join(homeDir, ".claude.json");
   const codexConfig = join(homeDir, ".codex", "config.toml");
   const cursorConfig = join(homeDir, ".cursor", "mcp.json");
 
@@ -85,12 +92,13 @@ export async function scaffoldCliFixture(options?: { parallelMcpEnabled?: boolea
   await writeFile(
     join(repoRoot, "registry", "config.json"),
     JSON.stringify(
-      createFixtureConfig({ claudeSettings, codexConfig, cursorConfig }, options?.parallelMcpEnabled ?? false),
+      createFixtureConfig({ claudeSettings, codexConfig, cursorConfig, claudeUserMcp }, options?.parallelMcpEnabled ?? false),
       null,
       2,
     ),
   );
   await writeFile(claudeSettings, JSON.stringify({ model: "sonnet" }, null, 2));
+  await writeFile(claudeUserMcp, JSON.stringify({ numStartups: 1 }, null, 2));
   await writeFile(codexConfig, 'personality = "pragmatic"\n');
   await writeFile(cursorConfig, JSON.stringify({ mcpServers: {} }, null, 2));
 
@@ -104,7 +112,7 @@ export async function scaffoldCliFixture(options?: { parallelMcpEnabled?: boolea
     await symlink(join(repoRoot, "skills", "shared", name), join(agentsDir, "skills", name), "dir");
   }
 
-  return { root, repoRoot, homeDir, agentsDir, claudeSettings, codexConfig, cursorConfig };
+  return { root, repoRoot, homeDir, agentsDir, claudeSettings, claudeUserMcp, codexConfig, cursorConfig };
 }
 
 export function envFor(fixture: { repoRoot: string; homeDir: string; agentsDir: string }) {

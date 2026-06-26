@@ -1,7 +1,13 @@
 // ABOUTME: Preserves the legacy sync-mcp CLI surface as a thin compatibility wrapper.
 // ABOUTME: Re-exports the public sync helpers from the extracted core modules during the CLI migration.
 
-import { buildActiveServers, mergeClaudeSettingsText, mergeCodexTomlText, renderCursorConfig } from "./cli/core/mcp";
+import {
+  buildActiveServers,
+  detectCodexLayerConflicts,
+  mergeClaudeSettingsText,
+  mergeCodexTomlText,
+  renderCursorConfig,
+} from "./cli/core/mcp";
 import { syncRepository as syncRepositoryCore } from "./cli/core/sync";
 import { inferRepoRootFromModulePath } from "./cli/core/paths";
 import type { SyncOptions, TargetName } from "./cli/core/types";
@@ -19,6 +25,7 @@ export type {
 
 export {
   buildActiveServers,
+  detectCodexLayerConflicts,
   mergeClaudeSettingsText,
   mergeCodexTomlText,
   renderCursorConfig,

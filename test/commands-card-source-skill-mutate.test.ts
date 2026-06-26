@@ -3,7 +3,7 @@
 
 import { afterEach, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { lstat, readFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture } from "./helpers";
 
@@ -48,6 +48,27 @@ test("add-skill copies a repo-native shared skill and appends skills.include", a
   expect(existsSync(join(dest, "SKILL.md"))).toBe(true);
   expect((await lstat(dest)).isSymbolicLink()).toBe(false);
   expect((await readManifest(fixture)).skills.include).toEqual(["alpha"]);
+});
+
+test("add-skill --from accepts a direct SKILL.md path and copies the containing skill directory", async () => {
+  const fixture = await scaffoldSourceFixture();
+  const source = join(fixture.root, "loose-source");
+  await mkdir(source, { recursive: true });
+  await writeFile(join(source, "SKILL.md"), "---\nname: copied-loose\ndescription: fixture\n---\n");
+  await writeFile(join(source, "extra.txt"), "copied sibling\n");
+  const dest = join(fixture.agentsDir, "drwn", "sources", "@me", "example", "skills", "copied-loose");
+
+  const result = await runAgentsCli(
+    ["card", "source", "add-skill", "@me/example", "copied-loose", "--from", join(source, "SKILL.md"), "--json"],
+    envFor(fixture),
+  );
+
+  expect(result.exitCode).toBe(0);
+  const parsed = JSON.parse(result.stdout) as { changes: Array<{ from?: string; to?: string }> };
+  expect(parsed.changes[0]?.from).toBe(source);
+  expect(existsSync(join(dest, "SKILL.md"))).toBe(true);
+  expect(await readFile(join(dest, "extra.txt"), "utf8")).toBe("copied sibling\n");
+  expect((await readManifest(fixture)).skills.include).toEqual(["copied-loose"]);
 });
 
 test("add-skill fails on duplicate without --replace and --replace overwrites the bundled copy", async () => {

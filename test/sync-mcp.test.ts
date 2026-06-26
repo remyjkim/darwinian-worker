@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import {
   buildActiveServers,
+  detectCodexLayerConflicts,
   mergeClaudeSettingsText,
   mergeCodexTomlText,
   renderCursorConfig,
@@ -224,6 +225,26 @@ describe("renderCursorConfig", () => {
       url: "https://mcp.slack.com/mcp",
     });
   });
+
+  test("translates ${VAR} env passthroughs to Cursor's ${env:VAR} syntax", () => {
+    const json = renderCursorConfig({
+      notion: {
+        description: "Notion token",
+        transport: "stdio",
+        command: "npx",
+        args: ["-y", "@notionhq/notion-mcp-server"],
+        env: { NOTION_TOKEN: "${NOTION_TOKEN}", REGION: "us-east-1" },
+        optional: false,
+      },
+    });
+    const parsed = JSON.parse(json) as { mcpServers: Record<string, unknown> };
+
+    expect(parsed.mcpServers["notion"]).toEqual({
+      command: "npx",
+      args: ["-y", "@notionhq/notion-mcp-server"],
+      env: { NOTION_TOKEN: "${env:NOTION_TOKEN}", REGION: "us-east-1" },
+    });
+  });
 });
 
 describe("Parallel MCP rendering", () => {
@@ -284,7 +305,7 @@ describe("mergeClaudeSettingsText", () => {
       },
     );
 
-    expect(JSON.parse(merged)).toMatchObject({
+    expect(JSON.parse(merged.text)).toMatchObject({
       env: { A: "1" },
       model: "sonnet",
       mcpServers: {
@@ -305,7 +326,7 @@ describe("mergeClaudeSettingsText", () => {
       },
     );
 
-    expect(JSON.parse(merged)).toMatchObject({
+    expect(JSON.parse(merged.text)).toMatchObject({
       model: "sonnet",
       mcpServers: {
         "parallel-search": {
@@ -325,17 +346,40 @@ describe("mergeClaudeSettingsText", () => {
         slack: getServer(createRegistry(), "slack"),
       },
     );
-    const parsed = JSON.parse(merged) as { mcpServers: Record<string, unknown> };
+    const parsed = JSON.parse(merged.text) as { mcpServers: Record<string, unknown> };
 
     expect(parsed.mcpServers["slack"]).toEqual({
       type: "http",
       url: "https://mcp.slack.com/mcp",
     });
   });
+
+  test("passes ${VAR} env through unchanged for Claude's own expansion", () => {
+    const merged = mergeClaudeSettingsText(
+      JSON.stringify({ model: "sonnet" }, null, 2),
+      {
+        notion: {
+          description: "Notion token",
+          transport: "stdio",
+          command: "npx",
+          args: ["-y", "@notionhq/notion-mcp-server"],
+          env: { NOTION_TOKEN: "${NOTION_TOKEN}", REGION: "us-east-1" },
+          optional: false,
+        },
+      },
+    );
+    const parsed = JSON.parse(merged.text) as { mcpServers: Record<string, unknown> };
+
+    expect(parsed.mcpServers["notion"]).toEqual({
+      command: "npx",
+      args: ["-y", "@notionhq/notion-mcp-server"],
+      env: { NOTION_TOKEN: "${NOTION_TOKEN}", REGION: "us-east-1" },
+    });
+  });
 });
 
 describe("mergeCodexTomlText", () => {
-  test("preserves non-MCP sections and replaces MCP sections", () => {
+  test("preserves non-MCP sections and unmanaged servers while writing managed servers", () => {
     const merged = mergeCodexTomlText(
       [
         'personality = "pragmatic"',
@@ -343,8 +387,8 @@ describe("mergeCodexTomlText", () => {
         '[projects."/tmp/example"]',
         'trust_level = "trusted"',
         "",
-        "[mcp_servers.old]",
-        'command = "legacy"',
+        "[mcp_servers.custom]",
+        'command = "user-owned"',
         "",
         "[notice.model_migrations]",
         '"old" = "new"',
@@ -365,13 +409,28 @@ describe("mergeCodexTomlText", () => {
       model_migrations: { old: "new" },
     });
     expect(parsed.mcp_servers).toEqual({
+      custom: { command: "user-owned" },
       context7: {
         command: "npx",
         args: ["-y", "@upstash/context7-mcp"],
         startup_timeout_sec: 30,
       },
     });
-    expect(merged.includes("[mcp_servers.old]")).toBe(false);
+  });
+
+  test("removes servers that were previously managed but are no longer active", () => {
+    const merged = mergeCodexTomlText(
+      ["[mcp_servers.context7]", 'command = "npx"', "", "[mcp_servers.notion]", 'command = "legacy"', ""].join("\n"),
+      {
+        context7: getServer(createRegistry(), "context7"),
+      },
+      ["notion"],
+    );
+
+    const parsed = parseToml(merged) as Record<string, unknown>;
+
+    expect(Object.keys(parsed.mcp_servers as Record<string, unknown>)).toEqual(["context7"]);
+    expect(merged.includes("[mcp_servers.notion]")).toBe(false);
   });
 
   test("renders Parallel MCP URLs into Codex TOML", () => {
@@ -411,6 +470,59 @@ describe("mergeCodexTomlText", () => {
         enabled: true,
       },
     });
+  });
+
+  test("forwards ${VAR} env as env_vars and literals as an env table for stdio servers", () => {
+    const merged = mergeCodexTomlText(
+      'personality = "pragmatic"\n',
+      {
+        notion: {
+          description: "Notion token",
+          transport: "stdio",
+          command: "npx",
+          args: ["-y", "@notionhq/notion-mcp-server"],
+          env: { NOTION_TOKEN: "${NOTION_TOKEN}", REGION: "us-east-1" },
+          optional: false,
+        },
+      },
+    );
+    const parsed = parseToml(merged) as Record<string, unknown>;
+
+    expect(parsed.mcp_servers).toEqual({
+      notion: {
+        command: "npx",
+        args: ["-y", "@notionhq/notion-mcp-server"],
+        startup_timeout_sec: 30,
+        env_vars: ["NOTION_TOKEN"],
+        env: { REGION: "us-east-1" },
+      },
+    });
+  });
+});
+
+describe("detectCodexLayerConflicts", () => {
+  const stdioNotion = {
+    description: "Notion token",
+    transport: "stdio" as const,
+    command: "npx",
+    args: ["-y", "@notionhq/notion-mcp-server"],
+    env: { NOTION_TOKEN: "${NOTION_TOKEN}" },
+    optional: false,
+  };
+
+  test("flags a server whose global entry uses a different transport", () => {
+    const globalText = ['[mcp_servers.notion]', 'url = "https://mcp.notion.com/mcp"', "enabled = true"].join("\n");
+    expect(detectCodexLayerConflicts(globalText, { notion: stdioNotion })).toEqual(["notion"]);
+  });
+
+  test("does not flag when the global entry uses the same transport", () => {
+    const globalText = ["[mcp_servers.notion]", 'command = "npx"'].join("\n");
+    expect(detectCodexLayerConflicts(globalText, { notion: stdioNotion })).toEqual([]);
+  });
+
+  test("does not flag when the server is absent from the global layer or text is empty", () => {
+    expect(detectCodexLayerConflicts('personality = "x"\n', { notion: stdioNotion })).toEqual([]);
+    expect(detectCodexLayerConflicts("", { notion: stdioNotion })).toEqual([]);
   });
 });
 

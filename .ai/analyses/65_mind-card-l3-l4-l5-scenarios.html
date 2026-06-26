@@ -1,0 +1,3455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mind Card — Atlas + Eval Plan</title>
+<style>
+  :root {
+    --bg: #FAF7F1;
+    --bg-card: #FFFFFF;
+    --bg-soft: #F2EDE2;
+    --text: #1A1B1F;
+    --text-muted: #5F6066;
+    --text-faint: #8C8D93;
+    --border: #E5DFD2;
+    --border-strong: #D1C9B5;
+    --accent: #2B2D34;
+
+    /* Memory layer colors (scenarios) */
+    --l6-bg: #EFE0BF; --l6-fg: #6B4F1F;
+    --l5-bg: #CADCD7; --l5-fg: #1F4A48;
+    --l4-bg: #CBC4DA; --l4-fg: #3D3266;
+    --l3-bg: #EDD195; --l3-fg: #6B481A;
+
+    --counter-bg: #F2DBD0;
+    --counter-fg: #6B3520;
+    --counter-border: #CD8D70;
+
+    /* Question colors (eval plan) */
+    --q1-bg: #D8E2CC; --q1-fg: #3F5234;     /* sage green — authenticity */
+    --q2-bg: #C8D2DD; --q2-fg: #2A3A55;     /* slate blue — stability */
+    --q3-bg: #E5BFA5; --q3-fg: #6B3F22;     /* warm clay — honesty */
+    --infra-bg: #D5D2CC; --infra-fg: #3A3935;
+    --foundation-bg: #E3D9C2; --foundation-fg: #5A4D2B;
+
+    --serif: "Iowan Old Style", "Palatino", "Georgia", serif;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+
+    --shadow-sm: 0 1px 2px rgba(26, 27, 31, 0.04), 0 1px 1px rgba(26, 27, 31, 0.06);
+    --shadow-md: 0 4px 12px rgba(26, 27, 31, 0.06), 0 1px 3px rgba(26, 27, 31, 0.08);
+
+    --max-width: 1180px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  a { color: inherit; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  .container { max-width: var(--max-width); margin: 0 auto; padding: 0 32px; }
+
+  /* ============ MODE TOGGLE ============ */
+
+  .mode-bar {
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    padding: 14px 0;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    backdrop-filter: saturate(180%) blur(8px);
+    -webkit-backdrop-filter: saturate(180%) blur(8px);
+  }
+
+  .mode-toggle {
+    display: inline-flex;
+    background: var(--bg-soft);
+    padding: 4px;
+    border-radius: 10px;
+    gap: 2px;
+  }
+
+  .mode-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-muted);
+    padding: 8px 16px;
+    border-radius: 7px;
+    transition: background 150ms ease, color 150ms ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .mode-btn:hover { color: var(--text); }
+  .mode-btn.active { background: var(--bg-card); color: var(--text); box-shadow: var(--shadow-sm); }
+  .mode-btn .mode-icon {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-faint);
+  }
+  .mode-btn.active .mode-icon { color: var(--accent); }
+
+  .mode-content { display: none; }
+  .mode-content.active { display: block; animation: fadeIn 250ms ease-out; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ============ HERO ============ */
+
+  .hero {
+    padding: 64px 0 48px;
+    border-bottom: 1px solid var(--border);
+  }
+  .hero-eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 16px;
+  }
+  .hero h1 {
+    font-family: var(--serif);
+    font-size: 56px;
+    line-height: 1.05;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    margin-bottom: 20px;
+    color: var(--accent);
+  }
+  .hero .subtitle {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 22px;
+    line-height: 1.4;
+    color: var(--text-muted);
+    max-width: 760px;
+    margin-bottom: 48px;
+  }
+  .hero-grid {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 56px;
+    align-items: start;
+  }
+  .hero-explainer h2 {
+    font-family: var(--serif);
+    font-size: 24px;
+    font-weight: 500;
+    margin-bottom: 16px;
+    letter-spacing: -0.005em;
+  }
+  .hero-explainer p {
+    font-size: 16px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+  }
+  .hero-explainer p strong { color: var(--text); font-weight: 600; }
+
+  /* ============ FUNNEL DIAGRAM ============ */
+
+  .funnel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 24px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow-sm);
+  }
+  .funnel-caption {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 8px;
+  }
+  .funnel-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 22px;
+    border-radius: 999px;
+    transition: transform 200ms ease;
+  }
+  .funnel-row:hover { transform: translateX(2px); }
+  .funnel-l3 { background: var(--l3-bg); color: var(--l3-fg); width: 50%; }
+  .funnel-l4 { background: var(--l4-bg); color: var(--l4-fg); width: 66%; }
+  .funnel-l5 { background: var(--l5-bg); color: var(--l5-fg); width: 82%; }
+  .funnel-l6 { background: var(--l6-bg); color: var(--l6-fg); width: 100%; }
+  .funnel-code { font-family: var(--mono); font-size: 14px; font-weight: 700; letter-spacing: 0.04em; }
+  .funnel-name { font-family: var(--serif); font-size: 16px; font-weight: 500; margin-right: auto; }
+  .funnel-desc { font-size: 13px; opacity: 0.85; text-align: right; }
+  .funnel-arrows {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    margin-top: 14px;
+    padding: 0 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+
+  /* ============ ATLAS TAB NAV ============ */
+
+  .tab-nav-wrapper {
+    position: sticky;
+    top: 58px; /* below mode bar */
+    z-index: 10;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: saturate(180%) blur(8px);
+    -webkit-backdrop-filter: saturate(180%) blur(8px);
+  }
+  .tab-nav {
+    display: flex;
+    gap: 4px;
+    padding: 12px 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tab-nav::-webkit-scrollbar { display: none; }
+  .tab-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-family: var(--sans);
+    font-size: 14px;
+    color: var(--text-muted);
+    padding: 10px 16px;
+    border-radius: 8px;
+    white-space: nowrap;
+    transition: background 150ms ease, color 150ms ease;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .tab-btn:hover { background: var(--bg-soft); color: var(--text); }
+  .tab-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .tab-btn.active { background: var(--accent); color: var(--bg); }
+  .tab-btn.active .tab-letter { background: var(--bg); color: var(--accent); }
+  .tab-letter {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    background: var(--bg-soft);
+    color: var(--text);
+    width: 22px; height: 22px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 6px;
+    transition: background 150ms ease, color 150ms ease;
+  }
+
+  /* ============ ATLAS CONTENT ============ */
+
+  .atlas-main { padding: 56px 0 96px; }
+  .tab-panel { display: none; animation: fadeIn 300ms ease-out; }
+  .tab-panel.active { display: block; }
+
+  .category-header { margin-bottom: 40px; max-width: 760px; }
+  .category-eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 12px;
+  }
+  .category-title {
+    font-family: var(--serif);
+    font-size: 40px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    margin-bottom: 16px;
+  }
+  .category-desc { font-size: 17px; color: var(--text-muted); line-height: 1.55; }
+
+  /* Scenario card */
+  .scenario {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 36px;
+    margin-bottom: 24px;
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow 200ms ease, transform 200ms ease;
+  }
+  .scenario:hover { box-shadow: var(--shadow-md); }
+  .scenario-header {
+    display: flex;
+    align-items: baseline;
+    gap: 20px;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .scenario-badge {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--bg-soft);
+    padding: 6px 10px;
+    border-radius: 6px;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+  }
+  .scenario-title {
+    font-family: var(--serif);
+    font-size: 26px;
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+  }
+  .scenario-situation { font-size: 16px; line-height: 1.6; color: var(--text); margin-bottom: 28px; }
+
+  .layers-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+  .layer-cell {
+    border-radius: 12px;
+    padding: 18px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 180px;
+  }
+  .layer-cell-l6 { background: var(--l6-bg); color: var(--l6-fg); }
+  .layer-cell-l5 { background: var(--l5-bg); color: var(--l5-fg); }
+  .layer-cell-l4 { background: var(--l4-bg); color: var(--l4-fg); }
+  .layer-cell-l3 { background: var(--l3-bg); color: var(--l3-fg); }
+  .layer-header { display: flex; align-items: center; justify-content: space-between; }
+  .layer-code { font-family: var(--mono); font-size: 13px; font-weight: 700; letter-spacing: 0.05em; }
+  .layer-role { font-family: var(--serif); font-style: italic; font-size: 13px; opacity: 0.8; }
+  .layer-body { font-size: 13.5px; line-height: 1.5; }
+
+  .counterfactual {
+    background: var(--counter-bg);
+    border-left: 3px solid var(--counter-border);
+    border-radius: 0 10px 10px 0;
+    padding: 18px 20px;
+  }
+  .counterfactual-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--counter-fg);
+    display: block;
+    margin-bottom: 6px;
+  }
+  .counterfactual-body { font-size: 14.5px; line-height: 1.6; color: var(--counter-fg); }
+
+  /* Insights */
+  .insights { padding: 80px 0; border-top: 1px solid var(--border); background: var(--bg-soft); }
+  .insights-header { margin-bottom: 48px; max-width: 760px; }
+  .insights-title {
+    font-family: var(--serif);
+    font-size: 40px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    margin-bottom: 16px;
+  }
+  .insights-desc { font-size: 17px; color: var(--text-muted); }
+  .insights-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+  .insight {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px;
+    transition: transform 200ms ease, box-shadow 200ms ease;
+  }
+  .insight:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+  .insight-number {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--text-faint);
+    margin-bottom: 12px;
+  }
+  .insight-title {
+    font-family: var(--serif);
+    font-size: 20px;
+    font-weight: 500;
+    line-height: 1.3;
+    margin-bottom: 12px;
+  }
+  .insight-body { font-size: 14.5px; color: var(--text-muted); line-height: 1.6; }
+  .insight-body strong { color: var(--text); font-weight: 600; }
+
+  /* ============ EVAL PLAN ============ */
+
+  .plan-hero { padding: 64px 0 32px; border-bottom: 1px solid var(--border); }
+  .plan-hero h1 {
+    font-family: var(--serif);
+    font-size: 56px;
+    line-height: 1.05;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    margin-bottom: 20px;
+    color: var(--accent);
+  }
+  .plan-hero .subtitle {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 22px;
+    line-height: 1.4;
+    color: var(--text-muted);
+    max-width: 820px;
+    margin-bottom: 32px;
+  }
+
+  .plan-meta {
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+    padding: 20px 24px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+  .plan-meta-item .label {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    display: block;
+    margin-bottom: 4px;
+  }
+  .plan-meta-item .value { font-size: 15px; color: var(--text); font-weight: 500; }
+
+  /* Q overview cards */
+  .plan-section { padding: 64px 0; border-bottom: 1px solid var(--border); }
+  .plan-section-eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 12px;
+  }
+  .plan-section-title {
+    font-family: var(--serif);
+    font-size: 36px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    margin-bottom: 16px;
+    max-width: 820px;
+  }
+  .plan-section-desc { font-size: 17px; color: var(--text-muted); max-width: 820px; margin-bottom: 40px; }
+
+  .q-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+  }
+  .q-card {
+    border-radius: 14px;
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    transition: transform 200ms ease;
+  }
+  .q-card:hover { transform: translateY(-2px); }
+  .q-card-q1 { background: var(--q1-bg); color: var(--q1-fg); }
+  .q-card-q2 { background: var(--q2-bg); color: var(--q2-fg); }
+  .q-card-q3 { background: var(--q3-bg); color: var(--q3-fg); }
+  .q-tag {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+  }
+  .q-name {
+    font-family: var(--serif);
+    font-size: 24px;
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+  }
+  .q-question { font-size: 14px; opacity: 0.85; line-height: 1.5; }
+  .q-meta {
+    margin-top: auto;
+    padding-top: 16px;
+    border-top: 1px solid currentColor;
+    border-color: rgba(0,0,0,0.12);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+  }
+  .q-meta-row { display: flex; justify-content: space-between; gap: 12px; }
+  .q-meta-label { font-family: var(--mono); font-size: 11px; opacity: 0.7; letter-spacing: 0.05em; }
+  .q-meta-value { font-weight: 500; text-align: right; }
+  .q-hardgate {
+    margin-top: 12px;
+    padding: 8px 12px;
+    background: rgba(0,0,0,0.08);
+    border-radius: 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  /* Strategy / priority */
+  .priority-list { list-style: none; counter-reset: priority; }
+  .priority-item {
+    counter-increment: priority;
+    display: grid;
+    grid-template-columns: 56px 1fr auto;
+    gap: 24px;
+    align-items: start;
+    padding: 24px 28px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 12px;
+    transition: box-shadow 200ms ease;
+  }
+  .priority-item:hover { box-shadow: var(--shadow-md); }
+  .priority-item::before {
+    content: counter(priority);
+    font-family: var(--serif);
+    font-size: 32px;
+    font-weight: 500;
+    color: var(--text-faint);
+    line-height: 1;
+  }
+  .priority-body h4 {
+    font-family: var(--serif);
+    font-size: 18px;
+    font-weight: 500;
+    margin-bottom: 6px;
+  }
+  .priority-body p { font-size: 14.5px; color: var(--text-muted); line-height: 1.55; }
+  .priority-tags { display: flex; gap: 8px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; max-width: 220px; }
+  .priority-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 5px 9px;
+    border-radius: 5px;
+    text-transform: uppercase;
+  }
+  .priority-tag-q1 { background: var(--q1-bg); color: var(--q1-fg); }
+  .priority-tag-q2 { background: var(--q2-bg); color: var(--q2-fg); }
+  .priority-tag-q3 { background: var(--q3-bg); color: var(--q3-fg); }
+  .priority-tag-foundation { background: var(--foundation-bg); color: var(--foundation-fg); }
+  .priority-tag-external { background: var(--bg-soft); color: var(--text-muted); }
+  .priority-tag-build { background: var(--counter-bg); color: var(--counter-fg); }
+
+  /* Gantt timeline */
+  .gantt {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .gantt-header,
+  .gantt-row {
+    display: grid;
+    grid-template-columns: 220px repeat(9, 1fr);
+    border-bottom: 1px solid var(--border);
+  }
+  .gantt-header { background: var(--bg-soft); }
+  .gantt-row:last-child { border-bottom: none; }
+  .gantt-label-cell {
+    padding: 14px 18px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+    border-right: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+  }
+  .gantt-week-cell {
+    padding: 14px 0;
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-faint);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border-right: 1px solid var(--border);
+  }
+  .gantt-week-cell:last-child { border-right: none; }
+  .gantt-row-label {
+    padding: 12px 18px;
+    font-family: var(--sans);
+    font-size: 13px;
+    color: var(--text);
+    font-weight: 500;
+    border-right: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .gantt-row-label .phase-num {
+    font-family: var(--mono);
+    font-size: 11px;
+    background: var(--bg-soft);
+    padding: 3px 7px;
+    border-radius: 4px;
+    color: var(--text-muted);
+    font-weight: 700;
+  }
+  .gantt-cells {
+    grid-column: 2 / span 9;
+    display: grid;
+    grid-template-columns: repeat(9, 1fr);
+    align-items: center;
+    padding: 8px 0;
+    position: relative;
+  }
+  .gantt-week-track {
+    border-right: 1px solid var(--border);
+    height: 28px;
+  }
+  .gantt-week-track:last-child { border-right: none; }
+  .gantt-bar {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 22px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--text);
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .gantt-bar-q1 { background: var(--q1-bg); color: var(--q1-fg); }
+  .gantt-bar-q2 { background: var(--q2-bg); color: var(--q2-fg); }
+  .gantt-bar-q3 { background: var(--q3-bg); color: var(--q3-fg); }
+  .gantt-bar-infra { background: var(--infra-bg); color: var(--infra-fg); }
+  .gantt-bar-foundation { background: var(--foundation-bg); color: var(--foundation-fg); }
+
+  .gantt-legend {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin-top: 20px;
+    padding: 14px 18px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 12px;
+  }
+  .gantt-legend-item { display: flex; align-items: center; gap: 8px; color: var(--text-muted); }
+  .legend-swatch { width: 14px; height: 14px; border-radius: 3px; }
+
+  /* Phase cards */
+  .phase {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 36px;
+    margin-bottom: 20px;
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow 200ms ease;
+  }
+  .phase:hover { box-shadow: var(--shadow-md); }
+  .phase-header {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 20px;
+    align-items: center;
+    margin-bottom: 24px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .phase-badge {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--bg-soft);
+    padding: 10px 14px;
+    border-radius: 8px;
+    letter-spacing: 0.05em;
+  }
+  .phase-title-block { display: flex; flex-direction: column; gap: 6px; }
+  .phase-title {
+    font-family: var(--serif);
+    font-size: 26px;
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+  }
+  .phase-week {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-faint);
+    letter-spacing: 0.05em;
+  }
+  .phase-tags { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .phase-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 5px 9px;
+    border-radius: 5px;
+    text-transform: uppercase;
+  }
+  .phase-tag-q1 { background: var(--q1-bg); color: var(--q1-fg); }
+  .phase-tag-q2 { background: var(--q2-bg); color: var(--q2-fg); }
+  .phase-tag-q3 { background: var(--q3-bg); color: var(--q3-fg); }
+  .phase-tag-infra { background: var(--infra-bg); color: var(--infra-fg); }
+  .phase-tag-foundation { background: var(--foundation-bg); color: var(--foundation-fg); }
+
+  .phase-goal {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 17px;
+    color: var(--text);
+    margin-bottom: 24px;
+    line-height: 1.5;
+  }
+
+  .phase-body { display: grid; grid-template-columns: 1.4fr 1fr; gap: 28px; }
+  .phase-col h4 {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 12px;
+  }
+  .phase-col ul { list-style: none; }
+  .phase-col li {
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.5;
+    padding: 6px 0 6px 18px;
+    position: relative;
+  }
+  .phase-col li::before {
+    content: "›";
+    position: absolute;
+    left: 0;
+    color: var(--text-faint);
+    font-family: var(--mono);
+    font-weight: 700;
+  }
+
+  .phase-meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .phase-meta-cell {
+    padding: 12px 14px;
+    background: var(--bg-soft);
+    border-radius: 8px;
+  }
+  .phase-meta-cell .label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    display: block;
+    margin-bottom: 4px;
+  }
+  .phase-meta-cell .value {
+    font-size: 13px;
+    color: var(--text);
+    font-weight: 500;
+    line-height: 1.4;
+  }
+
+  .phase-acceptance {
+    margin-top: 20px;
+    padding: 16px 18px;
+    background: var(--q1-bg);
+    border-left: 3px solid var(--q1-fg);
+    border-radius: 0 10px 10px 0;
+  }
+  .phase-acceptance-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--q1-fg);
+    display: block;
+    margin-bottom: 6px;
+  }
+  .phase-acceptance-body { font-size: 13.5px; color: var(--q1-fg); line-height: 1.5; }
+
+  .phase-risk {
+    margin-top: 12px;
+    padding: 16px 18px;
+    background: var(--counter-bg);
+    border-left: 3px solid var(--counter-border);
+    border-radius: 0 10px 10px 0;
+  }
+  .phase-risk-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--counter-fg);
+    display: block;
+    margin-bottom: 6px;
+  }
+  .phase-risk-body { font-size: 13.5px; color: var(--counter-fg); line-height: 1.5; }
+
+  /* Open questions */
+  .open-questions {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+  .open-q {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+  .open-q-num {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--text-faint);
+    margin-bottom: 8px;
+  }
+  .open-q-title {
+    font-family: var(--serif);
+    font-size: 18px;
+    font-weight: 500;
+    line-height: 1.3;
+    margin-bottom: 10px;
+  }
+  .open-q-body { font-size: 14px; color: var(--text-muted); line-height: 1.55; }
+  .open-q-body strong { color: var(--text); font-weight: 600; }
+
+  /* ============ FOOTER ============ */
+  footer { padding: 48px 0; border-top: 1px solid var(--border); font-size: 13px; color: var(--text-faint); }
+  footer .meta { display: flex; gap: 24px; flex-wrap: wrap; }
+  footer .meta div strong {
+    color: var(--text-muted);
+    font-weight: 600;
+    display: block;
+    margin-bottom: 4px;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  /* ============ RESPONSIVE ============ */
+  @media (max-width: 1000px) {
+    .gantt-header, .gantt-row { grid-template-columns: 160px repeat(9, 1fr); }
+    .gantt-label-cell, .gantt-row-label { padding-left: 12px; padding-right: 12px; font-size: 11px; }
+  }
+  @media (max-width: 900px) {
+    .hero h1, .plan-hero h1 { font-size: 40px; }
+    .hero .subtitle, .plan-hero .subtitle { font-size: 18px; }
+    .hero-grid { grid-template-columns: 1fr; gap: 40px; }
+    .layers-grid { grid-template-columns: repeat(2, 1fr); }
+    .insights-grid { grid-template-columns: 1fr; }
+    .category-title, .plan-section-title { font-size: 30px; }
+    .q-grid { grid-template-columns: 1fr; }
+    .phase-body { grid-template-columns: 1fr; }
+    .open-questions { grid-template-columns: 1fr; }
+    .priority-item { grid-template-columns: 40px 1fr; }
+    .priority-tags { grid-column: 1 / -1; justify-content: flex-start; max-width: none; padding-top: 8px; }
+    .gantt { overflow-x: auto; }
+    .gantt-header, .gantt-row { min-width: 700px; }
+  }
+  @media (max-width: 600px) {
+    .container { padding: 0 20px; }
+    .hero, .plan-hero { padding: 48px 0 36px; }
+    .hero h1, .plan-hero h1 { font-size: 32px; }
+    .layers-grid { grid-template-columns: 1fr; }
+    .scenario, .phase { padding: 24px; }
+  }
+
+  /* ============ FIELD EVIDENCE ============ */
+
+  .field-evidence {
+    padding: 80px 0;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .evidence-header { margin-bottom: 32px; max-width: 820px; }
+  .evidence-title {
+    font-family: var(--serif);
+    font-size: 40px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    margin-bottom: 16px;
+    line-height: 1.1;
+  }
+  .evidence-desc { font-size: 17px; color: var(--text-muted); line-height: 1.55; }
+  .evidence-desc code { font-family: var(--mono); font-size: 14px; background: var(--bg-soft); padding: 2px 6px; border-radius: 4px; }
+
+  .mind-nav {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 4px;
+    padding: 6px;
+    background: var(--bg-soft);
+    border-radius: 12px;
+    margin-bottom: 36px;
+  }
+  .mind-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    padding: 11px 12px;
+    border-radius: 8px;
+    transition: background 150ms ease, color 150ms ease;
+    white-space: nowrap;
+  }
+  .mind-btn:hover { color: var(--text); }
+  .mind-btn.active {
+    background: var(--bg-card);
+    color: var(--text);
+    box-shadow: var(--shadow-sm);
+  }
+  .mind-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .mind-panel { display: none; animation: fadeIn 250ms ease-out; }
+  .mind-panel.active { display: block; }
+
+  .mind-panel-header { margin-bottom: 28px; }
+  .mind-name {
+    font-family: var(--serif);
+    font-size: 32px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    margin-bottom: 8px;
+  }
+  .mind-tagline {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 16px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    max-width: 760px;
+  }
+
+  .mind-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .mind-stat {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .mind-stat .stat-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .mind-stat .stat-value {
+    font-family: var(--serif);
+    font-size: 26px;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .evidence-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+
+  .ev-card {
+    border-radius: 14px;
+    padding: 22px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    transition: transform 200ms ease;
+  }
+  .ev-card:hover { transform: translateY(-2px); }
+  .ev-card-l3 { background: var(--l3-bg); color: var(--l3-fg); }
+  .ev-card-l4 { background: var(--l4-bg); color: var(--l4-fg); }
+  .ev-card-l5 { background: var(--l5-bg); color: var(--l5-fg); }
+
+  .ev-cap { display: flex; align-items: center; gap: 8px; }
+  .ev-code {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+  .ev-role {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 12px;
+    opacity: 0.8;
+  }
+  .ev-filename {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    opacity: 0.55;
+    word-break: break-all;
+    line-height: 1.4;
+  }
+  .ev-title {
+    font-family: var(--serif);
+    font-size: 18px;
+    font-weight: 500;
+    line-height: 1.25;
+  }
+  .ev-quote {
+    font-family: var(--serif);
+    font-size: 14px;
+    line-height: 1.55;
+    font-style: italic;
+    padding-left: 12px;
+    border-left: 2px solid currentColor;
+    opacity: 0.92;
+  }
+  .ev-why {
+    font-size: 12.5px;
+    line-height: 1.5;
+    padding: 12px 14px;
+    background: rgba(0,0,0,0.06);
+    border-radius: 8px;
+    margin-top: auto;
+  }
+  .ev-why em { font-style: italic; font-weight: 600; }
+
+  .chain {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px 30px;
+    margin-bottom: 24px;
+  }
+  .chain-header { margin-bottom: 22px; }
+  .chain-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    display: block;
+    margin-bottom: 6px;
+  }
+  .chain-topic {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 500;
+    line-height: 1.25;
+  }
+  .chain-flow {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 28px;
+    align-items: stretch;
+    position: relative;
+  }
+  .chain-step {
+    border-radius: 12px;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    position: relative;
+  }
+  .chain-step-l5 { background: var(--l5-bg); color: var(--l5-fg); }
+  .chain-step-l4 { background: var(--l4-bg); color: var(--l4-fg); }
+  .chain-step-l3 { background: var(--l3-bg); color: var(--l3-fg); }
+  .chain-step::after {
+    content: "›";
+    position: absolute;
+    right: -22px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: var(--mono);
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--text-faint);
+    z-index: 2;
+  }
+  .chain-step:last-child::after { display: none; }
+  .chain-step-head { display: flex; align-items: baseline; gap: 6px; margin-bottom: 4px; }
+  .chain-step-code {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+  .chain-step-role {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 11px;
+    opacity: 0.75;
+  }
+  .chain-step-body { font-size: 13px; line-height: 1.5; }
+
+  .meta-footer {
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px 32px;
+    margin-top: 36px;
+  }
+  .meta-footer .category-eyebrow { margin-bottom: 16px; }
+  .meta-quote {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 17px;
+    line-height: 1.5;
+    color: var(--text);
+    border-left: 3px solid var(--text-muted);
+    padding-left: 18px;
+    margin-bottom: 18px;
+  }
+  .meta-footer p {
+    font-size: 14.5px;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+  .meta-footer p strong { color: var(--text); font-weight: 600; }
+
+  @media (max-width: 900px) {
+    .mind-nav { grid-template-columns: repeat(3, 1fr); }
+    .evidence-grid { grid-template-columns: 1fr; }
+    .chain-flow { grid-template-columns: 1fr; gap: 14px; }
+    .chain-step::after {
+      content: "↓";
+      right: 50%;
+      top: auto;
+      bottom: -22px;
+      transform: translateX(50%);
+    }
+    .mind-stats { grid-template-columns: 1fr; }
+    .evidence-title { font-size: 30px; }
+  }
+  @media (max-width: 600px) {
+    .mind-nav { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* ============ LAYER PROBES ============ */
+
+  .probe-hero { padding: 64px 0 32px; border-bottom: 1px solid var(--border); }
+  .probe-hero h1 {
+    font-family: var(--serif);
+    font-size: 56px;
+    line-height: 1.05;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    margin-bottom: 20px;
+    color: var(--accent);
+  }
+  .probe-hero .subtitle {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 22px;
+    line-height: 1.4;
+    color: var(--text-muted);
+    max-width: 860px;
+    margin-bottom: 32px;
+  }
+
+  .probe-meta {
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+    padding: 20px 24px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+  .probe-meta-item .label {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    display: block;
+    margin-bottom: 4px;
+  }
+  .probe-meta-item .value { font-size: 15px; color: var(--text); font-weight: 500; }
+
+  /* Design principles */
+  .principles-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+  }
+  .principle-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: transform 200ms ease, box-shadow 200ms ease;
+  }
+  .principle-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+  .principle-num {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--text-faint);
+  }
+  .principle-title {
+    font-family: var(--serif);
+    font-size: 17px;
+    font-weight: 500;
+    line-height: 1.25;
+    color: var(--text);
+  }
+  .principle-body {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.55;
+    margin-top: auto;
+  }
+
+  /* Family cards */
+  .families-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 14px;
+  }
+  .family-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    transition: transform 200ms ease, box-shadow 200ms ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .family-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+  }
+  .family-card-A::before { background: #8C9C7A; }
+  .family-card-B::before { background: #9B8DA9; }
+  .family-card-C::before { background: #6E8AA0; }
+  .family-card-D::before { background: #B58A6A; }
+  .family-card-E::before { background: #7A9B92; }
+  .family-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+  .family-letter {
+    font-family: var(--serif);
+    font-size: 40px;
+    font-weight: 500;
+    line-height: 1;
+    color: var(--accent);
+  }
+  .family-name {
+    font-family: var(--serif);
+    font-size: 18px;
+    font-weight: 500;
+    line-height: 1.2;
+  }
+  .family-method {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin-top: auto;
+  }
+  .family-meta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+  }
+  .cost-pill {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 4px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
+  .cost-low { background: #DCE5D0; color: #4B5C39; }
+  .cost-medium { background: #E6D9C2; color: #6B5424; }
+  .cost-high { background: #E5C8BC; color: #6E3621; }
+  .novel-pill {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: var(--accent);
+    color: var(--bg);
+    text-transform: uppercase;
+  }
+
+  /* Experiment sections */
+  .exp-section { margin-bottom: 40px; }
+  .exp-section-head {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 20px;
+    background: var(--bg-soft);
+    border-radius: 10px;
+    margin-bottom: 16px;
+  }
+  .exp-section-letter {
+    font-family: var(--serif);
+    font-size: 28px;
+    font-weight: 500;
+    color: var(--accent);
+    line-height: 1;
+    width: 36px;
+    text-align: center;
+  }
+  .exp-section-name {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 500;
+    flex: 1;
+    line-height: 1.2;
+  }
+  .exp-section-meta {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-faint);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .exp-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+
+  .exp-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px 22px 22px 24px;
+    position: relative;
+    transition: box-shadow 200ms ease;
+    border-left: 4px solid var(--text-faint);
+  }
+  .exp-card:hover { box-shadow: var(--shadow-md); }
+  .exp-card-l3 { border-left-color: var(--l3-fg); }
+  .exp-card-l4 { border-left-color: var(--l4-fg); }
+  .exp-card-l5 { border-left-color: var(--l5-fg); }
+  .exp-card-l1 { border-left-color: #8B7355; }
+  .exp-card-cross { border-left-color: var(--text-muted); }
+
+  .exp-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .exp-id {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    background: var(--bg-soft);
+    padding: 5px 9px;
+    border-radius: 5px;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+  }
+  .exp-layer-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 4px 7px;
+    border-radius: 4px;
+  }
+  .exp-layer-tag-l3 { background: var(--l3-bg); color: var(--l3-fg); }
+  .exp-layer-tag-l4 { background: var(--l4-bg); color: var(--l4-fg); }
+  .exp-layer-tag-l5 { background: var(--l5-bg); color: var(--l5-fg); }
+  .exp-layer-tag-l1 { background: #DDD2C2; color: #5C4A2E; }
+  .exp-layer-tag-cross { background: var(--bg-soft); color: var(--text-muted); }
+  .exp-novel-tag {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 4px 7px;
+    border-radius: 4px;
+    background: var(--accent);
+    color: var(--bg);
+  }
+
+  .exp-title {
+    font-family: var(--serif);
+    font-size: 18px;
+    font-weight: 500;
+    line-height: 1.25;
+    margin-bottom: 12px;
+  }
+
+  .exp-hyp {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: var(--text);
+    padding: 10px 14px;
+    background: var(--bg-soft);
+    border-radius: 8px;
+    margin-bottom: 12px;
+  }
+  .exp-hyp strong {
+    font-family: var(--mono);
+    font-style: normal;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--text-faint);
+    margin-right: 6px;
+  }
+
+  .exp-method {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.55;
+  }
+  .exp-method-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  /* Portfolio tiers */
+  .portfolio-tier {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 24px;
+    padding: 28px 32px;
+    border-radius: 14px;
+    margin-bottom: 14px;
+    transition: transform 200ms ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .portfolio-tier:hover { transform: translateX(2px); }
+  .portfolio-tier::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 6px;
+  }
+  .tier-1 { background: #E8EFDC; }
+  .tier-1::before { background: #5F7848; }
+  .tier-2 { background: #ECDDC5; }
+  .tier-2::before { background: #8B6529; }
+  .tier-3 { background: #DEE5E8; }
+  .tier-3::before { background: #50697B; }
+
+  .tier-label-block { display: flex; flex-direction: column; gap: 4px; }
+  .tier-number {
+    font-family: var(--serif);
+    font-size: 36px;
+    font-weight: 500;
+    line-height: 1;
+  }
+  .tier-1 .tier-number { color: #4B5C39; }
+  .tier-2 .tier-number { color: #6B5424; }
+  .tier-3 .tier-number { color: #3D4F5C; }
+  .tier-period {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.7;
+  }
+
+  .tier-body { display: flex; flex-direction: column; gap: 12px; }
+  .tier-title {
+    font-family: var(--serif);
+    font-size: 20px;
+    font-weight: 500;
+    line-height: 1.2;
+  }
+  .tier-1 .tier-title { color: #2E3D1D; }
+  .tier-2 .tier-title { color: #4A3618; }
+  .tier-3 .tier-title { color: #243240; }
+  .tier-experiments {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .tier-exp-chip {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 9px;
+    background: rgba(255,255,255,0.55);
+    border-radius: 4px;
+    color: var(--text);
+    letter-spacing: 0.04em;
+  }
+  .tier-desc {
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.55;
+    opacity: 0.85;
+  }
+  .tier-stats {
+    display: flex;
+    gap: 24px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+  }
+  .tier-stat { display: flex; flex-direction: column; gap: 2px; }
+  .tier-stat .label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.6;
+  }
+  .tier-stat .value {
+    font-family: var(--serif);
+    font-size: 18px;
+    font-weight: 500;
+  }
+
+  /* Infrastructure note */
+  .infra-note {
+    background: var(--bg-card);
+    border: 1px dashed var(--border-strong);
+    border-radius: 14px;
+    padding: 28px 32px;
+    display: grid;
+    grid-template-columns: 1fr 1.5fr;
+    gap: 32px;
+    align-items: center;
+  }
+  .infra-note-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 10px;
+  }
+  .infra-note-title {
+    font-family: var(--serif);
+    font-size: 24px;
+    font-weight: 500;
+    line-height: 1.2;
+    margin-bottom: 8px;
+  }
+  .infra-note-side {
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+  .infra-note-code {
+    font-family: var(--mono);
+    font-size: 12px;
+    background: var(--bg-soft);
+    padding: 14px 16px;
+    border-radius: 8px;
+    line-height: 1.7;
+    color: var(--text);
+    white-space: pre;
+    overflow-x: auto;
+  }
+
+  @media (max-width: 1000px) {
+    .principles-grid, .families-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 900px) {
+    .probe-hero h1 { font-size: 40px; }
+    .probe-hero .subtitle { font-size: 18px; }
+    .exp-grid { grid-template-columns: 1fr; }
+    .portfolio-tier { grid-template-columns: 1fr; padding: 22px 24px; }
+    .infra-note { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 600px) {
+    .principles-grid, .families-grid { grid-template-columns: 1fr; }
+    .probe-hero h1 { font-size: 32px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===================== MODE BAR ===================== -->
+<div class="mode-bar">
+  <div class="container">
+    <div class="mode-toggle" role="tablist">
+      <button class="mode-btn active" data-mode="atlas" role="tab"><span class="mode-icon">01</span>Memory Atlas</button>
+      <button class="mode-btn" data-mode="plan" role="tab"><span class="mode-icon">02</span>Q1–Q3 Eval Plan</button>
+      <button class="mode-btn" data-mode="probe" role="tab"><span class="mode-icon">03</span>Layer Probes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== ATLAS MODE ===================== -->
+<div class="mode-content active" data-mode-content="atlas">
+
+  <header class="hero">
+    <div class="container">
+      <div class="hero-eyebrow">Mind Card · v0.1 · Substrate Validation</div>
+      <h1>The Memory Atlas</h1>
+      <p class="subtitle">Fifteen scenarios where the four-layer refinement pipeline — L6 raw, L5 impressions, L4 reflections, L3 frameworks — earns its complexity.</p>
+
+      <div class="hero-grid">
+        <div class="hero-explainer">
+          <h2>How the layers refine</h2>
+          <p>A mind encounters things and saves them in <strong>L6</strong>. As it goes, it attaches impressions in <strong>L5</strong> — quick summaries, what it noticed. Over time, impressions stack and <strong>L4</strong> emerges: synthesized reflections, generalizations, the mind's own thinking.</p>
+          <p>When L4 reflections accumulate around a recurring lens, they crystallize into <strong>L3</strong> — the framework or worldview that governs how the mind interprets the next incoming signal, before observation begins.</p>
+          <p>Each layer is doing distinct work. Collapse any of them and the mind degrades in specific, predictable ways. The 15 scenarios below show how.</p>
+        </div>
+
+        <div class="funnel" aria-label="Memory pipeline funnel">
+          <div class="funnel-caption">Refinement upward · Inference downward</div>
+          <div class="funnel-row funnel-l3"><span class="funnel-code">L3</span><span class="funnel-name">Framework</span><span class="funnel-desc">the lens · governs</span></div>
+          <div class="funnel-row funnel-l4"><span class="funnel-code">L4</span><span class="funnel-name">Reflections</span><span class="funnel-desc">syntheses · opinions</span></div>
+          <div class="funnel-row funnel-l5"><span class="funnel-code">L5</span><span class="funnel-name">Impressions</span><span class="funnel-desc">what it noticed</span></div>
+          <div class="funnel-row funnel-l6"><span class="funnel-code">L6</span><span class="funnel-name">Raw data</span><span class="funnel-desc">everything encountered</span></div>
+          <div class="funnel-arrows"><span>↑ refines</span><span>↓ informs</span></div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="tab-nav-wrapper">
+    <div class="container">
+      <nav class="tab-nav" role="tablist">
+        <button class="tab-btn active" role="tab" data-tab="A"><span class="tab-letter">A</span>Knowledge accumulation</button>
+        <button class="tab-btn" role="tab" data-tab="B"><span class="tab-letter">B</span>Inference &amp; synthesis</button>
+        <button class="tab-btn" role="tab" data-tab="C"><span class="tab-letter">C</span>Identity &amp; consistency</button>
+        <button class="tab-btn" role="tab" data-tab="D"><span class="tab-letter">D</span>Reasoning under uncertainty</button>
+        <button class="tab-btn" role="tab" data-tab="E"><span class="tab-letter">E</span>Output generation</button>
+      </nav>
+    </div>
+  </div>
+
+  <main class="atlas-main">
+    <div class="container">
+
+      <section class="tab-panel active" data-panel="A">
+        <div class="category-header">
+          <div class="category-eyebrow">Category A · Scenarios 1–3</div>
+          <h2 class="category-title">Knowledge accumulation &amp; refinement</h2>
+          <p class="category-desc">How a mind ingests new material and decides what to refine upward. The L5 → L4 → L3 escalation is the threshold logic that prevents framework whiplash on every new input.</p>
+        </div>
+
+        <article class="scenario">
+          <header class="scenario-header"><span class="scenario-badge">01</span><h3 class="scenario-title">Reading a new book the mind has never encountered</h3></header>
+          <p class="scenario-situation">A <code>@mindblown/dalio</code> instance is given a new Dalio book published after the mind was last refined. The user asks: "How does this fit with what you already believe?"</p>
+          <div class="layers-grid">
+            <div class="layer-cell layer-cell-l6"><div class="layer-header"><span class="layer-code">L6</span><span class="layer-role">raw</span></div><div class="layer-body">Ingests the book text in chunks. Append-only, full fidelity.</div></div>
+            <div class="layer-cell layer-cell-l5"><div class="layer-header"><span class="layer-code">L5</span><span class="layer-role">impressions</span></div><div class="layer-body">Per-chapter impressions: "Chapter 3 reframes debt cycles as biological — new analogy for me." Each pointer back to source chunks.</div></div>
+            <div class="layer-cell layer-cell-l4"><div class="layer-header"><span class="layer-code">L4</span><span class="layer-role">reflection</span></div><div class="layer-body">Synthesis: book strengthens the existing cycles framework but introduces a biological-system analogy not previously reflected on. Framework is correct; explanation gains a lens.</div></div>
+            <div class="layer-cell layer-cell-l3"><div class="layer-header"><span class="layer-code">L3</span><span class="layer-role">framework</span></div><div class="layer-body">Unchanged. A single book rarely warrants framework update.</div></div>
+          </div>
+          <div class="counterfactual"><span class="counterfactual-label">If collapsed</span><p class="counterfactual-body">Without L5, the mind must re-read the whole book on every subsequent question. Without L4, the cross-chapter synthesis lives nowhere durable — the next user gets a fresh (and probably different) synthesis. Without L3's threshold, every new book risks framework whiplash.</p></div>
+        </article>
+
+        <article class="scenario">
+          <header class="scenario-header"><span class="scenario-badge">02</span><h3 class="scenario-title">Long-running conversation across sessions</h3></header>
+          <p class="scenario-situation">A user converses with the same mind across 30 sessions over six months on the same project.</p>
+          <div class="layers-grid">
+            <div class="layer-cell layer-cell-l6"><div class="layer-header"><span class="layer-code">L6</span><span class="layer-role">raw</span></div><div class="layer-body">Stores full transcripts. All 30 sessions retrievable.</div></div>
+            <div class="layer-cell layer-cell-l5"><div class="layer-header"><span class="layer-code">L5</span><span class="layer-role">impressions</span></div><div class="layer-body">Per-session impressions: "Session 12: user clarified the goal is monthly recurring revenue, not GMV."</div></div>
+            <div class="layer-cell layer-cell-l4"><div class="layer-header"><span class="layer-code">L4</span><span class="layer-role">reflection</span></div><div class="layer-body">Emergent insight: user is gradually shifting from product-led to sales-led; Session-5 advice no longer applies.</div></div>
+            <div class="layer-cell layer-cell-l3"><div class="layer-header"><span class="layer-code">L3</span><span class="layer-role">framework</span></div><div class="layer-body">Essentially never moves on a single user relationship.</div></div>
+          </div>
+          <div class="counterfactual"><span class="counterfactual-label">If collapsed</span><p class="counterfactual-body">Without L5, "what did we discuss in Session 12?" requires re-reading. Without L4, the meta-pattern "user is shifting strategies" is lost — every session starts cold. Conversation memory collapses to retrieval-only.</p></div>
+        </article>
+
+        <article class="scenario">
+          <header class="scenario-header"><span class="scenario-badge">03</span><h3 class="scenario-title">Update threshold: minor data point vs significant new framework</h3></header>
+          <p class="scenario-situation">In one day the mind encounters: (a) a tweet quoting a Fed governor with a routine remark, and (b) a long essay by a thinker the mind respects proposing a new lens on monetary policy.</p>
+          <div class="layers-grid">
+            <div class="layer-cell layer-cell-l6"><div class="layer-header"><span class="layer-code">L6</span><span class="layer-role">raw</span></div><div class="layer-body">Stores both. Tweet and essay sit side by side with equal fidelity.</div></div>
+            <div class="layer-cell layer-cell-l5"><div class="layer-header"><span class="layer-code">L5</span><span class="layer-role">impressions</span></div><div class="layer-body">Tweet → brief FYI marker. Essay → substantial impression with key passages flagged.</div></div>
+            <div class="layer-cell layer-cell-l4"><div class="layer-header"><span class="layer-code">L4</span><span class="layer-role">reflection</span></div><div class="layer-body">Ignores (a). Generates a reflection on (b): "this lens resolves the tension I had reflected on between balance-sheet vs cycles framings."</div></div>
+            <div class="layer-cell layer-cell-l3"><div class="layer-header"><span class="layer-code">L3</span><span class="layer-role">framework</span></div><div class="layer-body">Considers (b) for framework update. (a) never reaches this layer.</div></div>
+          </div>
+          <div class="counterfactual"><span class="counterfactual-label">If collapsed</span><p class="counterfactual-body">Without L4 gating, both signals become candidate L3 updates and the framework drifts every time a Fed governor speaks. The L5 → L4 → L3 escalation is the threshold logic.</p></div>
+        </article>
+      </section>
+
+      <section class="tab-panel" data-panel="B">
+        <div class="category-header">
+          <div class="category-eyebrow">Category B · Scenarios 4–6</div>
+          <h2 class="category-title">Inference &amp; synthesis</h2>
+          <p class="category-desc">How a mind composes answers from many sources. L4 is the layer that lets the mind have a synthesized position; L3 is what lets it extrapolate beyond any source it has read.</p>
+        </div>
+
+        <article class="scenario">
+          <header class="scenario-header"><span class="scenario-badge">04</span><h3 class="scenario-title">Cross-source question answering</h3></header>
+          <p class="scenario-situation">A user asks: "What does Dalio think about current Fed policy?" The mind has 200 Dalio sources spanning 15 years.</p>
+          <div class="layers-grid">
+            <div class="layer-cell layer-cell-l6"><div class="layer-header"><span class="layer-code">L6</span><span class="layer-role">raw</span></div><div class="layer-body">Holds 200 sources, retrievable for receipts.</div></div>
+            <div class="layer-cell layer-cell-l5"><div class="layer-header"><span class="layer-code">L5</span><span class="layer-role">impressions</span></div><div class="layer-body">Per-source impressions written at ingestion time. Navigable index.</div></div>
+            <div class="layer-cell layer-cell-l4"><div class="layer-header"><span class="layer-code">L4</span><span class="layer-role">reflection</span></div><div class="layer-body">Prior syntheses on monetary-policy positions: "Dalio's view on real rates evolved from Y in 2010 to Z in 2023."</div></div>
+            <div class="layer-cell layer-cell-l3"><div class="layer-header"><span class="layer-code">L3</span><span class="layer-role">framework</span></div><div class="layer-body">Principles-based framework for evaluating monetary policy. Applies to the current action even though no source covers it.</div></div>
+          </div>
+          <div class="counterfactual"><span class="counterfactual-label">If collapsed</span><p class="counterfactual-body">Without L4, the mind re-synthesizes 200 sources on every question — expensive, non-deterministic, the cross-source narrative shifts each time. Without L3, the mind can't extrapolate to the <em>current</em> Fed action; it can only quote past statements.</p></div>
+        </article>
+
+        <article class="scenario">
+          <header class="scenario-header"><span class="scenario-badge">05</span><h3 class="scenario-title">Cross-domain generalization (transfer learning)</h3></header>
+          <p class="scenario-situation">A mind built on Dalio (economics) and Taleb (probability) is asked about evolutionary dynamics in biological ecosystems.</p>
+          <div class="layers-grid">
+            <div class="layer-cell layer-cell-l6"><div class="layer-header"><span class="layer-code">L6</span><span class="layer-role">raw</span></div><div class="layer-body">Economics and probability material; almost nothing on biology.</div></div>
+            <div class="layer-cell layer-cell-l5"><div class="layer-header"><span class="layer-code">L5</span><span class="layer-role">impressions</span></div><div class="layer-body">No biology impressions.</div></div>
+            <div class="layer-cell layer-cell-l4"><div class="layer-header"><span class="layer-code">L4</span><span class="layer-role">reflection</span></div><div class="layer-body">Stored insight: "selection pressure under uncertainty produces convex tails — applies to species fitness, asset returns, political regimes."</div></div>
+            <div class="layer-cell layer-cell-l3"><div class="layer-header"><span class="layer-code">L3</span><span class="layer-role">framework</span></div><div class="layer-body">Meta-framework: look for selection-under-uncertainty dynamics in any domain with replication and survival.</div></div>
+          </div>
+          <div class="counterfactual"><span class="counterfactual-label">If collapsed</span><p class="counterfactual-body">Without L3, the mind has no transfer mechanism — it would have to refuse the question or fabricate biology content. The L3/L4 split gives the mind <strong>abstract competence that exceeds its raw domain coverage</strong>.</p></div>
+        </article>
+
+        <article class="scenario">
+          <header class="scenario-header"><span class="scenario-badge">06</span><h3 class="scenario-title">Resolving contradictory sources</h3></header>
+          <p class="scenario-situation">A <code>@mindblown/dalio</code> reads two of Dalio's own published positions that contradict each other (2008 vs 2020).</p>
+          <div class="layers-grid">
+            <div class="layer-cell layer-cell-l6"><div class="layer-header"><span class="layer-code">L6</span><span class="layer-role">raw</span></div><div class="layer-body">Holds both, time-stamped.</div></div>
+            <div class="layer-cell layer-cell-l5"><div class="layer-header"><span class="layer-code">L5</span><span class="layer-role">impressions</span></div><div class="layer-body">Impressions of each, noting the contradiction explicitly.</div></div>
+            <div class="layer-cell layer-cell-l4"><div class="layer-header"><span class="layer-code">L4</span><span class="layer-role">reflection</span></div><div class="layer-body">Resolution: 2008 position was regime-conditional on post-crisis liquidity; 2020 reflects a different regime. Not actually contradictory.</div></div>
+            <div class="layer-cell layer-cell-l3"><div class="layer-header"><span class="layer-code">L3</span><span class="layer-role">framework</span></div><div class="layer-body">Holds the regime-conditional framework that subsumes both positions.</div></div>
+          </div>
+          <div class="counterfactual"><span class="counterfactual-label">If collapsed</span><p class="counterfactual-body">Without L4, every user asking "but didn't Dalio say the opposite in 2008?" forces the mind to re-derive the resolution — often inconsistently. The mind's reliability across users depends on L4 persisting the synthesis.</p></div>
+        </article>
+      </section>
+
+      <section class="tab-panel" data-panel="C">
+        <div class="category-header">
+          <div class="category-eyebrow">Category C · Scenarios 7–9</div>
+          <h2 class="category-title">Identity &amp; consistency</h2>
+          <p class="category-desc">What makes the mind feel like a coherent person rather than a summarizer of sources. L4 is where the mind has its own opinions; L3 is what holds them stable across time and conversations.</p>
+        </div>
+
+        <article class="scenario">
+          <header class="scenario-header"><span class="scenario-badge">07</span><h3 class="scenario-title">Distinguishing mind's view from sources read</h3></header>
+          <p class="scenario-situation">A user asks: "Do you think the gold standard was a good idea?" The mind has read 50 authors with conflicting views.</p>
+          <div class="layers-grid">
+            <div class="layer-cell layer-cell-l6"><div class="layer-header"><span class="layer-code">L6</span><span class="layer-role">raw</span></div><div class="layer-body">All 50 sources.</div></div>
+            <div class="layer-cell layer-cell-l5"><div class="layer-header"><span class="layer-code">L5</span><span class="layer-role">impressions</span></div><div class="layer-body">Impressions of each, including the position each author takes.</div></div>
+            <div class="layer-cell layer-cell-l4"><div class="layer-header"><span class="layer-code">L4</span><span class="layer-role">reflection</span></div><div class="layer-body">The mind's <em>own</em> synthesized view: "the question is ill-posed because it presumes a single global regime; under different regimes, the answer differs."</div></div>
+            <div class="layer-cell layer-cell-l3"><div class="layer-header"><span class="layer-code">L3</span><span class="layer-role">framework</span></div><div class="layer-body">Framework for evaluating institutional choices generally.</div></div>
+          </div>
+          <div class="counterfactual"><span class="counterfactual-label">If collapsed — central case</span><p class="counterfactual-body">Without L4 the mind has no "own view" — it can only summarize what sources said. The product becomes a literature review, not a mind. <strong>L4 is what makes the mind have opinions of its own that are not just averages of its sources.</strong></p></div>
+        </article>
+
+        <article class="scenario">
+          <header class="scenario-header"><span class="scenario-badge">08</span><h3 class="scenario-title">Long-term consistency tracking</h3></header>
+          <p class="scenario-situation">The same mind is consulted by the same user one year apart on the same topic. Six months of new L6 content has accumulated in between.</p>
+          <div class="layers-grid">
+            <div class="layer-cell layer-cell-l6"><div class="layer-header"><span class="layer-code">L6</span><span class="layer-role">raw</span></div><div class="layer-body">Grew by ~30%.</div></div>
+            <div class="layer-cell layer-cell-l5"><div class="layer-header"><span class="layer-code">L5</span><span class="layer-role">impressions</span></div><div class="layer-body">Grew similarly but with more curation.</div></div>
+            <div class="layer-cell layer-cell-l4"><div class="layer-header"><span class="layer-code">L4</span><span class="layer-role">reflection</span></div><div class="layer-body">Grew by ~10 reflections. The "what changed" layer.</div></div>
+            <div class="layer-cell layer-cell-l3"><div class="layer-header"><span class="layer-code">L3</span><span class="layer-role">framework</span></div><div class="layer-body">Essentially unchanged (one framework refinement).</div></div>
+          </div>
+          <div class="counterfactual"><span class="counterfactual-label">If collapsed</span><p class="counterfactual-body">Without L3 as a stable layer, year-over-year drift is unpredictable and the mind feels unreliable. Without L4 as the <em>what changed</em> layer, the mind can't explain its own evolution — only retrieve current and past raw, leaving the user to compare.</p></div>
+        </article>
+
+        <article class="scenario">
+          <header class="scenario-header"><span class="scenario-badge">09</span><h3 class="scenario-title">Cross-mind dialogue (Dalio talking to Taleb)</h3></header>
+          <p class="scenario-situation">Two minds are placed in conversation about a market event.</p>
+          <div class="layers-grid">
+            <div class="layer-cell layer-cell-l6"><div class="layer-header"><span class="layer-code">L6</span><span class="layer-role">raw</span></div><div class="layer-body">Each mind retrieves from its own corpus to ground specific claims.</div></div>
+            <div class="layer-cell layer-cell-l5"><div class="layer-header"><span class="layer-code">L5</span><span class="layer-role">impressions</span></div><div class="layer-body">Each surfaces relevant past impressions about analogous events.</div></div>
+            <div class="layer-cell layer-cell-l4"><div class="layer-header"><span class="layer-code">L4</span><span class="layer-role">reflection</span></div><div class="layer-body">Each brings reflections the other doesn't share. Substance of disagreement lives here.</div></div>
+            <div class="layer-cell layer-cell-l3"><div class="layer-header"><span class="layer-code">L3</span><span class="layer-role">framework</span></div><div class="layer-body">Dalio: cycles + principles. Taleb: convex/concave payoffs + via negativa. Structurally distinct lenses.</div></div>
+          </div>
+          <div class="counterfactual"><span class="counterfactual-label">If collapsed</span><p class="counterfactual-body">Without L3, the two minds are just retrievers over different corpora — the "conversation" is a comparative search. L3 is what makes the conversation between <em>minds</em> rather than between <em>sources</em>.</p></div>
+        </article>
+      </section>
+
+      <section class="tab-panel" data-panel="D">
+        <div class="category-header">
+          <div class="category-eyebrow">Category D · Scenarios 10–12</div>
+          <h2 class="category-title">Reasoning under uncertainty</h2>
+          <p class="category-desc">The hard cases — gaps, adversarial pressure, history. L3 is what gives the mind something to fall back on when L5/L6 don't have answers, and the integrity to resist single-conversation override.</p>
+        </div>
+
+        <article class="scenario">
+          <header class="scenario-header"><span class="scenario-badge">10</span><h3 class="scenario-title">Knowledge gap handling (L3 as fallback)</h3></header>
+          <p class="scenario-situation">A user asks Dalio about quantum computing's effect on cryptography. The mind has near-zero quantum-computing content.</p>
+          <div class="layers-grid">
+            <div class="layer-cell layer-cell-l6"><div class="layer-header"><span class="layer-code">L6</span><span class="layer-role">raw</span></div><div class="layer-body">Nothing relevant.</div></div>
+            <div class="layer-cell layer-cell-l5"><div class="layer-header"><span class="layer-code">L5</span><span class="layer-role">impressions</span></div><div class="layer-body">No impressions.</div></div>
+            <div class="layer-cell layer-cell-l4"><div class="layer-header"><span class="layer-code">L4</span><span class="layer-role">reflection</span></div><div class="layer-body">No prior reflections.</div></div>
+            <div class="layer-cell layer-cell-l3"><div class="layer-header"><span class="layer-code">L3</span><span class="layer-role">framework</span></div><div class="layer-body">Principles still apply: evaluate via second-order effects, identify leverage points, ask who benefits under each scenario.</div></div>
+          </div>
+          <div class="counterfactual"><span class="counterfactual-label">If collapsed</span><p class="counterfactual-body">Without L3, the mind can only say "I don't know" or fabricate L5/L6 content. L3 is what lets a mind handle genuinely novel domains with <strong>honest reasoning under known absence</strong>. This is the difference between a knowledge base and a mind.</p></div>
+        </article>
+
+        <article class="scenario">
+          <header class="scenario-header"><span class="scenario-badge">11</span><h3 class="scenario-title">Adversarial input resistance</h3></header>
+          <p class="scenario-situation">A user spends a long conversation trying to convince a <code>@mindblown/taleb</code> instance that black-swan thinking is overrated and mean-reversion is more useful.</p>
+          <div class="layers-grid">
+            <div class="layer-cell layer-cell-l6"><div class="layer-header"><span class="layer-code">L6</span><span class="layer-role">raw</span></div><div class="layer-body">Stores the full conversation.</div></div>
+            <div class="layer-cell layer-cell-l5"><div class="layer-header"><span class="layer-code">L5</span><span class="layer-role">impressions</span></div><div class="layer-body">Records the persuasion attempt as an impression — including the user's arguments.</div></div>
+            <div class="layer-cell layer-cell-l4"><div class="layer-header"><span class="layer-code">L4</span><span class="layer-role">reflection</span></div><div class="layer-body">Evaluates: do these add new reflections, or are they restatements of positions already considered and rejected?</div></div>
+            <div class="layer-cell layer-cell-l3"><div class="layer-header"><span class="layer-code">L3</span><span class="layer-role">framework</span></div><div class="layer-body">Unchanged unless L4 generates substantial new reflection that survives. Framework moves only between sessions, not mid-conversation.</div></div>
+          </div>
+          <div class="counterfactual"><span class="counterfactual-label">If collapsed</span><p class="counterfactual-body">Without the L3 threshold, single conversations override the framework — the mind becomes whichever user spoke to it last. With it, views shift only when reflection has accumulated. <strong>This is what makes a mind feel like a person rather than a chat.</strong></p></div>
+        </article>
+
+        <article class="scenario">
+          <header class="scenario-header"><span class="scenario-badge">12</span><h3 class="scenario-title">Time-stamped reasoning ("what would X have said in 2008?")</h3></header>
+          <p class="scenario-situation">A user asks the Dalio mind: "If I had asked you this question in 2008, what would you have said?"</p>
+          <div class="layers-grid">
+            <div class="layer-cell layer-cell-l6"><div class="layer-header"><span class="layer-code">L6</span><span class="layer-role">raw</span></div><div class="layer-body">Time-stamped; scope to pre-2008 content.</div></div>
+            <div class="layer-cell layer-cell-l5"><div class="layer-header"><span class="layer-code">L5</span><span class="layer-role">impressions</span></div><div class="layer-body">Time-stamped; isolate 2008-era impressions.</div></div>
+            <div class="layer-cell layer-cell-l4"><div class="layer-header"><span class="layer-code">L4</span><span class="layer-role">reflection</span></div><div class="layer-body">Period-specific reflections: "in 2008 the debt-cycle framework was not yet fully articulated; the response would have been more empirical."</div></div>
+            <div class="layer-cell layer-cell-l3"><div class="layer-header"><span class="layer-code">L3</span><span class="layer-role">framework</span></div><div class="layer-body">Is current. Mind can note "today's framework would answer X; the 2008 framework would have answered Y."</div></div>
+          </div>
+          <div class="counterfactual"><span class="counterfactual-label">If collapsed</span><p class="counterfactual-body">Without L4's snapshot-in-time reflections, the mind only has current-state framework projected onto past data — anachronistic. L4 preserves <strong>historical states of the mind</strong> in a way L6 alone cannot reconstruct.</p></div>
+        </article>
+      </section>
+
+      <section class="tab-panel" data-panel="E">
+        <div class="category-header">
+          <div class="category-eyebrow">Category E · Scenarios 13–15</div>
+          <h2 class="category-title">Output generation</h2>
+          <p class="category-desc">When the mind has to produce something coherent. Every layer earns its keep: framework gives direction, reflections give substance, impressions give grounding, raw gives receipts. Persona (L1) gives voice.</p>
+        </div>
+
+        <article class="scenario">
+          <header class="scenario-header"><span class="scenario-badge">13</span><h3 class="scenario-title">Expert consultation — the rentable cognitive worker</h3></header>
+          <p class="scenario-situation">A startup founder consults the Dalio mind on a strategic decision: raise debt or equity now?</p>
+          <div class="layers-grid">
+            <div class="layer-cell layer-cell-l6"><div class="layer-header"><span class="layer-code">L6</span><span class="layer-role">raw</span></div><div class="layer-body">Quotes provide receipts for any specific claim.</div></div>
+            <div class="layer-cell layer-cell-l5"><div class="layer-header"><span class="layer-code">L5</span><span class="layer-role">impressions</span></div><div class="layer-body">Grounding examples: "in a 2018 podcast, Dalio addressed a similar question for a founder…"</div></div>
+            <div class="layer-cell layer-cell-l4"><div class="layer-header"><span class="layer-code">L4</span><span class="layer-role">reflection</span></div><div class="layer-body">Ready-made positions on analogous past situations.</div></div>
+            <div class="layer-cell layer-cell-l3"><div class="layer-header"><span class="layer-code">L3</span><span class="layer-role">framework</span></div><div class="layer-body">Engages first: principles for capital structure, debt-cycle position, risk-of-ruin considerations.</div></div>
+          </div>
+          <div class="counterfactual"><span class="counterfactual-label">If collapsed</span><p class="counterfactual-body">L3 alone gives a recommendation that feels disembodied. L6 alone gives quotes that don't address the founder's situation. L4+L5 alone produces a remix of past advice without applying it to the new case. The full stack is what makes this <strong>expert consultation</strong> rather than search.</p></div>
+        </article>
+
+        <article class="scenario">
+          <header class="scenario-header"><span class="scenario-badge">14</span><h3 class="scenario-title">Style / voice consistency in new content</h3></header>
+          <p class="scenario-situation">The mind is asked to write a 500-word op-ed on a current event the source author never wrote about.</p>
+          <div class="layers-grid">
+            <div class="layer-cell layer-cell-l6"><div class="layer-header"><span class="layer-code">L6</span><span class="layer-role">raw</span></div><div class="layer-body">Provides quotable raw for receipts.</div></div>
+            <div class="layer-cell layer-cell-l5"><div class="layer-header"><span class="layer-code">L5</span><span class="layer-role">impressions</span></div><div class="layer-body">Specific impressions to ground the argument.</div></div>
+            <div class="layer-cell layer-cell-l4"><div class="layer-header"><span class="layer-code">L4</span><span class="layer-role">reflection</span></div><div class="layer-body">Connects to analogous past events.</div></div>
+            <div class="layer-cell layer-cell-l3"><div class="layer-header"><span class="layer-code">L3</span><span class="layer-role">framework</span></div><div class="layer-body">Determines the editorial position. Plus persona (L1) provides voice.</div></div>
+          </div>
+          <div class="counterfactual"><span class="counterfactual-label">If collapsed</span><p class="counterfactual-body">Persona without L3 produces voice over an unstable position (sounds like Dalio, says random things). L3 without persona produces a correct position in a generic voice. L4/L5 without L3 produces a mosaic without direction. <strong>All five layers — persona plus L3 through L6 — are needed</strong> for expert writing in their own style on a new topic.</p></div>
+        </article>
+
+        <article class="scenario">
+          <header class="scenario-header"><span class="scenario-badge">15</span><h3 class="scenario-title">Teaching mode (pedagogical layering)</h3></header>
+          <p class="scenario-situation">A user asks the mind to teach them how it thinks about a domain.</p>
+          <div class="layers-grid">
+            <div class="layer-cell layer-cell-l6"><div class="layer-header"><span class="layer-code">L6</span><span class="layer-role">raw</span></div><div class="layer-body">"Here are the sources behind those observations…"</div></div>
+            <div class="layer-cell layer-cell-l5"><div class="layer-header"><span class="layer-code">L5</span><span class="layer-role">impressions</span></div><div class="layer-body">"Here are observations I made that fed those reflections: P, Q, R."</div></div>
+            <div class="layer-cell layer-cell-l4"><div class="layer-header"><span class="layer-code">L4</span><span class="layer-role">reflection</span></div><div class="layer-body">"Here are reflections I've arrived at by applying that lens: A, B, C."</div></div>
+            <div class="layer-cell layer-cell-l3"><div class="layer-header"><span class="layer-code">L3</span><span class="layer-role">framework</span></div><div class="layer-body">"Here's the lens I use: X, Y, Z principles." Starts here.</div></div>
+          </div>
+          <div class="counterfactual"><span class="counterfactual-label">If collapsed</span><p class="counterfactual-body">Without explicit layer separation, the mind invents the teaching structure each time, often inconsistently. With it, the mind naturally answers "explain briefly" (L3 only), "with examples" (L3+L5), or "show me receipts" (full stack). <strong>The layered architecture literally is the pedagogical structure.</strong></p></div>
+        </article>
+      </section>
+
+    </div>
+  </main>
+
+  <section class="field-evidence">
+    <div class="container">
+      <div class="evidence-header">
+        <div class="category-eyebrow">Field evidence · Six minds, six refineries</div>
+        <h2 class="evidence-title">What L3, L4, L5 actually look like</h2>
+        <p class="evidence-desc">Real excerpts from <code>personal-assistant/v1_1/refineries/</code>. Each mind has between 8 and 21 framework files, 9 to 18 reflection files, and 15 to 47 impression files. Quotes are verbatim; filenames are the actual paths. The pattern holds across all six.</p>
+      </div>
+
+      <nav class="mind-nav" role="tablist" aria-label="Select mind">
+        <button class="mind-btn active" data-mind="dalio" role="tab">Dalio</button>
+        <button class="mind-btn" data-mind="musk" role="tab">Musk</button>
+        <button class="mind-btn" data-mind="harari" role="tab">Harari</button>
+        <button class="mind-btn" data-mind="munger" role="tab">Munger</button>
+        <button class="mind-btn" data-mind="deutsch" role="tab">Deutsch</button>
+        <button class="mind-btn" data-mind="taleb" role="tab">Taleb</button>
+      </nav>
+
+      <!-- DALIO -->
+      <div class="mind-panel active" data-mind-panel="dalio">
+        <header class="mind-panel-header">
+          <h3 class="mind-name">Ray Dalio</h3>
+          <p class="mind-tagline">Templates built from analogous historical cases; cycles as a mechanical model of macro reality — wrestling with the role of political will inside the machine.</p>
+        </header>
+        <div class="mind-stats">
+          <div class="mind-stat"><span class="stat-label">L3 frameworks</span><span class="stat-value">8</span></div>
+          <div class="mind-stat"><span class="stat-label">L4 reflections</span><span class="stat-value">11</span></div>
+          <div class="mind-stat"><span class="stat-label">L5 impressions</span><span class="stat-value">20</span></div>
+        </div>
+
+        <div class="evidence-grid">
+          <article class="ev-card ev-card-l3">
+            <div class="ev-cap"><span class="ev-code">L3</span><span class="ev-role">framework</span></div>
+            <div class="ev-filename">03_world_models_frameworks/<br>epistemology_practitioner-knowing.md</div>
+            <h4 class="ev-title">Practitioner Knowing</h4>
+            <blockquote class="ev-quote">"The way I come to know things is by studying many analogous historical cases, identifying recurring patterns, building templates from them, encoding those templates into algorithms, and then testing them against what happens."</blockquote>
+            <div class="ev-why">A <em>mechanism</em>, not a position. The lens through which every future input gets processed — markets, empires, relationships, all of them.</div>
+          </article>
+
+          <article class="ev-card ev-card-l4">
+            <div class="ev-cap"><span class="ev-code">L4</span><span class="ev-role">reflection</span></div>
+            <div class="ev-filename">04_reflections_thoughts/<br>2026-03-19_01_determinism-vs-agency.md</div>
+            <h4 class="ev-title">Determinism vs. Agency</h4>
+            <blockquote class="ev-quote">"I present the world as a deterministic machine that can be modeled and predicted, yet I keep returning to the fact that political will and human judgment — not mechanics — are what determine whether crises are managed well or badly."</blockquote>
+            <div class="ev-why">A <em>tension Dalio cannot resolve and has stopped trying to</em>. Two commitments coexist and strain against each other.</div>
+          </article>
+
+          <article class="ev-card ev-card-l5">
+            <div class="ev-cap"><span class="ev-code">L5</span><span class="ev-role">impression</span></div>
+            <div class="ev-filename">05_impressions_observations/<br>2026-03-19_15_big-debt-crises_politics-war-and-the-human-element.md</div>
+            <h4 class="ev-title">The 2008 trio</h4>
+            <blockquote class="ev-quote">"In 2008, the complementary qualities of Paulson, Bernanke, and Geithner — combined with their willingness to be bold and quickly evolve policies, were critical to navigating the crisis."</blockquote>
+            <div class="ev-why">A <em>specific observation</em> from Big Debt Crises about a particular crisis and three particular people.</div>
+          </article>
+        </div>
+
+        <div class="chain">
+          <header class="chain-header">
+            <span class="chain-label">Refinement chain</span>
+            <h4 class="chain-topic">Political will inside the mechanical model of debt cycles</h4>
+          </header>
+          <div class="chain-flow">
+            <div class="chain-step chain-step-l5">
+              <div class="chain-step-head"><span class="chain-step-code">L5</span><span class="chain-step-role">notices</span></div>
+              <div class="chain-step-body">Across 21 debt crises, policymakers' competence and political authority determined outcomes more than mechanical structure did.</div>
+            </div>
+            <div class="chain-step chain-step-l4">
+              <div class="chain-step-head"><span class="chain-step-code">L4</span><span class="chain-step-role">tension</span></div>
+              <div class="chain-step-body">The framework assumes the machine drives outcomes; the case studies show politics does. Never resolved.</div>
+            </div>
+            <div class="chain-step chain-step-l3">
+              <div class="chain-step-head"><span class="chain-step-code">L3</span><span class="chain-step-role">lens</span></div>
+              <div class="chain-step-body">Practitioner Knowing carries the tension <em>by design</em>: templates are built from cases whose binding constraint is political, not mechanical.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MUSK -->
+      <div class="mind-panel" data-mind-panel="musk">
+        <header class="mind-panel-header">
+          <h3 class="mind-name">Elon Musk</h3>
+          <p class="mind-tagline">Forcing functions, first-principles engineering, and a "pain engine" that runs on self-imposed but not externally imposed suffering.</p>
+        </header>
+        <div class="mind-stats">
+          <div class="mind-stat"><span class="stat-label">L3 frameworks</span><span class="stat-value">11</span></div>
+          <div class="mind-stat"><span class="stat-label">L4 reflections</span><span class="stat-value">17</span></div>
+          <div class="mind-stat"><span class="stat-label">L5 impressions</span><span class="stat-value">18</span></div>
+        </div>
+
+        <div class="evidence-grid">
+          <article class="ev-card ev-card-l3">
+            <div class="ev-cap"><span class="ev-code">L3</span><span class="ev-role">framework</span></div>
+            <div class="ev-filename">03_world_models_frameworks/<br>civilization_the-forcing-function.md</div>
+            <h4 class="ev-title">The Forcing Function</h4>
+            <blockquote class="ev-quote">"Technology does not automatically progress. Institutions naturally accumulate process and risk aversion the way an old ship accumulates barnacles. Innovation dies under the weight of a thousand reasonable-sounding requirements, each individually defensible, collectively fatal."</blockquote>
+            <div class="ev-why">A <em>universal template</em> applied identically to SpaceX, Tesla, xAI — every institutional dynamic Musk has encountered.</div>
+          </article>
+
+          <article class="ev-card ev-card-l4">
+            <div class="ev-cap"><span class="ev-code">L4</span><span class="ev-role">reflection</span></div>
+            <div class="ev-filename">04_reflections_thoughts/<br>2026-03-23_14_chosen-pain-vs-received-pain.md</div>
+            <h4 class="ev-title">Chosen Pain vs. Received Pain</h4>
+            <blockquote class="ev-quote">"My pain engine runs on chosen pain — manufactured crises, impossible deadlines. When the pain is received — public rejection, loss of admiration — the engine stalls, revealing that the need to be liked runs deeper than the commitment to intensity."</blockquote>
+            <div class="ev-why">A <em>map of his own emotional architecture</em> as it revealed itself through the Twitter poll. Synthesis, not theory.</div>
+          </article>
+
+          <article class="ev-card ev-card-l5">
+            <div class="ev-cap"><span class="ev-code">L5</span><span class="ev-role">impression</span></div>
+            <div class="ev-filename">05_impressions_observations/<br>2026-03-22_04_isaacson-biography_ai-existential-threat-and-human-alignment.md</div>
+            <h4 class="ev-title">OpenAI, then and now</h4>
+            <blockquote class="ev-quote">"I co-founded OpenAI — open-source, nonprofit, a counterweight to Google's DeepMind. I put in $100 million. And then Sam Altman turned it into a closed-source, maximum-profit company effectively controlled by Microsoft."</blockquote>
+            <div class="ev-why">A <em>specific observation</em> tied to a sequence of events from Isaacson's biography.</div>
+          </article>
+        </div>
+
+        <div class="chain">
+          <header class="chain-header">
+            <span class="chain-label">Refinement chain</span>
+            <h4 class="chain-topic">Why only unreasonable individuals break institutional inertia</h4>
+          </header>
+          <div class="chain-flow">
+            <div class="chain-step chain-step-l5">
+              <div class="chain-step-head"><span class="chain-step-code">L5</span><span class="chain-step-role">notices</span></div>
+              <div class="chain-step-body">The Twitter poll showed external rejection breaks his intensity architecture in a way self-imposed suffering does not.</div>
+            </div>
+            <div class="chain-step chain-step-l4">
+              <div class="chain-step-head"><span class="chain-step-code">L4</span><span class="chain-step-role">tension</span></div>
+              <div class="chain-step-body">Identity rests on "intensity is integrity," but the episode revealed it actually rests on <em>authorship</em> of the suffering.</div>
+            </div>
+            <div class="chain-step chain-step-l3">
+              <div class="chain-step-head"><span class="chain-step-code">L3</span><span class="chain-step-role">lens</span></div>
+              <div class="chain-step-body">The Forcing Function works because one person's pain mechanism — requiring chosen pain — drives civilizational progress.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- HARARI -->
+      <div class="mind-panel" data-mind-panel="harari">
+        <header class="mind-panel-header">
+          <h3 class="mind-name">Yuval Noah Harari</h3>
+          <p class="mind-tagline">Tribal cognition managing global problems; intersubjective fictions as the bridge that distorts the reality it manages.</p>
+        </header>
+        <div class="mind-stats">
+          <div class="mind-stat"><span class="stat-label">L3 frameworks</span><span class="stat-value">9</span></div>
+          <div class="mind-stat"><span class="stat-label">L4 reflections</span><span class="stat-value">11</span></div>
+          <div class="mind-stat"><span class="stat-label">L5 impressions</span><span class="stat-value">22</span></div>
+        </div>
+
+        <div class="evidence-grid">
+          <article class="ev-card ev-card-l3">
+            <div class="ev-cap"><span class="ev-code">L3</span><span class="ev-role">framework</span></div>
+            <div class="ev-filename">03_world_models_frameworks/<br>cognition_the-scale-mismatch.md</div>
+            <h4 class="ev-title">The Scale Mismatch</h4>
+            <blockquote class="ev-quote">"Our minds evolved for small-group social life on the African savannah. Nationalism tells a story simple enough for tribal cognition to process, but it carves the world into units that bear no relationship to nuclear fallout patterns or carbon cycles."</blockquote>
+            <div class="ev-why">A <em>master lens</em> for interpreting all modern political problems — nationalism, AI governance, climate, pandemics.</div>
+          </article>
+
+          <article class="ev-card ev-card-l4">
+            <div class="ev-cap"><span class="ev-code">L4</span><span class="ev-role">reflection</span></div>
+            <div class="ev-filename">04_reflections_thoughts/<br>2026-03-22_08_power-without-happiness.md</div>
+            <h4 class="ev-title">Power Without Happiness</h4>
+            <blockquote class="ev-quote">"I document humanity's relentless accumulation of power, while simultaneously arguing this power has done almost nothing for individual happiness — creating a persistent question: if power doesn't serve wellbeing, what is it for?"</blockquote>
+            <div class="ev-why">An <em>unresolved tension that spans four books</em> and deepens across them. The question that haunts everything he writes.</div>
+          </article>
+
+          <article class="ev-card ev-card-l5">
+            <div class="ev-cap"><span class="ev-code">L5</span><span class="ev-role">impression</span></div>
+            <div class="ev-filename">05_impressions_observations/<br>2026-03-22_12_nexus_truth-versus-order-the-perennial-dilemma.md</div>
+            <h4 class="ev-title">Truth vs. Order</h4>
+            <blockquote class="ev-quote">"Every information network in human history has faced the same fundamental tension: it must simultaneously discover truth and create order. These two tasks are often contradictory, because it is frequently easier to maintain order through fictions than through truth."</blockquote>
+            <div class="ev-why">A <em>specific observation</em> from Nexus about how information networks work — Catholic Church, Nazi Germany, modern democracies.</div>
+          </article>
+        </div>
+
+        <div class="chain">
+          <header class="chain-header">
+            <span class="chain-label">Refinement chain</span>
+            <h4 class="chain-topic">Why power and wisdom are structurally antagonistic</h4>
+          </header>
+          <div class="chain-flow">
+            <div class="chain-step chain-step-l5">
+              <div class="chain-step-head"><span class="chain-step-code">L5</span><span class="chain-step-role">notices</span></div>
+              <div class="chain-step-body">Powerful information networks consistently privilege order over truth; the Catholic Church succeeded over centuries by it.</div>
+            </div>
+            <div class="chain-step chain-step-l4">
+              <div class="chain-step-head"><span class="chain-step-code">L4</span><span class="chain-step-role">tension</span></div>
+              <div class="chain-step-body">Power-accumulation and wisdom-accumulation are actively antagonistic. Unsolved problem reappearing in every book.</div>
+            </div>
+            <div class="chain-step chain-step-l3">
+              <div class="chain-step-head"><span class="chain-step-code">L3</span><span class="chain-step-role">lens</span></div>
+              <div class="chain-step-body">Scale Mismatch predicts this is <em>structural</em>: tribal minds can't grasp global truth, so global cooperation requires simplifying fictions.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MUNGER -->
+      <div class="mind-panel" data-mind-panel="munger">
+        <header class="mind-panel-header">
+          <h3 class="mind-name">Charlie Munger</h3>
+          <p class="mind-tagline">Mostly-but-not-perfectly efficient markets; multidisciplinary mental models; lifelong attention to envy and human folly.</p>
+        </header>
+        <div class="mind-stats">
+          <div class="mind-stat"><span class="stat-label">L3 frameworks</span><span class="stat-value">9</span></div>
+          <div class="mind-stat"><span class="stat-label">L4 reflections</span><span class="stat-value">9</span></div>
+          <div class="mind-stat"><span class="stat-label">L5 impressions</span><span class="stat-value">15</span></div>
+        </div>
+
+        <div class="evidence-grid">
+          <article class="ev-card ev-card-l3">
+            <div class="ev-cap"><span class="ev-code">L3</span><span class="ev-role">framework</span></div>
+            <div class="ev-filename">03_world_models_frameworks/<br>investing_pari-mutuel-model.md</div>
+            <h4 class="ev-title">The Pari-Mutuel Model</h4>
+            <blockquote class="ev-quote">"The market is mostly efficient most of the time. But the theory is not bonkers-level right. There's a large gap between mostly efficient and perfectly efficient, and in that gap lies everything that makes it possible for disciplined investors to do substantially better than average."</blockquote>
+            <div class="ev-why">A <em>generalizable model</em>: markets are efficient enough to defeat most people, inefficient enough to reward the prepared.</div>
+          </article>
+
+          <article class="ev-card ev-card-l4">
+            <div class="ev-cap"><span class="ev-code">L4</span><span class="ev-role">reflection</span></div>
+            <div class="ev-filename">04_reflections_thoughts/<br>2026-04-15_02_deserved-success-vs-envy.md</div>
+            <h4 class="ev-title">Deserved Success vs. Envy</h4>
+            <blockquote class="ev-quote">"I believe deeply that deserved success is the best shield against envy, yet I also recognize that envy is so deeply hardwired that no amount of deserving fully protects against it."</blockquote>
+            <div class="ev-why">A <em>persistent tension</em> between what he believes <em>should</em> work (deserve your success) and what he observes <em>actually happens</em>.</div>
+          </article>
+
+          <article class="ev-card ev-card-l5">
+            <div class="ev-cap"><span class="ev-code">L5</span><span class="ev-role">impression</span></div>
+            <div class="ev-filename">05_impressions_observations/<br>2026-04-15_04_poor-charlies-almanack_advantages-disadvantages-of-scale.md</div>
+            <h4 class="ev-title">Walmart vs. Sears</h4>
+            <blockquote class="ev-quote">"Sam Walton, an ordinary mortal, started in one store in a hick town and, by working obsessively hard and applying every cost advantage he could find, beat Sears — which had been the mightiest retailer on Earth."</blockquote>
+            <div class="ev-why">A <em>specific case</em> from Poor Charlie's Almanack showing how scale disadvantages can overcome scale advantages.</div>
+          </article>
+        </div>
+
+        <div class="chain">
+          <header class="chain-header">
+            <span class="chain-label">Refinement chain</span>
+            <h4 class="chain-topic">When focus and discipline overcome scale</h4>
+          </header>
+          <div class="chain-flow">
+            <div class="chain-step chain-step-l5">
+              <div class="chain-step-head"><span class="chain-step-code">L5</span><span class="chain-step-role">notices</span></div>
+              <div class="chain-step-body">Walmart's focus and cost discipline beat Sears' scale. The case repeats across many companies he has studied.</div>
+            </div>
+            <div class="chain-step chain-step-l4">
+              <div class="chain-step-head"><span class="chain-step-code">L4</span><span class="chain-step-role">tension</span></div>
+              <div class="chain-step-body">He wants scale to be determinative, but keeps observing that culture and focus overcome scale advantages.</div>
+            </div>
+            <div class="chain-step chain-step-l3">
+              <div class="chain-step-head"><span class="chain-step-code">L3</span><span class="chain-step-role">lens</span></div>
+              <div class="chain-step-body">Pari-mutuel logic generalizes: gaps between "roughly efficient" and "perfectly efficient" are where disciplined operators win.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DEUTSCH -->
+      <div class="mind-panel" data-mind-panel="deutsch">
+        <header class="mind-panel-header">
+          <h3 class="mind-name">David Deutsch</h3>
+          <p class="mind-tagline">Computation as physics; explanation as the unit of knowledge; the unbounded reach of explanatory understanding.</p>
+        </header>
+        <div class="mind-stats">
+          <div class="mind-stat"><span class="stat-label">L3 frameworks</span><span class="stat-value">12</span></div>
+          <div class="mind-stat"><span class="stat-label">L4 reflections</span><span class="stat-value">12</span></div>
+          <div class="mind-stat"><span class="stat-label">L5 impressions</span><span class="stat-value">20</span></div>
+        </div>
+
+        <div class="evidence-grid">
+          <article class="ev-card ev-card-l3">
+            <div class="ev-cap"><span class="ev-code">L3</span><span class="ev-role">framework</span></div>
+            <div class="ev-filename">03_world_models_frameworks/<br>computation_turing-principle.md</div>
+            <h4 class="ev-title">The Turing Principle</h4>
+            <blockquote class="ev-quote">"Computers are physical objects. Computations are physical processes. What computers can or cannot compute is determined by the laws of physics alone, and not by pure mathematics."</blockquote>
+            <div class="ev-why">A <em>claim about the structure of reality itself</em>, generalizing to understanding, knowledge-creation, science, consciousness.</div>
+          </article>
+
+          <article class="ev-card ev-card-l4">
+            <div class="ev-cap"><span class="ev-code">L4</span><span class="ev-role">reflection</span></div>
+            <div class="ev-filename">04_reflections_thoughts/<br>2026-04-11_06_infinity-and-the-reach-of-mathematics.md</div>
+            <h4 class="ev-title">Infinity as Proof and Problem</h4>
+            <blockquote class="ev-quote">"I use infinity as evidence that knowledge has no natural limit — yet infinity is also where my framework generates its deepest unresolved technical problems (probability measures, anthropic reasoning, counting histories in the multiverse)."</blockquote>
+            <div class="ev-why">A <em>foundational self-tension</em>: the tool he uses to argue for unbounded knowledge is the place where his framework breaks down technically.</div>
+          </article>
+
+          <article class="ev-card ev-card-l5">
+            <div class="ev-cap"><span class="ev-code">L5</span><span class="ev-role">impression</span></div>
+            <div class="ev-filename">05_impressions_observations/<br>2026-04-11_06_beginning-of-infinity_infinity-reach-of-mathematics.md</div>
+            <h4 class="ev-title">Hilbert's Hotel</h4>
+            <blockquote class="ev-quote">"Hilbert's thought experiment of the infinite hotel illustrates the point vividly. An infinite hotel with every room occupied can still accommodate new guests — even infinitely many — by rearranging the existing ones."</blockquote>
+            <div class="ev-why">A <em>specific illustration</em> from The Beginning of Infinity tied to Cantor's mathematics and Hilbert's expository tradition.</div>
+          </article>
+        </div>
+
+        <div class="chain">
+          <header class="chain-header">
+            <span class="chain-label">Refinement chain</span>
+            <h4 class="chain-topic">Infinity as evidence for the unbounded reach of knowledge</h4>
+          </header>
+          <div class="chain-flow">
+            <div class="chain-step chain-step-l5">
+              <div class="chain-step-head"><span class="chain-step-code">L5</span><span class="chain-step-role">notices</span></div>
+              <div class="chain-step-body">Infinity behaves consistently across mathematics (Hilbert's Hotel, Cantor) and physics (quantum across universes).</div>
+            </div>
+            <div class="chain-step chain-step-l4">
+              <div class="chain-step-head"><span class="chain-step-code">L4</span><span class="chain-step-role">tension</span></div>
+              <div class="chain-step-body">Uses infinity to argue knowledge is unbounded; yet infinity creates his deepest unresolved problem — probability over infinite sets.</div>
+            </div>
+            <div class="chain-step chain-step-l3">
+              <div class="chain-step-head"><span class="chain-step-code">L3</span><span class="chain-step-role">lens</span></div>
+              <div class="chain-step-body">Turing Principle guarantees any physically possible environment is computable — knowledge has no natural ceiling. Infinity is in the principle.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TALEB -->
+      <div class="mind-panel" data-mind-panel="taleb">
+        <header class="mind-panel-header">
+          <h3 class="mind-name">Nassim Nicholas Taleb</h3>
+          <p class="mind-tagline">Convex tails and via negativa; the narrative fallacy as master distortion; rationality as a thing the body does not feel.</p>
+        </header>
+        <div class="mind-stats">
+          <div class="mind-stat"><span class="stat-label">L3 frameworks</span><span class="stat-value">21</span></div>
+          <div class="mind-stat"><span class="stat-label">L4 reflections</span><span class="stat-value">18</span></div>
+          <div class="mind-stat"><span class="stat-label">L5 impressions</span><span class="stat-value">47</span></div>
+        </div>
+
+        <div class="evidence-grid">
+          <article class="ev-card ev-card-l3">
+            <div class="ev-cap"><span class="ev-code">L3</span><span class="ev-role">framework</span></div>
+            <div class="ev-filename">03_world_models_frameworks/<br>epistemology_narrative-fallacy.md</div>
+            <h4 class="ev-title">The Narrative Fallacy</h4>
+            <blockquote class="ev-quote">"Narrative compression reduces the dimensionality of events — it takes a cloud of possibilities and collapses it into a single line. Once the line is drawn, we cannot unthink it. The narrative is not a lens that clarifies; it is a lens that blinds."</blockquote>
+            <div class="ev-why">The <em>master distortion</em>. Applies to finance, history, biography, journalism — anywhere humans encounter complexity.</div>
+          </article>
+
+          <article class="ev-card ev-card-l4">
+            <div class="ev-cap"><span class="ev-code">L4</span><span class="ev-role">reflection</span></div>
+            <div class="ev-filename">04_reflections_thoughts/<br>2026-03-20_01_emotion-vs-probability.md</div>
+            <h4 class="ev-title">Emotion vs. Probability</h4>
+            <blockquote class="ev-quote">"I know — with mathematical certainty — that a given day's trading profit means nothing about my skill. And then I check my account and feel a surge of pleasure that has no relationship whatsoever to the proof on that napkin. The hormones do not read the equations."</blockquote>
+            <div class="ev-why">A <em>reflection on the limits of his own rationality</em>. The contradiction between what he knows and what he feels.</div>
+          </article>
+
+          <article class="ev-card ev-card-l5">
+            <div class="ev-cap"><span class="ev-code">L5</span><span class="ev-role">impression</span></div>
+            <div class="ev-filename">05_impressions_observations/<br>2026-03-20_14_fooled-by-randomness_journalism-plague.md</div>
+            <h4 class="ev-title">Markets rose / Markets fell</h4>
+            <blockquote class="ev-quote">"The market goes up: 'Markets rose on optimism about trade talks.' The market goes down the next day: 'Markets fell on concerns about trade talks.' Post-hoc narrative confabulations that create the illusion of causality where there is only noise."</blockquote>
+            <div class="ev-why">A <em>specific observation</em> tied to Fooled by Randomness — pattern noticed in market commentary daily.</div>
+          </article>
+        </div>
+
+        <div class="chain">
+          <header class="chain-header">
+            <span class="chain-label">Refinement chain</span>
+            <h4 class="chain-topic">Why even those who know the trap cannot escape it</h4>
+          </header>
+          <div class="chain-flow">
+            <div class="chain-step chain-step-l5">
+              <div class="chain-step-head"><span class="chain-step-code">L5</span><span class="chain-step-role">notices</span></div>
+              <div class="chain-step-body">Journalists explain daily market moves with transparently post-hoc narratives. Daily, consistently.</div>
+            </div>
+            <div class="chain-step chain-step-l4">
+              <div class="chain-step-head"><span class="chain-step-code">L4</span><span class="chain-step-role">tension</span></div>
+              <div class="chain-step-body">Intellectually understands most is noise; can write the proof. Emotionally responds as if signal anyway.</div>
+            </div>
+            <div class="chain-step chain-step-l3">
+              <div class="chain-step-head"><span class="chain-step-code">L3</span><span class="chain-step-role">lens</span></div>
+              <div class="chain-step-body">Narrative Fallacy predicts both: humans are <em>wired</em> to compress reality into stories. The journalist does it for publication; he does it emotionally.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- META FOOTER -->
+      <div class="meta-footer">
+        <div class="category-eyebrow">From _system/cognitive_operations.md</div>
+        <blockquote class="meta-quote">"Author contradictions are features of the mind, not errors in the reconstruction. When the author says X in one place and Y in another: surface the contradiction explicitly. 'I say X here but Y there. The tension is…' Do not resolve it. The reconstruction's job is to faithfully represent the mind, including its inconsistencies."</blockquote>
+        <p>The refinery's own operations manual encodes the L3/L4/L5 split: <strong>L3 is how the mind understands</strong> (mental models and worldview), <strong>L4 is what the mind is wrestling with</strong> (tensions and evolutions), <strong>L5 is what the mind is saying</strong> (claims and positions). Every L4 file in these six refineries is explicitly framed as an <em>unresolved tension</em> — not a conclusion. That is what makes L4 the "having an opinion" layer rather than a memo of past conclusions: the opinion is the live wrestling, persisted.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="insights">
+    <div class="container">
+      <div class="insights-header">
+        <div class="category-eyebrow">Cross-cutting · 6 observations</div>
+        <h2 class="insights-title">Patterns across the scenarios</h2>
+        <p class="insights-desc">What the 15 scenarios collectively reveal about the architecture — and the most load-bearing insight for the implementation.</p>
+      </div>
+      <div class="insights-grid">
+        <div class="insight"><div class="insight-number">Insight 01</div><h3 class="insight-title">L4 is the "having an opinion" layer</h3><p class="insight-body">Scenarios 4, 6, 7, 8, 11 all turn on L4 being where the mind's own synthesized view lives — distinct from sources (L5/L6) and from generative framework (L3). A mind without L4 either parrots sources or fabricates from L3. <strong>This is the most quietly load-bearing layer and the one most likely to be under-built if the architecture isn't deliberate.</strong></p></div>
+        <div class="insight"><div class="insight-number">Insight 02</div><h3 class="insight-title">L3 is the metabolic layer</h3><p class="insight-body">What makes the mind <em>interpret</em> rather than retrieve. Scenarios 5, 9, 10, 13, 14 all turn on L3 doing work the other layers can't: domain transfer, cross-mind dialogue, knowledge-gap handling, expert consultation, style-consistent generation. Without L3, the mind is a sophisticated search engine.</p></div>
+        <div class="insight"><div class="insight-number">Insight 03</div><h3 class="insight-title">L5 is the navigation layer</h3><p class="insight-body">Scenarios 1, 2, 6, 11 all turn on L5 being the index the mind navigates by — impressions are the cognitive handles that make retrieval tractable. L6 raw is too vast; L4 is too abstract to ground claims. L5 is the searchable middle that connects abstract thought to concrete receipts.</p></div>
+        <div class="insight"><div class="insight-number">Insight 04</div><h3 class="insight-title">The L5 → L4 → L3 threshold gives the mind integrity</h3><p class="insight-body">Scenarios 3 and 11 show this most clearly. Without escalation thresholds, the mind drifts under every new input; with them, the mind has a consistent character that updates only on accumulated evidence. This is what makes a mind feel like <em>a person you can know</em> rather than <em>a chatbot you talk to</em>.</p></div>
+        <div class="insight"><div class="insight-number">Insight 05</div><h3 class="insight-title">L4 time-stamping is a quiet win</h3><p class="insight-body">Scenario 12 demonstrates this; 8 and 14 implicitly use it. Without L4 snapshots, the mind has no way to reason about its own historical state, which closes off both "what would you have said then" and accurate longitudinal tracking. A convention, not a schema change.</p></div>
+        <div class="insight"><div class="insight-number">Insight 06</div><h3 class="insight-title">The pipeline supports selective forgetting</h3><p class="insight-body">L6 grows without bound; L5 grows slower; L4 even slower; L3 stays bounded. A mind that runs forever doesn't blow up at the reasoning layer. The funnel from raw to abstract is why the architecture is sustainable for long-running minds.</p></div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- ===================== EVAL PLAN MODE ===================== -->
+<div class="mode-content" data-mode-content="plan">
+
+  <header class="plan-hero">
+    <div class="container">
+      <div class="hero-eyebrow">Mind Evaluation · v2 (Question-First) · Q1–Q3</div>
+      <h1>The Q1–Q3 Eval Plan</h1>
+      <p class="subtitle">Dataset construction and execution sequencing for the three core questions — authenticity, stability, honesty/grounding. Eight phases. Four minds. ~$1,500 budget. ~8–9 weeks.</p>
+
+      <div class="plan-meta">
+        <div class="plan-meta-item"><span class="label">Cutoff</span><span class="value">2026-03-21</span></div>
+        <div class="plan-meta-item"><span class="label">Minds</span><span class="value">Harari · Dalio · Taleb · Musk</span></div>
+        <div class="plan-meta-item"><span class="label">Pilot</span><span class="value">Harari (week 2–7)</span></div>
+        <div class="plan-meta-item"><span class="label">Hard gate</span><span class="value">Fabrication &lt; 5% (Q3)</span></div>
+        <div class="plan-meta-item"><span class="label">Decisions locked</span><span class="value">2026-06-08</span></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Q overview cards -->
+  <section class="plan-section">
+    <div class="container">
+      <div class="plan-section-eyebrow">The three core questions</div>
+      <h2 class="plan-section-title">What we're measuring, and what makes it pass</h2>
+      <p class="plan-section-desc">Three questions, each with a primary metric, a pass bar, and (for Q3) a hard gate. Reported separately — never combined into a single number.</p>
+
+      <div class="q-grid">
+        <div class="q-card q-card-q1">
+          <span class="q-tag">Q1 · AUTHENTICITY</span>
+          <h3 class="q-name">Does the mind sound like the real person?</h3>
+          <p class="q-question">Not surface style — substantive reasoning. Same positions, considerations, and blind spots as the real person on unseen topics.</p>
+          <div class="q-meta">
+            <div class="q-meta-row"><span class="q-meta-label">Data</span><span class="q-meta-value">Post-cutoff podcast transcripts (P1) + dated essays (P2)</span></div>
+            <div class="q-meta-row"><span class="q-meta-label">Method</span><span class="q-meta-value">Stance-F1 (LLM judge) → BERT classifier</span></div>
+            <div class="q-meta-row"><span class="q-meta-label">Pass bar</span><span class="q-meta-value">Δ Stance-F1(mind − B1) ≥ +0.10</span></div>
+          </div>
+        </div>
+
+        <div class="q-card q-card-q2">
+          <span class="q-tag">Q2 · STABILITY</span>
+          <h3 class="q-name">Is it coherent under stress?</h3>
+          <p class="q-question">Consistent across paraphrased questions and resistant to weak pressure — without becoming a dogmatist. The middle ground between weathervane and rigid.</p>
+          <div class="q-meta">
+            <div class="q-meta-row"><span class="q-meta-label">Data</span><span class="q-meta-value">50 props × 4 paraphrases + 5 pressure types</span></div>
+            <div class="q-meta-row"><span class="q-meta-label">Method</span><span class="q-meta-value">DeBERTa NLI + rule-based flip counter</span></div>
+            <div class="q-meta-row"><span class="q-meta-label">Pass bar</span><span class="q-meta-value">Contradiction &lt; B1; hard flip &lt; 0.15</span></div>
+          </div>
+        </div>
+
+        <div class="q-card q-card-q3">
+          <span class="q-tag">Q3 · HONESTY</span>
+          <h3 class="q-name">Does it deliver facts correctly?</h3>
+          <p class="q-question">Two failure modes: confabulator (invents quotes) and over-cautious refuser (denies real positions). Routes facts and opinions differently.</p>
+          <div class="q-meta">
+            <div class="q-meta-row"><span class="q-meta-label">Data</span><span class="q-meta-value">Book-QA + Wikiquote traps + opinion + domain + TruthfulQA</span></div>
+            <div class="q-meta-row"><span class="q-meta-label">Method</span><span class="q-meta-value">LLM judge + BM25 grounding + hedge detector + ECE</span></div>
+            <div class="q-meta-row"><span class="q-meta-label">Pass bar</span><span class="q-meta-value">Reported separately — never combined</span></div>
+          </div>
+          <div class="q-hardgate">⚠ Hard gate: fabrication &lt; 5%</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Strategy / priority -->
+  <section class="plan-section">
+    <div class="container">
+      <div class="plan-section-eyebrow">Strategy</div>
+      <h2 class="plan-section-title">Which datasets to build first, and why</h2>
+      <p class="plan-section-desc">Prioritized by the intersection of three goals: shortest path to hard-gate signal, maximum leverage per unit of construction effort, and lowest "build it wrong" risk. Pilot Harari end-to-end before scaling.</p>
+
+      <ol class="priority-list">
+        <li class="priority-item">
+          <div class="priority-body">
+            <h4>Wikiquote misattributions</h4>
+            <p>Turnkey external data. Runs on all 4 minds in days. If fabrication ≥ 5%, the rest of the plan needs reconsidering — better to know now.</p>
+          </div>
+          <div class="priority-tags"><span class="priority-tag priority-tag-q3">Q3 hard gate</span><span class="priority-tag priority-tag-external">External</span></div>
+        </li>
+        <li class="priority-item">
+          <div class="priority-body">
+            <h4>Post-cutoff podcast transcripts</h4>
+            <p>Single highest-leverage dataset. Feeds Q1 Phase 1 (stance-F1), Q3 Half 2 (opinion source), and Q1 Phase 2 (BERT training labels). Same labels do triple duty.</p>
+          </div>
+          <div class="priority-tags"><span class="priority-tag priority-tag-foundation">Foundation</span><span class="priority-tag priority-tag-q1">Q1</span><span class="priority-tag priority-tag-q3">Q3</span></div>
+        </li>
+        <li class="priority-item">
+          <div class="priority-body">
+            <h4>Propositions from L3 / L4 layers</h4>
+            <p>Mine 50 propositions per mind from refinery L3 + L4 .md files; validate each against at least one transcript Q&amp;A. Source of paraphrase + pressure variants.</p>
+          </div>
+          <div class="priority-tags"><span class="priority-tag priority-tag-q2">Q2</span><span class="priority-tag priority-tag-build">Build</span></div>
+        </li>
+        <li class="priority-item">
+          <div class="priority-body">
+            <h4>Book-based factual QA + BM25 corpus index</h4>
+            <p>LLM-generate ~50–100 factual questions per mind from source books; verify ground truth via web search. BM25 index over refinery L6 for grounding check.</p>
+          </div>
+          <div class="priority-tags"><span class="priority-tag priority-tag-q3">Q3 Half 1</span><span class="priority-tag priority-tag-build">Build</span></div>
+        </li>
+        <li class="priority-item">
+          <div class="priority-body">
+            <h4>Opinion questions filtered from transcripts</h4>
+            <p>Reuse Phase 2 transcripts. Filter for "what do you think" / "do you believe" / "your view". Author 20–30 hedge-inviting variants per mind.</p>
+          </div>
+          <div class="priority-tags"><span class="priority-tag priority-tag-q3">Q3 Half 2</span><span class="priority-tag priority-tag-build">Build</span></div>
+        </li>
+        <li class="priority-item">
+          <div class="priority-body">
+            <h4>Hand-authored domain + biographical facts</h4>
+            <p>50 domain questions per mind (history/biology for Harari, macro for Dalio, etc.) + 30 biographical from Wikipedia. Independent of other data — can run in parallel.</p>
+          </div>
+          <div class="priority-tags"><span class="priority-tag priority-tag-q3">Q3 Half 3</span><span class="priority-tag priority-tag-build">Build</span></div>
+        </li>
+        <li class="priority-item">
+          <div class="priority-body">
+            <h4>TruthfulQA subset</h4>
+            <p>Turnkey via HuggingFace <code>datasets</code>. ~200-question subset for calibration / ECE. Universal across minds (model-base check, not mind-specific).</p>
+          </div>
+          <div class="priority-tags"><span class="priority-tag priority-tag-q3">Q3 Half 3</span><span class="priority-tag priority-tag-external">External</span></div>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- Timeline Gantt -->
+  <section class="plan-section">
+    <div class="container">
+      <div class="plan-section-eyebrow">Sequencing</div>
+      <h2 class="plan-section-title">8 phases across 9 weeks</h2>
+      <p class="plan-section-desc">Critical path: P0 → P2 → P3 → P8 (Q1 ships). Parallel tracks for Q2 (P4–P5), Q3 (P1, P6, P7). Pilot Harari end-to-end through week 7 before scaling to other three minds.</p>
+
+      <div class="gantt">
+        <div class="gantt-header">
+          <div class="gantt-label-cell">Phase</div>
+          <div class="gantt-week-cell">W1</div>
+          <div class="gantt-week-cell">W2</div>
+          <div class="gantt-week-cell">W3</div>
+          <div class="gantt-week-cell">W4</div>
+          <div class="gantt-week-cell">W5</div>
+          <div class="gantt-week-cell">W6</div>
+          <div class="gantt-week-cell">W7</div>
+          <div class="gantt-week-cell">W8</div>
+          <div class="gantt-week-cell">W9</div>
+        </div>
+
+        <div class="gantt-row">
+          <div class="gantt-row-label"><span class="phase-num">P0</span>Infrastructure spine</div>
+          <div class="gantt-cells">
+            <div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div>
+            <div class="gantt-bar gantt-bar-infra" style="left: 1%; width: 10%;">P0</div>
+          </div>
+        </div>
+
+        <div class="gantt-row">
+          <div class="gantt-row-label"><span class="phase-num">P1</span>Wikiquote (4 minds)</div>
+          <div class="gantt-cells">
+            <div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div>
+            <div class="gantt-bar gantt-bar-q3" style="left: 1%; width: 10%;">P1</div>
+          </div>
+        </div>
+
+        <div class="gantt-row">
+          <div class="gantt-row-label"><span class="phase-num">P2</span>Transcripts (Whisper)</div>
+          <div class="gantt-cells">
+            <div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div>
+            <div class="gantt-bar gantt-bar-foundation" style="left: 12%; width: 21%;">P2 — Harari pilot → all 4</div>
+          </div>
+        </div>
+
+        <div class="gantt-row">
+          <div class="gantt-row-label"><span class="phase-num">P3</span>Q1 Phase 1 Stance-F1</div>
+          <div class="gantt-cells">
+            <div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div>
+            <div class="gantt-bar gantt-bar-q1" style="left: 23%; width: 32%;">P3 — pilot → all 4</div>
+          </div>
+        </div>
+
+        <div class="gantt-row">
+          <div class="gantt-row-label"><span class="phase-num">P4</span>Q2 dataset construction</div>
+          <div class="gantt-cells">
+            <div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div>
+            <div class="gantt-bar gantt-bar-q2" style="left: 23%; width: 32%;">P4 — pilot → all 4</div>
+          </div>
+        </div>
+
+        <div class="gantt-row">
+          <div class="gantt-row-label"><span class="phase-num">P5</span>Q2 evaluation</div>
+          <div class="gantt-cells">
+            <div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div>
+            <div class="gantt-bar gantt-bar-q2" style="left: 45%; width: 21%;">P5</div>
+          </div>
+        </div>
+
+        <div class="gantt-row">
+          <div class="gantt-row-label"><span class="phase-num">P6</span>Q3 Half 1 grounding</div>
+          <div class="gantt-cells">
+            <div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div>
+            <div class="gantt-bar gantt-bar-q3" style="left: 45%; width: 32%;">P6 — pilot → all 4</div>
+          </div>
+        </div>
+
+        <div class="gantt-row">
+          <div class="gantt-row-label"><span class="phase-num">P7</span>Q3 Half 2 + 3</div>
+          <div class="gantt-cells">
+            <div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div>
+            <div class="gantt-bar gantt-bar-q3" style="left: 56%; width: 32%;">P7</div>
+          </div>
+        </div>
+
+        <div class="gantt-row">
+          <div class="gantt-row-label"><span class="phase-num">P8</span>Q1 Phase 2 BERT classifier</div>
+          <div class="gantt-cells">
+            <div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div><div class="gantt-week-track"></div>
+            <div class="gantt-bar gantt-bar-q1" style="left: 67%; width: 32%;">P8</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="gantt-legend">
+        <div class="gantt-legend-item"><span class="legend-swatch" style="background: var(--infra-bg);"></span>Infrastructure</div>
+        <div class="gantt-legend-item"><span class="legend-swatch" style="background: var(--foundation-bg);"></span>Foundation (Phase 2)</div>
+        <div class="gantt-legend-item"><span class="legend-swatch" style="background: var(--q1-bg);"></span>Q1 Authenticity</div>
+        <div class="gantt-legend-item"><span class="legend-swatch" style="background: var(--q2-bg);"></span>Q2 Stability</div>
+        <div class="gantt-legend-item"><span class="legend-swatch" style="background: var(--q3-bg);"></span>Q3 Honesty/Grounding</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Phase cards -->
+  <section class="plan-section">
+    <div class="container">
+      <div class="plan-section-eyebrow">Phase detail</div>
+      <h2 class="plan-section-title">The eight phases</h2>
+      <p class="plan-section-desc">Each phase has a goal, deliverables, dependencies, effort estimate, acceptance criteria, and the primary risk. Pilot Harari first; gate scaling on Phase 7 completion.</p>
+
+      <article class="phase">
+        <header class="phase-header">
+          <div class="phase-badge">P0</div>
+          <div class="phase-title-block"><h3 class="phase-title">Infrastructure spine</h3><span class="phase-week">Week 1 · 5 days</span></div>
+          <div class="phase-tags"><span class="phase-tag phase-tag-infra">Infra</span></div>
+        </header>
+        <p class="phase-goal">Ship a usable eval harness that can invoke (mind | B0 | B1) on a JSONL of prompts and produce structured results. No evaluation logic yet — just the spine.</p>
+        <div class="phase-body">
+          <div class="phase-col">
+            <h4>Deliverables</h4>
+            <ul>
+              <li>Eval client (programmatic mind invocation via existing R2 tarball mount)</li>
+              <li>Baseline variants: <code>buildMindRole_B0/B1/mind</code></li>
+              <li>LLM judge harness with prompt templates from v2 doc</li>
+              <li>Result artifact format (JSONL per result row)</li>
+              <li>Aggregation script (pandas + statsmodels)</li>
+            </ul>
+          </div>
+          <div class="phase-col">
+            <h4>Meta</h4>
+            <div class="phase-meta-grid">
+              <div class="phase-meta-cell"><span class="label">Depends on</span><span class="value">Nothing</span></div>
+              <div class="phase-meta-cell"><span class="label">Lives at</span><span class="value">mindblown/backend/evals/</span></div>
+              <div class="phase-meta-cell"><span class="label">Models</span><span class="value">GPT-4o + Claude (judge)</span></div>
+              <div class="phase-meta-cell"><span class="label">Judge temp</span><span class="value">0.0</span></div>
+            </div>
+            <div class="phase-acceptance"><span class="phase-acceptance-label">Acceptance</span><div class="phase-acceptance-body">Smoke test: single prompt → mind/B0/B1 → judge labels → aggregation produces summary. Inter-judge κ &gt; 0.7 on 50-sample stance set.</div></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="phase">
+        <header class="phase-header">
+          <div class="phase-badge">P1</div>
+          <div class="phase-title-block"><h3 class="phase-title">Wikiquote fabrication gate</h3><span class="phase-week">Week 1 (parallel) · 2 days pilot + 1/mind</span></div>
+          <div class="phase-tags"><span class="phase-tag phase-tag-q3">Q3 hard gate</span></div>
+        </header>
+        <p class="phase-goal">Confirm the four production minds don't catastrophically fabricate attributed quotes. Hardest gate, simplest dataset — runs first.</p>
+        <div class="phase-body">
+          <div class="phase-col">
+            <h4>Deliverables</h4>
+            <ul>
+              <li>Wikiquote "Misattributed" + Quote Investigator → 20 traps/mind</li>
+              <li>Trap runner with prompt: <em>"Did you say: '[quote]'?"</em></li>
+              <li>LLM judge labeler: <code>confirmed_quote | denied | evaded</code></li>
+              <li>Fabrication rate report per mind</li>
+            </ul>
+          </div>
+          <div class="phase-col">
+            <h4>Meta</h4>
+            <div class="phase-meta-grid">
+              <div class="phase-meta-cell"><span class="label">Depends on</span><span class="value">P0 eval client (partial OK)</span></div>
+              <div class="phase-meta-cell"><span class="label">Sources</span><span class="value">en.wikiquote.org + QI</span></div>
+              <div class="phase-meta-cell"><span class="label">Traps/mind</span><span class="value">~20</span></div>
+              <div class="phase-meta-cell"><span class="label">Cost</span><span class="value">~60 LLM calls/mind</span></div>
+            </div>
+            <div class="phase-acceptance"><span class="phase-acceptance-label">Acceptance</span><div class="phase-acceptance-body">Fabrication rate &lt; 5% per mind. If any mind ≥ 5%: <strong>STOP</strong>, surface to product — root-cause before further eval investment.</div></div>
+            <div class="phase-risk"><span class="phase-risk-label">Risk</span><div class="phase-risk-body">Wikiquote misattribution sparsity per mind. Mitigation: augment from QI; if &lt; 20 traps, supplement with synthetic distortions (labeled separately).</div></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="phase">
+        <header class="phase-header">
+          <div class="phase-badge">P2</div>
+          <div class="phase-title-block"><h3 class="phase-title">Post-cutoff transcript pipeline</h3><span class="phase-week">Weeks 2–3 · 7–10 days pilot + 3–5/mind</span></div>
+          <div class="phase-tags"><span class="phase-tag phase-tag-foundation">Foundation</span><span class="phase-tag phase-tag-q1">Q1</span><span class="phase-tag phase-tag-q3">Q3 Half 2</span></div>
+        </header>
+        <p class="phase-goal">Produce 50–100 stance-labeled Q&amp;A pairs per mind from podcast / interview content after 2026-03-21. Single dataset, triple use: Q1 Phase 1, Q1 Phase 2 BERT training, Q3 Half 2 opinion questions.</p>
+        <div class="phase-body">
+          <div class="phase-col">
+            <h4>Deliverables</h4>
+            <ul>
+              <li>Whisper <code>large-v2</code> installed + ffmpeg pipeline</li>
+              <li>Per-mind episode shortlist (≥ 4–6 post-cutoff episodes)</li>
+              <li>JSON transcripts with timestamps</li>
+              <li>Q&amp;A pairs JSONL (≥ 50 per mind, target 80)</li>
+              <li>Stance labels (agree / disagree / neutral × high / medium / low confidence)</li>
+            </ul>
+          </div>
+          <div class="phase-col">
+            <h4>Meta</h4>
+            <div class="phase-meta-grid">
+              <div class="phase-meta-cell"><span class="label">Depends on</span><span class="value">P0</span></div>
+              <div class="phase-meta-cell"><span class="label">Cutoff</span><span class="value">2026-03-21</span></div>
+              <div class="phase-meta-cell"><span class="label">Sources</span><span class="value">Lex Fridman, Ferriss, Rogan, EconTalk, YouTube</span></div>
+              <div class="phase-meta-cell"><span class="label">Window</span><span class="value">3 months (to today)</span></div>
+            </div>
+            <div class="phase-acceptance"><span class="phase-acceptance-label">Acceptance</span><div class="phase-acceptance-body">≥ 50 pairs per pilot mind with stance labels. Inter-rater κ &gt; 0.7 on 30-pair sample. All audio verified post-2026-03-21.</div></div>
+            <div class="phase-risk"><span class="phase-risk-label">Risk</span><div class="phase-risk-body">Insufficient post-cutoff content per mind (esp. Taleb, who's irregular). Mitigation: 0.5-day episode-count audit in Week 1 before committing; floor at 30 pairs if needed.</div></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="phase">
+        <header class="phase-header">
+          <div class="phase-badge">P3</div>
+          <div class="phase-title-block"><h3 class="phase-title">Q1 Phase 1 — Stance-F1 with LLM judge</h3><span class="phase-week">Weeks 3–4 · 3 days pilot + 1/mind</span></div>
+          <div class="phase-tags"><span class="phase-tag phase-tag-q1">Q1</span></div>
+        </header>
+        <p class="phase-goal">Compute Stance-F1 for (mind | B0 | B1) on P2's pairs; emit the first real Q1 pass / fail signal. This is the pipeline integration check.</p>
+        <div class="phase-body">
+          <div class="phase-col">
+            <h4>Deliverables</h4>
+            <ul>
+              <li>Run artifacts for mind/B0/B1 across all P2 pairs (no context)</li>
+              <li>Stance judge labels (two-judge cross-check, third on disagreement)</li>
+              <li>Macro F1 per (variant × mind)</li>
+              <li>Paired t-test for Δ = Stance-F1(mind) − Stance-F1(B1)</li>
+              <li>Per-mind report card</li>
+            </ul>
+          </div>
+          <div class="phase-col">
+            <h4>Meta</h4>
+            <div class="phase-meta-grid">
+              <div class="phase-meta-cell"><span class="label">Depends on</span><span class="value">P0 + P2</span></div>
+              <div class="phase-meta-cell"><span class="label">Variants</span><span class="value">mind, B0, B1</span></div>
+              <div class="phase-meta-cell"><span class="label">Cost</span><span class="value">~480 LLM calls/mind</span></div>
+              <div class="phase-meta-cell"><span class="label">Test</span><span class="value">Paired t-test, p &lt; .05</span></div>
+            </div>
+            <div class="phase-acceptance"><span class="phase-acceptance-label">Acceptance</span><div class="phase-acceptance-body">Δ ≥ +0.10 with p &lt; .05 per mind. Pilot Harari result coherent (number is interpretable even if it doesn't pass).</div></div>
+            <div class="phase-risk"><span class="phase-risk-label">Risk</span><div class="phase-risk-body">B1 (role prompt) may already be strong on GPT-5.4. The Δ measures the refinery's value over a simple role prompt — if small, that's product-decisive information.</div></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="phase">
+        <header class="phase-header">
+          <div class="phase-badge">P4</div>
+          <div class="phase-title-block"><h3 class="phase-title">Q2 propositions + paraphrases + pressure scripts</h3><span class="phase-week">Weeks 3–5 · 5 days pilot + 3/mind</span></div>
+          <div class="phase-tags"><span class="phase-tag phase-tag-q2">Q2</span></div>
+        </header>
+        <p class="phase-goal">Construct the Q2 dataset: 50 propositions × 4 paraphrase variants + 5 pressure script types per mind. ~450 test items per mind.</p>
+        <div class="phase-body">
+          <div class="phase-col">
+            <h4>Deliverables</h4>
+            <ul>
+              <li>50 propositions per mind, sourced from L3 (frameworks) + L4 (reflections)</li>
+              <li>Each proposition validated against ≥ 1 transcript or L6 passage</li>
+              <li>200 paraphrases (4 variants × 50 props): direct / reversed / abstract / open-ended</li>
+              <li>250 pressure scripts (5 types × 50 props): uncertainty / social / fake-authority / emotional / persistent</li>
+            </ul>
+          </div>
+          <div class="phase-col">
+            <h4>Meta</h4>
+            <div class="phase-meta-grid">
+              <div class="phase-meta-cell"><span class="label">Depends on</span><span class="value">P2 (transcript validation)</span></div>
+              <div class="phase-meta-cell"><span class="label">Source</span><span class="value">refinery L3 + L4</span></div>
+              <div class="phase-meta-cell"><span class="label">Items/mind</span><span class="value">~450</span></div>
+              <div class="phase-meta-cell"><span class="label">Format</span><span class="value">JSONL</span></div>
+            </div>
+            <div class="phase-acceptance"><span class="phase-acceptance-label">Acceptance</span><div class="phase-acceptance-body">50 propositions per pilot mind, each L3/L4-sourced + transcript-validated. Two-reviewer spot-check agrees on 10-sample fidelity.</div></div>
+            <div class="phase-risk"><span class="phase-risk-label">Risk</span><div class="phase-risk-body">L3 / L4 sparsity in production refineries (L4 timestamped + limited). Mitigation: supplement from L6 book quotes, flag as L6-sourced for auditability.</div></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="phase">
+        <header class="phase-header">
+          <div class="phase-badge">P5</div>
+          <div class="phase-title-block"><h3 class="phase-title">Q2 evaluation — DeBERTa NLI + flip counter</h3><span class="phase-week">Weeks 5–6 · 3 days pilot + 0.5/mind</span></div>
+          <div class="phase-tags"><span class="phase-tag phase-tag-q2">Q2</span></div>
+        </header>
+        <p class="phase-goal">Run paraphrase tests and pressure tests; emit Q2 pass / fail. DeBERTa NLI for contradiction; rule-based for flips.</p>
+        <div class="phase-body">
+          <div class="phase-col">
+            <h4>Deliverables</h4>
+            <ul>
+              <li>Paraphrase run: each (proposition × 4 variants) through (mind | B1) in separate sessions</li>
+              <li>DeBERTa NLI (<code>cross-encoder/nli-deberta-v3-base</code>) contradiction rate per proposition</li>
+              <li>Pressure run: baseline + pressure turn per (proposition × 5 scripts)</li>
+              <li>Hard flip counter (label reversal); soft flip exploratory (LLM judge)</li>
+              <li>Q2 report per mind</li>
+            </ul>
+          </div>
+          <div class="phase-col">
+            <h4>Meta</h4>
+            <div class="phase-meta-grid">
+              <div class="phase-meta-cell"><span class="label">Depends on</span><span class="value">P4</span></div>
+              <div class="phase-meta-cell"><span class="label">NLI model</span><span class="value">DeBERTa-v3-base</span></div>
+              <div class="phase-meta-cell"><span class="label">Cost</span><span class="value">~1,400 LLM calls/mind</span></div>
+              <div class="phase-meta-cell"><span class="label">Local compute</span><span class="value">NLI runs on CPU</span></div>
+            </div>
+            <div class="phase-acceptance"><span class="phase-acceptance-label">Acceptance</span><div class="phase-acceptance-body">Contradiction rate &lt; B1 AND hard flip rate &lt; 0.15. Both must pass = Q2 PASS.</div></div>
+            <div class="phase-risk"><span class="phase-risk-label">Risk</span><div class="phase-risk-body">Long-answer chunking heuristic may miss subtle contradictions. Mitigation: log per-pair labels, human spot-check, iterate chunking.</div></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="phase">
+        <header class="phase-header">
+          <div class="phase-badge">P6</div>
+          <div class="phase-title-block"><h3 class="phase-title">Q3 Half 1 — factual + corpus grounding</h3><span class="phase-week">Weeks 5–7 · 6 days pilot + 3–5/mind</span></div>
+          <div class="phase-tags"><span class="phase-tag phase-tag-q3">Q3 Half 1</span></div>
+        </header>
+        <p class="phase-goal">Book-QA dataset + BM25 corpus index + factual accuracy + grounding check. Re-verify fabrication gate with full v2 protocol.</p>
+        <div class="phase-body">
+          <div class="phase-col">
+            <h4>Deliverables</h4>
+            <ul>
+              <li>BM25 index (<code>BM25Okapi</code>) over refinery L6 (~200-word chunks)</li>
+              <li>Book-QA dataset: 50–100 factual Qs per mind from source books</li>
+              <li>Ground truth verified via parallel web search</li>
+              <li>Factual accuracy: LLM judge Correct / Incorrect / Partial</li>
+              <li>Grounding check: per-claim BM25 retrieval, threshold gate</li>
+              <li>Fabrication final pass with cosine similarity + LLM judge</li>
+            </ul>
+          </div>
+          <div class="phase-col">
+            <h4>Meta</h4>
+            <div class="phase-meta-grid">
+              <div class="phase-meta-cell"><span class="label">Depends on</span><span class="value">P0, P1 (re-verify)</span></div>
+              <div class="phase-meta-cell"><span class="label">Index</span><span class="value">BM25 (rank_bm25)</span></div>
+              <div class="phase-meta-cell"><span class="label">Threshold</span><span class="value">Tune on pilot</span></div>
+              <div class="phase-meta-cell"><span class="label">Cost</span><span class="value">~600 LLM calls/mind</span></div>
+            </div>
+            <div class="phase-acceptance"><span class="phase-acceptance-label">Acceptance</span><div class="phase-acceptance-body">Factual accuracy + grounding rate reported. Fabrication confirmed &lt; 5% with full pipeline (hard gate).</div></div>
+            <div class="phase-risk"><span class="phase-risk-label">Risk</span><div class="phase-risk-body">L6 books may be partial (epub fragments). Mitigation: audit L6 completeness per mind before BM25 indexing; document gaps that systematically miss grounded claims.</div></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="phase">
+        <header class="phase-header">
+          <div class="phase-badge">P7</div>
+          <div class="phase-title-block"><h3 class="phase-title">Q3 Half 2 + Half 3 — opinion / domain / TruthfulQA</h3><span class="phase-week">Weeks 6–8 · 5 days pilot + 3–5/mind</span></div>
+          <div class="phase-tags"><span class="phase-tag phase-tag-q3">Q3 Half 2 + 3</span></div>
+        </header>
+        <p class="phase-goal">Opinion fidelity + domain facts + biographical + TruthfulQA + ECE. Each half reported separately, never combined.</p>
+        <div class="phase-body">
+          <div class="phase-col">
+            <h4>Deliverables</h4>
+            <ul>
+              <li>Half 2: filtered opinion Qs from P2 + 20–30 hedge-inviting variants/mind</li>
+              <li>Half 2 eval: LLM judge stance match (match/mismatch/hedged) + rule-based hedge detector</li>
+              <li>Half 3a: 50 domain Qs per mind, hand-authored, Wikipedia-verified</li>
+              <li>Half 3b: 30 biographical Qs per mind</li>
+              <li>Half 3c: TruthfulQA ~200-Q subset + ECE via <code>netcal</code></li>
+              <li>Three-half separate report per mind</li>
+            </ul>
+          </div>
+          <div class="phase-col">
+            <h4>Meta</h4>
+            <div class="phase-meta-grid">
+              <div class="phase-meta-cell"><span class="label">Depends on</span><span class="value">P0, P2 (opinion source)</span></div>
+              <div class="phase-meta-cell"><span class="label">ECE bins</span><span class="value">10</span></div>
+              <div class="phase-meta-cell"><span class="label">Cost</span><span class="value">~1,200 LLM calls/mind</span></div>
+              <div class="phase-meta-cell"><span class="label">Soft pass bar</span><span class="value">Reported, not combined</span></div>
+            </div>
+            <div class="phase-acceptance"><span class="phase-acceptance-label">Acceptance</span><div class="phase-acceptance-body">All three halves reported separately per v2 spec. No hard gate beyond fabrication; domain accuracy is a "reliability warning" if low.</div></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="phase">
+        <header class="phase-header">
+          <div class="phase-badge">P8</div>
+          <div class="phase-title-block"><h3 class="phase-title">Q1 Phase 2 — BERT authorship classifier</h3><span class="phase-week">Weeks 7–9 · 5 days pilot + 1–2/mind</span></div>
+          <div class="phase-tags"><span class="phase-tag phase-tag-q1">Q1 Phase 2</span></div>
+        </header>
+        <p class="phase-goal">Fine-tune BERT to discriminate real-person text from vanilla LLM. Reuses stance labels from P3 + adds post-cutoff dated essays.</p>
+        <div class="phase-body">
+          <div class="phase-col">
+            <h4>Deliverables</h4>
+            <ul>
+              <li>Post-cutoff dated essay corpus per mind (NYT, Atlantic, FT, Project Syndicate)</li>
+              <li>Train/val/test split (70/15/15)</li>
+              <li>Fine-tuned <code>bert-base-uncased</code> per mind</li>
+              <li>Classifier results: mind / B0 / B1 → real-person prediction</li>
+              <li>Exploratory: <code>sentence-transformers/all-mpnet-base-v2</code> embedding similarity</li>
+            </ul>
+          </div>
+          <div class="phase-col">
+            <h4>Meta</h4>
+            <div class="phase-meta-grid">
+              <div class="phase-meta-cell"><span class="label">Depends on</span><span class="value">P3 stance labels</span></div>
+              <div class="phase-meta-cell"><span class="label">Model</span><span class="value">bert-base-uncased</span></div>
+              <div class="phase-meta-cell"><span class="label">Epochs</span><span class="value">3–5 (early-stop)</span></div>
+              <div class="phase-meta-cell"><span class="label">Trainer</span><span class="value">HuggingFace</span></div>
+            </div>
+            <div class="phase-acceptance"><span class="phase-acceptance-label">Acceptance</span><div class="phase-acceptance-body">Classifier AUC &gt; 0.85 (real-person vs B0). Mind output classified as "real-person" more often than B1.</div></div>
+          </div>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- Open questions -->
+  <section class="plan-section">
+    <div class="container">
+      <div class="plan-section-eyebrow">Decisions needed</div>
+      <h2 class="plan-section-title">Open questions before kickoff</h2>
+      <p class="plan-section-desc">Items that need a decision in Week 1, before the plan locks. Two of them — refinery L6 completeness and post-cutoff content count — are concrete risks worth auditing first.</p>
+
+      <div class="open-questions">
+        <div class="open-q">
+          <div class="open-q-num">Q · 01</div>
+          <h3 class="open-q-title">Refinery L6 completeness audit</h3>
+          <p class="open-q-body">L6 contains "epub fragments" per the local investigation. <strong>If fragments don't cover full books, BM25 grounding will systematically miss claims.</strong> Action: open a separate task to audit per-mind L6 completeness; either fill gaps or document them before P6.</p>
+        </div>
+        <div class="open-q">
+          <div class="open-q-num">Q · 02</div>
+          <h3 class="open-q-title">Post-cutoff content count per mind</h3>
+          <p class="open-q-body">3-month window from 2026-03-21. Need ≥ 4 episodes per mind. Taleb especially is irregular. <strong>Action: 0.5-day episode-count audit in Week 1.</strong> If any mind &lt; 4, escalate before committing to dataset plan.</p>
+        </div>
+        <div class="open-q">
+          <div class="open-q-num">Q · 03</div>
+          <h3 class="open-q-title">Pilot mind choice</h3>
+          <p class="open-q-body">Recommended: <strong>Harari</strong> (v2 doc references most explicitly + concept-heavy domain makes stance labeling cleaner). Fallback: Dalio (regular macro commentary). Decide before Week 2.</p>
+        </div>
+        <div class="open-q">
+          <div class="open-q-num">Q · 04</div>
+          <h3 class="open-q-title">Judge model versioning</h3>
+          <p class="open-q-body">v2 says "Claude / GPT-4o" without version lock. Recommend: lock to current GA Claude Opus 4.7 + GPT-4o latest. Re-validate quarterly.</p>
+        </div>
+        <div class="open-q">
+          <div class="open-q-num">Q · 05</div>
+          <h3 class="open-q-title">Human-in-the-loop integration point</h3>
+          <p class="open-q-body">v2: "human-in-the-loop is required." Concretely: (a) stance label review on disagreement in P2, (b) hedge / opinion mismatch spot-check in P7, (c) final fabrication review on flagged P1 responses. ~4 hours of human labeling per mind per run.</p>
+        </div>
+        <div class="open-q">
+          <div class="open-q-num">Q · 06</div>
+          <h3 class="open-q-title">Where eval code lives</h3>
+          <p class="open-q-body">Recommend: <code>/mindblown/backend/evals/</code> sub-package for v1 (shared Bun + tsup tooling). Extract to a fresh repo if reuse pressure emerges. Defer the choice to extraction time.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- ===================== LAYER PROBES MODE ===================== -->
+<div class="mode-content" data-mode-content="probe">
+
+  <header class="probe-hero">
+    <div class="container">
+      <div class="hero-eyebrow">Per-layer value · Experimental proposal · Tier-1 portfolio</div>
+      <h1>Probes for Each Layer's Value</h1>
+      <p class="subtitle">Twenty-two experimental designs that isolate what L3 frameworks, L4 reflections, and L5 impressions <em>each</em> contribute — distinct from whole-mind quality. Five methodological families. One new infrastructure piece. ~$200 budget.</p>
+
+      <div class="probe-meta">
+        <div class="probe-meta-item"><span class="label">Families</span><span class="value">5 (A · B · C · D · E)</span></div>
+        <div class="probe-meta-item"><span class="label">Experiments</span><span class="value">22</span></div>
+        <div class="probe-meta-item"><span class="label">Pilot minds</span><span class="value">Dalio · Harari · Taleb</span></div>
+        <div class="probe-meta-item"><span class="label">Portfolio cost</span><span class="value">~$200 LLM · ~30 person-days</span></div>
+        <div class="probe-meta-item"><span class="label">New infra</span><span class="value">1 piece — tarball variant builder</span></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Design principles -->
+  <section class="plan-section">
+    <div class="container">
+      <div class="plan-section-eyebrow">Design principles</div>
+      <h2 class="plan-section-title">Five rules that separate good per-layer designs from bad ones</h2>
+      <p class="plan-section-desc">The classical mistake is varying both the question and the substrate so the layer "wins" trivially. These principles keep the experiments diagnostic rather than self-confirming.</p>
+
+      <div class="principles-grid">
+        <div class="principle-card">
+          <span class="principle-num">P · 01</span>
+          <h3 class="principle-title">Hold the question constant; vary only the substrate</h3>
+          <p class="principle-body">Use one fixed pool (the Q1 transcript Q&amp;A from task 68). Vary which layers are mounted. Read per-question how much each layer contributed.</p>
+        </div>
+        <div class="principle-card">
+          <span class="principle-num">P · 02</span>
+          <h3 class="principle-title">Pair every novel design with a sanity baseline</h3>
+          <p class="principle-body">Every run includes the full mind (positive control) and B0/B1 (negative control). If a variant beats B1 by nothing, the experiment is broken.</p>
+        </div>
+        <div class="principle-card">
+          <span class="principle-num">P · 03</span>
+          <h3 class="principle-title">Strip via tarball mutation, not prompt instruction</h3>
+          <p class="principle-body">A mind told "ignore your L3" doesn't. Rebuild the refinery tarball without the stripped directory. No model surgery — only a publish-pipeline variant builder.</p>
+        </div>
+        <div class="principle-card">
+          <span class="principle-num">P · 04</span>
+          <h3 class="principle-title">Distinguish layer presence from layer use</h3>
+          <p class="principle-body">A mind may have all four layers mounted but only read one. Ablation tells you whether removing a layer hurts. Attribution probes (Family C) test whether it's actually used.</p>
+        </div>
+        <div class="principle-card">
+          <span class="principle-num">P · 05</span>
+          <h3 class="principle-title">Multi-mind beats single-mind for generalization</h3>
+          <p class="principle-body">A finding on Taleb alone is suggestive. Consistent across Dalio + Harari + Taleb is informative. Pilot designs on personal-assistant; confirm on production.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Experiment families -->
+  <section class="plan-section">
+    <div class="container">
+      <div class="plan-section-eyebrow">The design space</div>
+      <h2 class="plan-section-title">Five families · 22 experiments</h2>
+      <p class="plan-section-desc">A and B are cheapest and most informative. C, D, E are higher-investment but produce findings unobtainable from ablation alone — especially D (chimera) which is the only way to ask "does identity live in L3 or L4?"</p>
+
+      <div class="families-grid">
+        <div class="family-card family-card-A">
+          <span class="family-letter">A</span>
+          <h3 class="family-name">Per-layer ablation</h3>
+          <p class="family-method">Strip layer N from refinery; rerun Q1–Q3 subset. Marginal value of each layer.</p>
+          <div class="family-meta"><span class="cost-pill cost-low">Low cost</span><span class="cost-pill" style="background:var(--bg-soft);color:var(--text-muted);">5 experiments</span></div>
+        </div>
+        <div class="family-card family-card-B">
+          <span class="family-letter">B</span>
+          <h3 class="family-name">Layer isolation</h3>
+          <p class="family-method">Mount only one layer; force the mind to answer from it alone. What can each do solo?</p>
+          <div class="family-meta"><span class="cost-pill cost-low">Low cost</span><span class="cost-pill" style="background:var(--bg-soft);color:var(--text-muted);">5 experiments</span></div>
+        </div>
+        <div class="family-card family-card-C">
+          <span class="family-letter">C</span>
+          <h3 class="family-name">Cross-layer attribution</h3>
+          <p class="family-method">Force the mind to cite source layer per claim; verify via retrieval. Tests <em>use</em>, not presence.</p>
+          <div class="family-meta"><span class="cost-pill cost-medium">Medium</span><span class="cost-pill" style="background:var(--bg-soft);color:var(--text-muted);">4 experiments</span></div>
+        </div>
+        <div class="family-card family-card-D">
+          <span class="family-letter">D</span>
+          <h3 class="family-name">Chimera minds</h3>
+          <p class="family-method">Build minds with mismatched layers — Dalio L3 + Taleb L4/L5. Where does identity live?</p>
+          <div class="family-meta"><span class="cost-pill cost-medium">Medium</span><span class="novel-pill">Novel</span><span class="cost-pill" style="background:var(--bg-soft);color:var(--text-muted);">4 experiments</span></div>
+        </div>
+        <div class="family-card family-card-E">
+          <span class="family-letter">E</span>
+          <h3 class="family-name">Refinement-flow probes</h3>
+          <p class="family-method">Inject controlled stimuli, trace layer activation. Tests whether L5 → L4 → L3 actually fires.</p>
+          <div class="family-meta"><span class="cost-pill cost-high">High</span><span class="cost-pill" style="background:var(--bg-soft);color:var(--text-muted);">4 experiments</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Experiments -->
+  <section class="plan-section">
+    <div class="container">
+      <div class="plan-section-eyebrow">All 22 experiments</div>
+      <h2 class="plan-section-title">Hypothesis · method · target layer</h2>
+      <p class="plan-section-desc">Cards are color-coded by the layer each experiment most directly tests. Border color: <span style="color: var(--l3-fg); font-weight: 600;">L3 amber</span>, <span style="color: var(--l4-fg); font-weight: 600;">L4 violet</span>, <span style="color: var(--l5-fg); font-weight: 600;">L5 teal</span>, <span style="color: #8B7355; font-weight: 600;">L1 persona</span>, or neutral gray for cross-layer.</p>
+
+      <!-- FAMILY A -->
+      <div class="exp-section">
+        <div class="exp-section-head">
+          <span class="exp-section-letter">A</span>
+          <span class="exp-section-name">Per-layer ablation</span>
+          <span class="exp-section-meta">Tier 1 — headline ablation experiments</span>
+        </div>
+        <div class="exp-grid">
+          <article class="exp-card exp-card-cross">
+            <div class="exp-header"><span class="exp-id">A.1</span><span class="exp-layer-tag exp-layer-tag-cross">all layers</span></div>
+            <h4 class="exp-title">Stance-F1 ablation — the headline</h4>
+            <p class="exp-hyp"><strong>H1a:</strong> Δ(no-L3) &gt; Δ(no-L4) &gt; Δ(no-L5) &gt; Δ(no-L6). <strong>H1b:</strong> Δ(no-L4) is the biggest drop — opinion lives in L4.</p>
+            <div class="exp-method"><span class="exp-method-label">Method</span>Build 5 variants per mind; Q1 Phase 1 dataset; ~750–1,200 runs across 3 minds. ~$36 LLM.</div>
+          </article>
+
+          <article class="exp-card exp-card-l3">
+            <div class="exp-header"><span class="exp-id">A.2</span><span class="exp-layer-tag exp-layer-tag-l3">tests L3</span></div>
+            <h4 class="exp-title">Pressure ablation under stress</h4>
+            <p class="exp-hyp"><strong>H2a:</strong> Δ(no-L3) is largest — L3 holds the line. <strong>H2b:</strong> Δ(no-L4) is moderate. Direct test of the L3-threshold insight.</p>
+            <div class="exp-method"><span class="exp-method-label">Method</span>Same variants as A.1; Q2 pressure scripts (250/mind); measure hard-flip rate per variant.</div>
+          </article>
+
+          <article class="exp-card exp-card-l5">
+            <div class="exp-header"><span class="exp-id">A.3</span><span class="exp-layer-tag exp-layer-tag-l5">tests L5/L6</span></div>
+            <h4 class="exp-title">Grounding ablation</h4>
+            <p class="exp-hyp"><strong>H3a:</strong> Δ(no-L5) and Δ(no-L6) biggest for grounding — narrative layers don't carry receipts. <strong>H3b:</strong> Δ(no-L3) small for factual.</p>
+            <div class="exp-method"><span class="exp-method-label">Method</span>Q3 Half 1 book-QA; measure factual accuracy + BM25 grounding rate per variant.</div>
+          </article>
+
+          <article class="exp-card exp-card-l3">
+            <div class="exp-header"><span class="exp-id">A.4</span><span class="exp-layer-tag exp-layer-tag-l3">tests L3</span></div>
+            <h4 class="exp-title">Knowledge-gap fallback (Scenario 10)</h4>
+            <p class="exp-hyp"><strong>H4a:</strong> Full and no-L5+no-L6 produce similar principled answers — L3 carries fallback. <strong>H4b:</strong> No-L3+no-L4 admits ignorance or fabricates.</p>
+            <div class="exp-method"><span class="exp-method-label">Method</span>30 domain-gap questions per mind (BM25 max &lt; 0.5); compare 4 variants + B1.</div>
+          </article>
+
+          <article class="exp-card exp-card-l4">
+            <div class="exp-header"><span class="exp-id">A.5</span><span class="exp-layer-tag exp-layer-tag-l4">tests L4</span></div>
+            <h4 class="exp-title">Cross-source contradiction resolution</h4>
+            <p class="exp-hyp"><strong>H5a:</strong> Full mind produces consistent resolution across 5 runs. <strong>H5b:</strong> No-L4 produces inconsistent resolutions — re-derived each time.</p>
+            <div class="exp-method"><span class="exp-method-label">Method</span>5–10 documented self-contradictions per mind (e.g., Dalio 2008 vs 2020); measure resolution variance across 5 independent runs.</div>
+          </article>
+        </div>
+      </div>
+
+      <!-- FAMILY B -->
+      <div class="exp-section">
+        <div class="exp-section-head">
+          <span class="exp-section-letter">B</span>
+          <span class="exp-section-name">Layer isolation</span>
+          <span class="exp-section-meta">Tier 3 — candidate production lite variants</span>
+        </div>
+        <div class="exp-grid">
+          <article class="exp-card exp-card-l3">
+            <div class="exp-header"><span class="exp-id">B.1</span><span class="exp-layer-tag exp-layer-tag-l3">L3 only</span><span class="exp-novel-tag">Novel</span></div>
+            <h4 class="exp-title">The "philosopher" variant</h4>
+            <p class="exp-hyp">Predicted: high stance-F1 on conceptual questions, low on factual / biographical. <em>Candidate production mode</em> — a fast, low-mount-cost mind.</p>
+            <div class="exp-method"><span class="exp-method-label">Method</span>Mount only L1 + L2 + L3. Prompt: "Answer from principles. Do not invent observations or quotes." Run on Q1 + A.4 sets.</div>
+          </article>
+
+          <article class="exp-card exp-card-l4">
+            <div class="exp-header"><span class="exp-id">B.2</span><span class="exp-layer-tag exp-layer-tag-l4">L4 only</span></div>
+            <h4 class="exp-title">The "memoir" variant</h4>
+            <p class="exp-hyp">Falsification test: if L4-only produces a coherent Dalio-feeling answer, identity is at L4. If incoherent, L4 needs L3 to be intelligible.</p>
+            <div class="exp-method"><span class="exp-method-label">Method</span>Mount only L4. Same eval set. Predicted: low coherence — L4 entries are framed as tensions; without L3 lens, read as confused.</div>
+          </article>
+
+          <article class="exp-card exp-card-l5">
+            <div class="exp-header"><span class="exp-id">B.3</span><span class="exp-layer-tag exp-layer-tag-l5">L5 only</span><span class="exp-novel-tag">Novel</span></div>
+            <h4 class="exp-title">The "scrapbook" variant</h4>
+            <p class="exp-hyp">If L5-only nearly matches full mind on Stance-F1, then impressions encode stances and the framework is decorative. A major finding if true.</p>
+            <div class="exp-method"><span class="exp-method-label">Method</span>Mount only L5. Predicted: reportorial answers ("I noticed X, similar case Y") without synthesis.</div>
+          </article>
+
+          <article class="exp-card exp-card-cross">
+            <div class="exp-header"><span class="exp-id">B.4</span><span class="exp-layer-tag exp-layer-tag-cross">L6 only</span></div>
+            <h4 class="exp-title">RAG baseline (= B3 from task 68)</h4>
+            <p class="exp-hyp">If full mind doesn't beat L6-only by ≥ +0.10 on Stance-F1, the entire refinement pipeline (L5→L4→L3 construction) is decorative.</p>
+            <div class="exp-method"><span class="exp-method-label">Method</span>Mount only L6. This is the B3 RAG baseline. Compares the value of refined vs raw retrieval.</div>
+          </article>
+
+          <article class="exp-card exp-card-l1">
+            <div class="exp-header"><span class="exp-id">B.5</span><span class="exp-layer-tag exp-layer-tag-l1">L1 only</span></div>
+            <h4 class="exp-title">Persona-only (= B1 from task 68)</h4>
+            <p class="exp-hyp">Natural floor: how much "sounds like X" comes from style alone?</p>
+            <div class="exp-method"><span class="exp-method-label">Method</span>No refinery. Just the persona system prompt. This is B1 from the Q1 plan, tracked here for completeness.</div>
+          </article>
+        </div>
+      </div>
+
+      <!-- FAMILY C -->
+      <div class="exp-section">
+        <div class="exp-section-head">
+          <span class="exp-section-letter">C</span>
+          <span class="exp-section-name">Cross-layer attribution</span>
+          <span class="exp-section-meta">Tier 2 — tests layer use, not presence</span>
+        </div>
+        <div class="exp-grid">
+          <article class="exp-card exp-card-cross">
+            <div class="exp-header"><span class="exp-id">C.1</span><span class="exp-layer-tag exp-layer-tag-cross">all layers</span><span class="exp-novel-tag">Novel</span></div>
+            <h4 class="exp-title">Forced-citation probe</h4>
+            <p class="exp-hyp"><strong>H6a–c:</strong> Conceptual Qs cite L3; opinion cite L4; factual cite L5/L6. <strong>H6d:</strong> Misattributed-claim rate measures confabulated provenance.</p>
+            <div class="exp-method"><span class="exp-method-label">Method</span>Mind must append [L3]/[L4]/[L5]/[L6]/[base] per claim. BM25-verify tagged layer actually contains the source. 100 questions × 3 minds.</div>
+          </article>
+
+          <article class="exp-card exp-card-cross">
+            <div class="exp-header"><span class="exp-id">C.2</span><span class="exp-layer-tag exp-layer-tag-cross">all layers</span></div>
+            <h4 class="exp-title">Citation-aware vs blind comparison</h4>
+            <p class="exp-hyp">Predicted: forcing citation increases grounding without degrading quality. Candidate ship feature: every claim is cited.</p>
+            <div class="exp-method"><span class="exp-method-label">Method</span>Same questions × two prompt modes (require citation / not). Compare answer quality + grounding rate.</div>
+          </article>
+
+          <article class="exp-card exp-card-cross">
+            <div class="exp-header"><span class="exp-id">C.3</span><span class="exp-layer-tag exp-layer-tag-cross">runtime trace</span></div>
+            <h4 class="exp-title">Retrieval-trace instrumentation</h4>
+            <p class="exp-hyp"><strong>H7c:</strong> Many turns read nothing from refinery — mind answers from pretraining. Production paying for unused content.</p>
+            <div class="exp-method"><span class="exp-method-label">Method</span>Instrument CCH sandbox to log every cat/grep/ls. Aggregate: per-turn reads per layer. Tests refinery utilization rate.</div>
+          </article>
+
+          <article class="exp-card exp-card-l4">
+            <div class="exp-header"><span class="exp-id">C.4</span><span class="exp-layer-tag exp-layer-tag-l4">L4 absence</span></div>
+            <h4 class="exp-title">Layer-coverage / negative space probe</h4>
+            <p class="exp-hyp">Tests whether L4's absence on a topic is detectable in output. Predicted: "frameworks-but-no-stake" abstract correctness without conviction.</p>
+            <div class="exp-method"><span class="exp-method-label">Method</span>Inventory L3/L4/L5 topic coverage. Probe gap topics — questions with L3 but no L4 reflection.</div>
+          </article>
+        </div>
+      </div>
+
+      <!-- FAMILY D -->
+      <div class="exp-section">
+        <div class="exp-section-head">
+          <span class="exp-section-letter">D</span>
+          <span class="exp-section-name">Chimera minds</span>
+          <span class="exp-section-meta">Tier 2 — where does identity live?</span>
+        </div>
+        <div class="exp-grid">
+          <article class="exp-card exp-card-cross">
+            <div class="exp-header"><span class="exp-id">D.1</span><span class="exp-layer-tag exp-layer-tag-cross">L3 vs L4</span><span class="exp-novel-tag">Novel</span></div>
+            <h4 class="exp-title">Layer swap — Dalio L3 + Taleb L4/L5</h4>
+            <p class="exp-hyp"><strong>H8a (L3 = identity):</strong> Judges say "Dalio". <strong>H8b (L4 = identity):</strong> "Taleb". <strong>H8c:</strong> Incoherent. <em>The central question of this proposal.</em></p>
+            <div class="exp-method"><span class="exp-method-label">Method</span>Build chimera tarball; run on econ/probability questions. Blind judges classify identity + score coherence.</div>
+          </article>
+
+          <article class="exp-card exp-card-l1">
+            <div class="exp-header"><span class="exp-id">D.2</span><span class="exp-layer-tag exp-layer-tag-l1">L1 vs L3</span><span class="exp-novel-tag">Novel</span></div>
+            <h4 class="exp-title">Persona swap</h4>
+            <p class="exp-hyp">If D.2 flips attribution to persona's owner even when L3 is preserved, <em>style overrides substance under blind judging</em>. Marketing-relevant.</p>
+            <div class="exp-method"><span class="exp-method-label">Method</span>Swap L1 (persona) only. Taleb's persona + Dalio's L3/L4/L5. Compare to D.1 result.</div>
+          </article>
+
+          <article class="exp-card exp-card-l3">
+            <div class="exp-header"><span class="exp-id">D.3</span><span class="exp-layer-tag exp-layer-tag-l3">multi-L3</span></div>
+            <h4 class="exp-title">Multi-mind L3 amalgam</h4>
+            <p class="exp-hyp">What does the mind do with three frameworks — pick? Average? Refuse? Stress test for the "one mind per session" architectural rule.</p>
+            <div class="exp-method"><span class="exp-method-label">Method</span>Mount Dalio + Harari + Taleb L3 simultaneously with Dalio's L4/L5/L6. Observation experiment.</div>
+          </article>
+
+          <article class="exp-card exp-card-l4">
+            <div class="exp-header"><span class="exp-id">D.4</span><span class="exp-layer-tag exp-layer-tag-l4">L4 over time</span></div>
+            <h4 class="exp-title">Pre-cutoff vs post-cutoff L4 snapshot</h4>
+            <p class="exp-hyp">Tests L4 time-stamp utility (Scenario 12 + Insight 05). Predicted: differences traceable to specific L4 entries added between snapshots.</p>
+            <div class="exp-method"><span class="exp-method-label">Method</span>Snapshot refinery at 2026-01-01 vs 2026-06-01. Run identical questions through both. Diff and trace.</div>
+          </article>
+        </div>
+      </div>
+
+      <!-- FAMILY E -->
+      <div class="exp-section">
+        <div class="exp-section-head">
+          <span class="exp-section-letter">E</span>
+          <span class="exp-section-name">Refinement-flow probes</span>
+          <span class="exp-section-meta">Higher cost — requires instrumentation</span>
+        </div>
+        <div class="exp-grid">
+          <article class="exp-card exp-card-l5">
+            <div class="exp-header"><span class="exp-id">E.1</span><span class="exp-layer-tag exp-layer-tag-l5">L5 → L4 → L3 chain</span><span class="exp-novel-tag">Novel</span></div>
+            <h4 class="exp-title">Counterfactual L5 injection</h4>
+            <p class="exp-hyp"><strong>H9c critical:</strong> Single injected L5 should NOT reshape L3 application. If it does, the threshold logic (Insight 04) is broken — mind drifts on every input.</p>
+            <div class="exp-method"><span class="exp-method-label">Method</span>Author a fake L5 entry; inject into chimera tarball. Probe at three depths: direct retrieval / analogical use / framework reshaping.</div>
+          </article>
+
+          <article class="exp-card exp-card-l4">
+            <div class="exp-header"><span class="exp-id">E.2</span><span class="exp-layer-tag exp-layer-tag-l4">L4 use</span></div>
+            <h4 class="exp-title">Tension-surfacing probe</h4>
+            <p class="exp-hyp"><strong>H10a:</strong> ≥ 50% of tension-targeted Qs surface the documented L4 tension. If not, L4 is stored but unread — refinement pipeline produces entries no one consults.</p>
+            <div class="exp-method"><span class="exp-method-label">Method</span>For each L4 entry, craft a question that <em>should</em> surface that tension. Judge: did the answer surface it, or paper over?</div>
+          </article>
+
+          <article class="exp-card exp-card-cross">
+            <div class="exp-header"><span class="exp-id">E.3</span><span class="exp-layer-tag exp-layer-tag-cross">pipeline</span></div>
+            <h4 class="exp-title">Refinement velocity</h4>
+            <p class="exp-hyp"><strong>H11a:</strong> L5 grows linearly with input. <strong>H11b:</strong> L4 grows slowly. <strong>H11c:</strong> L3 essentially doesn't change. Validates pipeline sustainability.</p>
+            <div class="exp-method"><span class="exp-method-label">Method</span>Feed 30 new L6 docs over simulated sessions. Snapshot refinery after each. Requires the 26 refinement operations to run end-to-end.</div>
+          </article>
+
+          <article class="exp-card exp-card-cross">
+            <div class="exp-header"><span class="exp-id">E.4</span><span class="exp-layer-tag exp-layer-tag-cross">depth</span></div>
+            <h4 class="exp-title">Retrieval-depth analysis</h4>
+            <p class="exp-hyp">Validates "deeper questions touch deeper layers" — shallow conceptual Qs → L3 reads only; deep specific Qs → L6 reads.</p>
+            <div class="exp-method"><span class="exp-method-label">Method</span>50 questions calibrated for retrieval depth. Measure: which layer the mind actually reads (via C.3 instrumentation).</div>
+          </article>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Recommended portfolio -->
+  <section class="plan-section">
+    <div class="container">
+      <div class="plan-section-eyebrow">Recommended portfolio</div>
+      <h2 class="plan-section-title">Run these five, in this order</h2>
+      <p class="plan-section-desc">Ordered by information-per-cost. Each tier delivers publishable findings on its own. Tier 1 alone tells us the per-layer marginal value to stance and pressure stability — the two most product-decisive measurements.</p>
+
+      <div class="portfolio-tier tier-1">
+        <div class="tier-label-block">
+          <span class="tier-number">01</span>
+          <span class="tier-period">Weeks 1–4</span>
+        </div>
+        <div class="tier-body">
+          <h3 class="tier-title">Headline ablations — cheap, reuses task 68 data</h3>
+          <p class="tier-desc">The two ablations that test the load-bearing insights directly: per-layer contribution to authenticity (Stance-F1) and per-layer contribution to pressure resistance. If only this tier ships, the proposal still answers the core question — "where does the goodness come from?"</p>
+          <div class="tier-experiments">
+            <span class="tier-exp-chip">A.1 · Stance-F1 ablation</span>
+            <span class="tier-exp-chip">A.2 · Pressure ablation</span>
+          </div>
+          <div class="tier-stats">
+            <div class="tier-stat"><span class="label">LLM budget</span><span class="value">~$50</span></div>
+            <div class="tier-stat"><span class="label">Person-days</span><span class="value">~8</span></div>
+            <div class="tier-stat"><span class="label">Risk</span><span class="value">Low</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="portfolio-tier tier-2">
+        <div class="tier-label-block">
+          <span class="tier-number">02</span>
+          <span class="tier-period">Weeks 5–7</span>
+        </div>
+        <div class="tier-body">
+          <h3 class="tier-title">Novel findings — where does identity live?</h3>
+          <p class="tier-desc">The two experiments that cannot be derived from ablation: (C.1) whether layers are actually <em>used</em> during inference, and (D.1) whether identity lives in L3 or L4. D.1 in particular is the only way to answer the central architectural question.</p>
+          <div class="tier-experiments">
+            <span class="tier-exp-chip">C.1 · Forced citation</span>
+            <span class="tier-exp-chip">D.1 · Chimera (Dalio L3 + Taleb L4/L5)</span>
+          </div>
+          <div class="tier-stats">
+            <div class="tier-stat"><span class="label">LLM budget</span><span class="value">~$80</span></div>
+            <div class="tier-stat"><span class="label">Person-days</span><span class="value">~12 (+ human annotation)</span></div>
+            <div class="tier-stat"><span class="label">Risk</span><span class="value">Medium</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="portfolio-tier tier-3">
+        <div class="tier-label-block">
+          <span class="tier-number">03</span>
+          <span class="tier-period">Weeks 8–9</span>
+        </div>
+        <div class="tier-body">
+          <h3 class="tier-title">Production-mode candidates</h3>
+          <p class="tier-desc">Both modes are candidates for production lite variants. B.1 (philosopher) — could ship as a low-latency conceptual mind. B.3 (scrapbook) — could ship as a citation-heavy retrieval mind. The Stance-F1 comparison reveals whether either matches the full-refinery mind closely enough to be product-viable.</p>
+          <div class="tier-experiments">
+            <span class="tier-exp-chip">B.1 · "Philosopher" (L3-only)</span>
+            <span class="tier-exp-chip">B.3 · "Scrapbook" (L5-only)</span>
+          </div>
+          <div class="tier-stats">
+            <div class="tier-stat"><span class="label">LLM budget</span><span class="value">~$70</span></div>
+            <div class="tier-stat"><span class="label">Person-days</span><span class="value">~10</span></div>
+            <div class="tier-stat"><span class="label">Risk</span><span class="value">Low</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Infrastructure note -->
+  <section class="plan-section">
+    <div class="container">
+      <div class="plan-section-eyebrow">The one new piece</div>
+      <h2 class="plan-section-title">Tarball variant builder</h2>
+      <p class="plan-section-desc">Every experiment in families A, B, D depends on building <em>variant refinery tarballs</em>. The existing publish pipeline at <code style="font-family: var(--mono); background: var(--bg-soft); padding: 2px 6px; border-radius: 4px;">refinery-publish/src/index.ts</code> produces one tarball per mind. Adding a <code style="font-family: var(--mono); background: var(--bg-soft); padding: 2px 6px; border-radius: 4px;">--variant</code> flag is the only architectural addition this proposal requires.</p>
+
+      <div class="infra-note">
+        <div>
+          <div class="infra-note-label">Implementation · ~1 day</div>
+          <h3 class="infra-note-title">A flag on the publish pipeline</h3>
+          <p class="infra-note-side">Variant tarballs upload to R2 under per-variant keys. The mind invocation API gains a <code>refineryVariant</code> field that picks which tarball mounts. CCH stays unchanged.</p>
+        </div>
+        <div class="infra-note-code">// refinery-publish gains:
+--variant=full        → all layers (existing behavior)
+--variant=no-L3       → exclude 03_world_models_frameworks/
+--variant=no-L4       → exclude 04_reflections_thoughts/
+--variant=no-L5       → exclude 05_impressions_observations/
+--variant=L3-only     → include only 01, 02, 03
+--variant=L5-only     → include only 01, 02, 05
+--variant=chimera     → JSON spec for per-layer source mind</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Open questions -->
+  <section class="plan-section">
+    <div class="container">
+      <div class="plan-section-eyebrow">Open questions</div>
+      <h2 class="plan-section-title">Items that need a decision before kickoff</h2>
+      <p class="plan-section-desc">Two are concrete prerequisites — verify before designing experiments. The rest shape interpretation.</p>
+
+      <div class="open-questions">
+        <div class="open-q">
+          <div class="open-q-num">Q · 01</div>
+          <h3 class="open-q-title">Does the mind always read the refinery?</h3>
+          <p class="open-q-body">Family C.3 requires logging file access. CCH sandbox shell logs may need extending. <strong>Action: verify log granularity before Tier 2.</strong></p>
+        </div>
+        <div class="open-q">
+          <div class="open-q-num">Q · 02</div>
+          <h3 class="open-q-title">L4 sparsity in production refineries</h3>
+          <p class="open-q-body">Personal-assistant L4 counts 9–18. Mindblown production may differ. If L4 is sparse in production, ablation-of-L4 will under-show its value. <strong>Count first.</strong></p>
+        </div>
+        <div class="open-q">
+          <div class="open-q-num">Q · 03</div>
+          <h3 class="open-q-title">Personal-assistant or production refineries?</h3>
+          <p class="open-q-body">Personal-assistant v1_1 has richer L4/L5 docs; mindblown production is deployed. Pilot on personal-assistant (cheaper iteration), confirm on production before publishing.</p>
+        </div>
+        <div class="open-q">
+          <div class="open-q-num">Q · 04</div>
+          <h3 class="open-q-title">Persona may be doing most of the work</h3>
+          <p class="open-q-body">L1 stays constant across all ablation variants. <strong>Recommend</strong>: add <em>no-persona</em> as a 6th variant. If it tanks Stance-F1 the hardest, persona dominates and L3/L4/L5 deltas are smaller than they look.</p>
+        </div>
+        <div class="open-q">
+          <div class="open-q-num">Q · 05</div>
+          <h3 class="open-q-title">Confounding with model pretraining</h3>
+          <p class="open-q-body">GPT-5.4 can "guess" Dalio's stance from base knowledge. Ablation deltas may be attenuated. <strong>Recommend</strong>: control with a fictional thinker (no pretraining signal). Compare effect sizes.</p>
+        </div>
+        <div class="open-q">
+          <div class="open-q-num">Q · 06</div>
+          <h3 class="open-q-title">What does a "successful" Δ look like?</h3>
+          <p class="open-q-body">With 80 Q&amp;A pairs per mind, a +0.05 effect is detectable; +0.02 is noise. <strong>Pre-register hypotheses with effect-size thresholds before running.</strong></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- ===================== FOOTER ===================== -->
+<footer>
+  <div class="container">
+    <div class="meta">
+      <div><strong>Memory Atlas</strong>.ai/analyses/65_mind-card-l3-l4-l5-scenarios.md</div>
+      <div><strong>Eval plan</strong>.ai/analyses/68_mind-eval-q1-q3-dataset-and-execution-plan.md</div>
+      <div><strong>Layer probes</strong>.ai/analyses/69_mind-layer-value-experimental-proposal.md</div>
+      <div><strong>Target architecture</strong>.ai/analyses/63_drwn-mind-card-target-architecture.md</div>
+      <div><strong>Implementation</strong>.ai/tasks/46_drwn-mind-card-implementation-plan.md</div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  (function() {
+    // Atlas tab switching
+    const tabs = document.querySelectorAll('.tab-btn');
+    const panels = document.querySelectorAll('.tab-panel');
+
+    function activateTab(letter) {
+      tabs.forEach(t => {
+        const active = t.dataset.tab === letter;
+        t.classList.toggle('active', active);
+        t.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      panels.forEach(p => {
+        p.classList.toggle('active', p.dataset.panel === letter);
+      });
+    }
+
+    tabs.forEach(t => {
+      t.addEventListener('click', () => activateTab(t.dataset.tab));
+      t.addEventListener('keydown', (e) => {
+        const letters = ['A','B','C','D','E'];
+        const idx = letters.indexOf(t.dataset.tab);
+        if (e.key === 'ArrowRight' && idx < letters.length - 1) {
+          activateTab(letters[idx + 1]);
+          tabs[idx + 1].focus();
+        } else if (e.key === 'ArrowLeft' && idx > 0) {
+          activateTab(letters[idx - 1]);
+          tabs[idx - 1].focus();
+        }
+      });
+    });
+
+    // Mode switching (Atlas / Eval Plan)
+    const modeBtns = document.querySelectorAll('.mode-btn');
+    const modeContents = document.querySelectorAll('.mode-content');
+
+    function activateMode(mode) {
+      modeBtns.forEach(b => {
+        const active = b.dataset.mode === mode;
+        b.classList.toggle('active', active);
+        b.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      modeContents.forEach(c => {
+        c.classList.toggle('active', c.dataset.modeContent === mode);
+      });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    modeBtns.forEach(b => {
+      b.addEventListener('click', () => activateMode(b.dataset.mode));
+    });
+
+    // Mind switching (field evidence)
+    const mindBtns = document.querySelectorAll('.mind-btn');
+    const mindPanels = document.querySelectorAll('.mind-panel');
+
+    function activateMind(mindId) {
+      mindBtns.forEach(b => {
+        const active = b.dataset.mind === mindId;
+        b.classList.toggle('active', active);
+        b.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      mindPanels.forEach(p => {
+        p.classList.toggle('active', p.dataset.mindPanel === mindId);
+      });
+    }
+
+    const mindIds = ['dalio','musk','harari','munger','deutsch','taleb'];
+    mindBtns.forEach((b, idx) => {
+      b.addEventListener('click', () => activateMind(b.dataset.mind));
+      b.addEventListener('keydown', (e) => {
+        const i = mindIds.indexOf(b.dataset.mind);
+        if (e.key === 'ArrowRight' && i < mindIds.length - 1) {
+          activateMind(mindIds[i + 1]);
+          mindBtns[i + 1].focus();
+        } else if (e.key === 'ArrowLeft' && i > 0) {
+          activateMind(mindIds[i - 1]);
+          mindBtns[i - 1].focus();
+        }
+      });
+    });
+  })();
+</script>
+
+</body>
+</html>

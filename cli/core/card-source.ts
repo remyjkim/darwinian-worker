@@ -2,8 +2,8 @@
 // ABOUTME: Separates source authoring state from published card consumption state.
 
 import { existsSync } from "node:fs";
-import { cp, readdir, readFile, rm } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { cp, lstat, readdir, readFile, rm } from "node:fs/promises";
+import { basename, dirname, join, resolve } from "node:path";
 import { assertValidCardManifest, validateCardManifest, type CardManifest } from "./card-manifest";
 import { writeAtomically } from "./fs";
 import { findLibraryMcpServer, findLibrarySkill } from "./library";
@@ -220,10 +220,17 @@ async function resolveSkillSource(options: {
 }) {
   if (options.from) {
     const path = resolve(options.from);
-    if (!existsSync(join(path, "SKILL.md"))) {
-      throw new Error(`Skill source is missing SKILL.md: ${path}`);
+    if (!existsSync(path)) {
+      throw new Error(`Skill source path does not exist: ${path}`);
     }
-    return { path };
+    const stats = await lstat(path);
+    if (stats.isFile() && basename(path) === "SKILL.md") {
+      return { path: dirname(path) };
+    }
+    if (stats.isDirectory() && existsSync(join(path, "SKILL.md"))) {
+      return { path };
+    }
+    throw new Error(`Skill source must be a SKILL.md file or a directory containing SKILL.md: ${path}`);
   }
   const repoSkill = await findRepoSkill(options.repoRoot, options.skillName);
   if (repoSkill) {
