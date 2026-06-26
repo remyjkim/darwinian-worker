@@ -6,7 +6,7 @@ This document records the publishing failure analysis from the first npm publish
 
 It exists to prevent repeated confusion around npm token precedence, 2FA behavior, and local machine config leakage.
 
-The current package name is `darwinian-mind`. Earlier notes may refer to `beginning-agents` because that was the package name during the first publishing attempt.
+The current package name is `darwinian-mind`, which is **not yet published** on npm. The last published artifact is `darwinian-harness@0.2.1` (under the prior name); `beginning-agents` was the original first-attempt name. A first publish of `darwinian-mind` therefore creates a fresh package — use `npm publish --access public`; it does not update `darwinian-harness`.
 
 ## Outcome
 

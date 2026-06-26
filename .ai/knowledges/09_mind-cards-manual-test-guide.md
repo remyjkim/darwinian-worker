@@ -72,7 +72,8 @@ Recommended shell setup:
 ```bash
 set -euo pipefail
 
-export HARNESS_REPO=/Users/pureicis/dev/darwinian-mind
+# Point this at your local checkout (the on-disk directory is still `darwinian-harness`).
+export HARNESS_REPO="$(git -C "$(pwd)" rev-parse --show-toplevel 2>/dev/null || echo /Users/pureicis/dev/darwinian-harness)"
 export ENTRYPOINT="$HARNESS_REPO/cli/index.ts"
 export SANDBOX="$(mktemp -d /tmp/drwn-cards-XXXXXX)"
 export AGENTS_HOME_DIR="$SANDBOX/home"
@@ -226,10 +227,14 @@ cat .agents/drwn/card.lock
 
 Verify that `card.lock` contains:
 
-- the exact resolved card version
+- `lockfileVersion` (2/3/4; 4 once a card ships persona/beliefs/memory)
+- the exact resolved card `version` (and `requested` range)
 - `integrity`
 - `manifest`
-- `skills`
+- `skills` and `hooks`
+- `persona`, `beliefs`, `memory` (when the card declares mind content)
+- `hookConsent` (once `card trust --hooks` is run)
+- `origin` (`store`/`git`/`file`/`npm`) and `git` (for git-origin cards)
 - `registry: null`
 
 ### 7. Preview materialization
@@ -245,7 +250,7 @@ Verify:
 - planned MCP config for `card-server`
 - skill targets point into `"$AGENTS_DIR/drwn/extracted/<tree-sha>/skills/..."`
 
-### 7. Materialize the project
+### 8. Materialize the project
 
 ```bash
 drwn write
@@ -260,7 +265,7 @@ Verify:
 - `.claude/settings.json` contains `card-server`
 - if Codex is enabled, equivalent `.codex/skills/...` links also materialize
 
-### 8. Inspect provenance and diagnostics
+### 9. Inspect provenance and diagnostics
 
 ```bash
 drwn status --explain
@@ -276,7 +281,7 @@ Verify:
 - `doctor` does not falsely report bundled-only skills as unknown
 - `doctor` is report-only
 
-### 9. Verify idempotency
+### 10. Verify idempotency
 
 ```bash
 drwn write --json
@@ -550,6 +555,58 @@ Expected:
 
 - write fails
 - the error reports that `@me/frontend@1.0.0` is missing the required skill directory `polish`
+
+## Mind Content Flow
+
+Exercises the mind-card content layer (persona / beliefs / memory), the active-mind stack, and the composed materialization. Continues in the same sandbox.
+
+### 1. Author mind content on a card source
+
+```bash
+drwn card new @me/strategist --no-git
+drwn card source add-persona @me/strategist voice --visibility internal
+drwn card source add-belief  @me/strategist first-principles --visibility internal
+drwn card source add-memory  @me/strategist transcripts --layer l6 --visibility private --format jsonl
+drwn card source doctor @me/strategist
+drwn card publish @me/strategist
+```
+
+Verify:
+
+- `card source doctor` greens (persona/beliefs/memory dirs + required `visibility` present)
+- `publish` refuses if a declared `PERSONA.md` / `BELIEF.md` / memory entry is missing or a `jsonl` layer has invalid lines
+
+### 2. Activate a mind stack and materialize
+
+```bash
+drwn card apply @me/frontend@^1.0.0 @me/strategist@^1.0.0
+drwn mind list                       # both installed; default = all active
+drwn mind use @me/frontend @me/strategist
+drwn write --json
+```
+
+Verify:
+
+- per-mind bundles under `.agents/drwn/generated/minds/@me/frontend/` and `.../@me/strategist/`
+- the registry `.agents/drwn/generated/minds.json`
+- the composed active view `.agents/drwn/generated/mind/`: stack-ordered `persona.md`, namespaced `beliefs/@me/strategist/...`, `memory/l6/@me/strategist/...`, and a `mind.json` whose `activeMinds` equals `["@me/frontend", "@me/strategist"]`
+
+### 3. Reorder, shrink, and clear the stack
+
+```bash
+drwn mind use @me/strategist @me/frontend   # reorder
+drwn write --json                           # mind.json activeMinds order flips
+drwn mind use @me/strategist                # shrink
+drwn write --json                           # @me/frontend pruned from generated/mind
+drwn mind clear                             # explicit none
+drwn write --json
+```
+
+Verify:
+
+- `generated/mind/mind.json` `activeMinds` tracks each `mind use` order
+- after shrink, the dropped mind's entries are pruned from `generated/mind/`
+- after `mind clear`, `generated/mind/` is removed while the per-mind `generated/minds/<name>/` bundles remain
 
 ## Existing Project Flow
 

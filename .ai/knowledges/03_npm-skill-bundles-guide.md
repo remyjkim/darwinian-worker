@@ -19,7 +19,7 @@ In this model:
 
 - npm is the distribution and versioning layer
 - the bundle provides skill files plus metadata
-- `drwn` remains the only supported local meta-harness control plane for curation and downstream write
+- `drwn` (invocable as `drwn` or the `dminds` alias) remains the only supported local meta-harness control plane for curation and downstream write
 
 Bundles are extension sources. They do not replace the built-in first-party skill tree in the repo.
 
