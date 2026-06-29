@@ -1,5 +1,5 @@
 {
-  "name": "darwinian-mind",
+  "name": "darwinian-minds",
   "bin": {
     "drwn": "cli/index.ts",
     "dminds": "cli/index.ts"
@@ -13,29 +13,29 @@
     "./package.json": "./package.json"
   },
   "type": "module",
-  "description": "Local Darwinian Mind CLI for managing AI agent skills, MCP servers, extensions, defaults, and project overlays.",
+  "description": "Local Darwinian Minds CLI for managing AI agent skills, MCP servers, extensions, defaults, and project overlays.",
   "version": "0.2.2",
   "license": "Apache-2.0",
   "author": "remyjkim <jkkim123@gmail.com>",
-  "homepage": "https://github.com/remyjkim/darwinian-mind",
+  "homepage": "https://github.com/remyjkim/darwinian-minds",
   "bugs": {
-    "url": "https://github.com/remyjkim/darwinian-mind/issues"
+    "url": "https://github.com/remyjkim/darwinian-minds/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/remyjkim/darwinian-mind.git"
+    "url": "git+https://github.com/remyjkim/darwinian-minds.git"
   },
   "files": [
     "cli",
     "registry",
     "skills",
     "README.md",
-    "docs/assets/darwinian-mind-logo.png",
+    "docs/assets/darwinian-minds-logo.png",
     "LICENSE",
     "CONTRIBUTING.md"
   ],
   "keywords": [
-    "darwinian-mind",
+    "darwinian-minds",
     "drwn",
     "mind",
     "harness",
@@ -61,8 +61,8 @@
     "typescript": "^6.0.3"
   },
   "dependencies": {
-    "drwn-catalog-schema": "^0.1.0",
     "clipanion": "4.0.0-rc.4",
+    "drwn-catalog-schema": "^0.1.0",
     "semver": "^7.8.0",
     "smol-toml": "^1.6.1",
     "zod": "^4.4.3"
