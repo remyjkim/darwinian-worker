@@ -21,7 +21,7 @@ jobs:
   validate:
     name: Validate
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -48,3 +48,29 @@ jobs:
       - name: Release-readiness gate
         if: runner.os == 'Linux'
         run: bun run verify:release
+
+  linux-secret-tool:
+    name: Linux secret-tool backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install the Secret Service stack
+        run: sudo apt-get update && sudo apt-get install -y libsecret-tools gnome-keyring dbus-x11
+
+      - name: Exercise the real secret-tool backend under an unlocked keyring
+        run: |
+          dbus-run-session -- bash -c '
+            echo -n "" | gnome-keyring-daemon --unlock --components=secrets,pkcs11
+            bun test test/core-secret-store-backends.test.ts
+          '
