@@ -27,13 +27,18 @@ const sample: DrwnCredentials = {
 };
 
 describe("credentials", () => {
-  test("writeCredentials creates file with mode 0600", async () => {
+  test("writeCredentials encrypts at rest with mode 0600 and round-trips", async () => {
     tmp = await mkdtemp(join(tmpdir(), "drwn-cred-"));
     const path = join(tmp, "credentials.json");
     await writeCredentials(path, sample);
     const s = await stat(path);
     expect((s.mode & 0o777).toString(8)).toBe("600");
-    expect(JSON.parse(await readFile(path, "utf8"))).toEqual(sample);
+
+    const onDisk = await readFile(path, "utf8");
+    expect(onDisk).not.toContain(sample.access_token);
+    expect(JSON.parse(onDisk).algo).toBe("aes-256-gcm");
+
+    expect(await readCredentials(path)).toEqual(sample);
   });
 
   test("readCredentials returns null when missing", async () => {

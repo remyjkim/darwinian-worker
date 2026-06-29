@@ -4,6 +4,7 @@
 import { Option, UsageError } from "clipanion";
 import { renderJson, renderSyncResult } from "../../core/output";
 import { syncRepository } from "../../core/sync";
+import { isTargetName } from "../../core/targets";
 import { BaseCommand } from "../base";
 
 export class McpWriteCommand extends BaseCommand {
@@ -38,7 +39,7 @@ export class McpWriteCommand extends BaseCommand {
   });
 
   async execute() {
-    if (this.target && this.target !== "claude" && this.target !== "codex" && this.target !== "cursor") {
+    if (this.target && !isTargetName(this.target)) {
       throw new UsageError(`Unsupported target: ${this.target}`);
     }
 

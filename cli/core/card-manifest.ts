@@ -2,6 +2,7 @@
 // ABOUTME: Keeps authoring and consumer commands aligned on schema rules.
 
 import type { ProjectExtensionConfig, ServerOverride, TargetName } from "./types";
+import { isTargetName } from "./targets";
 import { isStrictSemver, validRange } from "./semver-utils";
 import { isSafePathPart } from "./store-paths";
 
@@ -199,7 +200,7 @@ export function validateCardManifest(input: unknown): CardManifestValidationResu
     }
   }
   for (const target of Object.keys(manifest.targets ?? {})) {
-    if (target !== "claude" && target !== "codex" && target !== "cursor") {
+    if (!isTargetName(target)) {
       errors.push(`unsupported target: ${target}`);
     }
   }

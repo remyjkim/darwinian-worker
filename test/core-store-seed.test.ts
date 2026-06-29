@@ -6,10 +6,23 @@ import { existsSync } from "node:fs";
 import { lstat, mkdir, mkdtemp, realpath, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { seedStore } from "../cli/core/store-seed";
+import { assertSeedEntriesSafe, seedStore } from "../cli/core/store-seed";
+import { create as createArchive } from "../cli/core/archive";
 import { cleanupTempRoots, createTempRoot } from "./helpers";
 
 const tempRoots: string[] = [];
+
+describe("assertSeedEntriesSafe", () => {
+  test("accepts entries under the drwn/ root", () => {
+    expect(() => assertSeedEntriesSafe(["drwn", "drwn/", "drwn/config.json", "drwn/skills/x"])).not.toThrow();
+  });
+
+  for (const unsafe of ["../escape", "/abs", "evil\\win", "notdrwn/x"]) {
+    test(`rejects unsafe entry ${unsafe}`, () => {
+      expect(() => assertSeedEntriesSafe(["drwn", unsafe])).toThrow(/SEED_UNSAFE_TAR_ENTRY/);
+    });
+  }
+});
 
 afterEach(async () => {
   await cleanupTempRoots(tempRoots);
@@ -51,7 +64,7 @@ describe("seedStore", () => {
     const tarDir = await mkdtemp(join(tmpdir(), "drwn-seed-tar-out-"));
     tempRoots.push(sourceRoot, agentsDir, tarDir);
     const tarPath = join(tarDir, "drwn-store.tar");
-    await runTar(["-cf", tarPath, "-C", sourceRoot, "drwn"]);
+    await createArchive(tarPath, { cwd: sourceRoot, entries: ["drwn"] });
 
     const result = await seedStore({
       agentsDir,
@@ -120,17 +133,3 @@ async function createSeedSource() {
   return sourceRoot;
 }
 
-async function runTar(args: string[]) {
-  const proc = Bun.spawn(["tar", ...args], {
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
-  if (exitCode !== 0) {
-    throw new Error(`tar ${args.join(" ")} failed: ${stderr || stdout}`);
-  }
-}

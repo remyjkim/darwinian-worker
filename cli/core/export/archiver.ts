@@ -4,29 +4,13 @@
 import { mkdir, mkdtemp, rm, link, copyFile, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
+import { create as createArchive, list as listArchive } from "../archive";
 import type { SessionFile } from "./session-discovery";
 
 const ALLOWED_PREFIXES = ["claude/", "codex/"] as const;
 
 export interface ArchiveOptions {
   gzip?: boolean;
-}
-
-async function listArchiveMembers(archivePath: string, gzip: boolean): Promise<string[]> {
-  const proc = Bun.spawn(["tar", gzip ? "tzf" : "tf", archivePath], {
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  const stdout = await new Response(proc.stdout).text();
-  const exitCode = await proc.exited;
-  if (exitCode !== 0) {
-    const stderr = await new Response(proc.stderr).text();
-    throw new Error(`tar tf exited with code ${exitCode}: ${stderr.trim()}`);
-  }
-  return stdout
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
 }
 
 export function validateArchiveMembers(members: string[], expectedCount?: number): void {
@@ -112,29 +96,13 @@ export async function archiveSessions(
       }
     }
 
-    // COPYFILE_DISABLE=1 tells BSD tar not to emit AppleDouble (._*) companions even if the
-    // source has macOS xattrs. --no-mac-metadata is a belt-and-suspenders flag for BSD tar on
-    // macOS 12+ that also suppresses extended attribute archiving. The mode flag must come
-    // before --no-mac-metadata or BSD tar refuses to parse.
-    const tarArgs = ["tar", gzip ? "czf" : "cf", outputPath];
-    if (process.platform === "darwin") {
-      tarArgs.push("--no-mac-metadata");
-    }
-    tarArgs.push("-C", stagingDir, ".");
-    const proc = Bun.spawn(tarArgs, {
-      stdout: "ignore",
-      stderr: "pipe",
-      env: { ...process.env, COPYFILE_DISABLE: "1" },
-    });
-    const exitCode = await proc.exited;
-
-    if (exitCode !== 0) {
-      const stderr = await new Response(proc.stderr).text();
-      throw new Error(`tar exited with code ${exitCode}: ${stderr.trim()}`);
-    }
+    // node-tar with portable: true emits a reproducible archive without platform-specific
+    // metadata (no AppleDouble/._* companions, no extended attributes), so the macOS-only
+    // tar flags are no longer needed. validateArchiveMembers stays as the post-write check.
+    await createArchive(outputPath, { cwd: stagingDir, entries: ["."], gzip });
 
     try {
-      const members = await listArchiveMembers(outputPath, gzip);
+      const members = await listArchive(outputPath);
       validateArchiveMembers(members, files.length);
     } catch (err) {
       await unlink(outputPath).catch(() => {});

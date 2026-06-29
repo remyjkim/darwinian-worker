@@ -31,8 +31,8 @@ test -f .agents/drwn/generated/minds.json
 test -d .agents/drwn/generated/minds/@team/base
 test -d .agents/drwn/generated/minds/@team/overlay
 test -d .agents/drwn/generated/mind
-test -L .claude/skills/alpha
-test -L .claude/skills/beta
+test -d .claude/skills/alpha
+test -d .claude/skills/beta
 "$BUN_BIN" run "$DRWN_ENTRYPOINT" mind clear --json > "$CLEAR_ONE"
 "$BUN_BIN" run "$DRWN_ENTRYPOINT" write --json > "$WRITE_CLEAR"
 test ! -e .claude/skills/alpha
@@ -40,12 +40,12 @@ test ! -e .claude/skills/beta
 test ! -e .agents/drwn/generated/mind
 "$BUN_BIN" run "$DRWN_ENTRYPOINT" mind use @team/base --json > "$USE_ONE"
 "$BUN_BIN" run "$DRWN_ENTRYPOINT" write --json > "$WRITE_TWO"
-test -L .claude/skills/alpha
+test -d .claude/skills/alpha
 test ! -e .claude/skills/beta
 "$BUN_BIN" run "$DRWN_ENTRYPOINT" mind use @team/base @team/overlay --json > "$USE_TWO"
 "$BUN_BIN" run "$DRWN_ENTRYPOINT" write --json > "$WRITE_THREE"
-test -L .claude/skills/alpha
-test -L .claude/skills/beta
+test -d .claude/skills/alpha
+test -d .claude/skills/beta
 node <<'NODE'
 const fs = require('fs');
 const listed = JSON.parse(fs.readFileSync(process.env.USE_TWO, 'utf8'));

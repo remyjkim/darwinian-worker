@@ -13,6 +13,24 @@ afterEach(async () => {
 });
 
 describe("drwn doctor", () => {
+  test("surfaces the Cowork annotation and platform checks when claude is enabled", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+
+    const human = await runAgentsCli(["doctor"], envFor(fixture));
+    expect(human.exitCode).toBe(0);
+    expect(human.stdout).toContain("Cowork");
+    expect(human.stdout).toContain("Platform checks:");
+
+    const json = await runAgentsCli(["doctor", "--json"], envFor(fixture));
+    const parsed = JSON.parse(json.stdout) as {
+      surfaceNotes: string[];
+      platformChecks: Array<{ name: string; ok: boolean }>;
+    };
+    expect(parsed.surfaceNotes.some((note) => note.includes("Cowork"))).toBe(true);
+    expect(parsed.platformChecks.some((check) => check.name.includes("home directory"))).toBe(true);
+  });
+
   test("reports stale downstream skill symlinks", async () => {
     const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
     tempRoots.push(fixture.root);
@@ -59,7 +77,7 @@ describe("drwn doctor", () => {
     expect(parsed.brokenSymlinks.some((value) => value.includes("broken-link"))).toBe(true);
   });
 
-  test("reports MCP drift and missing generated files", async () => {
+  test("reports MCP drift", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
 
@@ -73,7 +91,6 @@ describe("drwn doctor", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("MCP drift:");
-    expect(result.stdout).toContain("Missing generated files:");
   });
 
   test("detects MCP drift when config uses tilde paths", async () => {

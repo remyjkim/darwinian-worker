@@ -10,11 +10,13 @@ import { loadConfig } from "./config";
 import { buildActiveServers, hashCodexManagedServers, mergeClaudeSettingsText, mergeCodexTomlText, renderCursorConfig, renderJsonMcpConfig } from "./mcp";
 import { hasExplicitSkillDefaults, mergeUserMcpLibrary, validateDefaultReferences } from "./defaults";
 import { expandHomePath, resolveToolPaths } from "./paths";
+import { resolveHomeDir } from "./home";
+import { ALL_TARGET_NAMES, getTargetDescriptor } from "./targets";
 import { loadRegistry } from "./registry";
 import { loadMcpLibrary } from "./mcp-library";
 import {
   buildSkillInventory,
-  findStaleSymlinks,
+  findStaleManagedEntries,
   listCuratedSkills,
   listRepoSkills,
   listSkillsByScope,
@@ -30,6 +32,12 @@ import { isHookConsentValid } from "./hook-consent";
 import { DRWN_VERSION } from "./version";
 import type { CanonicalConfig, ProjectConfig, RegistryServer } from "./types";
 
+export interface PlatformCheck {
+  name: string;
+  ok: boolean;
+  detail?: string;
+}
+
 export interface DoctorReport {
   brokenSymlinks: string[];
   staleSkillSymlinks: string[];
@@ -37,6 +45,8 @@ export interface DoctorReport {
   missingGeneratedFiles: string[];
   hookIssues: string[];
   projectConfigIssues: string[];
+  surfaceNotes: string[];
+  platformChecks: PlatformCheck[];
   cards?: DiagnosticsSections["cards"];
   store?: DiagnosticsSections["store"];
   writeRecord?: DiagnosticsSections["writeRecord"];
@@ -431,8 +441,8 @@ async function detectStaleSkillSymlinks(
   ]);
 
   return [
-    ...(await findStaleSymlinks(toolPaths.claudeSkills, desiredClaude)),
-    ...(await findStaleSymlinks(toolPaths.codexSkills, desiredCodex)),
+    ...(await findStaleManagedEntries(toolPaths.claudeSkills, desiredClaude)),
+    ...(await findStaleManagedEntries(toolPaths.codexSkills, desiredCodex)),
   ];
 }
 
@@ -497,14 +507,11 @@ async function detectMcpDrift(
       }
     }
 
-    if (targetName === "cursor") {
-      const generatedPath = join(generatedDir, "cursor-mcp.json");
-      if (existsSync(generatedPath)) {
-        const current = readFileSync(generatedPath, "utf8");
-        const expected = renderCursorConfig(activeServers);
-        if (current !== expected) {
-          drifts.push(`cursor:${generatedPath}`);
-        }
+    if (targetName === "cursor" && existsSync(configPath)) {
+      const current = readFileSync(configPath, "utf8");
+      const expected = renderCursorConfig(activeServers);
+      if (current !== expected) {
+        drifts.push(`cursor:${configPath}`);
       }
     }
   }
@@ -512,17 +519,10 @@ async function detectMcpDrift(
   return drifts;
 }
 
-async function detectMissingGeneratedFiles(config: CanonicalConfig, generatedDir: string) {
-  const missing: string[] = [];
-
-  if (config.targets.cursor?.enabled) {
-    const generatedPath = join(generatedDir, "cursor-mcp.json");
-    if (!existsSync(generatedPath)) {
-      missing.push(generatedPath);
-    }
-  }
-
-  return missing;
+async function detectMissingGeneratedFiles(_config: CanonicalConfig, _generatedDir: string) {
+  // Cursor MCP config is now written directly as managed content, so there is no
+  // generated sidecar file that can go missing. Retained for output-shape stability.
+  return [] as string[];
 }
 
 function detectHookIssues(cards: CardLockEntry[], generatedDir: string) {
@@ -574,6 +574,48 @@ function generatedComposerPaths(generatedDir: string) {
   return paths;
 }
 
+function buildSurfaceNotes(config: { targets: Record<string, { enabled: boolean }> }): string[] {
+  const notes: string[] = [];
+  for (const name of ALL_TARGET_NAMES) {
+    const descriptor = getTargetDescriptor(name);
+    if (config.targets[name]?.enabled && descriptor.surfaces.includes("cowork")) {
+      notes.push(
+        `The ${name} target also serves the Cowork surface; materialized skills, MCP servers, and hooks apply there too. ` +
+          `Cowork runs in a workspace-trust VM, so review its trust and snapshot prompts.`,
+      );
+    }
+  }
+  return notes;
+}
+
+function isExecutableOnPath(command: string): boolean {
+  const isWindows = process.platform === "win32";
+  const exts = isWindows ? (process.env.PATHEXT ?? ".EXE;.CMD;.BAT").split(";") : [""];
+  const dirs = (process.env.PATH ?? "").split(isWindows ? ";" : ":");
+  for (const dir of dirs) {
+    if (!dir) continue;
+    for (const ext of exts) {
+      if (existsSync(join(dir, `${command}${ext}`))) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function buildPlatformChecks(): PlatformCheck[] {
+  const home = resolveHomeDir(process.env);
+  const nodeOnPath = isExecutableOnPath("node");
+  return [
+    { name: "home directory resolves to a non-empty path", ok: home.length > 0, detail: home || "(empty)" },
+    {
+      name: "node resolvable on PATH (for MCP servers that spawn node)",
+      ok: nodeOnPath,
+      detail: nodeOnPath ? undefined : "node not found on PATH",
+    },
+  ];
+}
+
 export async function buildDoctorReport(repoRoot: string, agentsDir: string, homeDir: string): Promise<DoctorReport> {
   const toolPaths = resolveToolPaths(homeDir);
   const generatedDir = resolveStoreGeneratedDir(agentsDir);
@@ -616,6 +658,8 @@ export async function buildDoctorReport(repoRoot: string, agentsDir: string, hom
     missingGeneratedFiles: await detectMissingGeneratedFiles(config, generatedDir),
     hookIssues: [],
     projectConfigIssues: defaultIssues,
+    surfaceNotes: buildSurfaceNotes(config),
+    platformChecks: buildPlatformChecks(),
     cards: sections.cards,
     store: sections.store,
     writeRecord: sections.writeRecord,

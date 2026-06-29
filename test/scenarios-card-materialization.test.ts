@@ -2,7 +2,7 @@
 // ABOUTME: Protects the end-to-end card consumption path beyond lockfile mutation.
 
 import { afterEach, expect, test } from "bun:test";
-import { existsSync, readlinkSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture } from "./helpers";
@@ -38,7 +38,7 @@ test("project write materializes skills and servers introduced by cards", async 
 
   expect(write.exitCode).toBe(0);
   expect(existsSync(join(projectDir, ".claude", "skills", "alpha"))).toBe(true);
-  expect(readlinkSync(join(projectDir, ".claude", "skills", "alpha"))).toBe(join(versionDir, "skills", "alpha"));
+  expect(readFileSync(join(projectDir, ".claude", "skills", "alpha", "SKILL.md"), "utf8")).toBe(readFileSync(join(versionDir, "skills", "alpha", "SKILL.md"), "utf8"));
   const claudeMcp = JSON.parse(await readFile(join(projectDir, ".mcp.json"), "utf8"));
   expect(claudeMcp.mcpServers["card-server"].command).toBe("card-run");
 });

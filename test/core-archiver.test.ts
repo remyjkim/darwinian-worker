@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SessionFile } from "../cli/core/export/session-discovery";
 import { makeTimestamp, archiveSessions, validateArchiveMembers } from "../cli/core/export/archiver";
+import { list as listArchive } from "../cli/core/archive";
 
 const tempRoots: string[] = [];
 
@@ -26,20 +27,7 @@ async function createTempRoot(prefix: string): Promise<string> {
 }
 
 async function tarListEntries(archivePath: string): Promise<string[]> {
-  const proc = Bun.spawn(["tar", "tf", archivePath], {
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  const stdout = await new Response(proc.stdout).text();
-  const exitCode = await proc.exited;
-  if (exitCode !== 0) {
-    const errText = await new Response(proc.stderr).text();
-    throw new Error(`tar tf failed (exit ${exitCode}): ${errText}`);
-  }
-  return stdout
-    .split("\n")
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0);
+  return listArchive(archivePath);
 }
 
 describe("makeTimestamp", () => {
@@ -270,11 +258,9 @@ describe("archiveSessions", () => {
     expect(buf[0]).toBe(0x1f);
     expect(buf[1]).toBe(0x8b);
 
-    // And `tar -tzf` should list the member
-    const proc = Bun.spawn(["tar", "-tzf", outputPath], { stdout: "pipe", stderr: "pipe" });
-    const stdout = await new Response(proc.stdout).text();
-    expect(await proc.exited).toBe(0);
-    expect(stdout).toContain("claude/session.jsonl");
+    // And listing the gzipped archive (auto-detected) should include the member
+    const members = await tarListEntries(outputPath);
+    expect(members.some((m) => m.replace(/^\.\//, "") === "claude/session.jsonl")).toBe(true);
   });
 
   test("staging directory is cleaned up after successful archive", async () => {

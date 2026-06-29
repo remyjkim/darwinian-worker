@@ -1,7 +1,7 @@
 // ABOUTME: Orchestrates MCP and skill syncing using the extracted core modules.
 // ABOUTME: Shared by the Clipanion commands and the legacy sync-mcp compatibility wrapper.
 
-import { existsSync, readdirSync, readlinkSync, rmSync, symlinkSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readlinkSync, rmSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expandHomePath, resolveGlobalCodexConfig, resolveToolPaths } from "./paths";
@@ -50,26 +50,6 @@ async function readTextIfExists(pathValue: string, fallback: string) {
       return fallback;
     }
     throw error;
-  }
-}
-
-function ensureFileSymlink(linkPath: string, targetPath: string, dryRun: boolean, result: SyncResult) {
-  const exists = existsSync(linkPath) || lstatSafe(linkPath) !== null;
-  if (exists) {
-    const stats = lstatSafe(linkPath);
-    if (stats?.isSymbolicLink()) {
-      const resolved = realpathSafe(linkPath);
-      if (resolved === realpathSafe(targetPath)) {
-        return;
-      }
-    }
-    backupExistingPath(linkPath, dryRun, result);
-  }
-
-  ensureParentDir(linkPath, dryRun);
-  result.changes.push(`symlink ${linkPath} -> ${targetPath}`);
-  if (!dryRun) {
-    symlinkSync(targetPath, linkPath, "file");
   }
 }
 
@@ -371,10 +351,17 @@ export async function syncMcp(
       if (Object.keys(servers).length === 0) {
         continue;
       }
-      const generatedPath = join(generatedDir, "cursor-mcp.json");
-      writeManagedFile(generatedPath, renderCursorConfig(servers), options.dryRun, result);
-      ensureFileSymlink(configPath, generatedPath, options.dryRun, result);
-      managedPaths.push({ path: ".cursor/mcp.json", kind: "generated-symlink", generatedPath });
+      const content = renderCursorConfig(servers);
+      const existing = lstatSafe(configPath);
+      if (existing?.isSymbolicLink() && !options.dryRun) {
+        rmSync(configPath, { force: true });
+      }
+      writeManagedFile(configPath, content, options.dryRun, result);
+      // One-time cleanup of the pre-de-symlink generated artifact.
+      if (!options.dryRun) {
+        rmSync(join(generatedDir, "cursor-mcp.json"), { force: true });
+      }
+      managedPaths.push({ path: ".cursor/mcp.json", kind: "managed-content", contentHash: hashManagedContent(content) });
     }
   }
 

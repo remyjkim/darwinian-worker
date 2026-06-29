@@ -3,7 +3,7 @@
 
 import { expect } from "bun:test";
 import { existsSync } from "node:fs";
-import { mkdtemp, mkdir, writeFile, rm, symlink } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, rm, cp } from "node:fs/promises";
 import { chmod } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -57,7 +57,7 @@ export function createFixtureConfig(
         mcpKey: "mcpServers",
       },
       codex: { enabled: true, configPath: paths.codexConfig, format: "toml-merge", mcpKey: "mcp_servers" },
-      cursor: { enabled: true, configPath: paths.cursorConfig, format: "json-standalone", mcpKey: "mcpServers", symlink: true },
+      cursor: { enabled: true, configPath: paths.cursorConfig, format: "json-standalone", mcpKey: "mcpServers" },
     },
     catalogs: {
       npmSkills: { enabled: true, searchLimit: 20 },
@@ -109,7 +109,7 @@ export async function scaffoldCliFixture(options?: { parallelMcpEnabled?: boolea
   }
 
   for (const name of options?.curatedSkillNames ?? []) {
-    await symlink(join(repoRoot, "skills", "shared", name), join(agentsDir, "skills", name), "dir");
+    await cp(join(repoRoot, "skills", "shared", name), join(agentsDir, "skills", name), { recursive: true });
   }
 
   return { root, repoRoot, homeDir, agentsDir, claudeSettings, claudeUserMcp, codexConfig, cursorConfig };
@@ -195,7 +195,7 @@ export async function createInstalledSkillBundle(
       2,
     ),
   );
-  await symlink(version, join(dirname(packageRoot), "current"), "dir");
+  await writeFile(join(dirname(packageRoot), "current"), `${version}\n`);
 
   return { packageName, version, skillName, scope, packageRoot, skillDir };
 }

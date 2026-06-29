@@ -2,7 +2,7 @@
 // ABOUTME: Direct regression for the 2026-05-26 Matt smoke-test findings B and C.
 
 import { afterEach, expect, test } from "bun:test";
-import { existsSync, readlinkSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture } from "./helpers";
@@ -13,7 +13,7 @@ afterEach(async () => {
   await cleanupTempRoots(tempRoots);
 });
 
-test("cards bundle skills not in skills/shared/ and write symlinks into the card store", async () => {
+test("cards bundle skills not in skills/shared/ and copy them into the project surface", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   const versionDir = await publishCardWithSkills(fixture, {
@@ -33,7 +33,9 @@ test("cards bundle skills not in skills/shared/ and write symlinks into the card
   for (const skill of ["polish", "animate", "alpha"]) {
     const linkPath = join(projectDir, ".claude", "skills", skill);
     expect(existsSync(linkPath)).toBe(true);
-    expect(readlinkSync(linkPath)).toBe(join(versionDir, "skills", skill));
+    expect(readFileSync(join(linkPath, "SKILL.md"), "utf8")).toBe(
+      readFileSync(join(versionDir, "skills", skill, "SKILL.md"), "utf8"),
+    );
   }
 });
 

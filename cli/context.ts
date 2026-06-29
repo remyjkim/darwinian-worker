@@ -4,6 +4,7 @@
 import type { BaseContext } from "clipanion";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { resolveHomeDir } from "./core/home";
 import { resolveAgentsDir, resolvePackagedConfigPath } from "./core/paths";
 import { findProjectConfig } from "./core/project";
 
@@ -16,7 +17,7 @@ export interface AgentsContext extends BaseContext {
 }
 
 export function createAgentsContext(): Omit<AgentsContext, keyof BaseContext> {
-  const homeDir = process.env.AGENTS_HOME_DIR ?? process.env.HOME ?? "";
+  const homeDir = resolveHomeDir();
   const packagedRepoRoot = fileURLToPath(new URL("..", import.meta.url));
   const cwdRepoRoot = process.cwd();
   const cwd = process.cwd();

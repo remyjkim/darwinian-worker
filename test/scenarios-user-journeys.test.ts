@@ -119,19 +119,16 @@ describe("user journeys", () => {
       fixture.claudeSettings,
       JSON.stringify({ model: "sonnet", mcpServers: { rogue: { url: "x" } } }, null, 2),
     );
-    await rm(join(fixture.agentsDir, "generated", "cursor-mcp.json"), { force: true });
 
     const result = await runAgentsCli(["doctor", "--json"], env);
     const parsed = JSON.parse(result.stdout) as {
       staleSkillSymlinks: string[];
       mcpDrift: string[];
-      missingGeneratedFiles: string[];
     };
 
     expect(result.exitCode).toBe(0);
     expect(parsed.staleSkillSymlinks.length).toBeGreaterThan(0);
     expect(parsed.mcpDrift.length).toBeGreaterThan(0);
-    expect(parsed.missingGeneratedFiles.length).toBeGreaterThan(0);
   });
 
   test("per-project user can init, override, preview, inspect, and diagnose", async () => {

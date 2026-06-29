@@ -1,8 +1,7 @@
-// ABOUTME: Reads, writes, and deletes the drwn analyzer credentials file.
-// ABOUTME: Writes are atomic and owner-only so bearer tokens do not get broad file permissions.
+// ABOUTME: Reads, writes, and deletes the drwn analyzer credentials, encrypted at rest.
+// ABOUTME: Bearer tokens are AES-256-GCM encrypted under an OS-keychain-held key; never plaintext.
 
-import { promises as fs } from "node:fs";
-import { dirname, join } from "node:path";
+import { clear, decryptFromDisk, encryptToDisk } from "../secret-store";
 
 export interface DrwnCredentials {
   api_url: string;
@@ -22,23 +21,11 @@ function isCredentials(value: unknown): value is DrwnCredentials {
   );
 }
 
-function errorCode(error: unknown): string | undefined {
-  if (typeof error !== "object" || error === null || !("code" in error)) return undefined;
-  const code = (error as { code?: unknown }).code;
-  return typeof code === "string" ? code : undefined;
-}
-
 export async function readCredentials(path: string): Promise<DrwnCredentials | null> {
-  let raw: string;
+  const plaintext = await decryptFromDisk(path);
+  if (plaintext === null) return null;
   try {
-    raw = await fs.readFile(path, "utf8");
-  } catch (error) {
-    if (errorCode(error) === "ENOENT") return null;
-    throw error;
-  }
-
-  try {
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(plaintext);
     return isCredentials(parsed) ? parsed : null;
   } catch {
     return null;
@@ -46,17 +33,9 @@ export async function readCredentials(path: string): Promise<DrwnCredentials | n
 }
 
 export async function writeCredentials(path: string, creds: DrwnCredentials): Promise<void> {
-  await fs.mkdir(dirname(path), { recursive: true });
-  const tmp = join(dirname(path), `.credentials.${process.pid}.${Date.now()}.tmp`);
-  await fs.writeFile(tmp, JSON.stringify(creds, null, 2), { mode: 0o600 });
-  await fs.chmod(tmp, 0o600);
-  await fs.rename(tmp, path);
+  await encryptToDisk(path, JSON.stringify(creds, null, 2));
 }
 
 export async function deleteCredentials(path: string): Promise<void> {
-  try {
-    await fs.unlink(path);
-  } catch (error) {
-    if (errorCode(error) !== "ENOENT") throw error;
-  }
+  await clear(path);
 }

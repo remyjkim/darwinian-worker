@@ -2,7 +2,7 @@
 // ABOUTME: Protects the npm-pack-based extension source model before command-layer wiring is added.
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { access, mkdtemp, mkdir, readFile, readlink, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { access, mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -174,7 +174,7 @@ describe("core skill packages", () => {
         skills: [],
       }),
     );
-    await symlink("1.0.0", join(agentsDir, "packages", "skills", "@acme", "skills-sample", "current"));
+    await writeFile(join(agentsDir, "packages", "skills", "@acme", "skills-sample", "current"), "1.0.0\n");
 
     const { listInstalledSkillBundles } = await import("../cli/core/skill-packages");
     const bundles = await listInstalledSkillBundles(agentsDir);
@@ -198,10 +198,8 @@ describe("core skill packages", () => {
 
     expect(installed.packageName).toBe(packageName);
     expect(installed.activeVersion).toBe(version);
-    expect(await readlink(join(agentsDir, "packages", "skills", "@acme", "skills-sample", "current"))).toBe(version);
-    expect(await realpath(join(agentsDir, "packages", "skills", "@acme", "skills-sample", "current"))).toBe(
-      await realpath(join(agentsDir, "packages", "skills", "@acme", "skills-sample", version)),
-    );
+    expect((await readFile(join(agentsDir, "packages", "skills", "@acme", "skills-sample", "current"), "utf8")).trim()).toBe(version);
+    await access(join(agentsDir, "packages", "skills", "@acme", "skills-sample", version));
     expect(
       await realpath(join(agentsDir, "packages", "skills", "@acme", "skills-sample", version, "skills", "shared", skillName, "SKILL.md")),
     ).toContain(`/@acme/skills-sample/${version}/skills/shared/${skillName}/SKILL.md`);
@@ -237,7 +235,7 @@ describe("core skill packages", () => {
     });
 
     expect(installed.packageName).toBe(packageName);
-    expect(await readlink(join(agentsDir, "packages", "skills", "@acme", "skills-sample", "current"))).toBe(version);
+    expect((await readFile(join(agentsDir, "packages", "skills", "@acme", "skills-sample", "current"), "utf8")).trim()).toBe(version);
     expect(await readFile(join(installed.versionRoot, "skills", "shared", skillName, "SKILL.md"), "utf8")).toContain(`name: ${skillName}`);
   });
 

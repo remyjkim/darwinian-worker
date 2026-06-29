@@ -1,13 +1,14 @@
 // ABOUTME: Manages repo skill discovery, curation, and downstream skill sync state computation.
-// ABOUTME: Encapsulates the curated publication layer so commands don't manipulate symlinks ad hoc.
+// ABOUTME: Encapsulates the curated publication layer so commands don't manipulate copies ad hoc.
 
-import { existsSync, mkdirSync, rmSync, symlinkSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { CardLockEntry } from "./card-lock";
 import { resolveSkillSource } from "./card-skill-resolver";
 import { resolveSkillScopeDirs, resolveToolPaths } from "./paths";
-import { ensureParentDir, lstatSafe, realpathSafe } from "./fs";
+import { lstatSafe } from "./fs";
+import { materializeDir } from "./materialize";
 import type { NormalizedSyncOptions, SyncResult, TargetName } from "./types";
 import type { ManagedPath } from "./write-record";
 import { listInstalledSkillBundles } from "./skill-packages";
@@ -47,35 +48,10 @@ function validateSkillName(name: string) {
   }
 }
 
-function ensureDirSymlink(
-  linkPath: string,
-  targetPath: string,
-  dryRun: boolean,
-  result: SyncResult,
-  labelSuffix = "",
-) {
-  const stats = lstatSafe(linkPath);
-  if (stats) {
-    if (stats.isSymbolicLink() && realpathSafe(linkPath) === realpathSafe(targetPath)) {
-      return;
-    }
-    result.changes.push(`replace ${linkPath}`);
-    if (!dryRun) {
-      rmSync(linkPath, { recursive: true, force: true });
-    }
-  }
-
-  ensureParentDir(linkPath, dryRun);
-  result.changes.push(`symlink ${linkPath} -> ${targetPath}${labelSuffix}`);
-  if (!dryRun) {
-    symlinkSync(targetPath, linkPath, "dir");
-  }
-}
-
-interface SymlinkIntent {
+interface MaterializeIntent {
   linkPath: string;
   targetPath: string;
-  managedPath: ManagedPath;
+  relPath: string;
   layerLabel: string;
   alsoAvailable?: string[];
 }
@@ -84,7 +60,7 @@ function mergeAlsoAvailable(values: string[]) {
   return [...new Set(values)];
 }
 
-function recordIntent(map: Map<string, SymlinkIntent>, intent: SymlinkIntent) {
+function recordIntent(map: Map<string, MaterializeIntent>, intent: MaterializeIntent) {
   const prior = map.get(intent.linkPath);
   if (!prior) {
     map.set(intent.linkPath, intent);
@@ -174,9 +150,9 @@ export async function listCuratedSkills(agentsDir: string) {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function isLinkedToTarget(linkPath: string, targetPath: string) {
+function isMaterialized(linkPath: string) {
   const stats = lstatSafe(linkPath);
-  return stats?.isSymbolicLink() === true && realpathSafe(linkPath) === realpathSafe(targetPath);
+  return stats?.isDirectory() === true || stats?.isSymbolicLink() === true;
 }
 
 export async function buildSkillInventory(repoRoot: string, agentsDir: string, homeDir: string): Promise<SkillInventoryItem[]> {
@@ -187,20 +163,16 @@ export async function buildSkillInventory(repoRoot: string, agentsDir: string, h
   const toolPaths = resolveToolPaths(homeDir);
 
   const repoInventory = skills.map((skill) => {
-    const curatedPath = join(agentsDir, "skills", skill.name);
-    const expectedClaudeTarget = skill.scope === "shared" ? curatedPath : skill.scope === "claude-only" ? skill.path : "";
-    const expectedCodexTarget = skill.scope === "shared" ? curatedPath : skill.scope === "codex-only" ? skill.path : "";
-
     return {
       ...skill,
       curated: curatedNames.has(skill.name),
       claudeLinked:
         skill.scope === "shared" || skill.scope === "claude-only"
-          ? isLinkedToTarget(join(toolPaths.claudeSkills, skill.name), expectedClaudeTarget)
+          ? isMaterialized(join(toolPaths.claudeSkills, skill.name))
           : false,
       codexLinked:
         skill.scope === "shared" || skill.scope === "codex-only"
-          ? isLinkedToTarget(join(toolPaths.codexSkills, skill.name), expectedCodexTarget)
+          ? isMaterialized(join(toolPaths.codexSkills, skill.name))
           : false,
     };
   });
@@ -208,7 +180,6 @@ export async function buildSkillInventory(repoRoot: string, agentsDir: string, h
   const packageInventory = bundles.flatMap((bundle) =>
     bundle.manifest.skills.map((skill) => {
       const skillPath = join(bundle.versionRoot, skill.path);
-      const curatedPath = join(agentsDir, "skills", skill.name);
       return {
         name: skill.name,
         scope: skill.scope,
@@ -216,11 +187,11 @@ export async function buildSkillInventory(repoRoot: string, agentsDir: string, h
         curated: curatedNames.has(skill.name),
         claudeLinked:
           skill.scope === "shared" || skill.scope === "claude-only"
-            ? isLinkedToTarget(join(toolPaths.claudeSkills, skill.name), curatedPath)
+            ? isMaterialized(join(toolPaths.claudeSkills, skill.name))
             : false,
         codexLinked:
           skill.scope === "shared" || skill.scope === "codex-only"
-            ? isLinkedToTarget(join(toolPaths.codexSkills, skill.name), curatedPath)
+            ? isMaterialized(join(toolPaths.codexSkills, skill.name))
             : false,
         sourceType: "npm" as const,
         sourceId: bundle.packageName,
@@ -248,7 +219,7 @@ export async function curateSkill(
   const curatedPath = join(options.agentsDir, "skills", name);
   mkdirSync(join(options.agentsDir, "skills"), { recursive: true });
   rmSync(curatedPath, { recursive: true, force: true });
-  symlinkSync(skill.path, curatedPath, "dir");
+  cpSync(skill.path, curatedPath, { recursive: true, dereference: true });
 
   return curatedPath;
 }
@@ -265,7 +236,7 @@ export async function uncurateSkill(
   rmSync(curatedPath, { recursive: true, force: true });
 }
 
-export async function findStaleSymlinks(dirPath: string, desiredNames: Set<string>) {
+export async function findStaleManagedEntries(dirPath: string, desiredNames: Set<string>) {
   if (!existsSync(dirPath)) {
     return [];
   }
@@ -273,7 +244,7 @@ export async function findStaleSymlinks(dirPath: string, desiredNames: Set<strin
   const entries = await readdir(dirPath, { withFileTypes: true });
   return entries
     .filter((entry) => !entry.name.startsWith("."))
-    .filter((entry) => entry.isSymbolicLink())
+    .filter((entry) => entry.isDirectory() || entry.isSymbolicLink())
     .filter((entry) => !desiredNames.has(entry.name))
     .map((entry) => join(dirPath, entry.name));
 }
@@ -310,8 +281,8 @@ export async function syncSkills(
 
   const desiredClaude = new Set<string>();
   const desiredCodex = new Set<string>();
-  const claudeIntents = new Map<string, SymlinkIntent>();
-  const codexIntents = new Map<string, SymlinkIntent>();
+  const claudeIntents = new Map<string, MaterializeIntent>();
+  const codexIntents = new Map<string, MaterializeIntent>();
 
   if (existsSync(curatedDir)) {
     const curatedEntries = await readdir(curatedDir, { withFileTypes: true });
@@ -328,7 +299,7 @@ export async function syncSkills(
         recordIntent(claudeIntents, {
           linkPath: join(toolPaths.claudeSkills, entry.name),
           targetPath: sourcePath,
-          managedPath: { path: `.claude/skills/${entry.name}`, kind: "symlink", target: sourcePath },
+          relPath: `.claude/skills/${entry.name}`,
           layerLabel: "user-default",
         });
       }
@@ -337,7 +308,7 @@ export async function syncSkills(
         recordIntent(codexIntents, {
           linkPath: join(toolPaths.codexSkills, entry.name),
           targetPath: sourcePath,
-          managedPath: { path: `.codex/skills/${entry.name}`, kind: "symlink", target: sourcePath },
+          relPath: `.codex/skills/${entry.name}`,
           layerLabel: "user-default",
         });
       }
@@ -358,7 +329,7 @@ export async function syncSkills(
       recordIntent(claudeIntents, {
         linkPath: join(toolPaths.claudeSkills, entry.name),
         targetPath,
-        managedPath: { path: `.claude/skills/${entry.name}`, kind: "symlink", target: targetPath },
+        relPath: `.claude/skills/${entry.name}`,
         layerLabel: "user-default",
       });
     }
@@ -378,7 +349,7 @@ export async function syncSkills(
       recordIntent(codexIntents, {
         linkPath: join(toolPaths.codexSkills, entry.name),
         targetPath,
-        managedPath: { path: `.codex/skills/${entry.name}`, kind: "symlink", target: targetPath },
+        relPath: `.codex/skills/${entry.name}`,
         layerLabel: "user-default",
       });
     }
@@ -396,7 +367,7 @@ export async function syncSkills(
         recordIntent(claudeIntents, {
           linkPath: join(toolPaths.claudeSkills, name),
           targetPath,
-          managedPath: { path: `.claude/skills/${name}`, kind: "symlink", target: targetPath },
+          relPath: `.claude/skills/${name}`,
           layerLabel,
         });
       }
@@ -407,7 +378,7 @@ export async function syncSkills(
         recordIntent(codexIntents, {
           linkPath: join(toolPaths.codexSkills, name),
           targetPath,
-          managedPath: { path: `.codex/skills/${name}`, kind: "symlink", target: targetPath },
+          relPath: `.codex/skills/${name}`,
           layerLabel,
         });
       }
@@ -418,19 +389,24 @@ export async function syncSkills(
     const labelSuffix = intent.alsoAvailable && intent.alsoAvailable.length > 0
       ? ` ← ${intent.layerLabel} (also available: ${intent.alsoAvailable.join(", ")})`
       : ` ← ${intent.layerLabel}`;
-    ensureDirSymlink(intent.linkPath, intent.targetPath, options.dryRun, result, labelSuffix);
-    managedPaths.push(intent.managedPath);
+    const record = materializeDir(intent.targetPath, intent.linkPath, {
+      dryRun: options.dryRun,
+      result,
+      relPath: intent.relPath,
+      labelSuffix,
+    });
+    managedPaths.push(record);
   }
 
   const staleClaude = !options.target || options.target === "claude"
-    ? await findStaleSymlinks(toolPaths.claudeSkills, desiredClaude)
+    ? await findStaleManagedEntries(toolPaths.claudeSkills, desiredClaude)
     : [];
   const staleCodex = !options.target || options.target === "codex"
-    ? await findStaleSymlinks(toolPaths.codexSkills, desiredCodex)
+    ? await findStaleManagedEntries(toolPaths.codexSkills, desiredCodex)
     : [];
 
   for (const pathValue of [...staleClaude, ...staleCodex]) {
-    result.warnings.push(`stale skill symlink: ${pathValue}`);
+    result.warnings.push(`stale skill: ${pathValue}`);
   }
 
   return result;
