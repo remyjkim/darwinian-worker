@@ -2,7 +2,7 @@
 // ABOUTME: Gives authors deterministic version-bump guidance before publishing.
 
 import type { CardManifest } from "./card-manifest";
-import type { TargetName } from "./types";
+import { ALL_TARGET_NAMES } from "./targets";
 
 export type CardDiffClassification = "major" | "minor" | "patch";
 
@@ -62,8 +62,7 @@ function diffRecordKeys(path: string, beforeRecord?: Record<string, unknown>, af
 
 function diffTargets(before?: CardManifest["targets"], after?: CardManifest["targets"]) {
   const changes: CardDiffChange[] = [];
-  const targetNames: TargetName[] = ["claude", "codex", "cursor"];
-  for (const target of targetNames) {
+  for (const target of ALL_TARGET_NAMES) {
     const beforeEnabled = before?.[target]?.enabled;
     const afterEnabled = after?.[target]?.enabled;
     if (beforeEnabled === afterEnabled) {

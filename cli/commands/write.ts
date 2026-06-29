@@ -4,6 +4,7 @@
 import { Option, UsageError } from "clipanion";
 import { renderJson, renderOptionalMcpReport, renderSyncResult } from "../core/output";
 import { syncRepository } from "../core/sync";
+import { isTargetName } from "../core/targets";
 import { BaseCommand } from "./base";
 
 export class WriteCommand extends BaseCommand {
@@ -73,7 +74,7 @@ export class WriteCommand extends BaseCommand {
     if (this.root && this.user) {
       throw new UsageError("Use either --root or --user, not both.");
     }
-    if (this.target && this.target !== "claude" && this.target !== "codex" && this.target !== "cursor") {
+    if (this.target && !isTargetName(this.target)) {
       throw new UsageError(`Unsupported target: ${this.target}`);
     }
 

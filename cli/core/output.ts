@@ -70,6 +70,8 @@ export function renderDoctorReport(report: {
   missingGeneratedFiles: string[];
   hookIssues?: string[];
   projectConfigIssues?: string[];
+  surfaceNotes?: string[];
+  platformChecks?: Array<{ name: string; ok: boolean; detail?: string }>;
 }) {
   const sections: string[] = [];
 
@@ -88,5 +90,20 @@ export function renderDoctorReport(report: {
     }
   }
 
-  return sections.length > 0 ? `${sections.join("\n\n")}\n` : "No issues found.\n";
+  let output = sections.length > 0 ? `${sections.join("\n\n")}\n` : "No issues found.\n";
+
+  const platformChecks = report.platformChecks ?? [];
+  if (platformChecks.length > 0) {
+    const lines = platformChecks.map(
+      (check) => `  - ${check.ok ? "ok" : "FAILED"}: ${check.name}${check.detail ? ` (${check.detail})` : ""}`,
+    );
+    output += `\nPlatform checks:\n${lines.join("\n")}\n`;
+  }
+
+  const surfaceNotes = report.surfaceNotes ?? [];
+  if (surfaceNotes.length > 0) {
+    output += `\nSurfaces:\n${surfaceNotes.map((note) => `  - ${note}`).join("\n")}\n`;
+  }
+
+  return output;
 }

@@ -18,8 +18,7 @@
       "enabled": true,
       "configPath": "~/.cursor/mcp.json",
       "format": "json-standalone",
-      "mcpKey": "mcpServers",
-      "symlink": true
+      "mcpKey": "mcpServers"
     }
   },
   "defaults": {

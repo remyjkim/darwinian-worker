@@ -36,7 +36,6 @@ export interface TargetConfig {
   userMcpPath?: string;
   format: "json-merge" | "toml-merge" | "json-standalone";
   mcpKey: string;
-  symlink?: boolean;
 }
 
 export interface TrustedSourcesPolicy {

@@ -54,7 +54,7 @@ async function scaffoldFixture() {
     targets: {
       claude: { enabled: true, configPath: claudeSettings, format: "json-merge", mcpKey: "mcpServers" },
       codex: { enabled: true, configPath: codexConfig, format: "toml-merge", mcpKey: "mcp_servers" },
-      cursor: { enabled: true, configPath: cursorConfig, format: "json-standalone", mcpKey: "mcpServers", symlink: true },
+      cursor: { enabled: true, configPath: cursorConfig, format: "json-standalone", mcpKey: "mcpServers" },
     },
     optional: {},
     parallel: { cli: { enabled: true }, mcp: { enabled: false } },

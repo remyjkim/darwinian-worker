@@ -10,7 +10,7 @@ import {
   type CanonicalRegistry,
 } from "../sync-mcp";
 import { parse as parseToml } from "smol-toml";
-import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, lstat, mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -106,9 +106,7 @@ function createConfig(optionalSlack = false, parallelMcpEnabled = false): Canoni
         enabled: true,
         configPath: "~/.cursor/mcp.json",
         format: "json-standalone",
-        mcpKey: "mcpServers",
-        symlink: true,
-      },
+        mcpKey: "mcpServers",      },
     },
     optional: {
       slack: optionalSlack,
@@ -566,9 +564,7 @@ describe("syncRepository", () => {
               enabled: true,
               configPath: cursorConfigPath,
               format: "json-standalone",
-              mcpKey: "mcpServers",
-              symlink: true,
-            },
+              mcpKey: "mcpServers",            },
           },
         },
         null,
@@ -597,7 +593,7 @@ describe("syncRepository", () => {
     expect(await readFile(cursorConfigPath, "utf8")).toBe(beforeCursor);
   });
 
-  test("skills sync creates downstream symlink chains from curated shared skills", async () => {
+  test("skills sync copies downstream skills from curated shared skills", async () => {
     const root = await createTempRoot();
     const homeDir = join(root, "home");
     const repoRoot = join(root, "repo");
@@ -614,7 +610,7 @@ describe("syncRepository", () => {
     await mkdir(dirname(codexSkillPath), { recursive: true });
 
     await writeFile(join(sharedSkillPath, "SKILL.md"), "---\nname: alpha\ndescription: alpha\n---\n");
-    await symlink(sharedSkillPath, agentsSkillPath, "dir");
+    await cp(sharedSkillPath, agentsSkillPath, { recursive: true });
     await writeFile(join(repoRoot, "registry", "mcp-servers.json"), JSON.stringify(createRegistry(), null, 2));
     await writeFile(
       join(repoRoot, "registry", "config.json"),
@@ -655,7 +651,9 @@ describe("syncRepository", () => {
       skillsOnly: true,
     });
 
-    expect(await realpath(claudeSkillPath)).toBe(await realpath(agentsSkillPath));
-    expect(await realpath(codexSkillPath)).toBe(await realpath(agentsSkillPath));
+    expect((await lstat(claudeSkillPath)).isDirectory()).toBe(true);
+    expect((await lstat(claudeSkillPath)).isSymbolicLink()).toBe(false);
+    expect(await readFile(join(claudeSkillPath, "SKILL.md"), "utf8")).toBe(await readFile(join(agentsSkillPath, "SKILL.md"), "utf8"));
+    expect(await readFile(join(codexSkillPath, "SKILL.md"), "utf8")).toBe(await readFile(join(agentsSkillPath, "SKILL.md"), "utf8"));
   });
 });

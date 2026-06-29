@@ -70,9 +70,7 @@ function createConfig(parallelMcpEnabled = false): CanonicalConfig {
         enabled: true,
         configPath: "~/.cursor/mcp.json",
         format: "json-standalone",
-        mcpKey: "mcpServers",
-        symlink: true,
-      },
+        mcpKey: "mcpServers",      },
     },
     parallel: {
       cli: { enabled: true },

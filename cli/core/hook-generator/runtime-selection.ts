@@ -3,6 +3,7 @@
 
 import type { Runtime } from "../hook-policy/types";
 import type { CanonicalConfig, ProjectConfig, TargetName } from "../types";
+import { ALL_TARGET_NAMES, getTargetDescriptor } from "../targets";
 
 export interface HookRuntimeSelectionInput {
   effectiveConfig: Pick<CanonicalConfig, "targets">;
@@ -13,26 +14,15 @@ export interface HookRuntimeSelectionInput {
 const ORDERED_RUNTIMES: Runtime[] = ["claude-code", "codex", "mastra"];
 
 function defaultEnabled(runtime: Runtime, config: Pick<CanonicalConfig, "targets">) {
-  if (runtime === "claude-code") {
-    return config.targets.claude.enabled;
-  }
-  if (runtime === "codex") {
-    return config.targets.codex.enabled;
-  }
-  return false;
+  const owningTarget = ALL_TARGET_NAMES.find((name) => getTargetDescriptor(name).hookRuntime === runtime);
+  return owningTarget ? config.targets[owningTarget].enabled : false;
 }
 
 function targetAllowsRuntime(target: TargetName | undefined, runtime: Runtime) {
   if (!target) {
     return true;
   }
-  if (target === "claude") {
-    return runtime === "claude-code";
-  }
-  if (target === "codex") {
-    return runtime === "codex";
-  }
-  return false;
+  return getTargetDescriptor(target).hookRuntime === runtime;
 }
 
 export function resolveHookRuntimes(input: HookRuntimeSelectionInput): Runtime[] {

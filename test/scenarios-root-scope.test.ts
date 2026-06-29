@@ -61,7 +61,8 @@ test("write --root surgically adds default MCPs to user-scope tool configs", asy
   expect(claude._drwn).toBeUndefined();
 
   expect(await readFile(fixture.codexConfig, "utf8")).toContain("[mcp_servers.context7]");
-  expect((await lstat(fixture.cursorConfig)).isSymbolicLink()).toBe(true);
+  expect((await lstat(fixture.cursorConfig)).isFile()).toBe(true);
+  expect((await readJson(fixture.cursorConfig)).mcpServers.context7).toBeDefined();
 
   const record = await readJson(join(fixture.agentsDir, "drwn", "global-write-record.json"));
   const claudeEntry = record.managedPaths.find((entry: any) => entry.path === ".claude.json");
@@ -314,7 +315,8 @@ test("write --root --target=cursor writes only ~/.cursor/mcp.json", async () => 
   );
 
   expect(result.exitCode).toBe(0);
-  expect((await lstat(fixture.cursorConfig)).isSymbolicLink()).toBe(true);
+  expect((await lstat(fixture.cursorConfig)).isFile()).toBe(true);
+  expect((await readJson(fixture.cursorConfig)).mcpServers.context7).toBeDefined();
   expect(await readFile(fixture.claudeUserMcp, "utf8")).toBe(beforeClaude);
   expect(await readFile(fixture.codexConfig, "utf8")).toBe(beforeCodex);
 });
@@ -357,6 +359,5 @@ test("write --root leaves no orphaned .tmp files after a successful write", asyn
   // Atomic write contract: every <path>.tmp must have been renamed away.
   expect(existsSync(`${fixture.claudeUserMcp}.tmp`)).toBe(false);
   expect(existsSync(`${fixture.codexConfig}.tmp`)).toBe(false);
-  const generatedCursor = join(fixture.agentsDir, "drwn", "generated", "cursor-mcp.json");
-  expect(existsSync(`${generatedCursor}.tmp`)).toBe(false);
+  expect(existsSync(`${fixture.cursorConfig}.tmp`)).toBe(false);
 });
