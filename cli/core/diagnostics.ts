@@ -3,7 +3,7 @@
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { loadCardLock, type CardLockEntry } from "./card-lock";
+import { evaluateVersionFloor, loadCardLock, type CardLockEntry, type VersionFloorStatus } from "./card-lock";
 import { resolveSkillSource } from "./card-skill-resolver";
 import { mergeCardManifestsIntoProjectConfig, resolveProjectCards } from "./card-project";
 import { loadConfig } from "./config";
@@ -101,6 +101,7 @@ export interface DiagnosticsSections {
     lockedVersions: string[];
     warnings: string[];
   };
+  versionFloor: VersionFloorStatus;
   targets: {
     enabled: string[];
     projectOverrides: string[];
@@ -249,6 +250,7 @@ export async function buildDiagnosticsSections(
       lockedVersions: (lock?.cards ?? []).map((card) => `${card.name}@${card.version}`),
       warnings: [],
     },
+    versionFloor: evaluateVersionFloor(lock?.store?.minDrwnVersion),
     targets: {
       enabled: Object.entries(effectiveConfig.targets)
         .filter(([, target]) => target.enabled)

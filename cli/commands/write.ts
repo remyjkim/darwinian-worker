@@ -2,7 +2,9 @@
 // ABOUTME: Provides the one-way operator vocabulary for writing effective state downstream.
 
 import { Option, UsageError } from "clipanion";
+import { evaluateVersionFloor, formatVersionFloorWarning, loadCardLock } from "../core/card-lock";
 import { renderJson, renderOptionalMcpReport, renderSyncResult } from "../core/output";
+import { findProjectConfig, resolveProjectRootFromConfigPath } from "../core/project";
 import { syncRepository } from "../core/sync";
 import { isTargetName } from "../core/targets";
 import { BaseCommand } from "./base";
@@ -67,6 +69,10 @@ export class WriteCommand extends BaseCommand {
     description: "Fail when card hooks are present but missing valid hook consent.",
   });
 
+  strict = Option.Boolean("--strict", false, {
+    description: "Fail when this project's card.lock requires a newer drwn than you are running.",
+  });
+
   async execute() {
     if (this.mcpOnly && this.skillsOnly) {
       throw new UsageError("Use either --mcp-only or --skills-only, not both.");
@@ -76,6 +82,21 @@ export class WriteCommand extends BaseCommand {
     }
     if (this.target && !isTargetName(this.target)) {
       throw new UsageError(`Unsupported target: ${this.target}`);
+    }
+
+    if (!(this.root || this.user)) {
+      const projectConfigPath = findProjectConfig(this.context.cwd);
+      const projectRoot = projectConfigPath ? resolveProjectRootFromConfigPath(projectConfigPath) : null;
+      if (projectRoot) {
+        const lock = await loadCardLock(projectRoot);
+        const floor = evaluateVersionFloor(lock?.store?.minDrwnVersion);
+        if (!floor.satisfied) {
+          this.context.stderr.write(`${formatVersionFloorWarning(floor)}\n`);
+          if (this.strict) {
+            return 1;
+          }
+        }
+      }
     }
 
     let result;

@@ -49,6 +49,8 @@ test("diagnostics sections compose cards, store, and write-record state", async 
   expect(sections.store.path).toContain(".agents/drwn");
   expect(sections.cards.configuredRefs).toEqual(["@me/backend@^1.0.0"]);
   expect(sections.cards.lockedVersions).toEqual(["@me/backend@1.0.0"]);
+  expect(sections.versionFloor.required).toBe("0.3.0");
+  expect(sections.versionFloor.satisfied).toBe(true);
   expect(sections.writeRecord.present).toBe(true);
   expect(sections.writeRecord.managedPathCount).toBe(1);
 });
