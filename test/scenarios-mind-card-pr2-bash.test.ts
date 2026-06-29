@@ -1,7 +1,8 @@
 // ABOUTME: Runs a Bash workflow for per-mind materialization and activation.
 // ABOUTME: Exercises shell-facing PR2 contracts through the public CLI.
 
-import { afterEach, expect, test } from "bun:test";
+import { afterEach, expect, test as baseTest } from "bun:test";
+const test = baseTest.skipIf(process.platform === "win32");
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture } from "./helpers";

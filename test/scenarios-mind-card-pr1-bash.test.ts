@@ -1,7 +1,8 @@
 // ABOUTME: Runs a real Bash workflow for PR1 mind-card authoring and publishing.
 // ABOUTME: Exercises shell-facing CLI contracts for persona, beliefs, memory, and visibility gates.
 
-import { afterEach, expect, test } from "bun:test";
+import { afterEach, expect, test as baseTest } from "bun:test";
+const test = baseTest.skipIf(process.platform === "win32");
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

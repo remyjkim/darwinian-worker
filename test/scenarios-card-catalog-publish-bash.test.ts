@@ -1,7 +1,8 @@
 // ABOUTME: Runs real Bash workflows around `drwn card catalog publish`.
 // ABOUTME: Exercises shell-facing JSON contracts, Git pushes, and read-only catalog-cache behavior.
 
-import { afterEach, expect, test } from "bun:test";
+import { afterEach, expect, test as baseTest } from "bun:test";
+const test = baseTest.skipIf(process.platform === "win32");
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

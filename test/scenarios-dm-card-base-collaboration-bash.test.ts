@@ -1,7 +1,8 @@
 // ABOUTME: Exercises dm-card-base catalog collaboration through real Bash CLI workflows.
 // ABOUTME: Covers producer publish, consumer follow/search/install, refresh, outdated, and update.
 
-import { afterEach, expect, test } from "bun:test";
+import { afterEach, expect, test as baseTest } from "bun:test";
+const test = baseTest.skipIf(process.platform === "win32");
 import { cleanupTempRoots, envFor, scaffoldCliFixture } from "./helpers";
 import {
   createDmCardBaseCatalogRemote,
