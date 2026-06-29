@@ -22,6 +22,7 @@ import {
   resolveStoreSkillPackagesRoot,
   resolveStoreSkillPackageVersionRoot,
 } from "./store-paths";
+import { npmCommand } from "./process";
 import { isStrictSemver } from "./semver-utils";
 import type { BundleManifest, BundleSkillEntry, InstalledSkillBundle } from "./types";
 
@@ -298,7 +299,7 @@ export async function ingestSkillPackage(options: {
 
   try {
     const packProc = Bun.spawn(
-      ["npm", "pack", options.packageSpec, "--ignore-scripts", "--json", "--pack-destination", packDir],
+      [npmCommand(), "pack", options.packageSpec, "--ignore-scripts", "--json", "--pack-destination", packDir],
       { stdout: "pipe", stderr: "pipe", env: process.env },
     );
     const packStdout = await new Response(packProc.stdout).text();

@@ -2,6 +2,7 @@
 // ABOUTME: Centralizes CLI spawning with environment overrides so tests never touch the real machine state.
 
 import { expect } from "bun:test";
+import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
 import { mkdtemp, mkdir, writeFile, rm, cp } from "node:fs/promises";
 import { chmod } from "node:fs/promises";
@@ -258,13 +259,18 @@ export async function runAgentsCli(
   cwd?: string,
   options?: { stdin?: string },
 ) {
-  const entrypoint = new URL("../cli/index.ts", import.meta.url).pathname;
-  const proc = Bun.spawn([process.execPath, "run", entrypoint, ...args], {
+  const entrypoint = fileURLToPath(new URL("../cli/index.ts", import.meta.url));
+  // Resolve bun via PATH; process.execPath is not reliably spawnable on some CI runners.
+  const bunBin = Bun.which("bun") ?? process.execPath;
+  const proc = Bun.spawn([bunBin, "run", entrypoint, ...args], {
     cwd: cwd ?? env.AGENTS_REPO_ROOT ?? join(import.meta.dir, ".."),
-    stdin: options?.stdin !== undefined ? Buffer.from(options.stdin) : undefined,
+    // Close stdin when none is provided so a spawned subprocess can never block reading it.
+    stdin: options?.stdin !== undefined ? Buffer.from(options.stdin) : "ignore",
     stdout: "pipe",
     stderr: "pipe",
     env: {
+      // Force non-interactive git so credential prompts fail fast instead of hanging on CI.
+      GIT_TERMINAL_PROMPT: "0",
       ...process.env,
       ...env,
     },
@@ -280,6 +286,7 @@ export async function runAgentsCli(
 export async function runGlobalAgentsCli(args: string[], env: Record<string, string>) {
   const proc = Bun.spawn(["drwn", ...args], {
     cwd: env.AGENTS_REPO_ROOT ?? join(import.meta.dir, ".."),
+    stdin: "ignore",
     stdout: "pipe",
     stderr: "pipe",
     env: {
@@ -298,6 +305,7 @@ export async function runGlobalAgentsCli(args: string[], env: Record<string, str
 export async function runSyncWrapper(args: string[], env: Record<string, string>) {
   const proc = Bun.spawn(["bun", "run", "sync-mcp.ts", ...args], {
     cwd: join(import.meta.dir, ".."),
+    stdin: "ignore",
     stdout: "pipe",
     stderr: "pipe",
     env: {

@@ -2,6 +2,7 @@
 // ABOUTME: Keeps catalog policy separate from local library inventory.
 
 import { existsSync, readFileSync } from "node:fs";
+import { npmCommand } from "./process";
 import type { CanonicalConfig, RegistryServer } from "./types";
 
 export interface CatalogSearchResult {
@@ -39,7 +40,7 @@ export async function searchNpmSkillCatalog(
   }
 
   const searchLimit = config.catalogs?.npmSkills?.searchLimit ?? 20;
-  const proc = Bun.spawn(["npm", "search", query, "--json", `--searchlimit=${searchLimit}`], {
+  const proc = Bun.spawn([npmCommand(), "search", query, "--json", `--searchlimit=${searchLimit}`], {
     stdout: "pipe",
     stderr: "pipe",
     env: { ...process.env, ...env },

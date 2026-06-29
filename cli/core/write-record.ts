@@ -79,22 +79,37 @@ export function loadWriteRecord(recordPath: string): WriteRecord | null {
   }
 }
 
+function bestEffortFsync(fd: number) {
+  // Durability optimization only; some platforms (notably Windows) reject fsync on
+  // certain handles. Correctness comes from the atomic rename, not the fsync.
+  try {
+    fsyncSync(fd);
+  } catch {
+    // ignore
+  }
+}
+
 export function saveWriteRecord(recordPath: string, record: WriteRecord) {
   mkdirSync(dirname(recordPath), { recursive: true });
   const tmp = `${recordPath}.tmp`;
   const fd = openSync(tmp, "w");
   try {
     writeFileSync(fd, `${JSON.stringify(record, null, 2)}\n`);
-    fsyncSync(fd);
+    bestEffortFsync(fd);
   } finally {
     closeSync(fd);
   }
   renameSync(tmp, recordPath);
-  const dirFd = openSync(dirname(recordPath), "r");
+  // Directory fsync is unsupported on Windows (opening a directory handle fails outright).
   try {
-    fsyncSync(dirFd);
-  } finally {
-    closeSync(dirFd);
+    const dirFd = openSync(dirname(recordPath), "r");
+    try {
+      bestEffortFsync(dirFd);
+    } finally {
+      closeSync(dirFd);
+    }
+  } catch {
+    // ignore
   }
 }
 

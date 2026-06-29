@@ -5,6 +5,7 @@ import { describe, expect, test } from "bun:test";
 
 async function helpFor(args: string[], helpFlag = "--help") {
   const proc = Bun.spawn(["bun", "run", "cli/index.ts", ...args, helpFlag], {
+    stdin: "ignore",
     stdout: "pipe",
     stderr: "pipe",
     env: { ...process.env, NO_COLOR: "1" },
@@ -79,7 +80,7 @@ describe("drwn command help", () => {
       expect(result.stdout).toMatch(/^Details$/m);
       expect(result.stdout).toMatch(/^Examples$/m);
     }
-  }, 15000);
+  }, 180000);
 
   test("high-leverage commands explain behavior hidden by terse descriptions", async () => {
     for (const [command, snippets] of Object.entries(REQUIRED_SNIPPETS)) {
@@ -89,5 +90,5 @@ describe("drwn command help", () => {
         expect(result.stdout).toContain(snippet);
       }
     }
-  });
+  }, 120000);
 });

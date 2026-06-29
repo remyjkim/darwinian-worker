@@ -2,6 +2,7 @@
 // ABOUTME: Protects the initial command shell while deeper command implementations are added.
 
 import { describe, expect, test } from "bun:test";
+import { fileURLToPath } from "node:url";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -9,6 +10,7 @@ import { join, resolve } from "node:path";
 describe("CLI entrypoint", () => {
   test("--help exits 0 and mentions 'drwn'", async () => {
     const proc = Bun.spawn(["bun", "run", "cli/index.ts", "--help"], {
+      stdin: "ignore",
       stdout: "pipe",
       stderr: "pipe",
     });
@@ -20,6 +22,7 @@ describe("CLI entrypoint", () => {
 
   test("--help lists write and scan and omits removed apply and sync commands", async () => {
     const proc = Bun.spawn(["bun", "run", "cli/index.ts", "--help"], {
+      stdin: "ignore",
       stdout: "pipe",
       stderr: "pipe",
     });
@@ -42,6 +45,7 @@ describe("CLI entrypoint", () => {
 
   test("--version exits 0", async () => {
     const proc = Bun.spawn(["bun", "run", "cli/index.ts", "--version"], {
+      stdin: "ignore",
       stdout: "pipe",
       stderr: "pipe",
     });
@@ -51,6 +55,7 @@ describe("CLI entrypoint", () => {
 
   test("unknown command exits non-zero", async () => {
     const proc = Bun.spawn(["bun", "run", "cli/index.ts", "nonexistent"], {
+      stdin: "ignore",
       stdout: "pipe",
       stderr: "pipe",
     });
@@ -60,6 +65,7 @@ describe("CLI entrypoint", () => {
 
   test("exits with helpful error when run outside a repo", async () => {
     const proc = Bun.spawn(["bun", "run", "cli/index.ts", "status"], {
+      stdin: "ignore",
       stdout: "pipe",
       stderr: "pipe",
       env: {
@@ -77,7 +83,7 @@ describe("CLI entrypoint", () => {
   test("uses the packaged repo root when invoked outside a repo without AGENTS_REPO_ROOT", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "drwn-outside-repo-"));
     const homeDir = await mkdtemp(join(tmpdir(), "drwn-home-"));
-    const entrypoint = new URL("../cli/index.ts", import.meta.url).pathname;
+    const entrypoint = fileURLToPath(new URL("../cli/index.ts", import.meta.url));
     const proc = Bun.spawn(["bun", "run", entrypoint, "status", "--json"], {
       cwd,
       stdout: "pipe",
