@@ -4,6 +4,7 @@
 import { randomBytes } from "node:crypto";
 import { mkdir, rename, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { extract as extractArchive } from "./archive";
 import { DrwnError } from "./errors";
 
 const DEFAULT_TIMEOUT_MS = Number(process.env.DRWN_GIT_TIMEOUT_MS ?? 30_000);
@@ -350,20 +351,14 @@ export async function extractTreeToDir(repoPath: string, treeSha: string, target
   try {
     const archiveResult = await runInRepo(repoPath, ["archive", treeSha, "-o", tarPath]);
     throwForFailure(archiveResult, "GIT_ARCHIVE_FAILED", `git archive failed for ${treeSha}`, ["archive", treeSha]);
-    const tarProc = Bun.spawn(["tar", "-xf", tarPath, "-C", targetDir], {
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    const [stdout, stderr, exitCode] = await Promise.all([
-      new Response(tarProc.stdout).text(),
-      new Response(tarProc.stderr).text(),
-      tarProc.exited,
-    ]);
-    if (exitCode !== 0) {
-      throw new GitError("GIT_ARCHIVE_EXTRACT_FAILED", `tar extraction failed: ${stderr || stdout}`, {
+    try {
+      await extractArchive(tarPath, targetDir);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new GitError("GIT_ARCHIVE_EXTRACT_FAILED", `tar extraction failed: ${message}`, {
         args: ["tar", "-xf", tarPath, "-C", targetDir],
-        stderr,
-        exitCode,
+        stderr: message,
+        exitCode: 1,
       });
     }
   } finally {

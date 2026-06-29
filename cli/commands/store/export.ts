@@ -4,6 +4,7 @@
 import { Option } from "clipanion";
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
+import { create as createArchive } from "../../core/archive";
 import { resolveStoreRoot } from "../../core/store-paths";
 import { BaseCommand } from "../base";
 
@@ -24,14 +25,10 @@ export class StoreExportCommand extends BaseCommand {
 
   async execute() {
     await mkdir(dirname(this.out), { recursive: true });
-    const proc = Bun.spawn(["tar", "-cf", this.out, "-C", this.context.agentsDir, "drwn"], {
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    const stderr = await new Response(proc.stderr).text();
-    const exitCode = await proc.exited;
-    if (exitCode !== 0) {
-      this.context.stderr.write(stderr);
+    try {
+      await createArchive(this.out, { cwd: this.context.agentsDir, entries: ["drwn"], gzip: false });
+    } catch (error) {
+      this.context.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
       return 1;
     }
     this.context.stdout.write(`Exported ${resolveStoreRoot(this.context.agentsDir)} to ${this.out}\n`);

@@ -18,6 +18,7 @@ import {
 } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { DrwnError } from "./errors";
+import { extract as extractArchive, list as listArchive } from "./archive";
 import {
   assertStoreWritableForSeed,
   resolveStoreMetadataPath,
@@ -110,33 +111,25 @@ export async function isStoreMissingOrEmpty(storeRoot: string): Promise<boolean>
 }
 
 async function extractTar(tarPath: string, destDir: string): Promise<void> {
-  await assertTarEntriesSafe(tarPath);
-  const proc = Bun.spawn(["tar", "-xf", tarPath, "-C", destDir], {
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  const exitCode = await proc.exited;
-  if (exitCode !== 0) {
-    const stderr = await new Response(proc.stderr).text();
-    throw new DrwnError("SEED_EXTRACT_FAILED", `SEED_EXTRACT_FAILED: ${stderr.trim() || `failed to extract ${tarPath}`}`);
+  let entries: string[];
+  try {
+    entries = await listArchive(tarPath);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new DrwnError("SEED_TAR_LIST_FAILED", `SEED_TAR_LIST_FAILED: ${message || `failed to list ${tarPath}`}`);
+  }
+  assertSeedEntriesSafe(entries);
+  try {
+    await extractArchive(tarPath, destDir);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new DrwnError("SEED_EXTRACT_FAILED", `SEED_EXTRACT_FAILED: ${message || `failed to extract ${tarPath}`}`);
   }
 }
 
-async function assertTarEntriesSafe(tarPath: string): Promise<void> {
-  const proc = Bun.spawn(["tar", "-tf", tarPath], {
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
-  if (exitCode !== 0) {
-    throw new DrwnError("SEED_TAR_LIST_FAILED", `SEED_TAR_LIST_FAILED: ${stderr.trim() || `failed to list ${tarPath}`}`);
-  }
-  for (const raw of stdout.split("\n")) {
-    const entry = raw.trim();
+export function assertSeedEntriesSafe(entries: string[]): void {
+  for (const raw of entries) {
+    const entry = raw.trim().replace(/\/$/, "");
     if (!entry) {
       continue;
     }
