@@ -9,6 +9,7 @@ import { join, resolve } from "node:path";
 describe("CLI entrypoint", () => {
   test("--help exits 0 and mentions 'drwn'", async () => {
     const proc = Bun.spawn(["bun", "run", "cli/index.ts", "--help"], {
+      stdin: "ignore",
       stdout: "pipe",
       stderr: "pipe",
     });
@@ -20,6 +21,7 @@ describe("CLI entrypoint", () => {
 
   test("--help lists write and scan and omits removed apply and sync commands", async () => {
     const proc = Bun.spawn(["bun", "run", "cli/index.ts", "--help"], {
+      stdin: "ignore",
       stdout: "pipe",
       stderr: "pipe",
     });
@@ -42,6 +44,7 @@ describe("CLI entrypoint", () => {
 
   test("--version exits 0", async () => {
     const proc = Bun.spawn(["bun", "run", "cli/index.ts", "--version"], {
+      stdin: "ignore",
       stdout: "pipe",
       stderr: "pipe",
     });
@@ -51,6 +54,7 @@ describe("CLI entrypoint", () => {
 
   test("unknown command exits non-zero", async () => {
     const proc = Bun.spawn(["bun", "run", "cli/index.ts", "nonexistent"], {
+      stdin: "ignore",
       stdout: "pipe",
       stderr: "pipe",
     });
@@ -60,6 +64,7 @@ describe("CLI entrypoint", () => {
 
   test("exits with helpful error when run outside a repo", async () => {
     const proc = Bun.spawn(["bun", "run", "cli/index.ts", "status"], {
+      stdin: "ignore",
       stdout: "pipe",
       stderr: "pipe",
       env: {

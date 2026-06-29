@@ -285,6 +285,7 @@ export async function runAgentsCli(
 export async function runGlobalAgentsCli(args: string[], env: Record<string, string>) {
   const proc = Bun.spawn(["drwn", ...args], {
     cwd: env.AGENTS_REPO_ROOT ?? join(import.meta.dir, ".."),
+    stdin: "ignore",
     stdout: "pipe",
     stderr: "pipe",
     env: {
@@ -303,6 +304,7 @@ export async function runGlobalAgentsCli(args: string[], env: Record<string, str
 export async function runSyncWrapper(args: string[], env: Record<string, string>) {
   const proc = Bun.spawn(["bun", "run", "sync-mcp.ts", ...args], {
     cwd: join(import.meta.dir, ".."),
+    stdin: "ignore",
     stdout: "pipe",
     stderr: "pipe",
     env: {
