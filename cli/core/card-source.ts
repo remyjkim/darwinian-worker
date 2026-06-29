@@ -449,7 +449,7 @@ async function validatePolicyModule(path: string, issues: CardSourceIssue[]) {
       target: "node",
       format: "esm",
       write: false,
-      external: ["darwinian-mind/hook-policy"],
+      external: ["darwinian-minds/hook-policy"],
     } as Parameters<typeof Bun.build>[0] & { write: false };
     const result = await Bun.build(buildConfig);
     if (!result.success) {
@@ -775,7 +775,7 @@ function hookPolicyTemplate(policyName: string) {
   return `// ABOUTME: Tool-call policy for ${policyName}.
 // ABOUTME: Replace this stub with your enforcement or observer logic.
 
-import { defineToolPolicy } from "darwinian-mind/hook-policy";
+import { defineToolPolicy } from "darwinian-minds/hook-policy";
 
 export default defineToolPolicy({
   policyKind: "observer",

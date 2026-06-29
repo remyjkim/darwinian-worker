@@ -1,4 +1,4 @@
-// ABOUTME: Runs the release-readiness quality gate for the drwn CLI and darwinian-mind package.
+// ABOUTME: Runs the release-readiness quality gate for the drwn CLI and darwinian-minds package.
 // ABOUTME: Combines automated checks and explicit warnings into a single non-mutating verification entrypoint.
 
 import { existsSync, readFileSync } from "node:fs";
@@ -149,8 +149,8 @@ function verifyPackageMetadata() {
   const metadataIssues: string[] = [];
   const warnings: string[] = [];
 
-  if (pkg.name !== "darwinian-mind") {
-    metadataIssues.push("name must be darwinian-mind");
+  if (pkg.name !== "darwinian-minds") {
+    metadataIssues.push("name must be darwinian-minds");
   }
 
   if (typeof pkg.bin !== "object" || pkg.bin === null || (pkg.bin as Record<string, string>).drwn !== "cli/index.ts") {

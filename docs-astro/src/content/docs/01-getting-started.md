@@ -1,6 +1,6 @@
 ---
 title: "Getting Started"
-description: "Install and configure darwinian-mind in minutes."
+description: "Install and configure darwinian-minds in minutes."
 date: 2026-04-28
 order: 1
 ---
@@ -17,7 +17,7 @@ order: 1
 ### Published package
 
 ```bash
-npm install -g darwinian-mind
+npm install -g darwinian-minds
 drwn status
 ```
 
@@ -29,8 +29,8 @@ The package also installs `dminds` as a secondary alias for the same CLI.
 Use this mode if you want to edit the registry, maintain your own fork, add built-in skills, or develop the CLI:
 
 ```bash
-git clone https://github.com/remyjkim/darwinian-mind.git
-cd darwinian-mind
+git clone https://github.com/remyjkim/darwinian-minds.git
+cd darwinian-minds
 bun install
 bun run drwn -- status
 ```
@@ -38,7 +38,7 @@ bun run drwn -- status
 You can also point a global install at a checkout:
 
 ```bash
-export AGENTS_REPO_ROOT=/path/to/darwinian-mind
+export AGENTS_REPO_ROOT=/path/to/darwinian-minds
 drwn status
 ```
 

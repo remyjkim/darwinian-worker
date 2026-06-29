@@ -36,7 +36,7 @@ describe("bundleHookComposer", () => {
     const policyDir = join(root, "card", "hooks", "deny", "policy.ts");
     await mkdir(join(root, "card", "hooks", "deny"), { recursive: true });
     await writeFile(policyDir, `
-      import { defineToolPolicy } from "darwinian-mind/hook-policy";
+      import { defineToolPolicy } from "darwinian-minds/hook-policy";
       export default defineToolPolicy({
         policyKind: "enforcement",
         beforeToolCall(event) {
@@ -74,7 +74,7 @@ describe("bundleHookComposer", () => {
     const policyDir = join(root, "card", "hooks", "ask", "policy.ts");
     await mkdir(join(root, "card", "hooks", "ask"), { recursive: true });
     await writeFile(policyDir, `
-      import { defineToolPolicy } from "darwinian-mind/hook-policy";
+      import { defineToolPolicy } from "darwinian-minds/hook-policy";
       export default defineToolPolicy({
         policyKind: "enforcement",
         beforeToolCall() {

@@ -16,17 +16,17 @@ describe("package readiness", () => {
     expect(existsSync(join(process.cwd(), "LICENSE"))).toBe(true);
     expect(existsSync(join(process.cwd(), "README.md"))).toBe(true);
     expect(existsSync(join(process.cwd(), "CONTRIBUTING.md"))).toBe(true);
-    expect(pkg.name).toBe("darwinian-mind");
+    expect(pkg.name).toBe("darwinian-minds");
     expect((pkg.bin as Record<string, string>).drwn).toBe("cli/index.ts");
     expect((pkg.bin as Record<string, string>).dminds).toBe("cli/index.ts");
     expect((pkg.bin as Record<string, string>)["drwn-hx"]).toBeUndefined();
     expect((pkg.scripts as Record<string, string>).drwn).toBe("bun run cli/index.ts");
     expect((pkg.scripts as Record<string, string>).sync).toBeUndefined();
-    expect(pkg.homepage).toBe("https://github.com/remyjkim/darwinian-mind");
-    expect(pkg.bugs).toEqual({ url: "https://github.com/remyjkim/darwinian-mind/issues" });
+    expect(pkg.homepage).toBe("https://github.com/remyjkim/darwinian-minds");
+    expect(pkg.bugs).toEqual({ url: "https://github.com/remyjkim/darwinian-minds/issues" });
     expect(pkg.repository).toEqual({
       type: "git",
-      url: "git+https://github.com/remyjkim/darwinian-mind.git",
+      url: "git+https://github.com/remyjkim/darwinian-minds.git",
     });
   });
 
@@ -100,7 +100,7 @@ describe("package readiness", () => {
     expect(workflow).toContain("if: ${{ github.event_name == 'push' || inputs.dry_run == false }}");
     expect(workflow).toContain("name: Dry run complete");
     expect(workflow).toContain("if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true }}");
-    expect(workflow).toContain("npm install -g \"darwinian-mind@${{ needs.validate.outputs.version }}\"");
+    expect(workflow).toContain("npm install -g \"darwinian-minds@${{ needs.validate.outputs.version }}\"");
     expect(workflow).toContain("runs-on: macos-latest");
     expect(workflow).toContain("gh release create \"$TAG\"");
     expect(workflow).toContain("--generate-notes");
@@ -134,7 +134,7 @@ describe("package readiness", () => {
     expect(paths).not.toContain("mcp-servers.json");
     expect(paths).toContain("registry/config.json");
     expect(paths).toContain("registry/mcp-servers.json");
-    expect(paths).toContain("docs/assets/darwinian-mind-logo.png");
+    expect(paths).toContain("docs/assets/darwinian-minds-logo.png");
     expect(paths).toContain("skills/shared/frontend-design/SKILL.md");
   });
 });

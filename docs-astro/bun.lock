@@ -2,7 +2,7 @@
   "lockfileVersion": 1,
   "workspaces": {
     "": {
-      "name": "darwinian-mind-docs",
+      "name": "darwinian-minds-docs",
       "dependencies": {
         "@astrojs/check": "^0.9.4",
         "@astrojs/mdx": "^4.0.2",

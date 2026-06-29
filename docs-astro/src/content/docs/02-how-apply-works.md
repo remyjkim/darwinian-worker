@@ -131,7 +131,7 @@ drwn write --force
 Use the published package when you want the default config and CLI behavior:
 
 ```bash
-npm install -g darwinian-mind
+npm install -g darwinian-minds
 drwn write --dry-run
 ```
 
@@ -140,7 +140,7 @@ drwn write --dry-run
 Use a checkout when you want to own the source of truth:
 
 ```bash
-export AGENTS_REPO_ROOT=/path/to/darwinian-mind
+export AGENTS_REPO_ROOT=/path/to/darwinian-minds
 drwn status
 ```
 

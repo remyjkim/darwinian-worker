@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # The Layered Model
 
-Darwinian Mind composes effective harness state from a fixed stack of layers, then materializes it into downstream agent tools. The layers compose deterministically; later layers override earlier ones for keys they touch.
+Darwinian Minds composes effective harness state from a fixed stack of layers, then materializes it into downstream agent tools. The layers compose deterministically; later layers override earlier ones for keys they touch.
 
 ```mermaid
 flowchart TB

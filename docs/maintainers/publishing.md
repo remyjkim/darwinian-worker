@@ -1,6 +1,6 @@
 # Publishing
 
-This document is the maintainer-facing manual for publishing `darwinian-mind` to npm.
+This document is the maintainer-facing manual for publishing `darwinian-minds` to npm.
 
 It focuses on the verified working workflow. The deeper investigation notes remain in `.ai/knowledges/05_npm-publishing-analysis-and-manual.md`.
 
@@ -21,16 +21,16 @@ To avoid machine-state drift, use an explicit temporary npm config for manual pu
 From the repo root:
 
 ```bash
-cd /path/to/darwinian-mind
+cd /path/to/darwinian-minds
 ```
 
 Check package-name state:
 
 ```bash
-npm view darwinian-mind name version repository --json
+npm view darwinian-minds name version repository --json
 ```
 
-Expected before the first `darwinian-mind` publish:
+Expected before the first `darwinian-minds` publish:
 
 - `E404 Not Found`
 
@@ -92,7 +92,7 @@ rm -f "$TMP_NPMRC"
 ## Safer Full Sequence
 
 ```bash
-cd /path/to/darwinian-mind
+cd /path/to/darwinian-minds
 
 set -a
 source .env
@@ -121,5 +121,5 @@ rm -f "$TMP_NPMRC"
 - Do not rely on ambient `~/.npmrc` state for publishing.
 - Keep the package boundary explicit through `package.json.files`.
 - Publish from committed repo state, not from a half-edited worktree.
-- Earlier published names (`beginning-agents`, `beginning-harness`) are deprecated; mark them as such on npm now that `darwinian-mind` is installable.
+- Earlier published names (`beginning-agents`, `beginning-harness`) are deprecated; mark them as such on npm now that `darwinian-minds` is installable.
 - If future CI publishing is added, prefer trusted publishing over long-lived tokens.

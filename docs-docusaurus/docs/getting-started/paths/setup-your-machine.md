@@ -16,7 +16,7 @@ The published package runs from the built Node entrypoint. Checkout mode runs th
 ## Install
 
 ```bash
-npm install -g darwinian-mind
+npm install -g darwinian-minds
 drwn --version
 ```
 

@@ -15,7 +15,7 @@ describe("homebrew readiness", () => {
     expect(content).toContain("formula location");
     expect(content).toContain("macOS architecture");
     expect(content).toContain("post-install");
-    expect(content).toContain("darwinian-mind");
+    expect(content).toContain("darwinian-minds");
     expect(content).toContain("drwn");
   });
 });
