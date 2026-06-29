@@ -45,7 +45,9 @@ jobs:
         run: bun run typecheck
 
       - name: Unit + integration tests
-        run: bun test
+        # A per-test timeout converts any CI-only spawn hang into a fast failure so the
+        # suite always completes (and reports the culprit) instead of burning the job timeout.
+        run: bun test --timeout 30000
 
       - name: Release-readiness gate
         if: runner.os == 'Linux'
