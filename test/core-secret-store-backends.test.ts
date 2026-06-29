@@ -1,8 +1,11 @@
 // ABOUTME: Tests per-OS keychain backend argv/stdin and platform selection for the secret store.
-// ABOUTME: Includes a real macOS `security` round-trip under a unique throwaway service name.
+// ABOUTME: Includes real round-trips on macOS security, Windows DPAPI, and Linux secret-tool when available.
 
 import { afterEach, describe, expect, spyOn, test } from "bun:test";
 import { randomBytes } from "node:crypto";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import * as processModule from "../cli/core/process";
 import {
   DpapiBackend,
@@ -101,6 +104,40 @@ describe("real macOS keychain round-trip", () => {
       await backend.storeKey(key);
       const loaded = await backend.loadKey();
       expect(loaded?.equals(key)).toBe(true);
+    } finally {
+      await backend.deleteKey();
+    }
+    expect(await backend.loadKey()).toBeNull();
+  });
+});
+
+describe("real Windows DPAPI backend", () => {
+  test.skipIf(process.platform !== "win32")("stores, loads, and deletes a key via real DPAPI", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "drwn-dpapi-"));
+    try {
+      const backend = new DpapiBackend(join(dir, "credentials.json.key"));
+      const key = randomBytes(32);
+      await backend.storeKey(key);
+      expect((await backend.loadKey())?.equals(key)).toBe(true);
+      await backend.deleteKey();
+      expect(await backend.loadKey()).toBeNull();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("real Linux secret-tool backend", () => {
+  test("stores, loads, and deletes a key via the Secret Service when available", async () => {
+    const backend = new SecretToolBackend(`drwn-test-${randomBytes(6).toString("hex")}`, "drwn-test-key");
+    // Runtime skip: no secret-tool / D-Bus session in this environment (macOS, headless CI).
+    if (!(await backend.isAvailable())) {
+      return;
+    }
+    const key = randomBytes(32);
+    try {
+      await backend.storeKey(key);
+      expect((await backend.loadKey())?.equals(key)).toBe(true);
     } finally {
       await backend.deleteKey();
     }
