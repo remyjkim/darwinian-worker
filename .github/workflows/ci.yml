@@ -55,6 +55,12 @@ jobs:
 
       - name: Release-readiness gate
         if: runner.os == 'Linux'
+        # Test mode runs the release-specific checks (metadata, docs, package contents,
+        # schema reachability) without re-running the full bun test / typecheck suite —
+        # those already ran as their own steps above. Re-running them here is redundant
+        # and previously hung the job until its timeout.
+        env:
+          QUALITY_GATE_TEST_MODE: '1'
         run: bun run verify:release
 
   linux-secret-tool:
