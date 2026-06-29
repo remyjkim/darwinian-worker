@@ -14,7 +14,7 @@
   },
   "type": "module",
   "description": "Local Darwinian Minds CLI for managing AI agent skills, MCP servers, extensions, defaults, and project overlays.",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "license": "Apache-2.0",
   "author": "remyjkim <jkkim123@gmail.com>",
   "homepage": "https://github.com/remyjkim/darwinian-minds",

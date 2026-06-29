@@ -7,6 +7,8 @@ import { join } from "node:path";
 import type { BeliefsManifest, CardManifest, MemoryManifest, MemoryLayerManifest, PersonaManifest } from "./card-manifest";
 import { assertValidCardManifest } from "./card-manifest";
 import { writeAtomically } from "./fs";
+import { gte } from "./semver-utils";
+import { DRWN_VERSION } from "./version";
 
 export type CardOrigin = "store" | "git" | "file" | "npm";
 
@@ -45,6 +47,28 @@ export interface CardLockfile {
 
 export const HOOKS_MIN_DRWN_VERSION = "0.3.0";
 export const MINDS_MIN_DRWN_VERSION = "0.4.0";
+
+export interface VersionFloorStatus {
+  required: string | null;
+  running: string;
+  satisfied: boolean;
+}
+
+export function evaluateVersionFloor(
+  requiredVersion: string | undefined,
+  runningVersion: string = DRWN_VERSION,
+): VersionFloorStatus {
+  const required = requiredVersion ?? null;
+  return {
+    required,
+    running: runningVersion,
+    satisfied: required === null || gte(runningVersion, required),
+  };
+}
+
+export function formatVersionFloorWarning(status: VersionFloorStatus): string {
+  return `This project's card.lock requires drwn >= ${status.required}, but you are running ${status.running}. Upgrade drwn to >= ${status.required} to materialize this project reliably.`;
+}
 
 export function cardLockPath(projectRoot: string) {
   return join(projectRoot, ".agents", "drwn", "card.lock");

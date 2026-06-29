@@ -3,6 +3,25 @@
 All notable changes to `darwinian-minds` (the `drwn` CLI) are documented here. This
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] — 2026-06-29
+
+Gives the `minDrwnVersion` lock floor teeth. Reading a project whose `card.lock`
+requires a newer `drwn` than you are running now surfaces the mismatch instead of
+silently materializing it.
+
+### Added
+
+- Version-floor enforcement (`evaluateVersionFloor`): `drwn write` prints a clear
+  stderr warning when the project's `card.lock` floor exceeds the running version,
+  and `drwn write --strict` turns that into a non-zero failure (machine-scope writes
+  `--root`/`--user` skip the project check).
+- `drwn doctor` reports a `versionFloor` section (`required`, `running`, `satisfied`)
+  so the mismatch is inspectable.
+
+### Changed
+
+- Bumped the reported version to `0.5.0`.
+
 ## [0.4.0] — 2026-06-29
 
 First tagged release. The reported version is reconciled with the feature set that
