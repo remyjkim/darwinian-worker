@@ -27,6 +27,10 @@ export function gt(a: string, b: string) {
   return semver.gt(a, b);
 }
 
+export function gte(a: string, b: string) {
+  return semver.gte(a, b);
+}
+
 export type SemverBumpKind = "major" | "minor" | "patch";
 
 export function classifyBump(previousVersion: string, nextVersion: string): SemverBumpKind | null {
