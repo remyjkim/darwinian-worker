@@ -4,7 +4,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { writeCredentials } from "../cli/core/auth/credentials";
+import { readCredentials, writeCredentials } from "../cli/core/auth/credentials";
 import { resolveCredentialsPath } from "../cli/core/paths";
 import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture } from "./helpers";
 
@@ -117,21 +117,24 @@ describe("auth CLI E2E", () => {
     });
 
     const credentialsPath = resolveCredentialsPath(fixture.agentsDir);
-    const credentials = JSON.parse(await Bun.file(credentialsPath).text());
     expect((await stat(credentialsPath)).mode & 0o777).toBe(0o600);
+    const onDisk = await Bun.file(credentialsPath).text();
+    expect(onDisk).not.toContain("access-token");
+    expect(JSON.parse(onDisk).algo).toBe("aes-256-gcm");
+    const credentials = await readCredentials(credentialsPath);
     expect(credentials).toMatchObject({
       api_url: apiUrl,
       access_token: "access-token",
       user_email: "cli-e2e@example.com",
     });
-    expect(Date.parse(credentials.saved_at)).not.toBeNaN();
+    expect(Date.parse(credentials!.saved_at)).not.toBeNaN();
 
     const whoami = await runAgentsCli(["whoami", "--json"], envFor(fixture));
     expect(whoami.exitCode).toBe(0);
     expect(JSON.parse(whoami.stdout)).toMatchObject({
       email: "cli-e2e@example.com",
       api_url: apiUrl,
-      saved_at: credentials.saved_at,
+      saved_at: credentials!.saved_at,
       expires_at: "2026-06-10T00:00:00Z",
     });
     expect(state.sessionAuthHeaders).toContain("Bearer access-token");

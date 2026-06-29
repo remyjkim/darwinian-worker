@@ -10,7 +10,7 @@ import { LoginCommand } from "../cli/commands/auth/login";
 import { LogoutCommand } from "../cli/commands/auth/logout";
 import { WhoamiCommand } from "../cli/commands/auth/whoami";
 import type { AgentsContext } from "../cli/context";
-import { writeCredentials } from "../cli/core/auth/credentials";
+import { readCredentials, writeCredentials } from "../cli/core/auth/credentials";
 import { resolveCredentialsPath } from "../cli/core/paths";
 import { cleanupTempRoots, scaffoldCliFixture } from "./helpers";
 
@@ -128,7 +128,10 @@ describe("auth commands", () => {
     expect(result.stdout).toContain("Authenticated as x@y.z.");
     expect(opened).toEqual(["https://app.test/device?user_code=ABCD"]);
     expect((await stat(credentialsPath)).mode & 0o777).toBe(0o600);
-    expect(JSON.parse(await Bun.file(credentialsPath).text())).toMatchObject({
+    const onDisk = await Bun.file(credentialsPath).text();
+    expect(onDisk).not.toContain("tok");
+    expect(JSON.parse(onDisk).algo).toBe("aes-256-gcm");
+    expect(await readCredentials(credentialsPath)).toMatchObject({
       api_url: "https://api.test",
       access_token: "tok",
       user_email: "x@y.z",
