@@ -14,7 +14,7 @@ afterEach(async () => {
 });
 
 async function runComposer(path: string, payload: unknown) {
-  const proc = Bun.spawn([process.execPath, path], {
+  const proc = Bun.spawn([(Bun.which("bun") ?? process.execPath), path], {
     stdin: "pipe",
     stdout: "pipe",
     stderr: "pipe",

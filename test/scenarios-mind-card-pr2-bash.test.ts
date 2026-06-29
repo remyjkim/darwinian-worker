@@ -88,7 +88,7 @@ async function runBash(script: string, env: Record<string, string>) {
     env: {
       ...process.env,
       ...env,
-      BUN_BIN: process.execPath,
+      BUN_BIN: (Bun.which("bun") ?? process.execPath),
       DRWN_ENTRYPOINT: new URL("../cli/index.ts", import.meta.url).pathname,
     },
   });

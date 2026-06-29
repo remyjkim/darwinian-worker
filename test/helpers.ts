@@ -259,12 +259,17 @@ export async function runAgentsCli(
   options?: { stdin?: string },
 ) {
   const entrypoint = new URL("../cli/index.ts", import.meta.url).pathname;
-  const proc = Bun.spawn([process.execPath, "run", entrypoint, ...args], {
+  // Resolve bun via PATH; process.execPath is not reliably spawnable on some CI runners.
+  const bunBin = Bun.which("bun") ?? process.execPath;
+  const proc = Bun.spawn([bunBin, "run", entrypoint, ...args], {
     cwd: cwd ?? env.AGENTS_REPO_ROOT ?? join(import.meta.dir, ".."),
-    stdin: options?.stdin !== undefined ? Buffer.from(options.stdin) : undefined,
+    // Close stdin when none is provided so a spawned subprocess can never block reading it.
+    stdin: options?.stdin !== undefined ? Buffer.from(options.stdin) : "ignore",
     stdout: "pipe",
     stderr: "pipe",
     env: {
+      // Force non-interactive git so credential prompts fail fast instead of hanging on CI.
+      GIT_TERMINAL_PROMPT: "0",
       ...process.env,
       ...env,
     },
