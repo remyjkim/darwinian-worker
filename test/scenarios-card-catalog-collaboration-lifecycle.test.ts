@@ -2,7 +2,7 @@
 // ABOUTME: Covers follow, discovery, install, catalog refresh, fetch, update, and pinned behavior.
 
 import { afterEach, expect, test } from "bun:test";
-import { existsSync, readlinkSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { loadCardLock } from "../cli/core/card-lock";
@@ -132,8 +132,7 @@ test("team follows a dm-card-base catalog, installs it, refreshes catalog update
   expect(updateRange.exitCode, updateRange.stderr).toBe(0);
   const rangeLock = await expectLockVersion(rangeProject, "0.1.1");
   expectMaterializedSkills(rangeProject, ["bootstrap-project", "support-harness"]);
-  expect(readlinkSync(join(rangeProject, ".claude", "skills", "bootstrap-project")))
-    .toBe(join(rangeLock.cards[0]!.path, "skills", "bootstrap-project"));
+  expect(readFileSync(join(rangeProject, ".claude", "skills", "bootstrap-project", "SKILL.md"), "utf8")).toBe(readFileSync(join(rangeLock.cards[0]!.path, "skills", "bootstrap-project", "SKILL.md"), "utf8"));
   const cleanCheck = await runAgentsCli(["card", "outdated", "--fetch", "--check"], envFor(consumer), rangeProject);
   expect(cleanCheck.exitCode, cleanCheck.stdout + cleanCheck.stderr).toBe(0);
 
@@ -142,8 +141,7 @@ test("team follows a dm-card-base catalog, installs it, refreshes catalog update
   const pinnedUpdate = await runAgentsCli(["card", "update", "--write"], envFor(freshConsumer), pinnedProject);
   expect(pinnedUpdate.exitCode, pinnedUpdate.stderr).toBe(0);
   const pinnedLock = await expectLockVersion(pinnedProject, "0.1.0");
-  expect(readlinkSync(join(pinnedProject, ".claude", "skills", "bootstrap-project")))
-    .toBe(join(pinnedLock.cards[0]!.path, "skills", "bootstrap-project"));
+  expect(readFileSync(join(pinnedProject, ".claude", "skills", "bootstrap-project", "SKILL.md"), "utf8")).toBe(readFileSync(join(pinnedLock.cards[0]!.path, "skills", "bootstrap-project", "SKILL.md"), "utf8"));
 });
 
 async function initProject(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>, projectDir: string) {

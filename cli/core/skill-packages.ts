@@ -1,10 +1,12 @@
 // ABOUTME: Loads, validates, discovers, and ingests package-backed skill bundles into ~/.agents state.
 // ABOUTME: Uses npm pack plus tar extraction so extension bundles stay content-oriented and source-inspectable.
 
-import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync } from "node:fs";
-import { lstat, mkdir, mkdtemp, readdir, readFile, readlink, rename, writeFile } from "node:fs/promises";
+import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { lstat, mkdir, mkdtemp, readdir, readFile, rename, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
+import { extract as extractArchive } from "./archive";
+import { writePointerFile } from "./materialize";
 import {
   resolveSkillPackageCurrentLink,
   resolveSkillPackageRoot,
@@ -164,7 +166,7 @@ export async function listInstalledSkillBundles(agentsDir: string): Promise<Inst
   async function walk(dirPath: string): Promise<void> {
     const currentPath = join(dirPath, "current");
     if (existsSync(currentPath)) {
-      const activeVersion = basename(await readlink(currentPath));
+      const activeVersion = (await readFile(currentPath, "utf8")).trim();
       const versionRoot = join(dirPath, activeVersion);
       const manifest = await loadBundleManifest(versionRoot);
       bundles.push({
@@ -195,7 +197,7 @@ export async function getInstalledSkillBundle(agentsDir: string, packageName: st
     return null;
   }
 
-  const activeVersion = basename(await readlink(currentPath));
+  const activeVersion = (await readFile(currentPath, "utf8")).trim();
   const versionRoot = activeSkillPackageVersionRoot(agentsDir, packageName, activeVersion);
   const manifest = await loadBundleManifest(versionRoot);
   return {
@@ -273,8 +275,7 @@ export async function installSkillBundleRoot(options: {
   mkdirSync(packageRoot, { recursive: true });
   rmSync(versionRoot, { recursive: true, force: true });
   await rename(options.bundleRoot, versionRoot);
-  rmSync(currentPath, { force: true });
-  symlinkSync(options.version, currentPath, "dir");
+  writePointerFile(currentPath, options.version);
 
   return {
     packageName: options.packageName,
@@ -313,15 +314,11 @@ export async function ingestSkillPackage(options: {
     }
 
     const tarballPath = join(packDir, metadata.filename);
-    const tarProc = Bun.spawn(["tar", "-xf", tarballPath, "-C", extractDir], {
-      stdout: "pipe",
-      stderr: "pipe",
-      env: process.env,
-    });
-    const tarStdout = await new Response(tarProc.stdout).text();
-    const tarStderr = await new Response(tarProc.stderr).text();
-    if ((await tarProc.exited) !== 0) {
-      throw new Error(`${tarStdout}${tarStderr}`.trim() || `tar extraction failed for ${tarballPath}`);
+    try {
+      await extractArchive(tarballPath, extractDir);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(message || `tar extraction failed for ${tarballPath}`);
     }
 
     const normalizedRoot = join(extractDir, "package");

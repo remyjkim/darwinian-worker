@@ -60,7 +60,7 @@ describe("drwn skills list", () => {
         skills: [{ name: "hello-skill", scope: "shared", path: "skills/shared/hello-skill" }],
       }),
     );
-    await symlink("1.0.0", join(dirname(packageRoot), "current"));
+    await writeFile(join(dirname(packageRoot), "current"), "1.0.0\n");
 
     const result = await runAgentsCli(["skills", "list", "--json"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,

@@ -2,7 +2,7 @@
 // ABOUTME: Keeps shared-skill publication semantics stable while commands are added on top.
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { lstat, mkdtemp, mkdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, lstat, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { normalizeSyncPathOptions } from "../cli/core/paths";
@@ -45,7 +45,7 @@ async function createInstalledBundle(
       skills: [{ name: skillName, scope, path: `skills/${scope}/${skillName}` }],
     }),
   );
-  await symlink(version, join(dirname(packageRoot), "current"));
+  await writeFile(join(dirname(packageRoot), "current"), `${version}\n`);
 }
 
 describe("core skills", () => {
@@ -66,7 +66,7 @@ describe("core skills", () => {
     expect(result.experimental.map((skill) => skill.name)).toContain("beta");
   });
 
-  test("curateSkill creates an agents-layer symlink for a shared skill", async () => {
+  test("curateSkill copies a shared skill into the agents publication layer", async () => {
     const root = await createTempRoot();
     const homeDir = join(root, "home");
     const agentsDir = join(homeDir, ".agents");
@@ -80,8 +80,9 @@ describe("core skills", () => {
     const { curateSkill } = await import("../cli/core/skills");
     await curateSkill({ repoRoot: root, agentsDir }, "alpha");
 
-    expect((await lstat(curatedPath)).isSymbolicLink()).toBe(true);
-    expect(await realpath(curatedPath)).toBe(await realpath(sharedPath));
+    expect((await lstat(curatedPath)).isDirectory()).toBe(true);
+    expect((await lstat(curatedPath)).isSymbolicLink()).toBe(false);
+    expect(await readFile(join(curatedPath, "SKILL.md"), "utf8")).toContain("name: alpha");
   });
 
   test("uncurateSkill removes an agents-layer symlink", async () => {
@@ -94,7 +95,7 @@ describe("core skills", () => {
     await mkdir(sharedPath, { recursive: true });
     await mkdir(dirname(curatedPath), { recursive: true });
     await writeFile(join(sharedPath, "SKILL.md"), "---\nname: alpha\ndescription: alpha\n---\n");
-    await symlink(sharedPath, curatedPath, "dir");
+    await cp(sharedPath, curatedPath, { recursive: true });
 
     const { uncurateSkill } = await import("../cli/core/skills");
     await uncurateSkill({ agentsDir }, "alpha");
@@ -111,7 +112,7 @@ describe("core skills", () => {
     await expect(uncurateSkill({ agentsDir }, "not-curated")).rejects.toThrow();
   });
 
-  test("curateSkill creates an agents-layer symlink for a package-backed shared skill", async () => {
+  test("curateSkill copies a package-backed shared skill into the agents layer", async () => {
     const root = await createTempRoot();
     const homeDir = join(root, "home");
     const agentsDir = join(homeDir, ".agents");
@@ -122,8 +123,9 @@ describe("core skills", () => {
     const { curateSkill } = await import("../cli/core/skills");
     const curatedPath = await curateSkill({ repoRoot: root, agentsDir }, "hello-skill");
 
-    expect((await lstat(curatedPath)).isSymbolicLink()).toBe(true);
-    expect(await realpath(curatedPath)).toContain("/packages/skills/@acme/skills-sample/1.0.0/skills/shared/hello-skill");
+    expect((await lstat(curatedPath)).isDirectory()).toBe(true);
+    expect((await lstat(curatedPath)).isSymbolicLink()).toBe(false);
+    expect(await readFile(join(curatedPath, "SKILL.md"), "utf8")).toContain("name: hello-skill");
   });
 
   test("buildSkillInventory includes package-backed skills with source metadata", async () => {
@@ -158,7 +160,7 @@ describe("core skills", () => {
     await mkdir(dirname(curatedAlpha), { recursive: true });
     await writeFile(join(alphaPath, "SKILL.md"), "---\nname: alpha\ndescription: alpha\n---\n");
     await writeFile(join(betaPath, "SKILL.md"), "---\nname: beta\ndescription: beta\n---\n");
-    await symlink(alphaPath, curatedAlpha, "dir");
+    await cp(alphaPath, curatedAlpha, { recursive: true });
 
     const { syncSkills } = await import("../cli/core/skills");
     const result = await syncSkills(
@@ -167,8 +169,8 @@ describe("core skills", () => {
     );
 
     expect(result.warnings).toEqual([]);
-    expect((await lstat(join(homeDir, ".claude", "skills", "beta"))).isSymbolicLink()).toBe(true);
-    expect((await lstat(join(homeDir, ".codex", "skills", "beta"))).isSymbolicLink()).toBe(true);
+    expect((await lstat(join(homeDir, ".claude", "skills", "beta"))).isDirectory()).toBe(true);
+    expect((await lstat(join(homeDir, ".codex", "skills", "beta"))).isDirectory()).toBe(true);
   });
 
   test("syncSkills include adds a package-backed non-curated skill to downstream links", async () => {
@@ -186,8 +188,8 @@ describe("core skills", () => {
     );
 
     expect(result.warnings).toEqual([]);
-    expect((await lstat(join(homeDir, ".claude", "skills", "hello-skill"))).isSymbolicLink()).toBe(true);
-    expect((await lstat(join(homeDir, ".codex", "skills", "hello-skill"))).isSymbolicLink()).toBe(true);
+    expect((await lstat(join(homeDir, ".claude", "skills", "hello-skill"))).isDirectory()).toBe(true);
+    expect((await lstat(join(homeDir, ".codex", "skills", "hello-skill"))).isDirectory()).toBe(true);
   });
 
   test("syncSkills exclude removes a curated skill from downstream links", async () => {
@@ -200,7 +202,7 @@ describe("core skills", () => {
     await mkdir(alphaPath, { recursive: true });
     await mkdir(dirname(curatedAlpha), { recursive: true });
     await writeFile(join(alphaPath, "SKILL.md"), "---\nname: alpha\ndescription: alpha\n---\n");
-    await symlink(alphaPath, curatedAlpha, "dir");
+    await cp(alphaPath, curatedAlpha, { recursive: true });
 
     const { syncSkills } = await import("../cli/core/skills");
     const result = await syncSkills(
@@ -257,8 +259,8 @@ describe("core skills", () => {
     await curateSkill({ repoRoot: root, agentsDir }, "hello-skill");
     await syncSkills(normalizeSyncPathOptions({ repoRoot: root, agentsDir, homeDir }, import.meta.path));
 
-    expect((await lstat(join(homeDir, ".claude", "skills", "hello-skill"))).isSymbolicLink()).toBe(true);
-    expect((await lstat(join(homeDir, ".codex", "skills", "hello-skill"))).isSymbolicLink()).toBe(true);
+    expect((await lstat(join(homeDir, ".claude", "skills", "hello-skill"))).isDirectory()).toBe(true);
+    expect((await lstat(join(homeDir, ".codex", "skills", "hello-skill"))).isDirectory()).toBe(true);
   });
 });
 

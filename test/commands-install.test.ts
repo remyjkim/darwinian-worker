@@ -2,7 +2,7 @@
 // ABOUTME: Exercises real Git clone/fetch/extract behavior through local file:// remotes.
 
 import { afterEach, expect, test } from "bun:test";
-import { existsSync, readlinkSync } from "node:fs";
+import { existsSync, lstatSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { cardLockPath, loadCardLock, writeCardLock } from "../cli/core/card-lock";
@@ -57,7 +57,8 @@ test("install applies materialized card content by default", async () => {
   expect(result.exitCode).toBe(0);
   const skillLink = join(projectDir, ".claude", "skills", "alpha");
   expect(existsSync(skillLink)).toBe(true);
-  expect(readlinkSync(skillLink)).toContain("/drwn/extracted/");
+  expect(lstatSync(skillLink).isSymbolicLink()).toBe(false);
+  expect(existsSync(join(skillLink, "SKILL.md"))).toBe(true);
 });
 
 test("install --frozen refuses to clone missing repos", async () => {

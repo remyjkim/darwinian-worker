@@ -51,7 +51,7 @@ describe("drwn skills mutate", () => {
     expect(parsed.uncuratedPath).toContain("alpha");
   });
 
-  test("curate creates the agents-layer symlink for a package-backed shared skill", async () => {
+  test("curate creates the agents-layer copy for a package-backed shared skill", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     const packageRoot = join(fixture.agentsDir, "packages", "skills", "@acme", "skills-sample", "1.0.0");
@@ -67,7 +67,7 @@ describe("drwn skills mutate", () => {
         skills: [{ name: "hello-skill", scope: "shared", path: "skills/shared/hello-skill" }],
       }),
     );
-    await symlink("1.0.0", join(dirname(packageRoot), "current"));
+    await writeFile(join(dirname(packageRoot), "current"), "1.0.0\n");
 
     const result = await runAgentsCli(["skills", "curate", "hello-skill"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
@@ -76,10 +76,10 @@ describe("drwn skills mutate", () => {
     });
 
     expect(result.exitCode).toBe(0);
-    expect((await lstat(join(fixture.agentsDir, "skills", "hello-skill"))).isSymbolicLink()).toBe(true);
+    expect((await lstat(join(fixture.agentsDir, "skills", "hello-skill"))).isDirectory()).toBe(true);
   });
 
-  test("curate creates the agents-layer symlink", async () => {
+  test("curate creates the agents-layer copy", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
 
@@ -90,10 +90,10 @@ describe("drwn skills mutate", () => {
     });
 
     expect(result.exitCode).toBe(0);
-    expect((await lstat(join(fixture.agentsDir, "skills", "alpha"))).isSymbolicLink()).toBe(true);
+    expect((await lstat(join(fixture.agentsDir, "skills", "alpha"))).isDirectory()).toBe(true);
   });
 
-  test("uncurate removes the agents-layer symlink", async () => {
+  test("uncurate removes the agents-layer copy", async () => {
     const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
     tempRoots.push(fixture.root);
 
@@ -107,7 +107,7 @@ describe("drwn skills mutate", () => {
     await expect(access(join(fixture.agentsDir, "skills", "alpha"))).rejects.toThrow();
   });
 
-  test("write --skills-only installs downstream skill symlinks", async () => {
+  test("write --skills-only installs downstream skill copies", async () => {
     const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
     tempRoots.push(fixture.root);
 
@@ -118,8 +118,8 @@ describe("drwn skills mutate", () => {
     });
 
     expect(result.exitCode).toBe(0);
-    expect((await lstat(join(fixture.homeDir, ".claude", "skills", "alpha"))).isSymbolicLink()).toBe(true);
-    expect((await lstat(join(fixture.homeDir, ".codex", "skills", "alpha"))).isSymbolicLink()).toBe(true);
+    expect((await lstat(join(fixture.homeDir, ".claude", "skills", "alpha"))).isDirectory()).toBe(true);
+    expect((await lstat(join(fixture.homeDir, ".codex", "skills", "alpha"))).isDirectory()).toBe(true);
   });
 
   test("write --skills-only uses project extension-derived skill includes", async () => {
@@ -153,11 +153,11 @@ describe("drwn skills mutate", () => {
     }, projectDir);
 
     expect(result.exitCode).toBe(0);
-    expect((await lstat(join(projectDir, ".claude", "skills", "parallel-web-search"))).isSymbolicLink()).toBe(true);
+    expect((await lstat(join(projectDir, ".claude", "skills", "parallel-web-search"))).isDirectory()).toBe(true);
     await expect(access(join(projectDir, ".claude", "skills", "parallel-web-extract"))).rejects.toThrow();
   });
 
-  test("write --skills-only installs downstream symlinks for curated package-backed skills", async () => {
+  test("write --skills-only installs downstream copies for curated package-backed skills", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     const packageRoot = join(fixture.agentsDir, "packages", "skills", "@acme", "skills-sample", "1.0.0");
@@ -173,7 +173,7 @@ describe("drwn skills mutate", () => {
         skills: [{ name: "hello-skill", scope: "shared", path: "skills/shared/hello-skill" }],
       }),
     );
-    await symlink("1.0.0", join(dirname(packageRoot), "current"));
+    await writeFile(join(dirname(packageRoot), "current"), "1.0.0\n");
 
     await runAgentsCli(["skills", "curate", "hello-skill"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
@@ -188,8 +188,8 @@ describe("drwn skills mutate", () => {
     });
 
     expect(result.exitCode).toBe(0);
-    expect((await lstat(join(fixture.homeDir, ".claude", "skills", "hello-skill"))).isSymbolicLink()).toBe(true);
-    expect((await lstat(join(fixture.homeDir, ".codex", "skills", "hello-skill"))).isSymbolicLink()).toBe(true);
+    expect((await lstat(join(fixture.homeDir, ".claude", "skills", "hello-skill"))).isDirectory()).toBe(true);
+    expect((await lstat(join(fixture.homeDir, ".codex", "skills", "hello-skill"))).isDirectory()).toBe(true);
   });
 
   test("write --skills-only removes drwn-owned links that leave the effective state", async () => {

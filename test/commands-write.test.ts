@@ -341,7 +341,7 @@ describe("drwn write", () => {
     expect(result.stdout).toContain("! card-local (shadowed - active definition differs from this card)");
   });
 
-  test("write --dry-run annotates symlink intents with their winning layer", async () => {
+  test("write --dry-run annotates copy intents with their winning layer", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     await publishCardWithSkills(fixture, { name: "@me/backend", skills: ["alpha"] });
@@ -356,11 +356,11 @@ describe("drwn write", () => {
 
     expect(dryRun.exitCode).toBe(0);
     const parsed = JSON.parse(dryRun.stdout) as { changes: string[] };
-    const symlinkLines = parsed.changes.filter(
-      (change) => change.startsWith("symlink ") && change.includes("alpha") && /\.(claude|codex)\/skills/.test(change),
+    const copyLines = parsed.changes.filter(
+      (change) => change.startsWith("copy ") && change.includes("alpha") && /\.(claude|codex)\/skills/.test(change),
     );
-    expect(symlinkLines).toHaveLength(2);
-    for (const line of symlinkLines) {
+    expect(copyLines).toHaveLength(2);
+    for (const line of copyLines) {
       expect(line).toContain("← card @me/backend@1.0.0");
     }
   });
