@@ -35,7 +35,7 @@ Only shared skills can be curated into `~/.agents/skills`. Claude-only and Codex
 
 ## Package-Backed Skill Bundles
 
-`darwinian-mind` supports package-backed skill bundles for skills that should be available without being added to the built-in first-party tree.
+`darwinian-minds` supports package-backed skill bundles for skills that should be available without being added to the built-in first-party tree.
 
 Typical flow:
 

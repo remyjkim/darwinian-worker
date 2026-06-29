@@ -60,14 +60,14 @@ Baseline CLI usage does not require external tools beyond Bun, Node.js, and npm.
 ### Packaged harness
 
 ```bash
-npm install -g darwinian-mind
+npm install -g darwinian-minds
 drwn write --dry-run
 ```
 
 ### Editable harness source
 
 ```bash
-export AGENTS_REPO_ROOT=/path/to/darwinian-mind
+export AGENTS_REPO_ROOT=/path/to/darwinian-minds
 drwn status
 ```
 

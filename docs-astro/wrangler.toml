@@ -1,6 +1,6 @@
-name = "darwinian-mind-docs"
+name = "darwinian-minds-docs"
 compatibility_date = "2026-04-28"
 pages_build_output_dir = "./dist"
 
 [env.production]
-name = "darwinian-mind-docs"
+name = "darwinian-minds-docs"
