@@ -16,9 +16,15 @@ export interface RunProcessResult {
   stderr: string;
 }
 
-// Windows resolves npm through the npm.cmd shim; the bare "npm" name is not on PATH.
+// Windows resolves npm through the npm.cmd shim, and Bun.spawn does not search PATHEXT
+// for a bare ".cmd" name, so resolve the full path when running under Bun and fall back
+// to the shim name otherwise.
 export function npmCommand(): string {
-  return process.platform === "win32" ? "npm.cmd" : "npm";
+  if (process.platform !== "win32") {
+    return "npm";
+  }
+  const resolved = typeof Bun !== "undefined" ? Bun.which("npm") : null;
+  return resolved ?? "npm.cmd";
 }
 
 function normalizeEnv(env?: Record<string, string | undefined>): Record<string, string> {
