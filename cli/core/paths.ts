@@ -3,7 +3,7 @@
 
 import { realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { homedir } from "node:os";
+import { resolveHomeDir } from "./home";
 import type { NormalizedSyncOptions, SyncOptions, TargetName } from "./types";
 
 export type ToolScope =
@@ -109,7 +109,7 @@ export function normalizeSyncPathOptions(
   options: SyncOptions = {},
   modulePath?: string,
 ): NormalizedSyncOptions {
-  const homeDir = options.homeDir ?? homedir();
+  const homeDir = options.homeDir ?? resolveHomeDir();
 
   return {
     repoRoot: options.repoRoot ?? inferRepoRootFromModulePath(modulePath ?? import.meta.path),

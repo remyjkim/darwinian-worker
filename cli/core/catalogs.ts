@@ -39,7 +39,7 @@ export async function searchNpmSkillCatalog(
   }
 
   const searchLimit = config.catalogs?.npmSkills?.searchLimit ?? 20;
-  const proc = Bun.spawn(["/usr/bin/env", "npm", "search", query, "--json", `--searchlimit=${searchLimit}`], {
+  const proc = Bun.spawn(["npm", "search", query, "--json", `--searchlimit=${searchLimit}`], {
     stdout: "pipe",
     stderr: "pipe",
     env: { ...process.env, ...env },
