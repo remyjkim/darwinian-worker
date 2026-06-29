@@ -16,6 +16,11 @@ export interface RunProcessResult {
   stderr: string;
 }
 
+// Windows resolves npm through the npm.cmd shim; the bare "npm" name is not on PATH.
+export function npmCommand(): string {
+  return process.platform === "win32" ? "npm.cmd" : "npm";
+}
+
 function normalizeEnv(env?: Record<string, string | undefined>): Record<string, string> {
   const merged = { ...process.env, ...env };
   const normalized: Record<string, string> = {};

@@ -24,22 +24,37 @@ export function backupExistingPath(pathValue: string, dryRun: boolean, result: S
   }
 }
 
+function bestEffortFsync(fd: number) {
+  // fsync is a durability optimization, not a correctness requirement; some platforms
+  // (notably Windows) reject fsync on certain handles. The atomic rename is what matters.
+  try {
+    fsyncSync(fd);
+  } catch {
+    // ignore: best-effort durability only
+  }
+}
+
 function atomicWriteFile(pathValue: string, content: string) {
   const tmpPath = `${pathValue}.tmp`;
   const fd = openSync(tmpPath, "w");
   try {
     writeFileSync(fd, content);
-    fsyncSync(fd);
+    bestEffortFsync(fd);
   } finally {
     closeSync(fd);
   }
 
   renameSync(tmpPath, pathValue);
-  const dirFd = openSync(dirname(pathValue), "r");
+  // Directory fsync is unsupported on Windows (opening a directory handle fails outright).
   try {
-    fsyncSync(dirFd);
-  } finally {
-    closeSync(dirFd);
+    const dirFd = openSync(dirname(pathValue), "r");
+    try {
+      bestEffortFsync(dirFd);
+    } finally {
+      closeSync(dirFd);
+    }
+  } catch {
+    // ignore: platforms without directory fsync
   }
 }
 
