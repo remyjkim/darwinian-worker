@@ -1,3 +1,6 @@
+# ABOUTME: Comprehensive CLI usage reference for drwn — commands, flags, workflows, and examples.
+# ABOUTME: Covers skills, cards, MCP servers, extensions, library, store, auth, and diagnostic commands.
+
 # DRWN CLI Usage Guide
 
 ## Purpose
@@ -160,12 +163,14 @@ drwn init
 drwn init --non-interactive
 drwn init --minimal
 drwn init --force
+drwn init --guided
 ```
 
 What it does:
 
 - creates `<project>/.agents/drwn/config.json`
 - defaults to guided setup in interactive terminals
+- `--guided` forces the interactive guided flow when stdin and stdout are TTYs
 - writes a minimal config with `{ "version": 1 }` when `--non-interactive` or `--minimal` is used
 - warns if `.gitignore` appears to exclude `.agents`
 
@@ -547,6 +552,10 @@ drwn write --target=claude
 drwn write --mcp-only
 drwn write --skills-only
 drwn write --force
+drwn write --root
+drwn write --user
+drwn write --strict-hooks
+drwn write --strict
 ```
 
 `write` is the primary one-way materialization command. It reads global config, project config, card locks, and local inventory, then writes effective state into downstream tools.
@@ -563,6 +572,10 @@ Write records make cleanup explicit:
 - drwn-owned paths that leave the effective state are removed on the next write
 - user-owned replacements are preserved and reported
 - `--force` is only for overwriting drift inside drwn-managed file regions
+- `--root` writes machine defaults to user-scope tool configs and ignores project config, even when run inside a drwn-managed project
+- `--user` is an alias for `--root`
+- `--strict-hooks` fails when card hooks are present but missing valid hook consent
+- `--strict` fails when this project's `card.lock` requires a newer drwn than you are running
 
 ## Store Commands
 
@@ -607,6 +620,19 @@ drwn store migrate-to-git --dry-run --json
 into one bare Git repo per card with version tags. It verifies each legacy
 version's `.integrity` when present, removes stale temporary repos before retry,
 and is idempotent after a successful migration.
+
+Populate an empty store from a snapshot:
+
+```bash
+drwn store seed --from /seed/drwn-store.tar
+drwn store seed --from /seed/drwn-store
+drwn store seed --from /seed/drwn-store.tar --force
+```
+
+`store seed` unpacks a previously exported drwn store snapshot into
+`~/.agents/drwn`. It accepts a tarball or directory via `--from` (required).
+It refuses to overwrite a non-empty store unless `--force` is passed. Designed
+for CI base images and airgapped deployments.
 
 Maintenance:
 
@@ -1019,6 +1045,50 @@ Typical project-config issues include:
 
 Wave 1 note: unresolved project `skills.include` names do not wait for `doctor`. `drwn write` now fails before mutating downstream state, and `doctor` reports the same issue for diagnosis.
 
+## Export Sessions Command
+
+Use:
+
+```bash
+drwn export sessions
+drwn export sessions --dry-run
+drwn export sessions --out /tmp/my-sessions.tar
+drwn export sessions --gzip
+```
+
+What it does:
+
+- discovers Claude and Codex session log files belonging to the current project (and any git worktrees)
+- scans `~/.claude/projects` and `~/.codex/sessions`
+- writes a `.tar` archive under `.agents/drwn/session-log-exports/` by default
+- `--out` overrides the destination archive path
+- `--gzip` produces an upload-ready `.tar.gz` archive instead of uncompressed `.tar`
+- `--dry-run` lists files that would be archived without writing anything
+
+## Analyze Sessions Command
+
+Use:
+
+```bash
+drwn analyze sessions
+drwn analyze sessions --fresh
+drwn analyze sessions --wait --open
+drwn analyze sessions --dry-run --archive /tmp/sessions.tar.gz
+drwn analyze sessions --json
+```
+
+What it does:
+
+- uploads a session-log archive to the configured analyzer API and returns a viewing URL
+- selects an archive from `--archive`, `--fresh`, the newest local export under `.agents/drwn/session-log-exports/`, or a new inline gzip export
+- `--archive` specifies a pre-built `.tar`, `.tar.gz`, or `.tgz` archive path
+- `--fresh` builds a new gzip archive even if an existing archive is present
+- `--wait` polls until the report is ready and prints the report URL
+- `--open` opens the processing URL or report URL in the default browser
+- `--dry-run` validates the selected input without creating archives or uploading
+- `--json` emits a single machine-readable JSON object
+- requires authentication; run `drwn login` first or set `DRWN_TOKEN` and `DRWN_ANALYZER_URL`
+
 ## Common Workflows
 
 ### Global machine write
@@ -1115,7 +1185,6 @@ drwn add git+<card-git-url>#v1.0.0
 - `bd` for Beads project issue tracking
 - `parallel-cli` for Parallel-backed skills
 - `markitdown` for MarkItDown-backed document conversion
-- `markdownify-mcp` for local markdown extraction workflows
 
 These are optional and machine-dependent. Their absence should not block the baseline CLI and write model.
 

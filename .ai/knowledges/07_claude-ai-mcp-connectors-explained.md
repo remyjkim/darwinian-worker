@@ -82,16 +82,16 @@ Practical consequence observed in this repo: when the Notion connector was first
 
 ---
 
-## Why our harness's `~/.claude/settings.json mcpServers` entry was silently ignored
+## Where the drwn harness writes MCP server definitions
 
-The drwn harness writes MCP server definitions into `~/.claude/settings.json` under `mcpServers`. Observed behavior in current Claude Code: `claude mcp list` and `claude mcp get <name>` do **not** see entries from that path. They see only:
+The drwn harness writes MCP server definitions to these paths:
 
-- Connectors (from the claude.ai layer above)
-- Servers added via `claude mcp add` (stored in `~/.claude.json`, keyed by scope and project)
-- Project-scoped servers from `.mcp.json` in the repo root
-- Plugin-provided servers from `~/.claude/plugins/`
+- **Claude Code (machine scope):** `~/.claude.json` under the `mcpServers` key
+- **Claude Code (project scope):** `<project>/.mcp.json`
+- **Codex:** `~/.codex/config.toml` or `<project>/.codex/config.toml`
+- **Cursor:** `~/.cursor/mcp.json` or `<project>/.cursor/mcp.json`
 
-The `mcpServers` field in `~/.claude/settings.json` either is no longer read for MCP runtime registration, or is read for a different purpose we have not identified. This was not always the case — the harness's design predates this state. For Claude Code today, the path that works is either Path A (the connector, this document) or Path B (`claude mcp add` to `~/.claude.json`). Codex and Cursor continue to read their respective files as the harness writes them. See `knowledges/06_notion-mcp-setup-guide.md` for the per-tool guidance.
+Claude Code reads from `~/.claude.json` (user scope), `.mcp.json` (project scope), and `~/.claude/plugins/` (plugin scope). Servers written by the harness appear alongside connectors and manually-added servers in `claude mcp list`. See `knowledges/06_notion-mcp-setup-guide.md` for per-tool guidance.
 
 ---
 
@@ -142,7 +142,6 @@ Honest delineation, since this layer is newer:
 - **Where OAuth tokens actually live.** Local artifacts only show *which* connectors are connected/need-auth, never the tokens themselves. The token is presumably stored server-side at claude.ai, with Claude Code pulling tool definitions through an authenticated channel tied to the Anthropic account. This is consistent with the observation that disconnecting at claude.ai immediately changes Claude Code's behavior, but we have not confirmed it by inspecting network traffic or token storage.
 - **The exact mount-time protocol.** Whether Claude Code fetches the connector list at every session start, or caches it, and how invalidations propagate.
 - **Whether `tengu_claudeai_mcp_connectors` is a kill switch or a rollout flag.** The `tengu_` prefix is consistent with Anthropic-internal feature gating, but its long-term meaning is not documented externally.
-- **Why `~/.claude/settings.json mcpServers` is not consumed by current Claude Code MCP runtime.** Worth filing upstream once we have a tighter repro. Until then, treat the harness's Claude target as effectively no-op and use Path A or B for Claude Code.
 
 Update this section as we learn more.
 

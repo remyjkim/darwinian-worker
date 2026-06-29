@@ -1,3 +1,6 @@
+# ABOUTME: Index and navigation guide for the .ai/knowledges/ directory.
+# ABOUTME: Lists each knowledge doc with its scope and intended audience.
+
 # Knowledge Docs
 
 This directory holds internal operator and maintainer knowledge that is more specific than the public [README.md](../../README.md).

@@ -6,7 +6,7 @@
 **Category**: Reference
 **Tags**: notion, mcp, claude-code, codex, cursor, oauth, setup
 **Last Updated**: 2026-05-24
-**References**: [analyses/35_notion_mcp_manual.md, registry/mcp-servers.json, cli/core/mcp.ts]
+**References**: [.ai/analyses/35_notion_mcp_manual.md, registry/mcp-servers.json, cli/core/mcp.ts]
 
 ---
 
@@ -20,7 +20,7 @@ There are three valid setup paths. Pick the one that matches the coworker's stac
 | --- | --- | --- | --- |
 | **A. Claude.ai connector** | Claude Code users on a Claude.ai plan | No | Yes (per Claude.ai account) |
 | **B. Direct CLI install** | Claude Code or Codex without harness | No (user scope) or `.mcp.json` (project scope) | Configurable |
-| **C. drwn harness sync** | Repos using `drwn` / `sync-mcp.ts` | Yes (`registry/mcp-servers.json` + `optional.notion`) | Per-repo |
+| **C. drwn harness sync** | Repos using `drwn` / `drwn mcp write` | Yes (`registry/mcp-servers.json` + `optional.notion`) | Per-repo |
 
 ---
 
@@ -116,7 +116,7 @@ Restart Cursor, then trigger the OAuth flow from Cursor's MCP UI.
 
 ## Path C — drwn harness sync (only if the target repo uses drwn)
 
-If the coworker's repo already uses the `drwn` harness (i.e., has `registry/mcp-servers.json`, `sync-mcp.ts`, and `registry/config.json`):
+If the coworker's repo already uses the `drwn` harness (i.e., has `registry/mcp-servers.json` and `registry/config.json`, and the `drwn` CLI is available):
 
 1. **Confirm the registry entry exists.** In `registry/mcp-servers.json`:
 
@@ -141,10 +141,11 @@ If the coworker's repo already uses the `drwn` harness (i.e., has `registry/mcp-
    }
    ```
 
-3. **Sync.**
+3. **Sync.** Use `drwn mcp write` to emit MCP config to each client's config file. Use `drwn mcp list` beforehand to confirm which servers (including `notion`) will be written.
 
    ```bash
-   bun sync-mcp.ts --mcp-only
+   drwn mcp list          # preview which servers are configured
+   drwn mcp write         # write MCP config to all client targets
    ```
 
    Verify the emitted files contain a `notion` block in the expected shape:
@@ -221,7 +222,7 @@ In Codex this can be enforced via `enabled_tools` in the TOML block. In Claude C
 - `claude mcp list` — does it appear?
 - `claude mcp get notion` — should return server details, not "No MCP server found."
 - If absent for Path A, re-check Settings → Connectors at claude.ai.
-- If absent for Path B/C, re-run `claude mcp add` or your harness sync, then restart Claude Code.
+- If absent for Path B/C, re-run `claude mcp add` or `drwn mcp write`, then restart Claude Code.
 
 **Notion server not visible in Codex:**
 - `cat ~/.codex/config.toml` — confirm the `[mcp_servers.notion]` block is present.

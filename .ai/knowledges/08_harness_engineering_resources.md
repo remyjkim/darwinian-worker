@@ -1,3 +1,6 @@
+# ABOUTME: Collects the foundational references and origin story for harness engineering in AI.
+# ABOUTME: Links to Mitchell Hashimoto's original blog post, community resources, and related articles.
+
 # Harness Engineering in AI
 
 ## The Origin Story

@@ -1,3 +1,6 @@
+# ABOUTME: Explains the npm package-backed skill bundle model — ingestion, storage, curation, and downstream write.
+# ABOUTME: Covers bundle shape, boundary with drwn, local storage layout, and supported commands.
+
 # NPM Skill Bundles Guide
 
 ## Purpose
@@ -126,7 +129,7 @@ In the cards-era store, installed bundles live under:
 ~/.agents/drwn/skills/<package-name>/<version>
 ```
 
-There is also a `current` symlink at the package root pointing to the active version.
+There is also a `current` pointer file at the package root indicating the active version.
 
 Example:
 
@@ -150,7 +153,10 @@ Add a bundle:
 
 ```bash
 drwn skills packages add <npm-package-or-local-path>
+drwn skills packages add <npm-package-or-local-path> --replace
 ```
+
+`--replace` allows overwriting an existing installed skill when it came from the same package (e.g., upgrading a bundle version).
 
 List installed bundles:
 
@@ -184,7 +190,7 @@ Important distinction:
 - available: the bundle exists in the active bundle cache, normally `~/.agents/drwn/skills`
 - default: a shared skill is listed in `~/.agents/drwn/machine.json` under `defaults.skills`
 - compatibility publication: a default or curated shared skill is linked into `~/.agents/skills`
-- written: downstream tool symlinks exist in `~/.claude/skills` and `~/.codex/skills`
+- written: downstream tool skill directories are copied into `~/.claude/skills` and `~/.codex/skills`
 
 ## Current Constraints
 
@@ -219,6 +225,29 @@ Deferred:
 Per-project `skills.include` supports both repo-native shared skills and installed package-backed shared skills.
 
 Keep package-backed skill names unique. If a project include references an unknown or ambiguous skill name, `drwn doctor` reports it and write will not silently pick an arbitrary source.
+
+## Loose Skill Ingestion
+
+In addition to npm bundles, `drwn` supports adding individual skill directories from local paths:
+
+```bash
+drwn add skill /path/to/skill-directory
+drwn library add skill /path/to/skill-directory
+```
+
+A loose skill directory must contain a `SKILL.md` file. The skill is copied into the managed skill tree and becomes available for curation and downstream write like any other skill.
+
+This is useful for:
+
+- importing skills from other projects without publishing an npm package
+- testing locally authored skills before bundling them
+- one-off skill additions that do not justify a full package
+
+Related commands:
+
+- `drwn skills curate <name>` — add a shared skill to the machine-wide default set
+- `drwn skills uncurate <name>` — remove a skill from the machine-wide default set
+- `drwn search skill <query>` — search available skills by name or keyword
 
 ## How Bundles Relate To Built-In Skills
 
