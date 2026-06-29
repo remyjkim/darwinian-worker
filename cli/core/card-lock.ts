@@ -43,8 +43,8 @@ export interface CardLockfile {
   cards: CardLockEntry[];
 }
 
-const HOOKS_MIN_DRWN_VERSION = "0.3.0";
-const MINDS_MIN_DRWN_VERSION = "0.4.0";
+export const HOOKS_MIN_DRWN_VERSION = "0.3.0";
+export const MINDS_MIN_DRWN_VERSION = "0.4.0";
 
 export function cardLockPath(projectRoot: string) {
   return join(projectRoot, ".agents", "drwn", "card.lock");
