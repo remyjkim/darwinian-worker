@@ -2,6 +2,7 @@
 // ABOUTME: Centralizes CLI spawning with environment overrides so tests never touch the real machine state.
 
 import { expect } from "bun:test";
+import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
 import { mkdtemp, mkdir, writeFile, rm, cp } from "node:fs/promises";
 import { chmod } from "node:fs/promises";
@@ -258,7 +259,7 @@ export async function runAgentsCli(
   cwd?: string,
   options?: { stdin?: string },
 ) {
-  const entrypoint = new URL("../cli/index.ts", import.meta.url).pathname;
+  const entrypoint = fileURLToPath(new URL("../cli/index.ts", import.meta.url));
   // Resolve bun via PATH; process.execPath is not reliably spawnable on some CI runners.
   const bunBin = Bun.which("bun") ?? process.execPath;
   const proc = Bun.spawn([bunBin, "run", entrypoint, ...args], {

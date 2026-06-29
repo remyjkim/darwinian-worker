@@ -2,13 +2,14 @@
 // ABOUTME: Protects the supported dual execution modes for future users and release workflows.
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { fileURLToPath } from "node:url";
 import { cleanupTempRoots, createTempRoot, runAgentsCli, runGlobalAgentsCli, scaffoldCliFixture } from "./helpers";
 
 const tempRoots: string[] = [];
 
 beforeAll(async () => {
   const link = Bun.spawn(["bun", "link"], {
-    cwd: new URL("..", import.meta.url).pathname,
+    cwd: fileURLToPath(new URL("..", import.meta.url)),
     stdout: "pipe",
     stderr: "pipe",
     env: process.env,

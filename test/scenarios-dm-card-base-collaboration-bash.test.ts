@@ -2,6 +2,7 @@
 // ABOUTME: Covers producer publish, consumer follow/search/install, refresh, outdated, and update.
 
 import { afterEach, expect, test as baseTest } from "bun:test";
+import { fileURLToPath } from "node:url";
 const test = baseTest.skipIf(process.platform === "win32");
 import { cleanupTempRoots, envFor, scaffoldCliFixture } from "./helpers";
 import {
@@ -227,13 +228,14 @@ function prefixedFixtureEnv(prefix: string, fixture: Awaited<ReturnType<typeof s
 
 async function runBash(script: string, env: Record<string, string>) {
   const proc = Bun.spawn(["bash", "-lc", script], {
+      stdin: "ignore",
     stdout: "pipe",
     stderr: "pipe",
     env: {
       ...process.env,
       ...env,
       BUN_BIN: (Bun.which("bun") ?? process.execPath),
-      DRWN_ENTRYPOINT: new URL("../cli/index.ts", import.meta.url).pathname,
+      DRWN_ENTRYPOINT: fileURLToPath(new URL("../cli/index.ts", import.meta.url)),
     },
   });
   const [stdout, stderr, exitCode] = await Promise.all([

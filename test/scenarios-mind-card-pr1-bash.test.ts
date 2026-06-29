@@ -2,6 +2,7 @@
 // ABOUTME: Exercises shell-facing CLI contracts for persona, beliefs, memory, and visibility gates.
 
 import { afterEach, expect, test as baseTest } from "bun:test";
+import { fileURLToPath } from "node:url";
 const test = baseTest.skipIf(process.platform === "win32");
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -63,13 +64,14 @@ async function createEmptyBareRemote(prefix: string) {
 
 async function runBash(script: string, env: Record<string, string>) {
   const proc = Bun.spawn(["bash", "-lc", script], {
+      stdin: "ignore",
     stdout: "pipe",
     stderr: "pipe",
     env: {
       ...process.env,
       ...env,
       BUN_BIN: (Bun.which("bun") ?? process.execPath),
-      DRWN_ENTRYPOINT: new URL("../cli/index.ts", import.meta.url).pathname,
+      DRWN_ENTRYPOINT: fileURLToPath(new URL("../cli/index.ts", import.meta.url)),
     },
   });
   const [stdout, stderr, exitCode] = await Promise.all([

@@ -2,6 +2,7 @@
 // ABOUTME: Protects the initial command shell while deeper command implementations are added.
 
 import { describe, expect, test } from "bun:test";
+import { fileURLToPath } from "node:url";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -82,7 +83,7 @@ describe("CLI entrypoint", () => {
   test("uses the packaged repo root when invoked outside a repo without AGENTS_REPO_ROOT", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "drwn-outside-repo-"));
     const homeDir = await mkdtemp(join(tmpdir(), "drwn-home-"));
-    const entrypoint = new URL("../cli/index.ts", import.meta.url).pathname;
+    const entrypoint = fileURLToPath(new URL("../cli/index.ts", import.meta.url));
     const proc = Bun.spawn(["bun", "run", entrypoint, "status", "--json"], {
       cwd,
       stdout: "pipe",
