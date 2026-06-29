@@ -20,9 +20,9 @@ For focused subsystem docs, see:
 
 ## What `drwn` Is
 
-`drwn` is the operator CLI for `darwinian-mind`.
+`drwn` is the operator CLI for `darwinian-minds`.
 
-`darwinian-mind` is the local meta-harness control plane around the agent tools you already use. It organizes reusable inventory, machine-wide defaults, project overlays, downstream tool state, and diagnostics into one local harness.
+`darwinian-minds` is the local meta-harness control plane around the agent tools you already use. It organizes reusable inventory, machine-wide defaults, project overlays, downstream tool state, and diagnostics into one local harness.
 
 It operates on this model:
 
@@ -1110,7 +1110,7 @@ drwn add git+<card-git-url>#v1.0.0
 
 ## Optional Extensions
 
-`darwinian-mind` supports optional local extensions, including:
+`darwinian-minds` supports optional local extensions, including:
 
 - `bd` for Beads project issue tracking
 - `parallel-cli` for Parallel-backed skills

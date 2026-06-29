@@ -41,7 +41,7 @@ If the coworker uses Claude Code and has a Claude.ai account, this is the lowest
 3. Confirm in the browser OAuth flow as the correct Notion account.
 4. Restart Claude Code in any session you want the connector active in.
 
-That path is what's currently working in `darwinian-mind`. The harness's own `notion` registry entry (Path C) does not drive Claude Code's MCP runtime in current versions — `claude mcp list` reads from `~/.claude.json` and platform connectors, not `~/.claude/settings.json mcpServers`. For Claude Code, the connector is the supported path. The harness entry remains useful for Codex and Cursor.
+That path is what's currently working in `darwinian-minds`. The harness's own `notion` registry entry (Path C) does not drive Claude Code's MCP runtime in current versions — `claude mcp list` reads from `~/.claude.json` and platform connectors, not `~/.claude/settings.json mcpServers`. For Claude Code, the connector is the supported path. The harness entry remains useful for Codex and Cursor.
 
 **Skip Paths B and C if Path A meets the need.**
 

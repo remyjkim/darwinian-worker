@@ -25,7 +25,7 @@ This directory holds internal operator and maintainer knowledge that is more spe
 
 ## Concepts
 
-- [08_harness_engineering_resources.md](./08_harness_engineering_resources.md): origin and current framing of "harness engineering" as the practice darwinian-mind is built around
+- [08_harness_engineering_resources.md](./08_harness_engineering_resources.md): origin and current framing of "harness engineering" as the practice darwinian-minds is built around
 
 ## Manual Validation
 
