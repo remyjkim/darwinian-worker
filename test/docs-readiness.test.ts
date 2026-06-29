@@ -73,15 +73,15 @@ describe("documentation readiness", () => {
     expect(brewGuide).toContain("Homebrew");
     expect(brewGuide).toContain("tagged release");
     expect(brewGuide).toContain("drwn");
-    expect(brewGuide).toContain("darwinian-mind");
+    expect(brewGuide).toContain("darwinian-minds");
 
     // Slim README: brand identity, pitch, install, first run, doc pointers,
     // contributing. Deep content (Disciplines, Safety model, "What it
     // harnesses", "Why this exists") lives in the docs site; the README links
     // to the corresponding concepts pages.
     expect(readme).toContain("local meta-harness");
-    expect(readme).toContain("The package is `darwinian-mind`. The command is `drwn`.");
-    expect(readme).toContain("<img src=\"./docs/assets/darwinian-mind-logo.png\"");
+    expect(readme).toContain("The package is `darwinian-minds`. The command is `drwn`.");
+    expect(readme).toContain("<img src=\"./docs/assets/darwinian-minds-logo.png\"");
     expect(readme).toContain("Install");
     expect(readme).toContain("First run");
     expect(readme).toContain("Documentation");
@@ -124,7 +124,7 @@ describe("documentation readiness", () => {
     expect(usageGuide).toContain("library catalog refresh");
     expect(usageGuide).toContain("https://github.com/curation-labs/dm-cards-catalog-v1.git");
     expect(usageGuide).toContain("repo-native and installed package-backed skills");
-    expect(usageGuide).toContain("darwinian-mind");
+    expect(usageGuide).toContain("darwinian-minds");
     expect(usageGuide).toContain("local harness");
     expect(usageGuide).toContain("drwn apply");
     expect(projectGuide).toContain("Discovery walks upward");
@@ -186,6 +186,6 @@ describe("documentation readiness", () => {
     expect(releaseProcess).toContain("bun run verify:release");
     expect(releaseProcess).toContain("git tag -a v");
     expect(releaseProcess).toContain("npm-publish");
-    expect(releaseProcess).toContain("npm view darwinian-mind@");
+    expect(releaseProcess).toContain("npm view darwinian-minds@");
   });
 });

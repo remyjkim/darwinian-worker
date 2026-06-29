@@ -233,7 +233,7 @@ describe("drwn doctor", () => {
     expect((await runAgentsCli(["card", "source", "add-hook", "@me/policy", "guard"], envFor(fixture))).exitCode).toBe(0);
     const sourceDir = join(fixture.agentsDir, "drwn", "sources", "@me", "policy");
     await writeFile(join(sourceDir, "hooks", "guard", "policy.ts"), `
-      import { defineToolPolicy } from "darwinian-mind/hook-policy";
+      import { defineToolPolicy } from "darwinian-minds/hook-policy";
       export default defineToolPolicy({
         policyKind: "enforcement",
         beforeToolCall() { return { action: "allow" }; },
@@ -263,7 +263,7 @@ describe("drwn doctor", () => {
     expect((await runAgentsCli(["card", "source", "add-hook", "@me/policy", "guard"], envFor(fixture))).exitCode).toBe(0);
     const sourceDir = join(fixture.agentsDir, "drwn", "sources", "@me", "policy");
     await writeFile(join(sourceDir, "hooks", "guard", "policy.ts"), `
-      import { defineToolPolicy } from "darwinian-mind/hook-policy";
+      import { defineToolPolicy } from "darwinian-minds/hook-policy";
       export default defineToolPolicy({ policyKind: "observer" });
     `);
     expect((await runAgentsCli(["card", "publish", "@me/policy"], envFor(fixture))).exitCode).toBe(0);

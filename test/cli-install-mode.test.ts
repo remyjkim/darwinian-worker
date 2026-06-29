@@ -12,7 +12,7 @@ describe("CLI install mode", () => {
       bin?: string | Record<string, string>;
     };
 
-    expect(pkg.name).toBe("darwinian-mind");
+    expect(pkg.name).toBe("darwinian-minds");
     expect(pkg.scripts?.drwn).toBe("bun run cli/index.ts");
     expect(typeof pkg.bin).toBe("object");
     expect((pkg.bin as Record<string, string>).drwn).toBe("cli/index.ts");
