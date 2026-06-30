@@ -3,7 +3,7 @@
 
 # Task 61: HTTP MCP `headers` passthrough across all three targets — Implementation Plan
 
-**Status**: Planning
+**Status**: In Progress
 **Created**: 2026-06-30
 **Updated**: 2026-06-30
 **Assigned**: Claude + Remy
@@ -11,6 +11,21 @@
 **Estimated Effort**: ~0.5 day
 **Dependencies**: none (additive, no migration)
 **References**: [cli/core/types.ts, cli/core/mcp.ts, cli/core/card-manifest.ts, cli/core/mcp-library.ts, cli/core/card-mcp.ts, test/core-mcp-sync.test.ts, /Users/pureicis/dev/mindspace-landing/.ai/tasks/04_drwn_http_header_fix_scope.md, https://developers.openai.com/codex/config-reference, https://developers.openai.com/codex/mcp]
+
+---
+
+## Progress (2026-06-30)
+
+Implemented on branch `feat/http-mcp-headers-passthrough`. Phases 0–4 complete; Phase 5
+(version bump + global reinstall) pending Remy's go-ahead (release-facing).
+
+- **Type** (`cli/core/types.ts`): `headers?: Record<string,string>` added to `RegistryServer`.
+- **Renderers** (`cli/core/mcp.ts`): `BEARER_PASSTHROUGH`, `mapHeaderValues`, `partitionCodexHeaders`, and `codexUnsupportedHeaderKeys` added; headers wired into Claude (`toJsonServerConfig`), Cursor (`toCursorServerConfig`, `${env:VAR}` rewrite), and Codex (`toCodexServerConfig`: bearer→`bearer_token_env_var`, literals→`http_headers`).
+- **Validation**: `isStringRecord` exported from `card-manifest.ts`; manifest `servers[].headers` and `validateMcpLibraryServer` reject non-string header maps.
+- **Codex reporting** (`cli/core/sync.ts`): non-bearer `${VAR}` headers (unexpressible on Codex) emit a `result.warnings` entry instead of silently dropping.
+- **Tests** (`test/core-mcp-headers.test.ts`, 8 cases): per-target render, Codex bearer translation, unsupported-header flag, header-less backward-compat, manifest + library validation, and a card→registry→render round-trip. `bun test` = 990 pass / 2 skip / 1 fail; `bun run typecheck` clean.
+- **Known pre-existing failure (not ours):** `documentation readiness` (usage guide must contain "markdownify") fails on clean `main` too — unrelated to MCP, left untouched.
+- **Docs follow-up (separate repo):** `author-mind-card` / `import-mcp-from-claude` SKILL.md in `darwinian-harness-skills` should mention the `headers` field — deferred, not edited from this branch.
 
 ---
 
@@ -71,6 +86,28 @@ Storage is already permissive; only rendering drops the data:
 
 Hashing/drift (`canonicalJsonHash(toJsonServerConfig(server))`) wraps whatever the renderer
 emits, so emitting headers is automatically covered and header-less servers keep identical hashes.
+
+---
+
+## Research grounding (verified 2026-06-30, official docs)
+
+All three target schemas confirmed verbatim before implementation:
+
+- **Claude Code** — `code.claude.com/docs/en/mcp`: env expansion `${VAR}` / `${VAR:-default}`
+  applies to `command`, `args`, `url`, `env`, **and `headers`**. Official HTTP example:
+  `{ "type": "http", "url": "...", "headers": { "Authorization": "Bearer ${API_KEY}" } }`.
+  Caveat: known consumption bugs (anthropics/claude-code #6204, #51581) where `${VAR}` in HTTP
+  headers may not be substituted on some versions — this is Claude-side, not a drwn emission
+  issue; covered by the manual smoke test.
+- **Cursor** — `cursor.com/docs`: remote server = `url` + `headers` map; substitution syntax
+  `${env:VAR}`, applies to `command`/`args`/`env`/`url`/`headers`. Official example:
+  `"headers": { "Authorization": "Bearer ${env:MY_SERVICE_TOKEN}" }`. Confirms the existing
+  `toCursorEnvValue` rewrite is the correct transform for header values.
+- **Codex** — `developers.openai.com/codex/config-reference`: per-server `url`,
+  `bearer_token_env_var` (env var **name**; Codex builds `Authorization: Bearer <token>`), and
+  `http_headers` (literal map, no `${VAR}` interpolation). `experimental_use_rmcp_client` is
+  **not** required for Streamable HTTP MCP servers — the Phase 3 rmcp concern is resolved (no
+  action needed).
 
 ---
 
@@ -167,11 +204,9 @@ return {
 };
 ```
 
-> **Verification point (Codex):** Codex Streamable-HTTP MCP may require
-> `experimental_use_rmcp_client` (global `[features]`) to initialize at all (openai/codex
-> issue #11284). drwn currently emits no such flag for HTTP servers. Confirm against the
-> installed Codex whether HTTP servers initialize; if a flag is required, decide in Phase 3
-> whether drwn should emit it (likely a separate, broader concern than headers).
+> **Codex (resolved):** the official config reference confirms `url` /
+> `bearer_token_env_var` / `http_headers` per-server and that `experimental_use_rmcp_client`
+> is **not** required for Streamable HTTP MCP servers. No rmcp flag work in this task.
 
 ---
 
@@ -195,9 +230,8 @@ return {
 - [ ] `cli/core/card-manifest.ts`: add a minimal `servers` header-type check (only when `headers` present) so authoring catches mistakes at `card source doctor` time.
 - [ ] Tests for both validators (valid passes; non-string value rejected).
 
-### Phase 3 — Codex unsupported-header reporting + rmcp verification
-- [ ] Route `partitionCodexHeaders().unsupported` into the existing optional-MCP/warning report surface (see `cli/core/mcp-report.ts`) so a non-bearer `${VAR}` header on Codex is visible, not silently dropped.
-- [ ] Verify whether Codex HTTP MCPs need `experimental_use_rmcp_client`; record the finding and, if needed, file a follow-up task (do **not** scope-creep this task into a broad Codex-rmcp change unless trivial).
+### Phase 3 — Codex unsupported-header reporting
+- [ ] Route `partitionCodexHeaders().unsupported` into the existing optional-MCP/warning report surface (see `cli/core/mcp-report.ts`) so a non-bearer `${VAR}` header on Codex is visible, not silently dropped. (rmcp flag confirmed unnecessary — see Research grounding.)
 
 ### Phase 4 — Round-trip scenario + docs
 - [ ] Scenario test: author/lock a card with a header-auth HTTP server, run the write path, assert the header lands in Claude config and re-write is drift-stable.

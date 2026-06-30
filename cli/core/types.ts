@@ -13,6 +13,7 @@ export interface RegistryServer {
   args?: string[];
   env?: Record<string, string>;
   url?: string;
+  headers?: Record<string, string>;
   provider?: string;
   capabilities?: string[];
   notes?: string;

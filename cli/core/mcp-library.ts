@@ -4,6 +4,7 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { isStringRecord } from "./card-manifest";
 import { resolveMcpLibraryPath } from "./paths";
 import { resolveStoreMcpServerFile, resolveStoreMcpServersDir, resolveStoreMetadataPath } from "./store-paths";
 import type { RegistryServer, UserMcpLibrary } from "./types";
@@ -30,6 +31,9 @@ export function validateMcpLibraryServer(id: string, server: unknown): asserts s
   }
   if ((candidate.transport === "http" || candidate.transport === "sse") && (!candidate.url || typeof candidate.url !== "string")) {
     throw new Error(`Invalid MCP server "${id}": ${candidate.transport} transport requires url`);
+  }
+  if (candidate.headers !== undefined && !isStringRecord(candidate.headers)) {
+    throw new Error(`Invalid MCP server "${id}": headers must be a string-to-string map`);
   }
   if (typeof candidate.optional !== "boolean") {
     throw new Error(`Invalid MCP server "${id}": missing optional flag`);
