@@ -1,3 +1,6 @@
+# ABOUTME: Step-by-step manual test guide for Mind Cards features against a local sandbox.
+# ABOUTME: Covers card authoring, publish, apply, write, doctor, integrity, corruption, and mind content flows.
+
 # Mind Cards Manual Test Guide
 
 ## Purpose
@@ -21,9 +24,9 @@ This avoids polluting or breaking your real `~/.agents`, `.claude`, `.codex`, an
 The current codebase guarantees these behaviors:
 
 - card-bundled skill content is authoritative for downstream skill materialization
-- downstream card-provided skills symlink into the immutable card store under `~/.agents/drwn/cards/...`
+- downstream card-provided skills are copied from the immutable card store under `~/.agents/drwn/cards/...`
 - if a card and a non-card source provide the same skill name, the card copy wins
-- `drwn write --dry-run --json` annotates the winning layer for skill symlink intents
+- `drwn write --dry-run --json` annotates the winning layer for skill materialization intents
 - unresolved `skills.include` names fail `drwn write` before any downstream mutation
 - `drwn doctor` is report-only and surfaces related issues without fixing them
 - `card.lock` records card versions, content-tree integrity, source path, manifest, and bundled skill attribution
@@ -72,13 +75,13 @@ Recommended shell setup:
 ```bash
 set -euo pipefail
 
-# Point this at your local checkout (the on-disk directory is still `darwinian-harness`).
-export HARNESS_REPO="$(git -C "$(pwd)" rev-parse --show-toplevel 2>/dev/null || echo /Users/pureicis/dev/darwinian-harness)"
-export ENTRYPOINT="$HARNESS_REPO/cli/index.ts"
+# Point this at your local checkout.
+export DRWN_REPO="$(git -C "$(pwd)" rev-parse --show-toplevel 2>/dev/null || echo "$HOME/dev/darwinian-minds")"
+export ENTRYPOINT="$DRWN_REPO/cli/index.ts"
 export SANDBOX="$(mktemp -d /tmp/drwn-cards-XXXXXX)"
 export AGENTS_HOME_DIR="$SANDBOX/home"
 export AGENTS_DIR="$AGENTS_HOME_DIR/.agents"
-export AGENTS_REPO_ROOT="$HARNESS_REPO"
+export AGENTS_REPO_ROOT="$DRWN_REPO"
 
 mkdir -p "$AGENTS_HOME_DIR" "$AGENTS_DIR"
 
@@ -95,7 +98,7 @@ Sanity check:
 ```bash
 drwn status
 drwn write --help
-drwn card new -h=0
+drwn card new --help
 ```
 
 ## Full Sandbox Walkthrough
@@ -254,14 +257,14 @@ Verify:
 
 ```bash
 drwn write
-readlink .claude/skills/polish
-readlink .claude/skills/animate
+ls .claude/skills/polish
+ls .claude/skills/animate
 cat .claude/settings.json
 ```
 
 Verify:
 
-- both symlinks resolve into the immutable card store path
+- both skill directories are copies from the immutable card store path
 - `.claude/settings.json` contains `card-server`
 - if Codex is enabled, equivalent `.codex/skills/...` links also materialize
 
@@ -310,8 +313,8 @@ printf '{"version":1,"servers":{}}\n' > "$LEGACY_AGENTS/library/mcp-servers.json
 Attempt authoring:
 
 ```bash
-AGENTS_HOME_DIR="$LEGACY_HOME" AGENTS_DIR="$LEGACY_AGENTS" AGENTS_REPO_ROOT="$HARNESS_REPO" \
-  bash -lc 'cd "$HARNESS_REPO" && bun run drwn -- card new @me/test --no-git'
+AGENTS_HOME_DIR="$LEGACY_HOME" AGENTS_DIR="$LEGACY_AGENTS" AGENTS_REPO_ROOT="$DRWN_REPO" \
+  bash -lc 'cd "$DRWN_REPO" && bun run drwn -- card new @me/test --no-git'
 ```
 
 Verify:
@@ -322,8 +325,8 @@ Verify:
 Then migrate:
 
 ```bash
-AGENTS_HOME_DIR="$LEGACY_HOME" AGENTS_DIR="$LEGACY_AGENTS" AGENTS_REPO_ROOT="$HARNESS_REPO" \
-  bash -lc 'cd "$HARNESS_REPO" && bun run drwn -- store migrate'
+AGENTS_HOME_DIR="$LEGACY_HOME" AGENTS_DIR="$LEGACY_AGENTS" AGENTS_REPO_ROOT="$DRWN_REPO" \
+  bash -lc 'cd "$DRWN_REPO" && bun run drwn -- store migrate'
 ```
 
 Verify:
@@ -338,8 +341,8 @@ Already covered by the `polish` / `animate` walkthrough above.
 Critical check:
 
 ```bash
-test -L .claude/skills/polish
-test -L .claude/skills/animate
+test -d .claude/skills/polish
+test -d .claude/skills/animate
 ```
 
 ### C. Card-provided skills must materialize from the card store, not the repo
@@ -347,14 +350,14 @@ test -L .claude/skills/animate
 Critical check:
 
 ```bash
-readlink .claude/skills/polish
-readlink .claude/skills/animate
+ls .claude/skills/polish/SKILL.md
+ls .claude/skills/animate/SKILL.md
 ```
 
 Expected:
 
-- both point into `"$AGENTS_DIR/drwn/extracted/<tree-sha>/skills/..."`
-- neither points into the checkout’s built-in `skills/` tree
+- both exist as copied directories with content from `"$AGENTS_DIR/drwn/extracted/<tree-sha>/skills/..."`
+- neither contains content from the checkout’s built-in `skills/` tree
 
 ### D. Dry-run must dedupe and show which layer wins
 
@@ -362,8 +365,8 @@ Temporarily add a same-name repo-native skill in the checkout and curate it into
 the publication layer:
 
 ```bash
-mkdir -p "$HARNESS_REPO/skills/shared/polish"
-cat > "$HARNESS_REPO/skills/shared/polish/SKILL.md" <<'MD'
+mkdir -p "$DRWN_REPO/skills/shared/polish"
+cat > "$DRWN_REPO/skills/shared/polish/SKILL.md" <<'MD'
 ---
 name: polish
 description: repo polish
@@ -390,7 +393,7 @@ drwn write --dry-run --json
 
 Verify:
 
-- only one `.claude/skills/polish` symlink intent is present
+- only one `.claude/skills/polish` materialization intent is present
 - the line contains `← card @me/frontend@1.0.0`
 - the line contains `(also available: user-default)`
 
@@ -398,7 +401,7 @@ Cleanup:
 
 ```bash
 drwn skills uncurate polish
-rm -rf "$HARNESS_REPO/skills/shared/polish"
+rm -rf "$DRWN_REPO/skills/shared/polish"
 ```
 
 ## Hard-Failure Contract Test
@@ -634,7 +637,7 @@ When done:
 
 ```bash
 rm -rf "$SANDBOX" "${SANDBOX_LEGACY:-}"
-unset HARNESS_REPO SANDBOX SANDBOX_LEGACY AGENTS_HOME_DIR AGENTS_DIR AGENTS_REPO_ROOT
-unset PROJECT CARD_SRC OBS_SRC LEGACY_HOME LEGACY_AGENTS
+unset DRWN_REPO SANDBOX SANDBOX_LEGACY AGENTS_HOME_DIR AGENTS_DIR AGENTS_REPO_ROOT
+unset PROJECT CARD_SRC CAPTURED_SRC DEDUPE_PROJECT OBS_SRC LEGACY_HOME LEGACY_AGENTS
 unset -f drwn
 ```

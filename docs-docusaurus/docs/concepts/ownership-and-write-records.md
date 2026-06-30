@@ -4,7 +4,7 @@ sidebar_position: 2
 
 # Ownership and Write Records
 
-`drwn` does not own every file under `~/.claude`, `~/.codex`, or `~/.cursor`. It owns the paths it explicitly recorded as managed, and it preserves anything else. The write record is the ledger that makes that boundary explicit. This page covers where the records live, the three managed-path variants, and the cleanup discipline that follows from them.
+`drwn` does not own every file under `~/.claude`, `~/.codex`, or `~/.cursor`. It owns the paths it explicitly recorded as managed, and it preserves anything else. The write record is the ledger that makes that boundary explicit. This page covers where the records live, the five managed-path variants, and the cleanup discipline that follows from them.
 
 ## Where Records Live
 
@@ -15,13 +15,15 @@ Each `drwn write` run persists a JSON write record. The location depends on writ
 
 `buildEffectiveState` picks the right path based on whether a project overlay was discovered. The record persists across runs; the next write loads it to know what to clean up.
 
-## The Three ManagedPath Variants
+## The Five ManagedPath Variants
 
-Every managed path is recorded as one of three variants matching the [materialization mechanisms](./materialization):
+Every managed path is recorded as one of five variants matching the [materialization mechanisms](./materialization):
 
-- **`symlink`** — a downstream skill directory link. Records the path and its expected `target`.
-- **`managed-fields`** — a user-owned config file where drwn manages specific keys. Records the path, the managed field names, and their canonical hashes.
-- **`generated-symlink`** — a symlink pointing at a drwn-generated file. Records the path and the `generatedPath` it should resolve to.
+- **`managed-directory`** — a downstream skill directory copied by drwn. Records the path and a `contentHash` of the copied tree.
+- **`managed-content`** — a file drwn wrote directly (Cursor's `mcp.json`). Records the path and a `contentHash`.
+- **`managed-fields`** — a user-owned config file where drwn manages specific keys (Claude `settings.json`, Codex `config.toml`). Records the path, the managed field names, and their canonical hashes.
+- **`symlink`** — a legacy symlink entry from older write records. Records the path and its expected `target`. Retained for backward compat; new writes use `managed-directory` for skills.
+- **`generated-symlink`** — a legacy generated-sidecar symlink entry. Records the path and the `generatedPath` it should resolve to. Retained for backward compat; Cursor is now `managed-content`.
 
 The record shape:
 
@@ -31,9 +33,9 @@ The record shape:
   "lastWriteAt": "...",
   "lastWriteHarnessVersion": "...",
   "managedPaths": [
-    { "path": "...", "kind": "symlink", "target": "..." },
-    { "path": "...", "kind": "managed-fields", "fields": ["mcpServers"], "fieldHashes": {} },
-    { "path": "...", "kind": "generated-symlink", "generatedPath": "..." }
+    { "path": "...", "kind": "managed-directory", "contentHash": "sha256-..." },
+    { "path": "...", "kind": "managed-content", "contentHash": "sha256-..." },
+    { "path": "...", "kind": "managed-fields", "fields": ["mcpServers"], "fieldHashes": {} }
   ]
 }
 ```
@@ -69,7 +71,7 @@ Claude `settings.json` and Codex `config.toml` both carry this block. It serves 
 - **Drift detection.** On the next write, drwn reads the in-file block, recomputes the hash of each managed key, and aborts the merge if any hash diverges (unless `--force`). The user has touched a drwn-managed key, and drwn refuses to clobber that change silently.
 - **Cross-file ledger.** The write record points at the file, but the file itself carries the field-level ground truth. If the write record is lost or corrupted, the in-file block still tells drwn which keys it owns.
 
-Cursor's standalone JSON format means drwn owns the whole file via the generated-file-plus-symlink mechanism, so the meta-block protocol is unnecessary there.
+Cursor's standalone JSON format means drwn owns the whole file as `managed-content`, so the meta-block protocol is unnecessary there.
 
 ## Cross-References
 

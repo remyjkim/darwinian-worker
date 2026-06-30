@@ -32,9 +32,9 @@ The separation between as-written and as-active is load-bearing. Every command r
 
 `drwn write` writes to disk through exactly three mechanisms, chosen per target:
 
-- **Directory symlinks** for skills. Claude and Codex skill targets become symlinks pointing at the resolved skill source under `~/.agents/skills`, the repo skill tree, or a card's extracted tree.
+- **Copied directories** for skills. Claude and Codex skill targets are copied from the resolved skill source under `~/.agents/skills`, the repo skill tree, or a card's extracted tree. Each copied directory is recorded as a `managed-directory` entry in the write record.
 - **`_drwn` managed-field meta block** for Claude `settings.json` and Codex `config.toml`. drwn rewrites only the keys it declares as managed (`mcpServers` for Claude, `mcp_servers` for Codex) and records canonical hashes of those keys in a `_drwn` block so the next write can detect drift.
-- **Generated-file plus symlink** for Cursor. drwn writes `<generatedDir>/cursor-mcp.json` and symlinks `.cursor/mcp.json` to it. Cursor's standalone JSON format means drwn owns the whole file, so the meta-block protocol is unnecessary.
+- **Direct file write** for Cursor. drwn writes `~/.cursor/mcp.json` (or the project's `.cursor/mcp.json`) directly as a `managed-content` entry. Cursor's standalone JSON format means drwn owns the whole file, so the meta-block protocol is unnecessary.
 
 See [Ownership and Write Records](./ownership-and-write-records) for how these three variants are recorded and cleaned up.
 
@@ -69,10 +69,10 @@ See [reference/cli/write](../reference/cli/write) for the full flag surface.
 
 Card-bundled skill content is authoritative. When a project has a card locked, and that card's manifest declares a skill in `skills.include`, the card's extracted copy wins over any user-default of the same name. There is no merge semantic: the returned path is single-source.
 
-`drwn write --dry-run` annotates each planned skill symlink with the winning resolution layer. When a curated user-default would have provided the same skill, the dry run records it as `also available:` so the operator can see what was shadowed:
+`drwn write --dry-run` annotates each planned skill copy with the winning resolution layer. When a curated user-default would have provided the same skill, the dry run records it as `also available:` so the operator can see what was shadowed:
 
 ```text
-skills/inspect-harness ← card foo@1.0.0 (also available: user-default)
+skills/inspect-harness from card foo@1.0.0 (also available: user-default)
 ```
 
 If a card's `skills.include` names a skill the card store cannot resolve from disk, resolution returns `missing` with an actionable reason — drwn does not silently fall through to user defaults on a corrupt card store.

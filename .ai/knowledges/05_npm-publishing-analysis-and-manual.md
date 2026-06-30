@@ -1,3 +1,6 @@
+# ABOUTME: Records the npm publishing failure analysis and the verified manual publishing workflow.
+# ABOUTME: Covers token precedence, 2FA behavior, config isolation, and the CI publishing path.
+
 # NPM Publishing Analysis And Manual
 
 ## Purpose
@@ -6,7 +9,7 @@ This document records the publishing failure analysis from the first npm publish
 
 It exists to prevent repeated confusion around npm token precedence, 2FA behavior, and local machine config leakage.
 
-The current package name is `darwinian-minds`, which is **not yet published** on npm. The last published artifact is `darwinian-harness@0.2.1` (under the prior name); `beginning-agents` was the original first-attempt name. A first publish of `darwinian-minds` therefore creates a fresh package — use `npm publish --access public`; it does not update `darwinian-harness`.
+The current package name is `darwinian-minds`. Version `0.4.0` was the first publish (2026-06-29). CI-driven publishing is available via `.github/workflows/release.yml` (triggered by `v*` tags, requires an `NPM_TOKEN` repository secret). The manual flow below remains valid as a fallback.
 
 ## Outcome
 
@@ -267,7 +270,7 @@ For future manual publishes from this repo:
 
 The preferred long-term publishing path is:
 
-1. keep the manual temporary-`npmrc` flow for ad hoc local publishes
-2. move to trusted publishing in CI later
+1. use CI publishing via `.github/workflows/release.yml` for tagged releases (push a `v*` tag to trigger)
+2. keep the manual temporary-`npmrc` flow for ad hoc local publishes when CI is not available
 
-Trusted publishing is a better long-term model because it avoids long-lived token confusion and reduces machine-specific auth drift.
+CI publishing is the primary path. It uses a repository-scoped `NPM_TOKEN` secret, runs the release gate, and creates a GitHub Release alongside the npm publish.

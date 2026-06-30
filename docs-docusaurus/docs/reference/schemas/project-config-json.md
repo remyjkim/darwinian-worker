@@ -60,6 +60,9 @@ Purpose: the project-scope overlay. Declares the cards a project consumes, per-s
 | `skills.exclude` | `string[]` | no | Skill names to suppress. | `mergeProjectSkillOverrides`, `extensions/project-config.ts:63-67` |
 | `extensions` | `Record<string, ProjectExtensionConfig>` | no | Per-extension config. See shape below. | `applyProjectExtensionConfig`, `extensions/project-config.ts:18-61` |
 | `targets` | `Partial<Record<TargetName, { enabled: boolean }>>` | no | Per-target enabled override applied to the merged `targets` map. Only `claude`, `codex`, `cursor`. | `mergeProjectConfig`, `project.ts:72-76` |
+| `activeMinds` | `string[]` | no | Ordered list of active mind card names for the project. Controls which mind cards are composed into the active mind stack. | `cli/core/types.ts:116` |
+| `hooks` | `{ runtimes?: string[]; exclude?: string[]; signals?: Record<string, string[]> }` | no | Hook materialization config. `runtimes` limits which hook runtimes drwn writes; `exclude` suppresses specific hook composers by name; `signals` maps signal names to hook composer names. | `cli/core/types.ts:122-130` |
+| `trustedSources` | `TrustedSourcesPolicy` | no | Trust policy for card source resolution. Controls which Git hosts and scopes are permitted when resolving card refs. | `cli/core/types.ts:135` |
 
 ### `ServerOverride`
 

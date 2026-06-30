@@ -1,3 +1,6 @@
+# ABOUTME: Documents per-project config schema, discovery, merge semantics, and materialization targets.
+# ABOUTME: Covers cards, active minds, extensions, targets, skills, and the layered reproducibility model.
+
 # Per-Project Config Guide
 
 ## Purpose
@@ -206,12 +209,13 @@ When `drwn write` runs inside a configured project, it writes downstream tool
 state under the project root:
 
 ```text
+<project>/.mcp.json
 <project>/.claude/settings.json
 <project>/.claude/skills/
 <project>/.codex/config.toml
 <project>/.codex/skills/
+<project>/.codex/hooks.json
 <project>/.cursor/mcp.json
-<project>/.agents/drwn/generated/cursor-mcp.json
 <project>/.agents/drwn/write-record.json
 ```
 
@@ -545,7 +549,7 @@ Recommended composition for a project that needs full environmental reproducibil
 
 Each layer's tool pins what it owns. Together they remove "works on my machine" friction across every typical dimension. Cards is the Layer-8 piece; it composes with — does not replace — the rest of the stack.
 
-For background on the layered-reproducibility model and where cards sits in the broader landscape, see `analyses/32_mind-cards-vs-flox-and-conda.md`.
+For background on the layered-reproducibility model and where cards sits in the broader landscape, see `.ai/analyses/32_harness-cards-vs-flox-and-conda.md`.
 
 ## Anti-Patterns
 

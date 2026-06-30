@@ -11,15 +11,23 @@ Use:
 ```bash
 drwn status
 drwn status --json
-drwn status --why
+drwn status --explain
 drwn doctor
 ```
 
-`--why` adds the resolution context that explains why a skill, MCP server, extension, or card is active. That is useful before a write:
+`--explain` adds a human-readable explanation of every active item and its provenance — which layer (card, project overlay, machine default, packaged registry) is making each skill, server, extension, or card active. That is useful before a write:
 
 ```bash
-drwn status --why
+drwn status --explain
 drwn write --dry-run
+```
+
+`--why <name>` answers a targeted provenance question for a single item:
+
+```bash
+drwn status --why skill:reviewer
+drwn status --why server:context7
+drwn status --why card:@your-handle/backend
 ```
 
 For project card state, use:

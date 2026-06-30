@@ -11,7 +11,7 @@ Pick the installation path that matches what you want to do. The published packa
 - **Bun 1.2+** - runtime for the CLI
 - **Node.js** - for MCP servers that spawn `node`
 - **npm** - when installing the published package or adding npm skill bundles
-- *Optional:* `parallel-cli`, `markitdown`, or `markdownify-mcp`, only when you enable those integrations
+- *Optional:* `parallel-cli` or `markitdown`, only when you enable those integrations
 
 ## Install the published package
 
@@ -56,6 +56,14 @@ drwn status
 ```
 
 You should see the CLI help banner and a status summary listing repo root, `~/.agents` path, enabled targets, and current inventory counts.
+
+## Platform support
+
+`drwn` is developed and tested on **macOS** and **Linux**. Windows is not yet officially supported.
+
+**Windows users:** run `drwn` under [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install) (Ubuntu 22.04 LTS or later recommended). WSL2 provides full POSIX compatibility and is the recommended path until native Windows support ships.
+
+Windows-native credential storage (DPAPI) is partially implemented and will enable a future native release. The `drwn doctor` output may include `platformChecks` entries for Windows-specific blockers on non-WSL environments.
 
 ## Next
 

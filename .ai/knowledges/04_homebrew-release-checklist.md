@@ -1,3 +1,6 @@
+# ABOUTME: Future-facing checklist for Homebrew formula distribution of the drwn CLI.
+# ABOUTME: Covers naming, formula structure, tap setup, and post-publish verification steps.
+
 # Homebrew Release Checklist
 
 This checklist is future-facing. Homebrew distribution is not implemented yet, but the release path should be defined before starting formula work.
@@ -21,11 +24,12 @@ This checklist is future-facing. Homebrew distribution is not implemented yet, b
 ## Installation Strategy
 
 - decide whether Homebrew installs:
-  - source-only via Bun
+  - source-only via Bun (requires Bun as a dependency)
   - bundled script/runtime wrapper
   - prebuilt release artifact
+  - npm-installed global package (requires Node.js 20+)
 - binary install strategy
-- document Bun dependency expectations for end users
+- document runtime dependency expectations for end users (Bun for development, Node.js for published package)
 
 ## Formula Hosting
 

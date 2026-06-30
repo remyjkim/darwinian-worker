@@ -53,7 +53,7 @@ The analyzer API URL comes from credentials, `DRWN_ANALYZER_URL`, or `analyzer.a
   "version": 1,
   "analyzer": {
     "apiUrl": "http://localhost:8787",
-    "webBaseUrl": "https://darwinian-harness-services.pages.dev",
+    "webBaseUrl": "https://harness.darwiniantools.com",
     "maxArchiveBytes": 104857600
   },
   "optional": {}

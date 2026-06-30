@@ -17,7 +17,7 @@ DRWN_ANALYZER_URL=http://localhost:8787 drwn login
   "version": 1,
   "analyzer": {
     "apiUrl": "http://localhost:8787",
-    "webBaseUrl": "https://darwinian-harness-services.pages.dev"
+    "webBaseUrl": "https://harness.darwiniantools.com"
   },
   "optional": {}
 }

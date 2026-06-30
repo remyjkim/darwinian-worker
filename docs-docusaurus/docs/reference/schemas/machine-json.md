@@ -22,7 +22,7 @@ Purpose: the machine-scope drwn configuration. Holds target enablement, machine-
   "targets": {
     "claude": { "enabled": true,  "configPath": "~/.claude/settings.json",        "format": "json-merge",      "mcpKey": "mcpServers" },
     "codex":  { "enabled": true,  "configPath": "~/.codex/config.toml",           "format": "toml-merge",      "mcpKey": "mcp_servers" },
-    "cursor": { "enabled": false, "configPath": "~/.cursor/mcp.json",             "format": "json-standalone", "mcpKey": "mcpServers", "symlink": true }
+    "cursor": { "enabled": false, "configPath": "~/.cursor/mcp.json",             "format": "json-standalone", "mcpKey": "mcpServers" }
   },
   "defaults": {
     "skills": ["parallel-web-search", "markitdown-document-conversion"],
@@ -53,7 +53,7 @@ Purpose: the machine-scope drwn configuration. Holds target enablement, machine-
 | Field | Type | Required | Meaning | Enforced at |
 |---|---|---|---|---|
 | `version` | `number` (must be `1`) | yes | Schema version. Anything else throws on load. | `loadUserConfig`, `cli/core/user-config.ts:25-28` |
-| `targets` | `Record<TargetName, TargetConfig>` | yes | Per-target config: `enabled`, `configPath`, `format` (`json-merge`/`toml-merge`/`json-standalone`), `mcpKey`, optional `symlink`. | `cli/core/types.ts:31-37`; merged via `mergeMachineConfig`, `user-config.ts:79-82` |
+| `targets` | `Record<TargetName, TargetConfig>` | yes | Per-target config: `enabled`, `configPath`, `format` (`json-merge`/`toml-merge`/`json-standalone`), `mcpKey`. | `cli/core/types.ts:31-37`; merged via `mergeMachineConfig`, `user-config.ts:79-82` |
 | `defaults.skills` | `string[]` | no | Curated skill names enabled by default. Seeded from the curated bundle on first init. | Read by `loadEffectiveConfig`; seeded in `initializeUserConfigFromPackagedDefaults`, `user-config.ts:36-50` |
 | `defaults.mcpServers` | `string[]` | no | MCP server names enabled by default. Seeded by `resolveDefaultMcpNames`. | `user-config.ts:36-50` |
 | `defaults.extensions` | `Record<string, ProjectExtensionConfig>` | no | Default extension settings (parallel/beads/markitdown) applied machine-wide. | `cli/core/types.ts:42-46` |
@@ -64,6 +64,7 @@ Purpose: the machine-scope drwn configuration. Holds target enablement, machine-
 | `parallel.cli.enabled` | `boolean` | no | Whether the Parallel CLI surface is enabled at the machine level. | `cli/core/types.ts:60-67` |
 | `parallel.mcp.enabled` | `boolean` | no | Whether the Parallel MCP servers are enabled at the machine level. | `cli/core/types.ts:60-67` |
 | `optional` | `Record<string, boolean>` | yes | Per-name optional toggles. The map exists even when empty so consumers can write into it. | `cli/core/types.ts:68` |
+| `defaults.communityCatalogUrl` | `string \| null` | no | Overrides the default community catalog endpoint URL. Set `null` to disable community catalog resolution. | `card-catalog.ts:68-74` |
 | `authoring.scope` | `string` (`@scope` shape) | no | Default npm-style scope applied to `drwn card new` when the supplied name is unscoped. | Read at `card-store.ts:231-233`; written at `card-store.ts:236-240` |
 
 For `defaults.skills` and `defaults.mcpServers`, any array — including an empty array (`[]`) — is treated as an explicit machine override; an empty array activates nothing. Only a missing field means "uninitialized": reads fall back to the resolved defaults, and `drwn library defaults add|remove ...` seeds the list with the currently resolved defaults before applying the mutation. An explicit empty array is preserved as-is.

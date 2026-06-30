@@ -99,7 +99,7 @@ ls ~/.claude/skills
 ls ~/.codex/skills
 ```
 
-`drwn doctor` is report-only — if anything looks wrong it tells you what without mutating. The downstream skill directories should contain symlinks for each of your curated and default skills.
+`drwn doctor` is report-only — if anything looks wrong it tells you what without mutating. The downstream skill directories should contain copied skill directories for each of your curated and default skills.
 
 ## Cross-References
 

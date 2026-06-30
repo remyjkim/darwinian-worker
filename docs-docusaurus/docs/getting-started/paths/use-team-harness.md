@@ -9,12 +9,11 @@ Team harnesses are consumed as cards and project overlays. Start by initializing
 ```bash
 drwn init
 drwn apply @team/backend@^1.0.0
-drwn add @team/backend@^1.0.0
 drwn write --dry-run
 drwn write
 ```
 
-`drwn apply` resolves the card and updates the current project. `drwn write` materializes the resolved skills and MCP config into `.claude`, `.codex`, and `.cursor` for that project.
+`drwn apply` resolves the card, writes it to `card.lock`, and updates the current project. `drwn write` materializes the resolved skills and MCP config into `.claude`, `.codex`, and `.cursor` for that project.
 
 Keep the project current:
 

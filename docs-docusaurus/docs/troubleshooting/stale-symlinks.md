@@ -2,13 +2,13 @@
 sidebar_position: 4
 ---
 
-# Stale Symlinks
+# Stale Skill Entries
 
-`drwn doctor` reports `staleSkillSymlinks` when an entry under `~/.claude/skills/` or `~/.codex/skills/` no longer corresponds to a skill in the resolved harness. The right next step depends on who owns the symlink.
+`drwn doctor` reports `staleSkillSymlinks` when a skill entry under `~/.claude/skills/` or `~/.codex/skills/` no longer corresponds to a skill in the resolved harness. The right next step depends on who owns the entry.
 
 ## Drwn-owned vs user-owned
 
-drwn writes a **write record** at `<projectRoot>/.agents/drwn/write-record.json` (or the global path when there is no project) listing every path it created on the last run, with a `kind` of `symlink`, `managed-fields`, or `generated-symlink`. That ledger is the source of truth for ownership:
+drwn writes a **write record** at `<projectRoot>/.agents/drwn/write-record.json` (or the global path when there is no project) listing every path it created on the last run, with a `kind` of `managed-directory`, `managed-content`, `managed-fields`, `symlink` (legacy), or `generated-symlink` (legacy). That ledger is the source of truth for ownership:
 
 - **drwn-owned:** present in the write record. Cleaned up automatically on the next `drwn write` if the symlink is no longer desired, the link target on disk still matches what the record says it should be, and the link is in fact a symlink.
 - **user-owned:** not in the write record, or in the record but pointing somewhere drwn does not recognize. Preserved on cleanup with a warning of the form `preserved user-owned path: <absolute-path>`.
