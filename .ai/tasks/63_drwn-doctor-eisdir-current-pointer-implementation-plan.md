@@ -3,7 +3,7 @@
 
 # Task 63: `drwn doctor` EISDIR — installed-skill `current` pointer convention mismatch
 
-**Status**: Planning
+**Status**: Implemented 2026-06-30 (Solution A — tolerant + resilient reader; `drwn doctor` exits 0; tests added)
 **Created**: 2026-06-30
 **Priority**: High (any global command that lists installed skill bundles crashes)
 **Dependencies**: none
@@ -78,8 +78,13 @@ if (existsSync(currentPath)) {
 
 `existsSync(currentPath)` is true for a symlink-to-dir, and `readFile` follows the symlink into the
 `1.0.0/` directory → `EISDIR`. The reader assumes the **file convention** (`current` contains the
-version string), but the bundle on disk uses the **symlink convention** (`current -> <version>`).
-The two conventions disagree and the reader has no guard. The rejection is a plain object (no Error
+version string), but this bundle on disk uses a **legacy symlink convention** (`current -> <version>`).
+
+The canonical writer (`writePointerFile`, called from the install/activate path at
+`skill-packages.ts:279`) writes `current` as a pointer **file** and even `rmSync`s a non-file
+`current` before writing — so new installs are fine. The offending bundle predates that convention
+(the vestigial `…CurrentLink` path-helper names are from the symlink era). The reader had no guard
+for the legacy shape, so a single such bundle crashes discovery. The rejection is a plain object (no Error
 stack), so clipanion reports an opaque "Internal Error".
 
 Blast radius: every caller of `listInstalledSkillBundles` — `drwn doctor`, `drwn status`, and skill
