@@ -29,15 +29,49 @@ drwn card source doctor
 drwn card source doctor @your-handle/backend
 drwn card source add-skill @your-handle/backend reviewer
 drwn card source add-skill @your-handle/backend reviewer --from ./skills/reviewer --force
+drwn card source add-skill @your-handle/backend reviewer --replace
 drwn card source remove-skill @your-handle/backend reviewer
 drwn card source remove-skill @your-handle/backend reviewer --keep-files
 drwn card source set @your-handle/backend --description "Backend review harness" --version 0.1.0
+drwn card source set @your-handle/backend --harness-min-version 0.4.0 --license MIT
 drwn card source set @your-handle/backend --stability stable --last-validated-with 0.1.0 --test-status-badge https://example.com/status.svg
 drwn card source add-mcp @your-handle/backend context7
 drwn card source add-mcp @your-handle/backend context7 --from ./context7.json
+drwn card source add-mcp @your-handle/backend context7 --replace
 drwn card source remove-mcp @your-handle/backend context7
 drwn card source remove-mcp @your-handle/backend context7 --keep-files
 ```
+
+Mind content (beliefs, persona, memory, hooks):
+
+```bash
+# Beliefs — factual assertions composed into the system prompt
+drwn card source add-belief @your-handle/mind engineering --visibility public
+drwn card source remove-belief @your-handle/mind engineering
+drwn card source remove-belief @your-handle/mind engineering --keep-files
+
+# Persona — behavioral and stylistic identity
+drwn card source add-persona @your-handle/mind voice --visibility internal
+drwn card source remove-persona @your-handle/mind voice
+drwn card source remove-persona @your-handle/mind voice --keep-files
+
+# Memory — layered knowledge (l4 = short-term, l5 = mid-term, l6 = long-term)
+drwn card source add-memory @your-handle/mind context --layer l4 --visibility private --format md
+drwn card source add-memory @your-handle/mind raw --layer l6 --visibility private --format jsonl
+drwn card source remove-memory @your-handle/mind context --layer l4
+drwn card source remove-memory @your-handle/mind context --layer l4 --keep-files
+
+# Hook policies — runtime tool intercept modules
+drwn card source add-hook @your-handle/backend audit-tool-calls
+drwn card source remove-hook @your-handle/backend audit-tool-calls
+drwn card source remove-hook @your-handle/backend audit-tool-calls --keep-files
+```
+
+All `add-*` and `remove-*` source commands accept `--dry-run` and `--json`.
+
+`add-belief`, `add-persona`, and `add-memory` require `--visibility` (`private`, `internal`, or `public`). `add-memory` additionally requires `--layer` (`l4`, `l5`, or `l6`) and accepts `--format` (`md`, `jsonl`, or `mixed`; default `md`).
+
+`remove-*` commands delete the bundled directory by default. Pass `--keep-files` to remove only the manifest entry while keeping files on disk.
 
 Consume cards in a project:
 
@@ -45,6 +79,7 @@ Consume cards in a project:
 drwn apply @your-handle/backend@^1.0.0
 drwn card apply @your-handle/backend@^1.0.0 --write
 drwn card add @your-handle/backend@^1.0.0
+drwn card add @your-handle/backend@^1.0.0 --allow-untrusted-source
 drwn card pin @your-handle/backend@1.0.0
 drwn card remove @your-handle/backend
 drwn card detach
@@ -90,6 +125,55 @@ drwn card outdated --check --json
 `--check` exits non-zero when any locked card has a newer version available locally, which makes it suitable as a CI gate. `--fetch` runs `git fetch` against each card's origin before computing the diff so the check uses up-to-date tag listings.
 
 Remote and catalog flows use Git refs. `drwn` delegates authentication to Git.
+
+Clone and fetch cards from Git remotes:
+
+```bash
+# Clone a card from a Git ref into the local store
+drwn card clone git+https://github.com/team/backend.git#v1.0.0
+drwn card clone github:team/backend@^1.0.0
+drwn card clone git+https://github.com/external/card.git#v1.0.0 --allow-untrusted-source
+
+# Fetch updates for a locally cloned card from its remote
+drwn card fetch @team/backend
+drwn card fetch @team/backend --remote upstream
+```
+
+Manage Git remotes for a local card repo:
+
+```bash
+# Add a new remote
+drwn card remote add @team/backend https://github.com/team/backend.git
+
+# Add or update the origin URL (idempotent)
+drwn card remote set @team/backend https://github.com/team/backend.git
+
+# Use a non-default remote name
+drwn card remote set @team/backend https://internal.example.com/backend.git --name upstream
+
+# Remove a remote
+drwn card remote remove @team/backend
+
+# List configured remotes
+drwn card remote list @team/backend
+drwn card remote list @team/backend --json
+```
+
+Push a card to its configured remote:
+
+```bash
+# Push main branch and all version tags
+drwn card push @team/backend
+
+# Push to a non-default remote
+drwn card push @team/backend --remote upstream
+
+# Declare the remote visibility to control the push gate
+drwn card push @team/backend --remote-visibility private
+drwn card push @team/backend --remote-visibility public --unsafe-push-public
+```
+
+`drwn card push` evaluates a visibility gate before pushing. If the card contains content with a stricter visibility than the target remote (e.g., `private` mind content pushed to a `public` remote), the push is blocked. Use `--remote-visibility` to declare the remote's visibility when `drwn` cannot auto-detect it, and `--unsafe-push-public` to override the block when you intentionally want to publish restricted content.
 
 Publish to a card catalog after the card has been pushed to an installable Git remote:
 
