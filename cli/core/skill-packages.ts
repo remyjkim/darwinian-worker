@@ -2,7 +2,7 @@
 // ABOUTME: Uses npm pack plus tar extraction so extension bundles stay content-oriented and source-inspectable.
 
 import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync } from "node:fs";
-import { lstat, mkdir, mkdtemp, readdir, readFile, rename, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readdir, readFile, readlink, rename, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { extract as extractArchive } from "./archive";
@@ -156,6 +156,20 @@ export async function validateBundleManifest(
   }
 }
 
+// Resolves a bundle's active version from its `current` pointer, tolerating both conventions:
+// the canonical pointer file (holds the version string) and the legacy symlink to the version
+// directory (`current -> 1.0.0`). Reading the symlink as a file would raise EISDIR.
+async function resolveActiveVersion(currentPath: string): Promise<string> {
+  const stats = await lstat(currentPath);
+  if (stats.isSymbolicLink()) {
+    return basename(await readlink(currentPath)).trim();
+  }
+  if (stats.isFile()) {
+    return (await readFile(currentPath, "utf8")).trim();
+  }
+  throw new Error(`Unsupported "current" pointer (not a file or symlink): ${currentPath}`);
+}
+
 export async function listInstalledSkillBundles(agentsDir: string): Promise<InstalledSkillBundle[]> {
   const packagesRoot = activeSkillPackagesRoot(agentsDir);
   if (!existsSync(packagesRoot)) {
@@ -167,16 +181,21 @@ export async function listInstalledSkillBundles(agentsDir: string): Promise<Inst
   async function walk(dirPath: string): Promise<void> {
     const currentPath = join(dirPath, "current");
     if (existsSync(currentPath)) {
-      const activeVersion = (await readFile(currentPath, "utf8")).trim();
-      const versionRoot = join(dirPath, activeVersion);
-      const manifest = await loadBundleManifest(versionRoot);
-      bundles.push({
-        packageName: relative(packagesRoot, dirPath).replaceAll("\\", "/"),
-        activeVersion,
-        packageRoot: dirPath,
-        versionRoot,
-        manifest,
-      });
+      // A single malformed bundle must not crash discovery for every caller (doctor, status, ...).
+      try {
+        const activeVersion = await resolveActiveVersion(currentPath);
+        const versionRoot = join(dirPath, activeVersion);
+        const manifest = await loadBundleManifest(versionRoot);
+        bundles.push({
+          packageName: relative(packagesRoot, dirPath).replaceAll("\\", "/"),
+          activeVersion,
+          packageRoot: dirPath,
+          versionRoot,
+          manifest,
+        });
+      } catch {
+        // Skip an unreadable or inconsistent bundle rather than rejecting the whole walk.
+      }
       return;
     }
 

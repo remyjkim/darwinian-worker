@@ -184,6 +184,48 @@ describe("core skill packages", () => {
     expect(bundles[0]?.activeVersion).toBe("1.0.0");
   });
 
+  test("listInstalledSkillBundles tolerates a legacy symlink current pointer", async () => {
+    const root = await createTempRoot();
+    const agentsDir = join(root, "home", ".agents");
+    const packageRoot = join(agentsDir, "packages", "skills", "@acme", "skills-sample");
+    const versionRoot = join(packageRoot, "1.0.0");
+    await mkdir(versionRoot, { recursive: true });
+    await writeFile(
+      join(versionRoot, "bundle.json"),
+      JSON.stringify({ schemaVersion: 1, bundleName: "@acme/skills-sample", version: "1.0.0", skills: [] }),
+    );
+    // Legacy convention: current is a symlink to the version directory, not a pointer file.
+    await symlink("1.0.0", join(packageRoot, "current"));
+
+    const { listInstalledSkillBundles } = await import("../cli/core/skill-packages");
+    const bundles = await listInstalledSkillBundles(agentsDir);
+
+    expect(bundles).toHaveLength(1);
+    expect(bundles[0]?.activeVersion).toBe("1.0.0");
+  });
+
+  test("listInstalledSkillBundles skips a malformed bundle instead of crashing", async () => {
+    const root = await createTempRoot();
+    const agentsDir = join(root, "home", ".agents");
+    const packageRoot = join(agentsDir, "packages", "skills", "@acme", "broken");
+    await mkdir(packageRoot, { recursive: true });
+    // current points to a version whose directory / bundle.json does not exist.
+    await writeFile(join(packageRoot, "current"), "9.9.9\n");
+
+    const goodRoot = join(agentsDir, "packages", "skills", "@acme", "good", "1.0.0");
+    await mkdir(goodRoot, { recursive: true });
+    await writeFile(
+      join(goodRoot, "bundle.json"),
+      JSON.stringify({ schemaVersion: 1, bundleName: "@acme/good", version: "1.0.0", skills: [] }),
+    );
+    await writeFile(join(agentsDir, "packages", "skills", "@acme", "good", "current"), "1.0.0\n");
+
+    const { listInstalledSkillBundles } = await import("../cli/core/skill-packages");
+    const bundles = await listInstalledSkillBundles(agentsDir);
+
+    expect(bundles.map((b) => b.packageName)).toEqual(["@acme/good"]);
+  });
+
   test("ingestSkillPackage packs, extracts, validates, and marks the current version", async () => {
     const root = await createTempRoot();
     const agentsDir = join(root, "home", ".agents");
