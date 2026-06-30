@@ -16,14 +16,14 @@
 
 ## Progress (2026-06-30)
 
-Implemented on branch `feat/http-mcp-headers-passthrough`. Phases 0–4 complete; Phase 5
-(version bump + global reinstall) pending Remy's go-ahead (release-facing).
+Implemented on branch `feat/http-mcp-headers-passthrough`. **Phases 0–5 complete.**
 
 - **Type** (`cli/core/types.ts`): `headers?: Record<string,string>` added to `RegistryServer`.
 - **Renderers** (`cli/core/mcp.ts`): `BEARER_PASSTHROUGH`, `mapHeaderValues`, `partitionCodexHeaders`, and `codexUnsupportedHeaderKeys` added; headers wired into Claude (`toJsonServerConfig`), Cursor (`toCursorServerConfig`, `${env:VAR}` rewrite), and Codex (`toCodexServerConfig`: bearer→`bearer_token_env_var`, literals→`http_headers`).
 - **Validation**: `isStringRecord` exported from `card-manifest.ts`; manifest `servers[].headers` and `validateMcpLibraryServer` reject non-string header maps.
 - **Codex reporting** (`cli/core/sync.ts`): non-bearer `${VAR}` headers (unexpressible on Codex) emit a `result.warnings` entry instead of silently dropping.
-- **Tests** (`test/core-mcp-headers.test.ts`, 8 cases): per-target render, Codex bearer translation, unsupported-header flag, header-less backward-compat, manifest + library validation, and a card→registry→render round-trip. `bun test` = 990 pass / 2 skip / 1 fail; `bun run typecheck` clean.
+- **Tests**: `test/core-mcp-headers.test.ts` (8 unit/integration cases: per-target render, Codex bearer translation, unsupported-header flag, header-less backward-compat, manifest + library validation, card→registry→render round-trip) plus `test/core-mcp-sync.test.ts` (2 **end-to-end** cases: real non-dry-run `syncMcp` writes header into all three actual target files with user content preserved; Codex-incompatible header warns + omitted). `bun test` = 992 pass / 2 skip / 1 pre-existing fail; `bun run typecheck` clean; lint clean for changed files.
+- **Phase 5 (done):** version bumped `0.5.0 → 0.6.0` in `package.json` + `cli/core/version.ts` (parity test passes). Global `drwn` is `bun link`-symlinked to this repo, so the change is already live (`drwn --version` → `0.6.0`); no separate reinstall needed.
 - **Known pre-existing failure (not ours):** `documentation readiness` (usage guide must contain "markdownify") fails on clean `main` too — unrelated to MCP, left untouched.
 - **Docs follow-up (separate repo):** `author-mind-card` / `import-mcp-from-claude` SKILL.md in `darwinian-harness-skills` should mention the `headers` field — deferred, not edited from this branch.
 
