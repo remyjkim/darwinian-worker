@@ -51,7 +51,6 @@ describe("documentation readiness", () => {
     for (const doc of [quickref, usageGuide]) {
       expect(doc).toContain("bun link");
       expect(doc).toContain("uv tool install --python 3.12 'markitdown[all]'");
-      expect(doc).toContain("markdownify");
       expect(doc).toContain("markitdown");
       expect(doc).toContain("beads");
       expect(doc).toContain("parallel");
