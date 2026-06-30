@@ -63,9 +63,29 @@ All validation lives in `validateCardManifest` (`cli/core/card-manifest.ts:50-10
 | `servers` | `Record<string, ServerOverride>` | no | Same `ServerOverride` shape as project config: toggle or full `RegistryServer`. | Type: `cli/core/types.ts:82-84` |
 | `extensions` | `Record<string, ProjectExtensionConfig>` | no | Per-extension intent the card wants to project into consumers. | Type: `cli/core/types.ts:86-93` |
 | `targets` | `Partial<Record<TargetName, { enabled: boolean }>>` | no | Per-target enablement default the card prefers. Only `claude`, `codex`, `cursor` accepted. | `card-manifest.ts:103-107` |
+| `hooks.include` | `string[]` | no | Hook policy names shipped in this card. Each name refers to a `hooks/<name>/policy.ts` relative to the card source root. Activated when the consumer runs `drwn card trust <name> --hooks`. | `card-manifest.ts:38` |
+| `persona` | `{ include?: string[]; visibility?: "private" \| "internal" \| "public" }` | no | Persona content declaration. Each entry in `include` refers to a `persona/<entry>/PERSONA.md`. | `card-manifest.ts:20,39` |
+| `beliefs` | `{ include?: string[]; visibility?: "private" \| "internal" \| "public" }` | no | Belief content declaration. Each entry in `include` refers to a `beliefs/<entry>/BELIEF.md`. | `card-manifest.ts:21,40` |
+| `memory` | `Partial<Record<"l4" \| "l5" \| "l6", { include?: string[]; visibility?: ...; format?: "md" \| "jsonl" \| "mixed" }>>` | no | Memory layer declarations. Each key is a layer (`l4`, `l5`, `l6`); entries refer to directories under `memory/<layer>/<entry>/`. | `card-manifest.ts:23-27,41` |
 | `stability` | `"experimental" \| "stable" \| "production"` | no | Authoring quality signal. | `card-manifest.ts:69-74` |
 | `lastValidatedWith` | `string` | no | Strict semver of the drwn version the author last validated this card with. | `card-manifest.ts:75-79` |
 | `testStatusBadge` | `string` | no | http(s) URL to a CI status badge image. | `card-manifest.ts:80-84` |
+
+### Mind content example
+
+```json
+{
+  "name": "@your-handle/mind",
+  "version": "1.0.0",
+  "hooks": { "include": ["audit-tool-calls"] },
+  "persona": { "include": ["voice"], "visibility": "internal" },
+  "beliefs": { "include": ["engineering"], "visibility": "public" },
+  "memory": {
+    "l4": { "include": ["context"], "visibility": "private", "format": "md" },
+    "l6": { "include": ["raw"], "visibility": "private", "format": "jsonl" }
+  }
+}
+```
 
 ## Reserved and Forbidden
 

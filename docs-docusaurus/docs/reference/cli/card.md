@@ -131,7 +131,7 @@ drwn card trust @your-handle/backend --hooks --range "^1.0.0"
 Revoke consent:
 
 ```bash
-drwn card untrust @your-handle/backend
+drwn card untrust @your-handle/backend --hooks
 ```
 
 Preview what hooks a card declares without granting consent:
