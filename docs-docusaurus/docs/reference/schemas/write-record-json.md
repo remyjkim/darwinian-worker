@@ -21,12 +21,12 @@ Purpose: the ledger of drwn-owned paths written by `drwn write`. Drives cleanup 
 {
   "writeRecordVersion": 1,
   "lastWriteAt": "2026-06-02T14:32:11.402Z",
-  "lastWriteHarnessVersion": "0.1.0",
+  "lastWriteHarnessVersion": "0.5.0",
   "managedPaths": [
     {
       "path": "/Users/me/.claude/skills/reviewer",
-      "kind": "symlink",
-      "target": "/Users/me/.agents/drwn/store/skills/reviewer"
+      "kind": "managed-directory",
+      "contentHash": "sha256-a3f1c0e8b2a4..."
     },
     {
       "path": "/Users/me/.claude/settings.json",
@@ -38,8 +38,8 @@ Purpose: the ledger of drwn-owned paths written by `drwn write`. Drives cleanup 
     },
     {
       "path": "/Users/me/.cursor/mcp.json",
-      "kind": "generated-symlink",
-      "generatedPath": "/Users/me/.agents/drwn/store/generated/cursor/mcp.json"
+      "kind": "managed-content",
+      "contentHash": "sha256-b7d2e1f9c3a5..."
     }
   ]
 }
@@ -56,15 +56,23 @@ Purpose: the ledger of drwn-owned paths written by `drwn write`. Drives cleanup 
 
 ## ManagedPath Variants
 
-`ManagedPath` is a discriminated union on `kind` (`cli/core/write-record.ts:14-17`). All variants share `path` (absolute on-disk path that drwn owns).
+`ManagedPath` is a discriminated union on `kind` (`cli/core/write-record.ts`). All variants share `path` (absolute on-disk path that drwn owns).
 
-### `symlink`
+### `managed-directory`
 
 ```json
-{ "path": "<absolute path>", "kind": "symlink", "target": "<absolute path>" }
+{ "path": "<absolute path>", "kind": "managed-directory", "contentHash": "sha256-<hex>" }
 ```
 
-A symlink drwn created. `target` is the path drwn expects it to point at — the next run verifies before removing on cleanup.
+A skill directory drwn copied into a downstream tool path (e.g. `~/.claude/skills/reviewer`). `contentHash` is a sha256 of the directory tree as drwn last wrote it. Drift detection compares the current tree against this hash.
+
+### `managed-content`
+
+```json
+{ "path": "<absolute path>", "kind": "managed-content", "contentHash": "sha256-<hex>" }
+```
+
+A file drwn wrote directly and owns entirely (Cursor's `mcp.json`). `contentHash` is a sha256 of the file content. Cleanup removes the file when it is no longer in the desired set and the hash still matches.
 
 ### `managed-fields`
 
@@ -79,13 +87,21 @@ A symlink drwn created. `target` is the path drwn expects it to point at — the
 
 A user-owned config file (Claude `settings.json`, Codex `config.toml`) where drwn manages specific top-level keys. `fields` names the keys drwn owns; `fieldHashes` carries the canonical hash of each managed key as drwn last wrote it. Drift detection compares these hashes against the in-file `_drwn` meta block on the next write — see [Ownership and Write Records](../../concepts/ownership-and-write-records#the-_drwn-meta-block-as-a-cross-file-ledger).
 
-### `generated-symlink`
+### `symlink` (legacy)
+
+```json
+{ "path": "<absolute path>", "kind": "symlink", "target": "<absolute path>" }
+```
+
+A legacy symlink entry from write records produced before the copy-based materialization migration. New writes use `managed-directory` for skills. Retained for backward compat with existing write records.
+
+### `generated-symlink` (legacy)
 
 ```json
 { "path": "<absolute path>", "kind": "generated-symlink", "generatedPath": "<absolute path>" }
 ```
 
-A symlink that points at a drwn-generated file (Cursor's standalone `mcp.json`). `generatedPath` is the drwn-owned target inside the store. Cleanup verifies the link still resolves to that path.
+A legacy generated-sidecar symlink entry. New writes use `managed-content` for Cursor. Retained for backward compat with existing write records.
 
 ## Atomic Save
 

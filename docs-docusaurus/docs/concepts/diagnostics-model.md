@@ -17,15 +17,28 @@ drwn doctor --json
 
 The categories surfaced:
 
-- **Broken symlinks** in downstream skill directories — entries whose target no longer exists
-- **Stale downstream skill links** — drwn-owned skill links that no longer correspond to any active skill
-- **MCP drift** in Claude `settings.json`, Codex `config.toml`, or Cursor `mcp.json` — the managed keys have been modified outside drwn
-- **Missing generated config files** — Cursor enabled but `cursor-mcp.json` not on disk
+- **Broken skill entries** in downstream skill directories — drwn-owned entries whose content no longer exists
+- **Stale downstream skill entries** — drwn-owned skill entries that no longer correspond to any active skill
+- **MCP drift** in Claude `settings.json`, Codex `config.toml`, or Cursor `mcp.json` — the managed content has been modified outside drwn
+- **Hook issues** — a locked card declares hook policies but no hook consent has been recorded via `drwn card trust`. `drwn write` will not materialize hooks until consent is granted.
 - **Project config issues** — unknown servers in `project.servers`, unknown skills in `skills.include`, unknown extensions, stale target overrides, unavailable card skills, and dangling `defaults` references
 
 `doctor` reports issues. It never fixes them. The intent is that an operator (or an agent following a skill) reads doctor output, decides what to do, and then runs the right command (`drwn write`, `drwn card update`, `drwn library defaults remove`, and so on).
 
 See [reference/cli/doctor](../reference/cli/doctor) for the command surface and [troubleshooting/reading-doctor](../troubleshooting/reading-doctor) for how to triage common output.
+
+### Hook issues
+
+`hookIssues` fires when a locked card declares hook policies (in its `card.lock` entry) but no hook consent has been recorded for that card. `drwn write` will skip hook materialization for the card until consent is granted.
+
+Resolve by reviewing and trusting the card's hooks:
+
+```bash
+drwn card trust @your-handle/backend --hooks
+drwn write
+```
+
+Use `--range` to scope consent to a specific semver range. `drwn card untrust @your-handle/backend` revokes consent.
 
 ## Status: As-Written vs As-Active, Plus Provenance
 
@@ -75,7 +88,7 @@ On each write, drwn parses the current file, reads the prior `_drwn` block, reco
 
 Canonical hashing sorts object keys recursively before sha256 so semantically equivalent edits — reordered keys, whitespace differences — do not register as drift. Only meaningful content changes trigger the report.
 
-Cursor's standalone JSON format means drwn owns the whole file via the generated-file-plus-symlink mechanism. There is no meta block; doctor instead reports a missing generated file or a symlink that points somewhere unexpected.
+Cursor's standalone JSON format means drwn owns the whole file as `managed-content`. There is no meta block; doctor instead reports `mcpDrift` when the written content no longer matches the recorded hash.
 
 ## Store and Write Record Diagnostics
 

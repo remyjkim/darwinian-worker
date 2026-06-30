@@ -49,7 +49,6 @@ const sidebars: SidebarsConfig = {
         'guides/setup-beads',
         'guides/setup-parallel',
         'guides/setup-markitdown',
-        'guides/setup-markdownify',
         'guides/authoring-multi-skill-cards',
         'guides/sharing-with-a-team',
         'guides/doctor-in-ci',

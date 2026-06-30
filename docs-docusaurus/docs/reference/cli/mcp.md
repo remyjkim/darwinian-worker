@@ -63,7 +63,7 @@ drwn mcp write --json
 
 - Claude: `_drwn`-managed `mcpServers` block inside `~/.claude/settings.json`
 - Codex: `mcp_servers` section rewrite inside `~/.codex/config.toml`
-- Cursor: a generated `cursor-mcp.json` under the write scope's generated dir, symlinked from `~/.cursor/mcp.json` (or the project's `.cursor/mcp.json` for project writes)
+- Cursor: `~/.cursor/mcp.json` (or the project's `.cursor/mcp.json`) written directly as `managed-content` — drwn owns the whole file
 
 ## Related
 

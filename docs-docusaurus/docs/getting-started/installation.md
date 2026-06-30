@@ -11,7 +11,7 @@ Pick the installation path that matches what you want to do. The published packa
 - **Bun 1.2+** - runtime for the CLI
 - **Node.js** - for MCP servers that spawn `node`
 - **npm** - when installing the published package or adding npm skill bundles
-- *Optional:* `parallel-cli`, `markitdown`, or `markdownify-mcp`, only when you enable those integrations
+- *Optional:* `parallel-cli` or `markitdown`, only when you enable those integrations
 
 ## Install the published package
 

@@ -74,7 +74,7 @@ jobs:
         with:
           node-version: "20"
       - run: npm install -g darwinian-minds
-      - run: drwn install --frozen
+      - run: drwn install --frozen  # resolves card.lock; exits non-zero if lock is stale
       - run: drwn doctor --json
       - run: drwn card outdated --check --json
       - run: drwn store verify --json

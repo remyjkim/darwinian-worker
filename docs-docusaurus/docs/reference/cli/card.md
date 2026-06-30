@@ -112,6 +112,36 @@ Use `--dry-run --json` to validate the card ref, entry URL, catalog schema, and
 duplicate-entry behavior before writing. Existing entries require `--replace`
 unless the generated payload is already identical.
 
+## Hook Consent
+
+When a locked card declares hook policies, `drwn write` will not materialize hooks until consent is explicitly recorded. `drwn doctor` surfaces this as `hookIssues`.
+
+Review and grant consent:
+
+```bash
+drwn card trust @your-handle/backend --hooks
+```
+
+By default, consent covers `^<locked-version>`. Override with `--range`:
+
+```bash
+drwn card trust @your-handle/backend --hooks --range "^1.0.0"
+```
+
+Revoke consent:
+
+```bash
+drwn card untrust @your-handle/backend
+```
+
+Preview what hooks a card declares without granting consent:
+
+```bash
+drwn card audit
+```
+
+`drwn card audit` is a v1.1 placeholder — it makes the planned command discoverable but does not yet produce a diff output.
+
 ## Typical Source Authoring
 
 The canonical authoring sequence from empty source to published card:

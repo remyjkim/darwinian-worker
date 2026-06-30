@@ -37,11 +37,15 @@ A ref with no `@range` is treated as range `*`. Ranges use `validRange` semantic
 
 The shorthands `github:` and `gitlab:` expand to `https://github.com/<owner>/<repo>.git` and `https://gitlab.com/<owner>/<repo>.git` respectively (`card-store.ts:185-204`).
 
-## Lockfile v2 Contract
+## Lockfile Contract
 
-On disk: `<project>/.agents/drwn/card.lock`. Type: `CardLockfile` (`cli/core/card-lock.ts:32-36`).
+On disk: `<project>/.agents/drwn/card.lock`. Type: `CardLockfile` (`cli/core/card-lock.ts`).
 
-Producers must emit exactly this shape; consumers must reject anything else. The validator is `validateCardLockfile` (`card-lock.ts:57-64`).
+Producers must emit exactly this shape; consumers must reject anything else. The validator is `validateCardLockfile`. The lockfile version gates which fields are valid:
+
+- **v2** — base shape
+- **v3** — adds `hooks: string[]` to each `CardLockEntry`
+- **v4** — adds `persona`, `beliefs`, `memory` fields to each `CardLockEntry`
 
 ```json
 {
@@ -72,7 +76,7 @@ Producers must emit exactly this shape; consumers must reject anything else. The
 
 | Field | Type | Required | Meaning |
 |---|---|---|---|
-| `lockfileVersion` | literal `2` | yes | Schema gate. Anything else throws (`card-lock.ts:58-59`). |
+| `lockfileVersion` | `2`, `3`, or `4` | yes | Schema gate. Any other value throws. |
 | `store.minDrwnVersion` | string | no | Minimum drwn version a consumer needs to honor this lockfile. |
 | `cards` | `CardLockEntry[]` | yes | One entry per locked card. Must be an array. |
 
@@ -90,7 +94,8 @@ Required for every entry (`card-lock.ts:19-30`, validator at `:66-100`):
 | `integrity` | non-empty string | `sha256-<hex>` over the canonical card tree. See below. |
 | `manifest` | `CardManifest` | The full validated manifest as carried by the card. |
 | `skills` | `string[]` | The exact skill list the card contributed. |
-| `registry` | literal `null` | **Reserved.** Must be `null`; the validator throws otherwise (`card-lock.ts:83-85`). |
+| `hooks` | `string[]` | **(v3+)** Hook composer names declared by the card. Empty array for cards with no hooks. |
+| `registry` | literal `null` | **Reserved.** Must be `null`; the validator throws otherwise. |
 
 Origin-specific (`card-lock.ts:102-121`):
 
@@ -138,7 +143,7 @@ The practical consequence: a project can disable a card-contributed server with 
 
 Any future tool that reads drwn lockfiles or publishes drwn cards must honor this spec:
 
-- Lockfile validator must reject `lockfileVersion !== 2`.
+- Lockfile validator must reject `lockfileVersion` values other than `2`, `3`, or `4`.
 - All required `CardLockEntry` fields must be present and non-empty strings (except `registry: null` and origin-specific `git`).
 - Integrity hashes must be computed via the algorithm above. Mismatches indicate tampering or a divergent implementation.
 - Card refs must parse according to `parseCardRef`. Unsupported origins must error rather than silently fall through.

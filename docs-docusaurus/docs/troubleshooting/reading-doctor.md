@@ -29,6 +29,9 @@ This is deliberate. The doctor and the write pipeline share one diagnostics engi
   "staleSkillSymlinks": [],
   "mcpDrift": [],
   "missingGeneratedFiles": [],
+  "hookIssues": [],
+  "surfaceNotes": [],
+  "platformChecks": [],
   "projectConfigIssues": [],
   "cards": { "configuredRefs": [], "lockedVersions": [], "warnings": [] },
   "store": { "path": "...", "initialized": true, "schemaVersion": 1, "cardCount": 0, "sourceCount": 0, "skillBundleCount": 0, "mcpServerCount": 0, "legacyLayoutDetected": false },
@@ -77,14 +80,19 @@ drwn write --force
 
 ### Missing generated files
 
-Cursor is enabled as a target but `~/.agents/drwn/generated/cursor-mcp.json` is not on disk. The downstream symlink at `~/.cursor/mcp.json` then points nowhere.
+This category is retained for output-shape stability but is no longer triggered by Cursor. Cursor's `mcp.json` is written directly as `managed-content` rather than via a generated sidecar file, so there is no generated file that can go missing. If `missingGeneratedFiles` is non-empty in a report, it indicates a pre-migration write record; re-running `drwn write` clears it.
+
+### Hook issues
+
+A locked card declares hook policies but no hook consent has been recorded. `drwn write` will not materialize hooks for this card until consent is granted.
 
 ```bash
 drwn doctor --json
-drwn mcp write
+drwn card trust @your-handle/backend --hooks
+drwn write
 ```
 
-A plain `drwn write` or `drwn mcp write` regenerates the file and re-establishes the symlink.
+Use `drwn card untrust @your-handle/backend` to revoke consent.
 
 ### Project config issues
 

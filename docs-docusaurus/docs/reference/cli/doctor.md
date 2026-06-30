@@ -19,10 +19,10 @@ drwn doctor --json
 
 | Category | Detail |
 |---|---|
-| Broken skill symlinks | lstat-survivor filter over the active skill link sets |
-| Stale skill symlinks | drwn-owned downstream symlinks that no longer correspond to the desired set (curated + scope + card-source resolved skills) |
+| Broken or missing skill entries | drwn-owned skill entries in downstream skill directories whose content no longer exists |
+| Stale skill entries | drwn-owned downstream skill entries that no longer correspond to the desired set (curated + scope + card-source resolved skills) |
 | MCP drift | Per-target managed-content drift across Claude / Codex / Cursor, comparing recorded vs recomputed hashes for each managed field |
-| Missing generated Cursor file | Cursor is enabled but `cursor-mcp.json` is missing under the write scope's generated dir |
+| Hook issues | A locked card declares hook policies but no hook consent has been recorded via `drwn card trust` |
 | Project config — unknown server | `serverOverrides` references a server that is neither in the registry nor the user MCP library |
 | Project config — unknown skill | `skills.include` (or `extensions.<name>` derivations) references a skill that does not resolve in any layer |
 | Project config — unknown extension | `extensions.<name>` references an extension drwn does not know |

@@ -41,9 +41,9 @@ Two mutators manage it:
 
 ## Materialization to downstream tools
 
-`drwn write` (and `drwn write --skills-only`) reads the curated layer plus any project includes and card-bundled skills, resolves each name to a path via the layered resolver, and creates downstream symlinks under `~/.claude/skills`, `~/.codex/skills`, or `<project>/.claude/skills` etc.
+`drwn write` (and `drwn write --skills-only`) reads the curated layer plus any project includes and card-bundled skills, resolves each name to a path via the layered resolver, and copies skill directories into `~/.claude/skills`, `~/.codex/skills`, or `<project>/.claude/skills` etc. Each copied directory is recorded as a `managed-directory` entry in the write record.
 
-Per-write-record cleanup applies: drwn-owned stale symlinks (recorded in the previous write record) are removed when no longer in the effective state; user-owned replacements are preserved and reported as warnings.
+Per-write-record cleanup applies: drwn-owned stale skill directories (recorded in the previous write record) are removed when no longer in the effective state; user-owned replacements are preserved and reported as warnings.
 
 ## See also
 
