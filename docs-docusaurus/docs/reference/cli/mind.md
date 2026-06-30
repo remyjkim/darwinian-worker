@@ -112,4 +112,4 @@ drwn write
 
 - [Minds concept](../../concepts/minds) — what a mind card is and how the active stack composes
 - [Beliefs, Personas, and Memory](../../concepts/beliefs-memories-personas) — the content types a mind card contributes
-- [`drwn card source add-belief`](./card#add-belief) — authoring mind content
+- [`drwn card source`](./card) — authoring mind content

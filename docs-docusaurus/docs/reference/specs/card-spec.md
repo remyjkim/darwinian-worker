@@ -95,6 +95,9 @@ Required for every entry (`card-lock.ts:19-30`, validator at `:66-100`):
 | `manifest` | `CardManifest` | The full validated manifest as carried by the card. |
 | `skills` | `string[]` | The exact skill list the card contributed. |
 | `hooks` | `string[]` | **(v3+)** Hook composer names declared by the card. Empty array for cards with no hooks. |
+| `persona` | `{ include?: string[]; visibility?: string }` | **(v4+)** Persona content declaration carried from the card manifest. Omitted when the card declares no persona. |
+| `beliefs` | `{ include?: string[]; visibility?: string }` | **(v4+)** Beliefs content declaration carried from the card manifest. Omitted when the card declares no beliefs. |
+| `memory` | `Partial<Record<"l4" \| "l5" \| "l6", { include?: string[]; visibility?: string; format?: string }>>` | **(v4+)** Memory layer declarations carried from the card manifest. Omitted when the card declares no memory. |
 | `registry` | literal `null` | **Reserved.** Must be `null`; the validator throws otherwise. |
 
 Origin-specific (`card-lock.ts:102-121`):

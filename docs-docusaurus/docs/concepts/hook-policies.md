@@ -106,5 +106,5 @@ Without consent, `drwn write` materializes the card's skills and MCP servers but
 ## See also
 
 - [Minds](./minds) — how hook policies compose with other mind content
-- [`drwn card source`](../reference/cli/card#source-subcommands) — scaffolding and removing policies
+- [`drwn card source`](../reference/cli/card) — scaffolding and removing policies
 - [Guide: Authoring Hook Policies](../guides/authoring-hook-policies)

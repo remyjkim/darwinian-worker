@@ -78,4 +78,4 @@ A warning is emitted when this flag is used.
 
 - [Project Config JSON](../reference/schemas/project-config-json) — where `trustedSources` is declared
 - [Environment Variables](../reference/env-vars) — `DRWN_TRUSTED_SOURCES_STRICT`
-- [`drwn card clone`](../reference/cli/card#clone) — cloning with trust bypass
+- [`drwn card clone`](../reference/cli/card) — cloning with trust bypass

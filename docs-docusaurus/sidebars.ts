@@ -38,6 +38,10 @@ const sidebars: SidebarsConfig = {
         'concepts/cards',
         'concepts/materialization',
         'concepts/diagnostics-model',
+        'concepts/minds',
+        'concepts/beliefs-memories-personas',
+        'concepts/hook-policies',
+        'concepts/trusted-sources',
       ],
     },
     {
@@ -53,6 +57,9 @@ const sidebars: SidebarsConfig = {
         'guides/sharing-with-a-team',
         'guides/doctor-in-ci',
         'guides/migrating-hand-edited-configs',
+        'guides/authoring-mind-cards',
+        'guides/authoring-hook-policies',
+        'guides/managing-minds',
       ],
     },
     {
@@ -67,6 +74,7 @@ const sidebars: SidebarsConfig = {
           items: [
             'reference/cli/init',
             'reference/cli/add',
+            'reference/cli/install',
             'reference/cli/search',
             'reference/cli/library',
             'reference/cli/write',
@@ -75,6 +83,8 @@ const sidebars: SidebarsConfig = {
             'reference/cli/mcp',
             'reference/cli/extensions',
             'reference/cli/card',
+            'reference/cli/mind',
+            'reference/cli/catalog',
             'reference/cli/store',
             'reference/cli/status',
             'reference/cli/doctor',
@@ -85,6 +95,7 @@ const sidebars: SidebarsConfig = {
             'reference/cli/analyze',
           ],
         },
+        'reference/env-vars',
         {
           type: 'category',
           label: 'Schemas',
@@ -117,6 +128,7 @@ const sidebars: SidebarsConfig = {
         'troubleshooting/common-drift',
         'troubleshooting/stale-symlinks',
         'troubleshooting/ownership-conflicts',
+        'troubleshooting/credential-errors',
       ],
     },
     'faq',

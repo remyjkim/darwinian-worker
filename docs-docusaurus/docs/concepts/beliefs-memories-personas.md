@@ -115,5 +115,5 @@ When multiple mind cards are active, content from all active cards is composed i
 
 - [Minds](./minds) — the active mind stack and how content is selected
 - [Hook Policies](./hook-policies) — the fourth mind card content type
-- [`drwn card source`](../reference/cli/card#source-subcommands) — scaffolding commands
+- [`drwn card source`](../reference/cli/card) — scaffolding commands
 - [Guide: Authoring Mind Cards](../guides/authoring-mind-cards)

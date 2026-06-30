@@ -2,9 +2,9 @@
 sidebar_position: 4
 ---
 
-# Stale Symlinks
+# Stale Skill Entries
 
-`drwn doctor` reports `staleSkillSymlinks` when an entry under `~/.claude/skills/` or `~/.codex/skills/` no longer corresponds to a skill in the resolved harness. The right next step depends on who owns the symlink.
+`drwn doctor` reports `staleSkillSymlinks` when a skill entry under `~/.claude/skills/` or `~/.codex/skills/` no longer corresponds to a skill in the resolved harness. The right next step depends on who owns the entry.
 
 ## Drwn-owned vs user-owned
 

@@ -94,6 +94,19 @@ drwn write
 
 Use `drwn card untrust @your-handle/backend` to revoke consent.
 
+### Platform checks
+
+`platformChecks` is an array of `{ name, ok, detail? }` entries for environment prerequisites. A non-empty array with `ok: false` entries indicates a setup problem that will cause commands to fail.
+
+Currently checked:
+
+| Check | What it verifies | Resolution when `ok: false` |
+|---|---|---|
+| Home directory resolves | `AGENTS_HOME_DIR`, `HOME`, `USERPROFILE`, or `os.homedir()` returns a non-empty path | Set `AGENTS_HOME_DIR` or ensure `HOME` is set |
+| `node` on PATH | `node` is findable; required for MCP servers that spawn Node processes | Install Node.js and ensure it is on `PATH` |
+
+`platformChecks` entries with `ok: true` are normal. Only `ok: false` entries require action.
+
 ### Project config issues
 
 A single category that aggregates problems with `<project>/.agents/drwn/config.json` and the resolved card lock:
