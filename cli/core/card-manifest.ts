@@ -64,6 +64,10 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+export function isStringRecord(value: unknown): value is Record<string, string> {
+  return isObject(value) && Object.values(value).every((entry) => typeof entry === "string");
+}
+
 function isHttpUrl(value: string) {
   try {
     const url = new URL(value);
@@ -202,6 +206,12 @@ export function validateCardManifest(input: unknown): CardManifestValidationResu
   for (const target of Object.keys(manifest.targets ?? {})) {
     if (!isTargetName(target)) {
       errors.push(`unsupported target: ${target}`);
+    }
+  }
+  for (const [name, server] of Object.entries(manifest.servers ?? {})) {
+    const headers = isObject(server) ? (server as Record<string, unknown>).headers : undefined;
+    if (headers !== undefined && !isStringRecord(headers)) {
+      errors.push(`servers.${name}.headers must be a string-to-string map`);
     }
   }
   return { ok: errors.length === 0, errors };

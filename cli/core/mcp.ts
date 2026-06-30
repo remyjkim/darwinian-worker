@@ -96,6 +96,44 @@ function toCursorEnvValue(value: string) {
   return value.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, "${env:$1}");
 }
 
+// Matches an Authorization value of the exact form "Bearer ${VAR}", capturing VAR. Codex models
+// bearer auth as an env-var name (bearer_token_env_var), not a literal header value.
+const BEARER_PASSTHROUGH = /^Bearer\s+\$\{([A-Za-z_][A-Za-z0-9_]*)\}$/;
+
+function mapHeaderValues(headers: Record<string, string>, fn: (value: string) => string) {
+  return Object.fromEntries(Object.entries(headers).map(([key, value]) => [key, fn(value)]));
+}
+
+// Codex does not interpolate ${VAR} in config values. An "Authorization: Bearer ${VAR}" header maps
+// to bearer_token_env_var; literal headers go to http_headers; a non-bearer ${VAR} header cannot be
+// expressed by Codex and is reported as unsupported rather than emitted as a broken literal.
+function partitionCodexHeaders(headers: Record<string, string> | undefined) {
+  let bearerTokenEnvVar: string | undefined;
+  let httpHeaders: Record<string, string> | undefined;
+  const unsupported: string[] = [];
+  for (const [key, value] of Object.entries(headers ?? {})) {
+    const bearerVar = key.toLowerCase() === "authorization" ? value.match(BEARER_PASSTHROUGH)?.[1] : undefined;
+    if (bearerVar) {
+      bearerTokenEnvVar = bearerVar;
+    } else if (ENV_PASSTHROUGH.test(value)) {
+      unsupported.push(key);
+    } else {
+      httpHeaders ??= {};
+      httpHeaders[key] = value;
+    }
+  }
+  return { bearerTokenEnvVar, httpHeaders, unsupported };
+}
+
+// Header keys an HTTP server declares that Codex cannot express (non-bearer ${VAR} headers, which
+// Codex does not interpolate). Empty for stdio servers, header-less servers, and bearer/literal headers.
+export function codexUnsupportedHeaderKeys(server: RegistryServer): string[] {
+  if (server.transport === "stdio") {
+    return [];
+  }
+  return partitionCodexHeaders(server.headers).unsupported;
+}
+
 function toJsonServerConfig(server: RegistryServer) {
   if (server.transport === "stdio") {
     return {
@@ -108,6 +146,7 @@ function toJsonServerConfig(server: RegistryServer) {
   return {
     type: server.transport,
     url: server.url,
+    ...(server.headers ? { headers: server.headers } : {}),
   };
 }
 
@@ -129,6 +168,7 @@ function toCursorServerConfig(server: RegistryServer) {
   return {
     type: server.transport,
     url: server.url,
+    ...(server.headers ? { headers: mapHeaderValues(server.headers, toCursorEnvValue) } : {}),
   };
 }
 
@@ -144,9 +184,12 @@ function toCodexServerConfig(server: RegistryServer) {
     };
   }
 
+  const { bearerTokenEnvVar, httpHeaders } = partitionCodexHeaders(server.headers);
   return {
     url: server.url,
     enabled: true,
+    ...(bearerTokenEnvVar ? { bearer_token_env_var: bearerTokenEnvVar } : {}),
+    ...(httpHeaders ? { http_headers: httpHeaders } : {}),
   };
 }
 

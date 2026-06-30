@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { expandHomePath, resolveGlobalCodexConfig, resolveToolPaths } from "./paths";
 import {
   CLAUDE_MCP_SERVER_HASH_PREFIX,
+  codexUnsupportedHeaderKeys,
   detectCodexLayerConflicts,
   hashCodexManagedServers,
   mergeClaudeSettingsText,
@@ -335,6 +336,14 @@ export async function syncMcp(
               `Codex MCP server "${name}" is defined with a different transport in ${globalCodexPath}; skipped the project-scope entry to avoid a config collision. Remove the global entry or rerun with --force.`,
             );
           }
+        }
+      }
+      for (const [name, server] of Object.entries(codexServers)) {
+        const unsupported = codexUnsupportedHeaderKeys(server);
+        if (unsupported.length > 0) {
+          result.warnings.push(
+            `Codex MCP server "${name}" declares header(s) ${unsupported.join(", ")} using \${VAR} interpolation, which Codex cannot resolve; they were omitted from .codex/config.toml. Use an "Authorization: Bearer \${VAR}" header (mapped to bearer_token_env_var) or a literal value.`,
+          );
         }
       }
       const current = await readTextIfExists(configPath, "");
