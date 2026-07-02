@@ -46,21 +46,16 @@ export class LoginCommand extends BaseCommand {
     category: "Auth",
     description: "Authenticate with Darwinian Auth Hub via the device flow.",
     details: `
-      Requests a DAH device code, opens the browser for approval, exchanges the
-      approved device session for a services-audience JWT and refresh token, and
+      Requests a DAH sign-in URL, opens the browser for Google account selection,
+      exchanges the approved device session for a services-audience JWT and refresh token, and
       saves credentials to ~/.agents/drwn/credentials.json.
 
       Set DRWN_DAH_HUB_URL to use a non-production Auth Hub.
     `,
     examples: [
       ["Sign in", "drwn login"],
-      ["Print URL only without opening a browser", "drwn login --no-browser"],
       ["Use a local Auth Hub", "DRWN_DAH_HUB_URL=http://localhost:8789 drwn login"],
     ],
-  });
-
-  noBrowser = Option.Boolean("--no-browser", false, {
-    description: "Print the verification URL without opening a browser.",
   });
 
   json = Option.Boolean("--json", false, {
@@ -79,19 +74,22 @@ export class LoginCommand extends BaseCommand {
         fetcher: deps.fetch ?? fetch,
         sleep: deps.sleep,
         now: deps.now,
-        onUserAction: ({ verification_uri_complete, user_code }) => {
-          const instructions = this.noBrowser
-            ? `Open ${verification_uri_complete} in your browser.\nCode: ${user_code}\nWaiting for browser approval...\n`
-            : `Open ${verification_uri_complete} or press Enter to open it in your browser.\nCode: ${user_code}\nWaiting for browser approval...\n`;
+        onUserAction: ({ verification_uri_complete }) => {
+          const instructions = [
+            "Log in to your Darwinian account:",
+            "1. Press Enter to open it in your browser",
+            `2. Or open this URL manually: ${verification_uri_complete}`,
+            "",
+            "Waiting for browser sign-in...",
+            "",
+          ].join("\n");
           if (this.json) {
             this.context.stderr.write(instructions);
           } else {
             this.context.stdout.write(instructions);
           }
-          if (!this.noBrowser) {
-            const open = () => (deps.openBrowser ?? defaultOpenBrowser)(verification_uri_complete);
-            cancelOpenOnEnter = openOnEnter(this.context.stdin, open);
-          }
+          const open = () => (deps.openBrowser ?? defaultOpenBrowser)(verification_uri_complete);
+          cancelOpenOnEnter = openOnEnter(this.context.stdin, open);
         },
       });
       cancelOpenOnEnter?.();

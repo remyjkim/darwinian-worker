@@ -150,8 +150,11 @@ describe("auth commands", () => {
     const credentialsPath = resolveCredentialsPath(result.fixture.agentsDir);
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("Open https://app.test/device?user_code=ABCD or press Enter to open it in your browser.");
-    expect(result.stdout).toContain("Code: ABCD");
+    expect(result.stdout).toContain("Log in to your Darwinian account:");
+    expect(result.stdout).toContain("1. Press Enter to open it in your browser");
+    expect(result.stdout).toContain("2. Or open this URL manually: https://app.test/device?user_code=ABCD");
+    expect(result.stdout).toContain("Waiting for browser sign-in...");
+    expect(result.stdout).not.toContain("Code: ABCD");
     expect(result.stdout).toContain("Signed in as x@y.z");
     expect(opened).toEqual(["https://app.test/device?user_code=ABCD"]);
     expect((await stat(credentialsPath)).mode & 0o777).toBe(0o600);
@@ -164,23 +167,6 @@ describe("auth commands", () => {
       refreshToken: "refresh-1",
       user_email: "x@y.z",
     });
-  });
-
-  test("login --no-browser skips browser open", async () => {
-    const opened: string[] = [];
-    LoginCommand.testDeps = {
-      env: {},
-      fetch: deviceFlowFetch(),
-      sleep: async () => {},
-      openBrowser: (url) => { opened.push(url); },
-    };
-
-    const result = await runAuthCommand(["login", "--no-browser"]);
-
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("Open https://app.test/device?user_code=ABCD in your browser.");
-    expect(result.stdout).toContain("Code: ABCD");
-    expect(opened).toEqual([]);
   });
 
   test("logout removes credentials and best-effort signs out", async () => {

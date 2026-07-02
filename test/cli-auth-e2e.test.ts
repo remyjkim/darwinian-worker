@@ -102,11 +102,15 @@ describe("auth CLI E2E", () => {
     const { apiUrl, state } = startAuthServer({ pendingPolls: 1 });
     const env = { ...envFor(fixture), DRWN_ANALYZER_URL: apiUrl };
 
-    const login = await runAgentsCli(["login", "--no-browser", "--json"], env);
+    const login = await runAgentsCli(["login", "--json"], env);
 
     expect(login.exitCode).toBe(0);
-    expect(login.stderr).toContain("To sign in, visit:");
-    expect(login.stderr).toContain("Code: ABCD-EFGH");
+    expect(login.stderr).toContain("Log in to your Darwinian account:");
+    expect(login.stderr).toContain("1. Press Enter to open it in your browser");
+    expect(login.stderr).toContain("2. Or open this URL manually: ");
+    expect(login.stderr).toContain("/device?user_code=ABCD-EFGH");
+    expect(login.stderr).toContain("Waiting for browser sign-in...");
+    expect(login.stderr).not.toContain("Code: ABCD-EFGH");
     expect(JSON.parse(login.stdout)).toMatchObject({ email: "cli-e2e@example.com" });
     expect(state.deviceCodeRequests).toEqual([{ client_id: "drwn-cli" }]);
     expect(state.tokenRequests).toHaveLength(2);
@@ -196,7 +200,7 @@ describe("auth CLI E2E", () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
 
-    const result = await runAgentsCli(["login", "--no-browser"], envFor(fixture));
+    const result = await runAgentsCli(["login"], envFor(fixture));
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain(resolveCredentialsPath(fixture.agentsDir).replace("credentials.json", "config.json"));
