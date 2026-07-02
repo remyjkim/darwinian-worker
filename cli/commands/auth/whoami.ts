@@ -1,16 +1,16 @@
-// ABOUTME: Implements `drwn whoami` by validating the current analyzer bearer session.
-// ABOUTME: Avoids stale local-only identity by always checking the server session endpoint.
+// ABOUTME: Implements `drwn whoami` from DAH services-audience credentials.
+// ABOUTME: Avoids session endpoint calls; identity comes from validated JWT claims.
 
 import { Option } from "clipanion";
 import { BaseCommand } from "../base";
 import { readCredentials } from "../../core/auth/credentials";
 import { resolveToken } from "../../core/auth/resolve-token";
-import { AuthExpiredError } from "../../core/http/errors";
-import { createAnalyzerClient } from "../../core/http/analyzer-client";
+import { drwnCliProfile } from "../../core/auth/profile";
+import { assertJwtAudience } from "../../core/auth/jwt";
 import { resolveCredentialsPath } from "../../core/paths";
 
 type WhoamiDeps = {
-  env?: Partial<Record<"DRWN_TOKEN" | "DRWN_ANALYZER_URL", string | undefined>>;
+  env?: Record<string, string | undefined>;
   fetch?: typeof fetch;
 };
 
@@ -21,19 +21,18 @@ export class WhoamiCommand extends BaseCommand {
 
   static override usage = BaseCommand.Usage({
     category: "Auth",
-    description: "Print the current analyzer identity after validating the session.",
+    description: "Print the current DAH identity.",
     details: `
-      Resolves auth from DRWN_TOKEN plus DRWN_ANALYZER_URL, or from
-      ~/.agents/drwn/credentials.json, then calls the analyzer session endpoint.
-      This command intentionally checks the server so revoked or expired local
-      credentials are reported accurately.
+      Resolves auth from DRWN_TOKEN, the one-release IMINDS_TOKEN fallback, or
+      ~/.agents/drwn/credentials.json. The token must be JWT-shaped and valid for
+      the Darwinian services audience.
 
       Use --json when scripting identity checks.
     `,
     examples: [
       ["Print the signed-in email", "drwn whoami"],
       ["Print JSON identity details", "drwn whoami --json"],
-      ["Check an explicit token", "DRWN_TOKEN=... DRWN_ANALYZER_URL=http://localhost:8787 drwn whoami"],
+      ["Check an explicit token", "DRWN_TOKEN=... drwn whoami"],
     ],
   });
 
@@ -45,41 +44,34 @@ export class WhoamiCommand extends BaseCommand {
     const deps = WhoamiCommand.testDeps ?? {};
     const env = deps.env ?? process.env as NonNullable<WhoamiDeps["env"]>;
     const credentialsPath = resolveCredentialsPath(this.context.agentsDir);
-    const auth = await resolveToken({
-      credentialsPath,
-      env,
-    });
-    if (!auth) {
-      this.context.stderr.write("Not authenticated. Run `drwn login` first (or set DRWN_TOKEN + DRWN_ANALYZER_URL).\n");
-      return 1;
-    }
-
     try {
-      const session = await createAnalyzerClient(auth.apiUrl, deps.fetch ?? fetch).getSession(auth.token);
-      if (!session) {
-        this.context.stderr.write("Session expired. Run `drwn login`.\n");
+      const profile = drwnCliProfile(env);
+      const auth = await resolveToken({ credentialsPath, env, fetcher: deps.fetch ?? fetch, profile });
+      if (!auth) {
+        this.context.stderr.write("Not authenticated. Run `drwn login` first, or set DRWN_TOKEN.\n");
         return 1;
       }
+      const claims = assertJwtAudience(auth.token, profile.resource, { requireUnexpired: true });
+      const email = typeof claims.email === "string" ? claims.email : auth.credential?.user_email ?? "";
       if (this.json) {
-        const stored = env.DRWN_TOKEN && env.DRWN_ANALYZER_URL ? null : await readCredentials(credentialsPath);
+        const stored = auth.source === "env" ? null : await readCredentials(credentialsPath);
+        const expiresAt = stored && "version" in stored ? stored.expiresAt : undefined;
         this.context.stdout.write(
           JSON.stringify({
-            email: session.user.email,
-            api_url: auth.apiUrl,
-            saved_at: stored?.saved_at,
-            expires_at: session.session?.expiresAt,
+            email,
+            user_id: typeof claims.sub === "string" ? claims.sub : undefined,
+            issuer: claims.iss,
+            audience: claims.aud,
+            expires_at: expiresAt,
+            source: auth.source,
           }) + "\n",
         );
       } else {
-        this.context.stdout.write(`${session.user.email}\n`);
+        this.context.stdout.write(`${email || String(claims.sub ?? "unknown")}\n`);
       }
       return 0;
     } catch (error) {
-      if (error instanceof AuthExpiredError) {
-        this.context.stderr.write("Session expired. Run `drwn login`.\n");
-      } else {
-        this.context.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-      }
+      this.context.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
       return 1;
     }
   }

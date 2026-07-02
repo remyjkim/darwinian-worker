@@ -4,6 +4,7 @@
 import { Option } from "clipanion";
 import { BaseCommand } from "../base";
 import { resolveCloudConfig } from "../../core/cloud-config";
+import { fetchJsonWithCloudAuth } from "../../core/cloud-http";
 
 export class CloudRollbackCommand extends BaseCommand {
   static override paths = [["cloud", "rollback"]];
@@ -31,12 +32,11 @@ export class CloudRollbackCommand extends BaseCommand {
   async execute(): Promise<number> {
     const { apiBaseUrl } = resolveCloudConfig();
     try {
-      const res = await fetch(`${apiBaseUrl}/api/minds/${this.slug}/rollback`, {
+      const { response: res, body } = await fetchJsonWithCloudAuth<{ activeDeploymentId?: string; error?: string }>(this.context, `${apiBaseUrl}/api/minds/${this.slug}/rollback`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(this.to ? { to: this.to } : {}),
       });
-      const body = (await res.json()) as { activeDeploymentId?: string; error?: string };
       if (!res.ok) {
         this.context.stderr.write(`Rollback failed (${res.status}): ${body.error ?? "unknown error"}\n`);
         return 1;

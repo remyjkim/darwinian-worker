@@ -4,6 +4,7 @@
 import { Option } from "clipanion";
 import { BaseCommand } from "../base";
 import { resolveCloudConfig } from "../../core/cloud-config";
+import { fetchWithCloudAuth } from "../../core/cloud-http";
 
 export class CloudDeleteCommand extends BaseCommand {
   static override paths = [["cloud", "delete"]];
@@ -35,7 +36,7 @@ export class CloudDeleteCommand extends BaseCommand {
     }
     const { apiBaseUrl } = resolveCloudConfig();
     try {
-      const res = await fetch(`${apiBaseUrl}/api/minds/${this.slug}`, { method: "DELETE" });
+      const res = await fetchWithCloudAuth(this.context, `${apiBaseUrl}/api/minds/${this.slug}`, { method: "DELETE" });
       if (!res.ok) {
         this.context.stderr.write(`Delete failed (${res.status}): ${await res.text()}\n`);
         return 1;

@@ -29,6 +29,20 @@ const originalFetch = globalThis.fetch;
 const originalCwd = process.cwd();
 const originalEnv = { ...process.env };
 
+function b64(value: unknown): string {
+  return Buffer.from(JSON.stringify(value)).toString("base64url");
+}
+
+function fakeJwt(): string {
+  return `${b64({ alg: "none" })}.${b64({
+    iss: "https://auth.darwiniantools.com/api/auth",
+    aud: "https://api.darwiniantools.com",
+    sub: "user_123",
+    email: "cloud@example.com",
+    exp: Math.floor(Date.now() / 1000) + 900,
+  })}.sig`;
+}
+
 class CaptureStream extends Writable {
   chunks: Buffer[] = [];
 
@@ -50,6 +64,7 @@ afterEach(async () => {
 });
 
 async function runCloudCommand(args: string[]) {
+  process.env.DRWN_TOKEN = process.env.DRWN_TOKEN ?? fakeJwt();
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   const stdout = new CaptureStream();
