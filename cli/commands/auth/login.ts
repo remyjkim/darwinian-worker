@@ -17,6 +17,26 @@ type LoginDeps = {
   openBrowser?: (url: string) => void;
 };
 
+function openOnEnter(stdin: NodeJS.ReadableStream, open: () => void): (() => void) | undefined {
+  const input = stdin as NodeJS.ReadableStream & { isTTY?: boolean };
+  if (!input.isTTY) {
+    open();
+    return undefined;
+  }
+
+  const cleanup = () => {
+    input.off("data", onData);
+    input.pause();
+  };
+  const onData = () => {
+    cleanup();
+    open();
+  };
+  input.once("data", onData);
+  input.resume();
+  return cleanup;
+}
+
 export class LoginCommand extends BaseCommand {
   static override paths = [["login"]];
 
@@ -51,6 +71,7 @@ export class LoginCommand extends BaseCommand {
     const deps = LoginCommand.testDeps ?? {};
     const env = deps.env ?? process.env as LoginDeps["env"];
     const profile = drwnCliProfile(env);
+    let cancelOpenOnEnter: (() => void) | undefined;
 
     try {
       const credential = await runDeviceFlow({
@@ -59,17 +80,21 @@ export class LoginCommand extends BaseCommand {
         sleep: deps.sleep,
         now: deps.now,
         onUserAction: ({ verification_uri_complete, user_code }) => {
-          const instructions = `Open ${verification_uri_complete} and enter ${user_code}\nWaiting for browser approval...\n`;
+          const instructions = this.noBrowser
+            ? `Open ${verification_uri_complete} in your browser.\nCode: ${user_code}\nWaiting for browser approval...\n`
+            : `Open ${verification_uri_complete} or press Enter to open it in your browser.\nCode: ${user_code}\nWaiting for browser approval...\n`;
           if (this.json) {
             this.context.stderr.write(instructions);
           } else {
             this.context.stdout.write(instructions);
           }
           if (!this.noBrowser) {
-            (deps.openBrowser ?? defaultOpenBrowser)(verification_uri_complete);
+            const open = () => (deps.openBrowser ?? defaultOpenBrowser)(verification_uri_complete);
+            cancelOpenOnEnter = openOnEnter(this.context.stdin, open);
           }
         },
       });
+      cancelOpenOnEnter?.();
       const credentialsPath = resolveCredentialsPath(this.context.agentsDir);
       await writeCredentials(credentialsPath, credential);
       if (this.json) {
@@ -79,6 +104,7 @@ export class LoginCommand extends BaseCommand {
       }
       return 0;
     } catch (error) {
+      cancelOpenOnEnter?.();
       this.context.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
       return 1;
     }

@@ -150,6 +150,8 @@ describe("auth commands", () => {
     const credentialsPath = resolveCredentialsPath(result.fixture.agentsDir);
 
     expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Open https://app.test/device?user_code=ABCD or press Enter to open it in your browser.");
+    expect(result.stdout).toContain("Code: ABCD");
     expect(result.stdout).toContain("Signed in as x@y.z");
     expect(opened).toEqual(["https://app.test/device?user_code=ABCD"]);
     expect((await stat(credentialsPath)).mode & 0o777).toBe(0o600);
@@ -176,6 +178,8 @@ describe("auth commands", () => {
     const result = await runAuthCommand(["login", "--no-browser"]);
 
     expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Open https://app.test/device?user_code=ABCD in your browser.");
+    expect(result.stdout).toContain("Code: ABCD");
     expect(opened).toEqual([]);
   });
 
