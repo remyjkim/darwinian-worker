@@ -64,6 +64,36 @@ describe("resolveToken", () => {
     expect(result).toMatchObject({ source: "stored" });
   });
 
+  test("returns stored legacy credential api_url when env vars are absent", async () => {
+    tmp = await mkdtemp(join(tmpdir(), "drwn-resolve-"));
+    const credentialsPath = join(tmp, "credentials.json");
+    await writeCredentials(credentialsPath, {
+      api_url: "https://legacy-api.test",
+      access_token: fakeJwt(),
+      user_email: "legacy@y.z",
+      saved_at: "2026-06-03T00:00:00Z",
+    });
+    const result = await resolveToken({ credentialsPath, env: {} });
+    expect(result).toMatchObject({
+      source: "stored",
+      token: fakeJwt(),
+      apiUrl: "https://legacy-api.test",
+    });
+  });
+
+  test("env DRWN_ANALYZER_URL overrides stored legacy credential api_url", async () => {
+    tmp = await mkdtemp(join(tmpdir(), "drwn-resolve-"));
+    const credentialsPath = join(tmp, "credentials.json");
+    await writeCredentials(credentialsPath, {
+      api_url: "https://legacy-api.test",
+      access_token: fakeJwt(),
+      user_email: "legacy@y.z",
+      saved_at: "2026-06-03T00:00:00Z",
+    });
+    const result = await resolveToken({ credentialsPath, env: { DRWN_ANALYZER_URL: "https://env-api.test" } });
+    expect(result).toMatchObject({ apiUrl: "https://env-api.test" });
+  });
+
   test("returns null when no env vars and no credentials", async () => {
     const result = await resolveToken({ credentialsPath: "/no/such/path", env: {} });
     expect(result).toBeNull();

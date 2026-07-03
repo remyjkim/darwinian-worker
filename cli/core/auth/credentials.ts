@@ -24,7 +24,7 @@ export interface DrwnCredentials {
   saved_at: string;
 }
 
-function isCredentials(value: unknown): value is CliDahCredentialFile {
+function isDahCredentials(value: unknown): value is CliDahCredentialFile {
   if (typeof value !== "object" || value === null) return false;
   const record = value as Record<string, unknown>;
   return (
@@ -39,6 +39,22 @@ function isCredentials(value: unknown): value is CliDahCredentialFile {
     typeof record.user_email === "string" &&
     !Number.isNaN(Date.parse(record.expiresAt))
   );
+}
+
+function isLegacyCredentials(value: unknown): value is DrwnCredentials {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  return (
+    record.version === undefined &&
+    typeof record.api_url === "string" &&
+    typeof record.access_token === "string" &&
+    typeof record.user_email === "string" &&
+    typeof record.saved_at === "string"
+  );
+}
+
+function isCredentials(value: unknown): value is CliDahCredentialFile | DrwnCredentials {
+  return isDahCredentials(value) || isLegacyCredentials(value);
 }
 
 export async function readCredentials(path: string): Promise<CliDahCredentialFile | DrwnCredentials | null> {

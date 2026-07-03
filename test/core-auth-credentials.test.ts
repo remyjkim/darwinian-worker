@@ -53,6 +53,13 @@ describe("credentials", () => {
     expect(await readCredentials(path)).toEqual(dahSample);
   });
 
+  test("writeCredentials round-trips a legacy v1 credential and readCredentials returns it", async () => {
+    tmp = await mkdtemp(join(tmpdir(), "drwn-cred-"));
+    const path = join(tmp, "credentials.json");
+    await writeCredentials(path, sample);
+    expect(await readCredentials(path)).toEqual(sample);
+  });
+
   test("readCredentials returns null when missing", async () => {
     expect(await readCredentials("/no/such/path.json")).toBeNull();
   });

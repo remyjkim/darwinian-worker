@@ -45,13 +45,17 @@ export async function resolveToken(input: ResolveTokenInput): Promise<ResolvedAu
   const creds = await readCredentials(input.credentialsPath);
   if (!creds) return null;
   if (!("version" in creds)) {
-    return input.env.DRWN_ANALYZER_URL
-      ? {
-        token: creds.access_token,
-        source: "stored",
-        apiUrl: trimTrailingSlashes(input.env.DRWN_ANALYZER_URL),
-      }
-      : null;
+    const apiUrl = input.env.DRWN_ANALYZER_URL
+      ? trimTrailingSlashes(input.env.DRWN_ANALYZER_URL)
+      : typeof creds.api_url === "string" && creds.api_url.length > 0
+        ? trimTrailingSlashes(creds.api_url)
+        : undefined;
+    if (!apiUrl) return null;
+    return {
+      token: creds.access_token,
+      source: "stored",
+      apiUrl,
+    };
   }
   if (creds.resource !== profile.resource || creds.clientId !== profile.clientId) return null;
 
