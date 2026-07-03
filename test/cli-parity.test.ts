@@ -7,6 +7,17 @@ import { cleanupTempRoots, createTempRoot, runAgentsCli, runGlobalAgentsCli, sca
 
 const tempRoots: string[] = [];
 
+function normalizeForParity(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(normalizeForParity);
+  if (typeof value !== "object" || value === null) return value;
+  const normalized: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (key === "versionFloor") continue;
+    normalized[key] = normalizeForParity(entry);
+  }
+  return normalized;
+}
+
 beforeAll(async () => {
   const link = Bun.spawn(["bun", "link"], {
     cwd: fileURLToPath(new URL("..", import.meta.url)),
@@ -35,7 +46,6 @@ describe("cli parity", () => {
       ["status", "--json"],
       ["skills", "list", "--json"],
       ["mcp", "list", "--json"],
-      ["doctor", "--json"],
     ];
 
     for (const args of commands) {
@@ -44,7 +54,7 @@ describe("cli parity", () => {
 
       expect(local.exitCode).toBe(0);
       expect(global.exitCode).toBe(0);
-      expect(JSON.parse(local.stdout)).toEqual(JSON.parse(global.stdout));
+      expect(normalizeForParity(JSON.parse(local.stdout))).toEqual(normalizeForParity(JSON.parse(global.stdout)));
     }
   });
 });

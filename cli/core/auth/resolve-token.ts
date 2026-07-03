@@ -26,6 +26,10 @@ function trimTrailingSlashes(value: string): string {
   return value.replace(/\/+$/, "");
 }
 
+function analyzerApiUrl(env: Record<string, string | undefined>): string | undefined {
+  return env.DRWN_ANALYZER_URL ? trimTrailingSlashes(env.DRWN_ANALYZER_URL) : undefined;
+}
+
 export async function resolveToken(input: ResolveTokenInput): Promise<ResolvedAuth | null> {
   const profile = input.profile ?? drwnCliProfile(input.env);
   const envToken = input.env.DRWN_TOKEN ?? input.env.IMINDS_TOKEN;
@@ -34,7 +38,7 @@ export async function resolveToken(input: ResolveTokenInput): Promise<ResolvedAu
     return {
       token: envToken,
       source: "env",
-      apiUrl: input.env.DRWN_ANALYZER_URL ? trimTrailingSlashes(input.env.DRWN_ANALYZER_URL) : undefined,
+      apiUrl: analyzerApiUrl(input.env),
     };
   }
 
@@ -53,7 +57,7 @@ export async function resolveToken(input: ResolveTokenInput): Promise<ResolvedAu
 
   if (!tokenExpiresWithin(creds.expiresAt, REFRESH_SKEW_MS)) {
     assertJwtAudience(creds.accessToken, profile.resource, { issuer: creds.issuer, requireUnexpired: true });
-    return { token: creds.accessToken, source: "stored", credential: creds };
+    return { token: creds.accessToken, source: "stored", credential: creds, apiUrl: analyzerApiUrl(input.env) };
   }
 
   const refreshed = await refreshStoredCredential({
@@ -66,6 +70,7 @@ export async function resolveToken(input: ResolveTokenInput): Promise<ResolvedAu
     token: refreshed.accessToken,
     source: "stored",
     credential: refreshed,
+    apiUrl: analyzerApiUrl(input.env),
   };
 }
 
