@@ -6,6 +6,7 @@ import { Option } from "clipanion";
 import * as t from "typanion";
 import { BaseCommand } from "../base";
 import { resolveCloudConfig } from "../../core/cloud-config";
+import { fetchJsonWithCloudAuth } from "../../core/cloud-http";
 import { defaultSecretsFileCandidates, DRWN_SECRETS_FILE, parseSecretsFile } from "../../core/cloud-secrets";
 
 export const DEPLOY_TARGETS = ["preview", "production"] as const;
@@ -102,12 +103,12 @@ export class CloudDeployCommand extends BaseCommand {
 
     let created: { deploymentId?: string; error?: string };
     try {
-      const res = await fetch(`${apiBaseUrl}/api/deployments`, {
+      const { response: res, body: createdBody } = await fetchJsonWithCloudAuth<{ deploymentId?: string; error?: string }>(this.context, `${apiBaseUrl}/api/deployments`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
       });
-      created = (await res.json()) as { deploymentId?: string; error?: string };
+      created = createdBody;
       if (!res.ok || !created.deploymentId) {
         this.context.stderr.write(`Deploy request failed (${res.status}): ${created.error ?? "unknown error"}\n`);
         return 1;
@@ -125,7 +126,10 @@ export class CloudDeployCommand extends BaseCommand {
       await new Promise((resolve) => setTimeout(resolve, pollMs));
       let deployment: { status?: string; error?: string };
       try {
-        deployment = (await (await fetch(`${apiBaseUrl}/api/deployments/${depId}`)).json()) as { status?: string; error?: string };
+        deployment = (await fetchJsonWithCloudAuth<{ status?: string; error?: string }>(
+          this.context,
+          `${apiBaseUrl}/api/deployments/${depId}`,
+        )).body;
       } catch {
         continue;
       }

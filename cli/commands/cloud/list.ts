@@ -4,6 +4,7 @@
 import { Option } from "clipanion";
 import { BaseCommand } from "../base";
 import { resolveCloudConfig } from "../../core/cloud-config";
+import { fetchJsonWithCloudAuth } from "../../core/cloud-http";
 import { renderJson, renderTable } from "../../core/output";
 import type { MindSummary } from "./types";
 import { displayModel, displayValue } from "./types";
@@ -33,12 +34,15 @@ export class CloudListCommand extends BaseCommand {
     const { apiBaseUrl } = resolveCloudConfig();
     let minds: MindSummary[];
     try {
-      const res = await fetch(`${apiBaseUrl}/api/minds`);
+      const { response: res, body } = await fetchJsonWithCloudAuth<{ minds: MindSummary[] }>(
+        this.context,
+        `${apiBaseUrl}/api/minds`,
+      );
       if (!res.ok) {
         this.context.stderr.write(`List failed (${res.status}).\n`);
         return 1;
       }
-      minds = ((await res.json()) as { minds: MindSummary[] }).minds;
+      minds = body.minds;
     } catch (error) {
       this.context.stderr.write(`Cannot reach Deploy API at ${apiBaseUrl}: ${(error as Error).message}\n`);
       return 1;

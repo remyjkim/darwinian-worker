@@ -1,7 +1,21 @@
-// ABOUTME: Reads, writes, and deletes the drwn analyzer credentials, encrypted at rest.
-// ABOUTME: Bearer tokens are AES-256-GCM encrypted under an OS-keychain-held key; never plaintext.
+// ABOUTME: Reads, writes, and deletes DAH-backed drwn CLI credentials.
+// ABOUTME: The credential payload is encrypted at rest under an OS-keychain-held key.
 
 import { clear, decryptFromDisk, encryptToDisk } from "../secret-store";
+
+export interface CliDahCredentialFile {
+  version: 2;
+  issuer: string;
+  clientId: "drwn-cli";
+  resource: string;
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: string;
+  user_email: string;
+  saved_at: string;
+  api_url?: string;
+  access_token?: string;
+}
 
 export interface DrwnCredentials {
   api_url: string;
@@ -10,10 +24,28 @@ export interface DrwnCredentials {
   saved_at: string;
 }
 
-function isCredentials(value: unknown): value is DrwnCredentials {
+function isDahCredentials(value: unknown): value is CliDahCredentialFile {
   if (typeof value !== "object" || value === null) return false;
   const record = value as Record<string, unknown>;
   return (
+    record.version === 2 &&
+    record.clientId === "drwn-cli" &&
+    typeof record.issuer === "string" &&
+    typeof record.resource === "string" &&
+    typeof record.accessToken === "string" &&
+    typeof record.refreshToken === "string" &&
+    typeof record.expiresAt === "string" &&
+    typeof record.saved_at === "string" &&
+    typeof record.user_email === "string" &&
+    !Number.isNaN(Date.parse(record.expiresAt))
+  );
+}
+
+function isLegacyCredentials(value: unknown): value is DrwnCredentials {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  return (
+    record.version === undefined &&
     typeof record.api_url === "string" &&
     typeof record.access_token === "string" &&
     typeof record.user_email === "string" &&
@@ -21,7 +53,11 @@ function isCredentials(value: unknown): value is DrwnCredentials {
   );
 }
 
-export async function readCredentials(path: string): Promise<DrwnCredentials | null> {
+function isCredentials(value: unknown): value is CliDahCredentialFile | DrwnCredentials {
+  return isDahCredentials(value) || isLegacyCredentials(value);
+}
+
+export async function readCredentials(path: string): Promise<CliDahCredentialFile | DrwnCredentials | null> {
   const plaintext = await decryptFromDisk(path);
   if (plaintext === null) return null;
   try {
@@ -32,7 +68,7 @@ export async function readCredentials(path: string): Promise<DrwnCredentials | n
   }
 }
 
-export async function writeCredentials(path: string, creds: DrwnCredentials): Promise<void> {
+export async function writeCredentials(path: string, creds: CliDahCredentialFile | DrwnCredentials): Promise<void> {
   await encryptToDisk(path, JSON.stringify(creds, null, 2));
 }
 

@@ -1,12 +1,14 @@
-// ABOUTME: Implements `drwn logout` by removing local analyzer credentials.
-// ABOUTME: Attempts server-side sign-out but treats local credential deletion as authoritative.
+// ABOUTME: Implements `drwn logout` by revoking the DAH refresh token and removing local credentials.
+// ABOUTME: Local credential deletion remains authoritative if the credential is already absent.
 
 import { BaseCommand } from "../base";
 import { deleteCredentials, readCredentials } from "../../core/auth/credentials";
-import { createAnalyzerClient } from "../../core/http/analyzer-client";
+import { revokeToken } from "../../core/auth/device-flow";
+import { drwnCliProfile } from "../../core/auth/profile";
 import { resolveCredentialsPath } from "../../core/paths";
 
 type LogoutDeps = {
+  env?: Record<string, string | undefined>;
   fetch?: typeof fetch;
 };
 
@@ -17,11 +19,10 @@ export class LogoutCommand extends BaseCommand {
 
   static override usage = BaseCommand.Usage({
     category: "Auth",
-    description: "Revoke the analyzer session and remove local credentials.",
+    description: "Revoke the DAH refresh token and remove local credentials.",
     details: `
-      Reads ~/.agents/drwn/credentials.json, attempts a best-effort sign-out
-      request against the analyzer API, and then removes the local credentials
-      file. If the server is unreachable, local logout still succeeds.
+      Reads ~/.agents/drwn/credentials.json, revokes the stored DAH refresh
+      token, and then removes the local credentials file.
 
       This command is safe to run when not logged in.
     `,
@@ -40,9 +41,19 @@ export class LogoutCommand extends BaseCommand {
     }
 
     const deps = LogoutCommand.testDeps ?? {};
-    await createAnalyzerClient(creds.api_url, deps.fetch ?? fetch).signOut(creds.access_token);
-    await deleteCredentials(credentialsPath);
-    this.context.stdout.write("Logged out. Credentials removed.\n");
-    return 0;
+    if (!("version" in creds)) {
+      await deleteCredentials(credentialsPath);
+      this.context.stdout.write("Logged out. Credentials removed.\n");
+      return 0;
+    }
+    try {
+      await revokeToken(drwnCliProfile(deps.env ?? process.env), creds.refreshToken, deps.fetch ?? fetch);
+      await deleteCredentials(credentialsPath);
+      this.context.stdout.write("Logged out. Credentials removed.\n");
+      return 0;
+    } catch (error) {
+      this.context.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
   }
 }

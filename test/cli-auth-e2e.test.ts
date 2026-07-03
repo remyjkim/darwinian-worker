@@ -5,6 +5,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { readCredentials, writeCredentials } from "../cli/core/auth/credentials";
+import { drwnCliProfile } from "../cli/core/auth/profile";
 import { resolveCredentialsPath } from "../cli/core/paths";
 import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture } from "./helpers";
 
@@ -14,8 +15,29 @@ const servers: Array<ReturnType<typeof Bun.serve>> = [];
 interface AuthServerState {
   deviceCodeRequests: unknown[];
   tokenRequests: unknown[];
+  authorizeAuthHeaders: string[];
+  oauthTokenRequests: string[];
   sessionAuthHeaders: string[];
-  signOutAuthHeaders: string[];
+  revokeRequests: string[];
+}
+
+function b64(value: unknown): string {
+  return Buffer.from(JSON.stringify(value)).toString("base64url");
+}
+
+function fakeJwt(
+  email = "cli-e2e@example.com",
+  exp = Math.floor(Date.now() / 1000) + 900,
+  options: { aud?: string; iss?: string } = {},
+): string {
+  const profile = drwnCliProfile({});
+  return `${b64({ alg: "none" })}.${b64({
+    iss: options.iss ?? profile.issuer,
+    aud: options.aud ?? profile.resource,
+    sub: "user_123",
+    email,
+    exp,
+  })}.sig`;
 }
 
 afterEach(async () => {
@@ -30,8 +52,10 @@ function startAuthServer(options: { pendingPolls?: number } = {}) {
   const state: AuthServerState = {
     deviceCodeRequests: [],
     tokenRequests: [],
+    authorizeAuthHeaders: [],
+    oauthTokenRequests: [],
     sessionAuthHeaders: [],
-    signOutAuthHeaders: [],
+    revokeRequests: [],
   };
 
   const server = Bun.serve({
@@ -56,35 +80,37 @@ function startAuthServer(options: { pendingPolls?: number } = {}) {
           return Response.json({ error: "authorization_pending" }, { status: 400 });
         }
         return Response.json({
-          access_token: "access-token",
+          access_token: "device-session-token",
           token_type: "Bearer",
           expires_in: 604800,
+        });
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/auth/oauth2/authorize") {
+        state.authorizeAuthHeaders.push(request.headers.get("authorization") ?? "");
+        return Response.json({ code: "auth-code" });
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/auth/oauth2/token") {
+        state.oauthTokenRequests.push(await request.text());
+        return Response.json({
+          access_token: fakeJwt("cli-e2e@example.com", Math.floor(Date.now() / 1000) + 900, {
+            iss: new URL("/api/auth", request.url).href,
+          }),
+          refresh_token: "refresh-token",
+          token_type: "Bearer",
+          expires_in: 900,
         });
       }
 
       if (request.method === "GET" && url.pathname === "/api/auth/session") {
         const auth = request.headers.get("authorization") ?? "";
         state.sessionAuthHeaders.push(auth);
-        if (auth === "Bearer access-token") {
-          return Response.json({
-            user: { id: "u1", email: "cli-e2e@example.com" },
-            session: { id: "s1", expiresAt: "2026-06-10T00:00:00Z" },
-          });
-        }
-        if (auth === "Bearer env-token") {
-          return Response.json({
-            user: { id: "u2", email: "env-e2e@example.com" },
-            session: { id: "s2", expiresAt: "2026-06-10T00:00:00Z" },
-          });
-        }
-        if (auth === "Bearer null-session-token") {
-          return Response.json(null);
-        }
         return new Response("expired", { status: 401 });
       }
 
-      if (request.method === "POST" && url.pathname === "/api/auth/sign-out") {
-        state.signOutAuthHeaders.push(request.headers.get("authorization") ?? "");
+      if (request.method === "POST" && url.pathname === "/api/auth/oauth2/revoke") {
+        state.revokeRequests.push(await request.text());
         return new Response(null, { status: 204 });
       }
 
@@ -100,15 +126,19 @@ describe("auth CLI E2E", () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     const { apiUrl, state } = startAuthServer({ pendingPolls: 1 });
-    const env = { ...envFor(fixture), DRWN_ANALYZER_URL: apiUrl };
+    const env = { ...envFor(fixture), DRWN_DAH_HUB_URL: apiUrl };
 
-    const login = await runAgentsCli(["login", "--no-browser", "--json"], env);
+    const login = await runAgentsCli(["login", "--json"], env);
 
     expect(login.exitCode).toBe(0);
-    expect(login.stderr).toContain("To sign in, visit:");
-    expect(login.stderr).toContain("Code: ABCD-EFGH");
+    expect(login.stderr).toContain("Log in to your Darwinian account:");
+    expect(login.stderr).toContain("1. Press Enter to open it in your browser");
+    expect(login.stderr).toContain("2. Or open this URL manually: ");
+    expect(login.stderr).toContain("/device?user_code=ABCD-EFGH");
+    expect(login.stderr).toContain("Waiting for browser sign-in...");
+    expect(login.stderr).not.toContain("Code: ABCD-EFGH");
     expect(JSON.parse(login.stdout)).toMatchObject({ email: "cli-e2e@example.com" });
-    expect(state.deviceCodeRequests).toEqual([{ client_id: "drwn-cli" }]);
+    expect(state.deviceCodeRequests).toEqual([{ client_id: "drwn-cli", scope: "openid email offline_access" }]);
     expect(state.tokenRequests).toHaveLength(2);
     expect(state.tokenRequests.at(-1)).toMatchObject({
       device_code: "device-code",
@@ -119,30 +149,35 @@ describe("auth CLI E2E", () => {
     const credentialsPath = resolveCredentialsPath(fixture.agentsDir);
     expect((await stat(credentialsPath)).mode & 0o777).toBe(0o600);
     const onDisk = await Bun.file(credentialsPath).text();
-    expect(onDisk).not.toContain("access-token");
+    expect(onDisk).not.toContain("cli-e2e@example.com");
     expect(JSON.parse(onDisk).algo).toBe("aes-256-gcm");
     const credentials = await readCredentials(credentialsPath);
     expect(credentials).toMatchObject({
-      api_url: apiUrl,
-      access_token: "access-token",
+      version: 2,
+      issuer: `${apiUrl}/api/auth`,
+      refreshToken: "refresh-token",
       user_email: "cli-e2e@example.com",
     });
+    expect(credentials && "version" in credentials ? credentials.accessToken : "").toContain(".");
     expect(Date.parse(credentials!.saved_at)).not.toBeNaN();
 
     const whoami = await runAgentsCli(["whoami", "--json"], envFor(fixture));
     expect(whoami.exitCode).toBe(0);
     expect(JSON.parse(whoami.stdout)).toMatchObject({
       email: "cli-e2e@example.com",
-      api_url: apiUrl,
-      saved_at: credentials!.saved_at,
-      expires_at: "2026-06-10T00:00:00Z",
+      issuer: `${apiUrl}/api/auth`,
+      audience: "https://api.darwiniantools.com",
+      user_id: "user_123",
+      expires_at: credentials && "version" in credentials ? credentials.expiresAt : undefined,
+      source: "stored",
     });
-    expect(state.sessionAuthHeaders).toContain("Bearer access-token");
+    expect(state.authorizeAuthHeaders).toEqual(["Bearer device-session-token"]);
+    expect(state.sessionAuthHeaders).toEqual([]);
 
-    const logout = await runAgentsCli(["logout"], envFor(fixture));
+    const logout = await runAgentsCli(["logout"], { ...envFor(fixture), DRWN_DAH_HUB_URL: apiUrl });
     expect(logout.exitCode).toBe(0);
     expect(logout.stdout).toContain("Logged out. Credentials removed.");
-    expect(state.signOutAuthHeaders).toEqual(["Bearer access-token"]);
+    expect(state.revokeRequests).toEqual(["token=refresh-token&client_id=drwn-cli&token_type_hint=refresh_token"]);
     expect(await Bun.file(credentialsPath).exists()).toBe(false);
 
     const afterLogout = await runAgentsCli(["whoami"], envFor(fixture));
@@ -150,7 +185,7 @@ describe("auth CLI E2E", () => {
     expect(afterLogout.stderr).toContain("Not authenticated. Run `drwn login` first");
   });
 
-  test("whoami env-token path bypasses credentials and maps invalid sessions", async () => {
+  test("whoami env-token path bypasses credentials and validates JWT claims", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     const { apiUrl, state } = startAuthServer();
@@ -158,66 +193,77 @@ describe("auth CLI E2E", () => {
 
     const valid = await runAgentsCli(["whoami", "--json"], {
       ...baseEnv,
-      DRWN_TOKEN: "env-token",
-      DRWN_ANALYZER_URL: apiUrl,
+      DRWN_TOKEN: fakeJwt("env-e2e@example.com"),
+      DRWN_DAH_HUB_URL: apiUrl,
     });
 
     expect(valid.exitCode).toBe(0);
     expect(JSON.parse(valid.stdout)).toMatchObject({
       email: "env-e2e@example.com",
-      api_url: apiUrl,
-      expires_at: "2026-06-10T00:00:00Z",
+      issuer: "https://auth.darwiniantools.com/api/auth",
+      source: "env",
     });
     expect(await Bun.file(resolveCredentialsPath(fixture.agentsDir)).exists()).toBe(false);
 
-    const nullSession = await runAgentsCli(["whoami"], {
+    const wrongAudience = await runAgentsCli(["whoami"], {
       ...baseEnv,
-      DRWN_TOKEN: "null-session-token",
-      DRWN_ANALYZER_URL: apiUrl,
+      DRWN_TOKEN: fakeJwt("bad@example.com", Math.floor(Date.now() / 1000) + 900, { aud: "https://wrong.example" }),
+      DRWN_DAH_HUB_URL: apiUrl,
     });
-    expect(nullSession.exitCode).toBe(1);
-    expect(nullSession.stderr).toContain("Session expired. Run `drwn login`.");
+    expect(wrongAudience.exitCode).toBe(1);
+    expect(wrongAudience.stderr).toContain("Token audience does not include https://api.darwiniantools.com.");
 
     const expired = await runAgentsCli(["whoami"], {
       ...baseEnv,
-      DRWN_TOKEN: "expired-token",
-      DRWN_ANALYZER_URL: apiUrl,
+      DRWN_TOKEN: fakeJwt("expired@example.com", Math.floor(Date.now() / 1000) - 60),
+      DRWN_DAH_HUB_URL: apiUrl,
     });
     expect(expired.exitCode).toBe(1);
-    expect(expired.stderr).toContain("Session expired. Run `drwn login`.");
-    expect(state.sessionAuthHeaders).toEqual([
-      "Bearer env-token",
-      "Bearer null-session-token",
-      "Bearer expired-token",
-    ]);
+    expect(expired.stderr).toContain("Token is expired.");
+    expect(state.sessionAuthHeaders).toEqual([]);
   });
 
-  test("missing analyzer config fails before credentials are written", async () => {
+  test("login failure leaves credentials unwritten", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
+    const server = Bun.serve({
+      port: 0,
+      fetch() {
+        return Response.json({ error: "broken" }, { status: 500 });
+      },
+    });
+    servers.push(server);
 
-    const result = await runAgentsCli(["login", "--no-browser"], envFor(fixture));
+    const result = await runAgentsCli(["login"], {
+      ...envFor(fixture),
+      DRWN_DAH_HUB_URL: `http://127.0.0.1:${server.port}`,
+    });
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain(resolveCredentialsPath(fixture.agentsDir).replace("credentials.json", "config.json"));
-    expect(result.stderr).toContain("DRWN_ANALYZER_URL");
+    expect(result.stderr).toContain("DAH device authorization response missing device_code/user_code.");
     expect(await Bun.file(resolveCredentialsPath(fixture.agentsDir)).exists()).toBe(false);
   });
 
-  test("logout removes stored credentials even when sign-out returns a server error", async () => {
+  test("logout removes stored credentials after revoking the refresh token", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     const { apiUrl } = startAuthServer();
     const credentialsPath = resolveCredentialsPath(fixture.agentsDir);
     await mkdir(join(fixture.agentsDir, "drwn"), { recursive: true });
+    const profile = drwnCliProfile({ DRWN_DAH_HUB_URL: apiUrl });
     await writeCredentials(credentialsPath, {
-      api_url: `${apiUrl}/missing`,
-      access_token: "access-token",
+      version: 2,
+      issuer: profile.issuer,
+      clientId: "drwn-cli",
+      resource: profile.resource,
+      accessToken: fakeJwt(),
+      refreshToken: "refresh-token",
+      expiresAt: new Date(Date.now() + 900_000).toISOString(),
       user_email: "cli-e2e@example.com",
       saved_at: "2026-06-03T00:00:00Z",
     });
 
-    const result = await runAgentsCli(["logout"], envFor(fixture));
+    const result = await runAgentsCli(["logout"], { ...envFor(fixture), DRWN_DAH_HUB_URL: apiUrl });
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("Logged out. Credentials removed.");

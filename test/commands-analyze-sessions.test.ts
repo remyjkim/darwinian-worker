@@ -9,10 +9,26 @@ import { Writable } from "node:stream";
 import { AnalyzeSessionsCommand } from "../cli/commands/analyze/sessions";
 import type { AgentsContext } from "../cli/context";
 import { writeCredentials } from "../cli/core/auth/credentials";
+import { drwnCliProfile } from "../cli/core/auth/profile";
 import { resolveCredentialsPath } from "../cli/core/paths";
 import { cleanupTempRoots, scaffoldCliFixture } from "./helpers";
 
 const tempRoots: string[] = [];
+
+function b64(value: unknown): string {
+  return Buffer.from(JSON.stringify(value)).toString("base64url");
+}
+
+function fakeJwt(email = "x@y.z", exp = Math.floor(Date.now() / 1000) + 900): string {
+  const profile = drwnCliProfile({});
+  return `${b64({ alg: "none" })}.${b64({
+    iss: profile.issuer,
+    aud: profile.resource,
+    sub: "user_123",
+    email,
+    exp,
+  })}.sig`;
+}
 
 class CaptureStream extends Writable {
   chunks: Buffer[] = [];
@@ -36,9 +52,15 @@ async function runAnalyze(args: string[], options?: { withCredentials?: boolean 
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   if (options?.withCredentials !== false) {
+    const profile = drwnCliProfile({});
     await writeCredentials(resolveCredentialsPath(fixture.agentsDir), {
-      api_url: "https://api.test",
-      access_token: "TOK",
+      version: 2,
+      issuer: profile.issuer,
+      clientId: "drwn-cli",
+      resource: profile.resource,
+      accessToken: fakeJwt(),
+      refreshToken: "refresh-1",
+      expiresAt: new Date(Date.now() + 900_000).toISOString(),
       user_email: "x@y.z",
       saved_at: "2026-06-03T00:00:00Z",
     });
@@ -75,7 +97,7 @@ describe("drwn analyze sessions", () => {
     const archive = join(result.fixture.repoRoot, ".agents", "drwn", "session-log-exports", "x.tar.gz");
     await writeArchive(archive);
     AnalyzeSessionsCommand.testDeps = {
-      env: { DRWN_ANALYZER_WEB_URL: "https://app.test" },
+      env: { DRWN_ANALYZER_URL: "https://api.test", DRWN_ANALYZER_WEB_URL: "https://app.test" },
       fetch: (async () => Response.json({ jobId: "job_x", status: "queued" }, { status: 201 })) as unknown as typeof fetch,
     };
 
@@ -112,7 +134,7 @@ describe("drwn analyze sessions", () => {
   test("--archive validates and uploads the explicit path", async () => {
     let uploadCalled = false;
     AnalyzeSessionsCommand.testDeps = {
-      env: { DRWN_ANALYZER_WEB_URL: "https://app.test" },
+      env: { DRWN_ANALYZER_URL: "https://api.test", DRWN_ANALYZER_WEB_URL: "https://app.test" },
       fetch: (async () => {
         uploadCalled = true;
         return Response.json({ jobId: "job_x", status: "queued" }, { status: 201 });
@@ -131,6 +153,7 @@ describe("drwn analyze sessions", () => {
   test("--archive validation failure exits before upload", async () => {
     let uploadCalled = false;
     AnalyzeSessionsCommand.testDeps = {
+      env: { DRWN_ANALYZER_URL: "https://api.test" },
       fetch: (async () => {
         uploadCalled = true;
         return Response.json({});
@@ -160,7 +183,7 @@ describe("drwn analyze sessions", () => {
       }),
     ];
     AnalyzeSessionsCommand.testDeps = {
-      env: { DRWN_ANALYZER_WEB_URL: "https://app.test" },
+      env: { DRWN_ANALYZER_URL: "https://api.test", DRWN_ANALYZER_WEB_URL: "https://app.test" },
       fetch: (async () => responses.shift() ?? Response.json({})) as unknown as typeof fetch,
       sleep: async () => {},
       now: () => 0,
@@ -182,6 +205,7 @@ describe("drwn analyze sessions", () => {
 
   test("maps 401 and 413 upload errors", async () => {
     AnalyzeSessionsCommand.testDeps = {
+      env: { DRWN_ANALYZER_URL: "https://api.test" },
       fetch: (async () => new Response("no", { status: 401 })) as unknown as typeof fetch,
     };
     const result = await runAnalyze([]);
@@ -193,6 +217,7 @@ describe("drwn analyze sessions", () => {
     expect(expired.stderr).toContain("Session expired. Run `drwn login`.");
 
     AnalyzeSessionsCommand.testDeps = {
+      env: { DRWN_ANALYZER_URL: "https://api.test" },
       fetch: (async () => new Response("too big", { status: 413 })) as unknown as typeof fetch,
     };
     const tooLarge = await runAnalyzeWithFixture(result.fixture, []);
@@ -203,6 +228,7 @@ describe("drwn analyze sessions", () => {
   test("--open without webBaseUrl does not spawn and prints a hint", async () => {
     let opened = false;
     AnalyzeSessionsCommand.testDeps = {
+      env: { DRWN_ANALYZER_URL: "https://api.test" },
       fetch: (async () => Response.json({ jobId: "job_x", status: "queued" }, { status: 201 })) as unknown as typeof fetch,
       openBrowser: () => { opened = true; },
     };

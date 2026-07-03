@@ -1,22 +1,41 @@
-// ABOUTME: Implements `drwn login` using Better Auth's OAuth device flow.
-// ABOUTME: Persists analyzer bearer credentials under ~/.agents/drwn for future commands.
+// ABOUTME: Implements `drwn login` using DAH's native OAuth device flow.
+// ABOUTME: Persists services-audience DAH credentials under ~/.agents/drwn for future commands.
 
 import { Option } from "clipanion";
 import { BaseCommand } from "../base";
 import { openBrowser as defaultOpenBrowser } from "../../core/auth/browser";
-import { loadAnalyzerConfig } from "../../core/auth/config";
 import { runDeviceFlow } from "../../core/auth/device-flow";
 import { writeCredentials } from "../../core/auth/credentials";
-import { createAnalyzerClient } from "../../core/http/analyzer-client";
+import { drwnCliProfile } from "../../core/auth/profile";
 import { resolveCredentialsPath } from "../../core/paths";
 
 type LoginDeps = {
-  env?: Partial<Record<"DRWN_ANALYZER_URL" | "DRWN_ANALYZER_WEB_URL", string | undefined>>;
+  env?: Record<string, string | undefined>;
   fetch?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
   now?: () => number;
   openBrowser?: (url: string) => void;
 };
+
+function openOnEnter(stdin: NodeJS.ReadableStream, open: () => void): (() => void) | undefined {
+  const input = stdin as NodeJS.ReadableStream & { isTTY?: boolean };
+  if (!input.isTTY) {
+    open();
+    return undefined;
+  }
+
+  const cleanup = () => {
+    input.off("data", onData);
+    input.pause();
+  };
+  const onData = () => {
+    cleanup();
+    open();
+  };
+  input.once("data", onData);
+  input.resume();
+  return cleanup;
+}
 
 export class LoginCommand extends BaseCommand {
   static override paths = [["login"]];
@@ -25,24 +44,18 @@ export class LoginCommand extends BaseCommand {
 
   static override usage = BaseCommand.Usage({
     category: "Auth",
-    description: "Authenticate with the Darwinian analyzer via the device flow.",
+    description: "Authenticate with Darwinian Auth Hub via the device flow.",
     details: `
-      Requests a device code from the analyzer API, opens the browser for Google
-      sign-in and approval, waits for authorization, validates the resulting
-      session, and saves credentials to ~/.agents/drwn/credentials.json.
+      Requests a DAH sign-in URL, opens the browser for Google account selection,
+      exchanges the approved device session for a services-audience JWT and refresh token, and
+      saves credentials to ~/.agents/drwn/credentials.json.
 
-      Set DRWN_ANALYZER_URL or analyzer.apiUrl in the user config before running
-      this command. The credentials file is written with owner-only permissions.
+      Set DRWN_DAH_HUB_URL to use a non-production Auth Hub.
     `,
     examples: [
       ["Sign in", "drwn login"],
-      ["Print URL only without opening a browser", "drwn login --no-browser"],
-      ["Use a local analyzer API", "DRWN_ANALYZER_URL=http://localhost:8787 drwn login"],
+      ["Use a local Auth Hub", "DRWN_DAH_HUB_URL=http://localhost:8789 drwn login"],
     ],
-  });
-
-  noBrowser = Option.Boolean("--no-browser", false, {
-    description: "Print the verification URL without opening a browser.",
   });
 
   json = Option.Boolean("--json", false, {
@@ -52,56 +65,44 @@ export class LoginCommand extends BaseCommand {
   async execute() {
     const deps = LoginCommand.testDeps ?? {};
     const env = deps.env ?? process.env as LoginDeps["env"];
-    const cfg = await loadAnalyzerConfig(this.context, env);
-    if (!cfg.apiUrl) {
-      this.context.stderr.write(
-        `No analyzer.apiUrl configured. Set it in ${cfg.configPath} or DRWN_ANALYZER_URL.\n`,
-      );
-      return 1;
-    }
+    const profile = drwnCliProfile(env);
+    let cancelOpenOnEnter: (() => void) | undefined;
 
     try {
-      const client = createAnalyzerClient(cfg.apiUrl, deps.fetch ?? fetch);
-      const token = await runDeviceFlow({
-        client,
-        clientId: cfg.clientId,
+      const credential = await runDeviceFlow({
+        profile,
+        fetcher: deps.fetch ?? fetch,
         sleep: deps.sleep,
         now: deps.now,
-        onUserAction: ({ verification_uri_complete, user_code }) => {
-          const instructions =
-            `To sign in, visit:\n  ${verification_uri_complete}\nCode: ${user_code}\nWaiting for authorization...\n`;
+        onUserAction: ({ verification_uri_complete }) => {
+          const instructions = [
+            "Log in to your Darwinian account:",
+            "1. Press Enter to open it in your browser",
+            `2. Or open this URL manually: ${verification_uri_complete}`,
+            "",
+            "Waiting for browser sign-in...",
+            "",
+          ].join("\n");
           if (this.json) {
             this.context.stderr.write(instructions);
           } else {
             this.context.stdout.write(instructions);
           }
-          if (!this.noBrowser) {
-            (deps.openBrowser ?? defaultOpenBrowser)(verification_uri_complete);
-          }
+          const open = () => (deps.openBrowser ?? defaultOpenBrowser)(verification_uri_complete);
+          cancelOpenOnEnter = openOnEnter(this.context.stdin, open);
         },
       });
-      const session = await client.getSession(token.access_token);
-      const email = session?.user.email;
-      if (!email) {
-        this.context.stderr.write("Authentication succeeded but no user session was returned.\n");
-        return 1;
-      }
-
+      cancelOpenOnEnter?.();
       const credentialsPath = resolveCredentialsPath(this.context.agentsDir);
-      const savedAt = new Date().toISOString();
-      await writeCredentials(credentialsPath, {
-        api_url: cfg.apiUrl,
-        access_token: token.access_token,
-        user_email: email,
-        saved_at: savedAt,
-      });
+      await writeCredentials(credentialsPath, credential);
       if (this.json) {
-        this.context.stdout.write(JSON.stringify({ email, saved_at: savedAt }) + "\n");
+        this.context.stdout.write(JSON.stringify({ email: credential.user_email, expires_at: credential.expiresAt }) + "\n");
       } else {
-        this.context.stdout.write(`Authenticated as ${email}. Credentials saved to ${credentialsPath}.\n`);
+        this.context.stdout.write(`Signed in as ${credential.user_email || "unknown user"}\n`);
       }
       return 0;
     } catch (error) {
+      cancelOpenOnEnter?.();
       this.context.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
       return 1;
     }

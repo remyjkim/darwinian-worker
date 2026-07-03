@@ -4,6 +4,7 @@
 import { Option } from "clipanion";
 import { BaseCommand } from "../base";
 import { resolveCloudConfig } from "../../core/cloud-config";
+import { fetchJsonWithCloudAuth } from "../../core/cloud-http";
 import { renderJson, renderTable } from "../../core/output";
 import type { DeploymentsResponse } from "./types";
 import { displayModel, displayValue } from "./types";
@@ -35,12 +36,16 @@ export class CloudDeploymentsCommand extends BaseCommand {
     const { apiBaseUrl } = resolveCloudConfig();
     let body: DeploymentsResponse;
     try {
-      const res = await fetch(`${apiBaseUrl}/api/minds/${this.slug}/deployments`);
+      const result = await fetchJsonWithCloudAuth<DeploymentsResponse>(
+        this.context,
+        `${apiBaseUrl}/api/minds/${this.slug}/deployments`,
+      );
+      const res = result.response;
       if (!res.ok) {
         this.context.stderr.write(`Deployments failed (${res.status}).\n`);
         return 1;
       }
-      body = (await res.json()) as DeploymentsResponse;
+      body = result.body;
     } catch (error) {
       this.context.stderr.write(`Cannot reach Deploy API at ${apiBaseUrl}: ${(error as Error).message}\n`);
       return 1;

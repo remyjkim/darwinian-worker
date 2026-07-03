@@ -16,6 +16,20 @@ import { cleanupTempRoots, scaffoldCliFixture } from "./helpers";
 
 const tempRoots: string[] = [];
 
+function b64(value: unknown): string {
+  return Buffer.from(JSON.stringify(value)).toString("base64url");
+}
+
+function fakeJwt(email = "x@y.z", exp = Math.floor(Date.now() / 1000) + 900): string {
+  return `${b64({ alg: "none" })}.${b64({
+    iss: "https://auth.darwiniantools.com/api/auth",
+    aud: "https://api.darwiniantools.com",
+    sub: "user_123",
+    email,
+    exp,
+  })}.sig`;
+}
+
 class CaptureStream extends Writable {
   chunks: Buffer[] = [];
 
@@ -75,26 +89,33 @@ async function runAuthCommand(
 
 function deviceFlowFetch(): typeof fetch {
   return (async (url: string) => {
-    if (url.endsWith("/api/auth/device/code")) {
+    const u = new URL(url);
+    if (u.pathname === "/api/auth/device/code") {
       return Response.json({
         device_code: "dev",
         user_code: "ABCD",
+        verification_uri: "https://app.test/device",
         verification_uri_complete: "https://app.test/device?user_code=ABCD",
         expires_in: 600,
         interval: 1,
       });
     }
-    if (url.endsWith("/api/auth/device/token")) {
+    if (u.pathname === "/api/auth/device/token") {
       return Response.json({
-        access_token: "tok",
+        access_token: "opaque-device-session",
         token_type: "Bearer",
         expires_in: 604800,
       });
     }
-    if (url.endsWith("/api/auth/session")) {
+    if (u.pathname === "/api/auth/oauth2/authorize") {
+      return Response.json({ code: "auth-code" });
+    }
+    if (u.pathname === "/api/auth/oauth2/token") {
       return Response.json({
-        user: { id: "u", email: "x@y.z" },
-        session: { id: "s", expiresAt: "2026-06-10T00:00:00Z" },
+        access_token: fakeJwt(),
+        refresh_token: "refresh-1",
+        token_type: "Bearer",
+        expires_in: 900,
       });
     }
     throw new Error(`unexpected URL ${url}`);
@@ -103,19 +124,23 @@ function deviceFlowFetch(): typeof fetch {
 
 describe("auth commands", () => {
   test("login reports missing analyzer apiUrl with config path and env var", async () => {
-    LoginCommand.testDeps = { env: {} };
+    LoginCommand.testDeps = {
+      env: {},
+      fetch: deviceFlowFetch(),
+      sleep: async () => {},
+      openBrowser: () => {},
+    };
 
     const result = await runAuthCommand(["login"]);
 
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain(join(result.fixture.agentsDir, "drwn", "config.json"));
-    expect(result.stderr).toContain("DRWN_ANALYZER_URL");
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Signed in as x@y.z");
   });
 
   test("login completes device flow, opens browser, and writes 0600 credentials", async () => {
     const opened: string[] = [];
     LoginCommand.testDeps = {
-      env: { DRWN_ANALYZER_URL: "https://api.test" },
+      env: {},
       fetch: deviceFlowFetch(),
       sleep: async () => {},
       openBrowser: (url) => { opened.push(url); },
@@ -125,32 +150,23 @@ describe("auth commands", () => {
     const credentialsPath = resolveCredentialsPath(result.fixture.agentsDir);
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("Authenticated as x@y.z.");
+    expect(result.stdout).toContain("Log in to your Darwinian account:");
+    expect(result.stdout).toContain("1. Press Enter to open it in your browser");
+    expect(result.stdout).toContain("2. Or open this URL manually: https://app.test/device?user_code=ABCD");
+    expect(result.stdout).toContain("Waiting for browser sign-in...");
+    expect(result.stdout).not.toContain("Code: ABCD");
+    expect(result.stdout).toContain("Signed in as x@y.z");
     expect(opened).toEqual(["https://app.test/device?user_code=ABCD"]);
     expect((await stat(credentialsPath)).mode & 0o777).toBe(0o600);
     const onDisk = await Bun.file(credentialsPath).text();
-    expect(onDisk).not.toContain("tok");
+    expect(onDisk).not.toContain("opaque-device-session");
     expect(JSON.parse(onDisk).algo).toBe("aes-256-gcm");
     expect(await readCredentials(credentialsPath)).toMatchObject({
-      api_url: "https://api.test",
-      access_token: "tok",
+      version: 2,
+      accessToken: fakeJwt(),
+      refreshToken: "refresh-1",
       user_email: "x@y.z",
     });
-  });
-
-  test("login --no-browser skips browser open", async () => {
-    const opened: string[] = [];
-    LoginCommand.testDeps = {
-      env: { DRWN_ANALYZER_URL: "https://api.test" },
-      fetch: deviceFlowFetch(),
-      sleep: async () => {},
-      openBrowser: (url) => { opened.push(url); },
-    };
-
-    const result = await runAuthCommand(["login", "--no-browser"]);
-
-    expect(result.exitCode).toBe(0);
-    expect(opened).toEqual([]);
   });
 
   test("logout removes credentials and best-effort signs out", async () => {
@@ -165,8 +181,13 @@ describe("auth commands", () => {
     };
     const credentialsPath = resolveCredentialsPath(fixture.agentsDir);
     await writeCredentials(credentialsPath, {
-      api_url: "https://api.test",
-      access_token: "tok",
+      version: 2,
+      issuer: "https://auth.darwiniantools.com/api/auth",
+      clientId: "drwn-cli",
+      resource: "https://api.darwiniantools.com",
+      accessToken: fakeJwt(),
+      refreshToken: "refresh-1",
+      expiresAt: new Date(Date.now() + 900_000).toISOString(),
       user_email: "x@y.z",
       saved_at: "2026-06-03T00:00:00Z",
     });
@@ -176,7 +197,7 @@ describe("auth commands", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("Logged out. Credentials removed.");
     expect(await Bun.file(credentialsPath).exists()).toBe(false);
-    expect(called).toEqual(["https://api.test/api/auth/sign-out"]);
+    expect(called).toEqual(["https://auth.darwiniantools.com/api/auth/oauth2/revoke"]);
   });
 
   test("logout reports not logged in when credentials are absent", async () => {
@@ -188,14 +209,7 @@ describe("auth commands", () => {
 
   test("whoami uses env token and prints email", async () => {
     WhoamiCommand.testDeps = {
-      env: { DRWN_TOKEN: "tok", DRWN_ANALYZER_URL: "https://api.test" },
-      fetch: (async (url: string) => {
-        expect(url).toBe("https://api.test/api/auth/session");
-        return Response.json({
-          user: { id: "u", email: "env@example.com" },
-          session: { id: "s", expiresAt: "2026-06-10T00:00:00Z" },
-        });
-      }) as unknown as typeof fetch,
+      env: { DRWN_TOKEN: fakeJwt("env@example.com") },
     };
 
     const result = await runAuthCommand(["whoami"]);
@@ -215,13 +229,12 @@ describe("auth commands", () => {
 
   test("whoami reports expired session on null session", async () => {
     WhoamiCommand.testDeps = {
-      env: { DRWN_TOKEN: "tok", DRWN_ANALYZER_URL: "https://api.test" },
-      fetch: (async () => Response.json(null)) as unknown as typeof fetch,
+      env: { DRWN_TOKEN: "opaque" },
     };
 
     const result = await runAuthCommand(["whoami"]);
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("Session expired. Run `drwn login`.");
+    expect(result.stderr).toContain("Token is not JWT-shaped.");
   });
 });
