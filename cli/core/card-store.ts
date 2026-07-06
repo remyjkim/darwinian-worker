@@ -862,18 +862,38 @@ export async function listCards(agentsDir: string) {
   if (!existsSync(root)) {
     return [];
   }
-  const cards: Array<{ name: string; versions: string[] }> = [];
+  const cards: Array<{ name: string; versions: string[]; deprecated: Record<string, string> }> = [];
   for (const repo of await listBareRepos(agentsDir)) {
-    cards.push({ name: repo.name, versions: await listPublishedVersions(agentsDir, repo.name) });
+    const versions = await listPublishedVersions(agentsDir, repo.name);
+    const deprecated: Record<string, string> = {};
+    for (const version of versions) {
+      const message = await getCardDeprecation(agentsDir, repo.name, version);
+      if (message !== null) {
+        deprecated[version] = message;
+      }
+    }
+    cards.push({ name: repo.name, versions, deprecated });
   }
   return cards.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function deprecationConfigKey(version: string) {
+  return `drwn.deprecated.v${version.replace(/\./g, "-")}`;
+}
+
+export async function getCardDeprecation(agentsDir: string, name: string, version: string): Promise<string | null> {
+  const barePath = resolveCardBareRepoPath(agentsDir, name);
+  if (!existsSync(barePath)) {
+    return null;
+  }
+  return await git.configGet(barePath, deprecationConfigKey(version));
 }
 
 export async function deprecateCardVersion(agentsDir: string, ref: string, message: string) {
   assertStoreWritable();
   const resolved = await resolveCard(agentsDir, ref);
   const barePath = resolveCardBareRepoPath(agentsDir, resolved.name);
-  await git.configSet(barePath, `drwn.deprecated.${resolved.version}`, message || "deprecated");
+  await git.configSet(barePath, deprecationConfigKey(resolved.version), message || "deprecated");
   return resolved;
 }
 

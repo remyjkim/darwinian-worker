@@ -4,7 +4,7 @@
 import { Option } from "clipanion";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { resolveCard } from "../../core/card-store";
+import { getCardDeprecation, resolveCard } from "../../core/card-store";
 import { DrwnError } from "../../core/errors";
 import * as git from "../../core/git";
 import { renderJson, renderTable } from "../../core/output";
@@ -76,13 +76,15 @@ export class CardShowCommand extends BaseCommand {
         ? await git.log(resolveCardBareRepoPath(this.context.agentsDir, card.name), { maxCount: 10, ref: card.git.commit })
         : [];
       const hookPolicies = readHookSummaries(card.dir, card.manifest.hooks?.include ?? []);
+      const deprecated = await getCardDeprecation(this.context.agentsDir, card.name, card.version);
       if (this.json) {
-        this.context.stdout.write(renderJson({ ...card, history, hookPolicies }));
+        this.context.stdout.write(renderJson({ ...card, history, hookPolicies, deprecated }));
         return 0;
       }
       const rows = [
         ["name", card.name],
         ["version", card.version],
+        ...(deprecated ? [["deprecated", deprecated]] : []),
         ["requested", card.requested],
         ["path", card.dir],
         ["integrity", card.integrity],

@@ -32,7 +32,11 @@ export class CardListCommand extends BaseCommand {
     this.context.stdout.write(
       renderTable(
         ["name", "versions"],
-        cards.map((card) => [card.name, card.versions.join(",") || "none"]),
+        cards.map((card) => [
+          card.name,
+          card.versions.map((version) => (card.deprecated[version] ? `${version} (deprecated)` : version)).join(",") ||
+            "none",
+        ]),
       ),
     );
     return 0;
