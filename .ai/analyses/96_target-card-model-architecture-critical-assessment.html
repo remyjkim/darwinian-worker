@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<!-- ABOUTME: Critical assessment of analysis 93 (target card model architecture) — audits the consolidated doc against the codebase, the source analyses (82/89/90/92/94), and its own internal consistency. -->
+<!-- ABOUTME: Grades findings CONFIRMED / DEFECT / GAP / DROPPED / RISK with file:line evidence, and lists the amendments required before Stage B (tasks/65) proceeds. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analysis 96 — Critical Assessment of the Target Card Model Architecture</title>
+<style>
+  :root {
+    --ink: #1a1d23;
+    --muted: #5b6472;
+    --line: #d7dbe2;
+    --paper: #ffffff;
+    --wash: #f5f7fa;
+    --accent: #0b5fff;
+    --accent-soft: #e8f0ff;
+    --confirmed: #0a8754;
+    --confirmed-soft: #e7f6ef;
+    --defect: #b42318;
+    --defect-soft: #fdecea;
+    --gap: #b45309;
+    --gap-soft: #fdf1e0;
+    --dropped: #7c3aed;
+    --dropped-soft: #f3ecfe;
+    --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 2.5rem 1.5rem 5rem;
+    font: 16px/1.65 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    color: var(--ink); background: var(--paper);
+  }
+  main { max-width: 1080px; margin: 0 auto; }
+  h1 { font-size: 1.9rem; line-height: 1.25; margin: 0 0 .4rem; }
+  h2 { font-size: 1.35rem; margin: 3rem 0 .8rem; padding-top: 1.2rem; border-top: 1px solid var(--line); }
+  h3 { font-size: 1.05rem; margin: 1.8rem 0 .5rem; }
+  p, li { max-width: 82ch; }
+  .meta-block { color: var(--muted); font-size: .9rem; margin-bottom: 2rem; }
+  code { font-family: var(--mono); font-size: .86em; background: var(--wash); padding: .1em .35em; border-radius: 4px; }
+  pre { font-family: var(--mono); font-size: .8rem; line-height: 1.55; background: var(--wash);
+        border: 1px solid var(--line); border-radius: 8px; padding: 1rem 1.2rem; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; font-size: .9rem; margin: 1rem 0; width: 100%; }
+  th, td { border: 1px solid var(--line); padding: .45rem .8rem; text-align: left; vertical-align: top; }
+  th { background: var(--wash); }
+  .badge { display: inline-block; font-size: .7rem; font-weight: 600; letter-spacing: .04em;
+           padding: .1rem .5rem; border-radius: 999px; vertical-align: middle; white-space: nowrap; }
+  .badge.confirmed { background: var(--confirmed-soft); color: var(--confirmed); }
+  .badge.defect { background: var(--defect-soft); color: var(--defect); }
+  .badge.gap { background: var(--gap-soft); color: var(--gap); }
+  .badge.dropped { background: var(--dropped-soft); color: var(--dropped); }
+  .badge.risk { background: var(--accent-soft); color: var(--accent); }
+  .badge.high { background: var(--defect); color: #fff; }
+  .badge.med { background: var(--gap); color: #fff; }
+  .badge.low { background: var(--muted); color: #fff; }
+  .callout { border-left: 4px solid var(--accent); background: var(--accent-soft);
+             border-radius: 0 8px 8px 0; padding: .8rem 1.1rem; margin: 1.2rem 0; font-size: .92rem; }
+  .callout.bad { border-color: var(--defect); background: var(--defect-soft); }
+  .callout.warn { border-color: var(--gap); background: var(--gap-soft); }
+  .callout.good { border-color: var(--confirmed); background: var(--confirmed-soft); }
+  .ev { font-family: var(--mono); font-size: .78rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Analysis 96 — Critical Assessment of the Target Card Model Architecture (Analysis 93)</h1>
+<div class="meta-block">
+  <strong>Date</strong>: 2026-07-03 &nbsp;·&nbsp; <strong>Author</strong>: Claude + Remy &nbsp;·&nbsp;
+  <strong>Status</strong>: Assessment — proposes amendments to analysis 93 and tasks/65 before Stage B execution<br>
+  <strong>Assesses</strong>: <code>93_target-card-model-architecture.html</code> (as amended by analysis 94)<br>
+  <strong>References</strong>: <code>94_harness-tooling-critical-assessment.md</code>,
+  <code>tasks/65_drwn-card-model-stage-b-implementation-plan.md</code>,
+  <code>90</code>, <code>92</code>, <code>89</code>, <code>82</code>, and the CLI codebase (uncommitted Stage-A working tree)
+</div>
+
+<h2 id="method">1. Method and stance</h2>
+<p>Analysis 94 already red-teamed the <em>model</em>. This assessment is second-order: it audits
+the consolidated <em>document</em> — including the folded-in 94 corrections — against three
+grounds it can be wrong on:</p>
+<ol>
+  <li><strong>The code as it exists.</strong> Every present-tense claim in 93 was checked against
+      the implementation (including the uncommitted Stage-A changes), with file:line evidence.</li>
+  <li><strong>The source analyses it consolidates.</strong> What did 82/89/90/92/94 decide that
+      93 dropped, weakened, or mutated in transit?</li>
+  <li><strong>Itself.</strong> Do the four principles, the figures, the flows, and the rollout
+      table agree with each other?</li>
+</ol>
+<p>Findings are graded: <span class="badge confirmed">CONFIRMED</span> (claim verified sound),
+<span class="badge defect">DEFECT</span> (claim contradicted by code or by the doc itself),
+<span class="badge gap">GAP</span> (load-bearing mechanism under-specified),
+<span class="badge dropped">DROPPED</span> (consolidation loss vs source analyses),
+<span class="badge risk">RISK</span> (strategic exposure). Severity is
+<span class="badge high">HIGH</span> / <span class="badge med">MED</span> /
+<span class="badge low">LOW</span> by impact on Stage-B correctness.</p>
+
+<h2 id="verdict">2. Verdict up front</h2>
+<div class="callout"><strong>The skeleton survives; the document does not fully earn its own
+claims.</strong> Immutable content + mutable metadata + provenance-as-data + per-project
+activation is verified sound where it is already built, and the rejected alternatives stay
+rightly rejected. But the audit found: <strong>two HIGH defects</strong> (an integrity guarantee
+stated in the present tense that the code does not provide; a silent behavioral inversion of
+skill-conflict precedence that no document acknowledges), <strong>one HIGH design contradiction</strong>
+(the profile card — the flagship replacement for machine defaults — has no team-compatible
+activation channel), and <strong>one HIGH mechanism gap</strong> (the union-merged meta ref, the
+doc's most novel contribution, has no defined semantics for retraction, scalar conflict, or
+concurrent push). None of these invalidates the architecture; all four must be resolved in 93/65
+<em>before</em> their respective Stage-B phases, because each is cheapest to fix on paper.</div>
+
+<h2 id="confirmed">3. What survives verification <span class="badge confirmed">CONFIRMED</span></h2>
+<table>
+  <tr><th>Claim in 93</th><th>Verified reality</th><th>Evidence</th></tr>
+  <tr><td>Content-addressed extraction by tree SHA</td>
+      <td>Correct: <code>extracted/&lt;treeSha&gt;/</code>, extracted via <code>git.extractTreeToDir</code></td>
+      <td class="ev">store-paths.ts:91–94 · card-store.ts:467–487, 678</td></tr>
+  <tr><td>Bare repo per card, tags per version</td>
+      <td>Correct: <code>cards/&lt;scope&gt;/&lt;name&gt;.git</code></td>
+      <td class="ev">store-paths.ts:83–89 · card-store.ts:712–737</td></tr>
+  <tr><td>Copy-based agent surfaces, hash-gated idempotent writes</td>
+      <td>Correct: <code>cpSync</code> materialization; refuse-overwrite via managed-path hashes</td>
+      <td class="ev">materialize.ts:25–56 · sync.ts:393</td></tr>
+  <tr><td>Stage A shipped (deprecation reader/writer, list/show surfacing, 6 tests)</td>
+      <td>Correct, in the uncommitted working tree: <code>deprecationConfigKey</code> / <code>getCardDeprecation</code> / <code>deprecateCardVersion</code>; <code>listCards</code> returns per-version deprecation map; 6 tests present</td>
+      <td class="ev">card-store.ts:880–898, 860–878 · test/core-card-deprecate.test.ts:33–82</td></tr>
+  <tr><td><code>refs/meta/*</code> is genuinely new (Stage B)</td>
+      <td>Correct: current refspecs are heads + tags only; no meta handling anywhere</td>
+      <td class="ev">card-store.ts:556, 616, 623 · commands/card/push.ts:75</td></tr>
+  <tr><td><code>card link</code> has a foundation to build on</td>
+      <td>Correct: <code>file:</code> origin already parses and resolves; the link/unlink commands do not exist yet (as the rollout table says)</td>
+      <td class="ev">card-store.ts:162–164, 833–852</td></tr>
+</table>
+<div class="callout good">Credit where due: the decision record with rejected-alternatives-and-reasons
+(93 §8) is genuinely good practice, the porcelain/plumbing split is the right instinct, and the
+refs/meta channel is a clever, git-native answer to "mutable facts about immutable things." The
+findings below are amendments, not a teardown.</div>
+
+<h2 id="defects">4. Defects — the doc vs the code and vs itself</h2>
+
+<h3>D1. The integrity chain records; it does not verify <span class="badge defect">DEFECT</span> <span class="badge high">HIGH</span></h3>
+<p>93 §4.3 annotates the lockfile's integrity field <em>"verified on resolve"</em>, and the §5.3
+consume flow says <em>"card clone &lt;url&gt; … integrity verified."</em> Neither is true, today or
+as designed for Stage B:</p>
+<ul>
+  <li><code>computeCardIntegrity</code> is called at publish (<span class="ev">card-store.ts:800</span>),
+      at resolve (<span class="ev">card-store.ts:692</span>), and at file-origin resolve
+      (<span class="ev">card-store.ts:849</span>) — and the result is <em>recorded</em> into the
+      commit message and the lock entry (<span class="ev">card-project.ts:46</span>). Nowhere in
+      the codebase is a freshly computed hash <strong>compared against a previously trusted
+      value</strong>. There is no verify-on-load, no re-check after extraction, no clone-time
+      verification.</li>
+  <li>Even conceptually, there is nothing to verify <em>against</em> until catalog v2 supplies
+      per-version integrity from an independent channel — and catalog v2 is Stage C
+      (<span class="badge low">LATER</span>). Until then the chain is trust-on-first-use with no
+      subsequent re-use of the trust anchor: the weakest form, presented in the strongest
+      language.</li>
+</ul>
+<div class="callout bad"><strong>Why HIGH:</strong> this is a security property claimed in the
+present tense in the architecture of record. Anyone reading 93 — including a future agent
+operator — will assume tamper-evidence that does not exist. Either (a) the wording changes to
+"recorded at publish/resolve; verification lands with catalog v2", or (b) a cheap
+verify-on-resolve (lock integrity vs recomputed extraction hash) is added to Stage B. Option (b)
+costs one comparison in <code>resolveCard</code> and would make the sentence true; recommend
+both.</div>
+
+<h3>D2. Skill-conflict precedence: the target silently inverts current behavior <span class="badge defect">DEFECT</span> <span class="badge high">HIGH</span></h3>
+<p>93 §5.6 (and 94 §4.5, and 65 Phase 4) decree <strong>later-apply wins</strong>, "matching
+mind-stack layering." The code today does the opposite: the skill resolver walks cards in
+lockfile order and <strong>first wins</strong> — asserted by an existing test whose title says
+exactly that (<span class="ev">test/core-card-skill-resolver.test.ts:67 — "resolveSkillSource walks
+cards in lockfile order on conflict (first wins)"</span>).</p>
+<p>No document in the chain (93, 94, 65) acknowledges that the "new deterministic rule" is a
+<em>reversal</em> of an existing deterministic rule. Consequences:</p>
+<ul>
+  <li>When 65 Phase 4 lands, any existing project with overlapping cards <strong>silently flips
+      which card's copy materializes</strong> on the next <code>drwn write</code>. That is
+      precisely the class of surprise the drift gates exist to prevent.</li>
+  <li>65 Phase 4 says "implement deterministic precedence" as if none existed, and its test plan
+      contains no migration/behavior-change case. The existing first-wins test will simply fail
+      and be rewritten — which is how behavior changes sneak past review.</li>
+</ul>
+<div class="callout bad"><strong>Amendment:</strong> 93 §5.6 and 65 Phase 4 must state the
+inversion explicitly; Phase 4 needs (a) a changelog-visible note, (b) a one-time warning when a
+write's conflict winner differs from what the previous write-record materialized, and (c) a
+decision from Remy that later-wins is in fact wanted over first-wins (the mind-stack analogy
+argues for it, but it should be a decision, not an accident of consolidation).</div>
+
+<h3>D3. Figure 2b draws the symlink the doc rejects <span class="badge defect">DEFECT</span> <span class="badge med">MED</span></h3>
+<p>93's rejected-alternatives list rules out symlink materialization (Windows/Cowork, hash drift
+gates), and 65's cross-cutting gate says "No new symlinks in any write path." Yet Fig 2b renders
+the generated minds layer as <code>skills/* → extracted/&lt;sha&gt;/skills/*</code> — a link — and
+the code still carries <code>symlink</code>/<code>generated-symlink</code> managed-path kinds
+(<span class="ev">sync.ts:152, 266</span>; the "pre-de-symlink" cleanup comment at
+<span class="ev">sync.ts:369</span> confirms the migration is mid-flight). Analysis 94 §3.6
+honestly lists this as residual debt; 93 draws the debt <em>as the target</em> with no label.
+A target-architecture figure that depicts a state its own invariants forbid will mislead every
+future implementer. Label the arrow as pending-debt (82 fast-follow) or draw the copy.</p>
+
+<h3>D4. Small internal inconsistencies <span class="badge defect">DEFECT</span> <span class="badge low">LOW</span></h3>
+<ul>
+  <li><strong>write-record.json location.</strong> Fig 1 places it inside <code>generated/</code>
+      ("generated/ minds layer · write-record.json"); Fig 2b and the code put it at
+      <code>.agents/drwn/write-record.json</code> (<span class="ev">write-record.ts:63–65</span>).
+      Fig 1 is wrong.</li>
+  <li><strong>"init-managed into .gitignore"</strong> (93 §5.1) is stated as an existing mechanism;
+      today <code>init</code> only <em>warns</em> about .gitignore, never edits it
+      (<span class="ev">commands/init.ts:77–85</span>). The behavior is planned (65 Phase 3 Step 1)
+      — the doc should mark it as such.</li>
+  <li><strong>Porcelain verb naming drift.</strong> 93 §5.6 shows <code>drwn release &lt;card&gt;</code>;
+      65 Phase 2 implements <code>drwn card release</code> while its own success criteria say
+      <code>drwn release</code>. Pick one before the operator skills teach it.</li>
+  <li><strong>"(schema v2, decided Q3)" is ambiguous.</strong> It means decision-question 3, but
+      reads as calendar Q3 — the consolidation reviewer in this very assessment misparsed it.
+      Write "decided question 3."</li>
+</ul>
+
+<h2 id="gaps">5. Gaps — load-bearing mechanisms that are named, not designed</h2>
+
+<h3>G1. "Union-merge" is a slogan, not a merge semantics <span class="badge gap">GAP</span> <span class="badge high">HIGH</span></h3>
+<p>The meta ref is 93's most novel mechanism and its correctness rests entirely on the phrase
+"union-merged." Three cases the phrase does not cover:</p>
+<ul>
+  <li><strong>Retraction is unrepresentable.</strong> A pure union can only grow. Un-deprecating a
+      version (a mistaken <code>card deprecate</code> — inevitable) cannot propagate: every other
+      machine's copy re-contributes the entry at the next merge and the deprecation resurrects
+      forever. The schema needs tombstones or per-key last-write-wins with an ordering field —
+      and the <code>at</code> timestamp already in the deprecation entry is unused by any stated
+      merge rule. 65 Phase 5 says "last-write-wins only within a single key" without saying
+      <em>ordered by what</em>.</li>
+  <li><strong><code>successor</code> is a scalar.</strong> Two machines setting different
+      successors is not a union-mergeable situation; the doc defines no resolution. (It is also
+      the trust-sensitive field — see G6.)</li>
+  <li><strong>fetch → merge → push is not atomic.</strong> Two writers can interleave between
+      fetch and push and the second push either fails (then what — retry loop? how many times?)
+      or, if implemented as a plain <code>update-ref</code> on the remote, silently discards the
+      first writer. This needs compare-and-swap semantics (<code>--force-with-lease</code>-style
+      old-value assertion) with a bounded retry. 65's test plan covers only <em>sequential</em>
+      deprecations from one machine — the exact case that never exercises the merge.</li>
+</ul>
+<div class="callout warn"><strong>Amendment:</strong> specify metadata merge as: per-key LWW
+ordered by the <code>at</code> timestamp (with machine-id tiebreak), deletions as tombstoned keys,
+<code>successor</code> as an <code>{value, at}</code> LWW register, and push as
+compare-and-swap with retry. This is ~15 lines of spec that turns "never blind force" from an
+aspiration into an algorithm — and it must precede 65 Phase 5, whose tests should include the
+concurrent-writer case.</div>
+
+<h3>G2. The profile card has no team-compatible activation channel <span class="badge gap">GAP</span> <span class="badge high">HIGH</span></h3>
+<p>Principle 1 retires machine defaults into "a <em>profile card</em> applied per project." But
+per-project activation writes to <code>config.json</code> — which 93 itself defines as
+<strong>shareable intent, committed</strong> — and pins into <code>card.lock</code>. Apply
+<code>@remyjkim/everyday</code> in any team repository and:</p>
+<ul>
+  <li>every teammate's <code>install-project</code> tries to resolve a personal card they may have
+      no access to (or simply do not want), and</li>
+  <li>the personal staples become project intent, reviewed in PRs, forever.</li>
+</ul>
+<p><code>config.local.json</code> does not solve this: 93/65 scope it strictly to link
+<em>overrides of already-applied cards</em>, not local-only <em>activation</em>. So the flagship
+migration of Stage B (Phase 6) — the replacement for the retired defaults channel — currently
+composes only with solo repositories, and neither 93 §7 nor 65 Phase 6 mentions the constraint.</p>
+<div class="callout warn"><strong>Amendment:</strong> either extend <code>config.local.json</code>
+with a local <code>cards</code> list (locally-activated, never locked into the shared
+<code>card.lock</code> — which raises its own question of where their pins live), or explicitly
+scope the profile card to solo/personal repos in 93 §7 and the migration runbook. This is a
+design decision for Remy, not an implementation detail — it changes what "retire machine
+defaults" means for team projects, where the honest answer today may be "defaults had no team
+story either, and neither does this."</div>
+
+<h3>G3. Release pipeline: failure states enumerable, recovery unspecified <span class="badge gap">GAP</span> <span class="badge med">MED</span></h3>
+<p>93 §5.2 says only "stops at first failure." 94 §4.7 explicitly required "every step idempotent,
+re-run continues," and 65 Phase 2 carries that requirement — so 93, the architecture of record,
+is the odd one out. The partial states are worth enumerating because each strands a different
+component: bump committed but publish failed (source ahead of store); published but push failed
+(store ahead of remote); pushed but catalog failed (remote invisible to discovery). One more
+wrinkle nobody records: <strong>the version-bump commit lives in the card source's own
+<code>.git</code>, which is machine-local and unsynced</strong> (94 §3.4) — publish history is
+losable in a way the bare card repo is not. Fold 94 §4.7's resumability sentence back into 93
+§5.2 and note the source-repo provenance caveat under the multi-machine open front.</p>
+
+<h3>G4. <code>exclude</code> cannot express the resolution it exists for <span class="badge gap">GAP</span> <span class="badge med">MED</span></h3>
+<p>The duplicate-skill escape hatch is "an explicit <code>exclude</code> list in project config."
+But <code>skills.exclude</code> is name-scoped (<span class="ev">types.ts</span> — a flat string
+list): excluding <code>apply-mind-card</code> drops the name from <em>every</em> card. The rule's
+whole purpose is "take this skill from card X, not card Y," which requires a card-qualified form
+(<code>@scope/name#skill</code>). As specified, the escape hatch can only turn the skill off
+entirely — 65 Phase 4's test ("honors a project skills.exclude entry to drop one deterministically")
+would pass while the feature fails its purpose.</p>
+
+<h3>G5. Upstream refs: the optional revision reintroduces the ambiguity it fixed <span class="badge gap">GAP</span> <span class="badge med">MED</span></h3>
+<ul>
+  <li>94 §4.1 added <code>@rev</code> because rev-less refs made <code>sync --check</code>
+      ambiguous ("stale against what?"). 93 §4.1 then makes rev <em>optional</em> with "absent =
+      track default branch" — restoring the moving-target semantics for every unpinned entry.
+      Fine as a deliberate two-mode design, but the doc should say which mode is the norm and
+      that <code>--check</code> against an unpinned ref is inherently racy.</li>
+  <li>65 validates <code>upstream</code> keys ⊆ <code>include</code>, but not the converse — a
+      bundled skill with no upstream entry is a silent provenance hole, the exact thing
+      Principle 3 exists to abolish. <code>doctor</code> should at minimum warn on
+      include-without-upstream.</li>
+  <li>The sync clone/fetch cache ("resolve the git ref into a cache", 65 Phase 1) appears nowhere
+      in 93's storage layout (Fig 2a). Small, but the layout claims to be the registry of record.</li>
+</ul>
+
+<h3>G6. Successor trust-scoping is weaker than its callout sounds <span class="badge gap">GAP</span> <span class="badge med">MED</span></h3>
+<p>The mitigation for the successor attack is "auto-suggest only same-scope successors." But a
+scope is a string prefix with <strong>no ownership binding anywhere in the system</strong> — no
+signing, no namespace registry, nothing ties <code>@darwinian/*</code> cards to one key or one
+owner. The threat model in the callout is "a compromised remote" — and a compromised remote for
+one <code>@darwinian</code> card is, from the consumer's perspective, exactly as authoritative
+about the scope as any other. Same-scope gating adds friction against <em>cross-scope</em>
+phishing, which is real but the easy half; it does nothing against the stated threat. The honest
+fix (signing) is deferred to Phase 8 <em>as a document</em>. Keep the gate, but the callout
+should say what it actually buys, and the trust roadmap should name successor pointers as a
+signing-dependent feature, not a solved one.</p>
+
+<h3>G7. Update policy vs deprecation is undefined <span class="badge gap">GAP</span> <span class="badge low">LOW</span></h3>
+<p><code>card outdated</code> "warns on deprecated pins" (93 §5.3) — but does <code>card
+update</code> (and therefore <code>drwn up</code>, which runs unattended across the whole
+project) re-pin onto a version that is the latest-in-range <em>and deprecated</em>? npm's answer
+(warn, install anyway) is defensible; skipping to the newest non-deprecated in-range version is
+also defensible. Pick one and write it down before <code>drwn up</code> automates it.</p>
+
+<h3>G8. The store grows forever; nix is cited without nix's GC <span class="badge gap">GAP</span> <span class="badge low">LOW</span></h3>
+<p>93 invokes nix's read-only-store reasoning for immutability, but <code>store gc</code> today
+only runs <code>git gc</code> per bare repo (<span class="ev">commands/store/gc.ts:23–25</span>) —
+<strong>nothing ever prunes <code>extracted/</code></strong>, and 94 §3.6 admits it grows
+unboundedly. Content-addressed stores are only viable long-term with reachability-based GC
+(roots = every project's <code>card.lock</code> paths + sources). Not urgent; but a target
+architecture that names its storage "the immutable ledger" should at least reserve the GC design,
+because lock entries point <em>into</em> <code>extracted/</code> (93 §4.3 <code>path</code>) and
+naive pruning would break resolution.</p>
+
+<h3>G9. refs/meta reaches only drwn-shaped consumers <span class="badge gap">GAP</span> <span class="badge low">LOW</span></h3>
+<p>93 §3.2 correctly notes drwn controls refspecs "on both ends" — which is exactly the limit: a
+plain <code>git clone</code> of a card repo (the doc's own distribution story is "any git host")
+fetches no <code>refs/meta/*</code>, some hosts restrict non-standard ref namespaces, and shallow
+clones complicate it further. Deprecation metadata is therefore invisible to every consumer who
+is not the drwn CLI. Acceptable — but it means the catalog (Stage C) is the only channel that can
+reach everyone, so catalog-reflected deprecation should not be thought of as a nice-to-have
+duplicate; it is the fallback of record.</p>
+
+<h2 id="dropped">6. Consolidation fidelity — what fell out in transit <span class="badge dropped">DROPPED</span></h2>
+<table>
+  <tr><th>Source</th><th>Dropped or weakened in 93</th><th>Severity</th></tr>
+  <tr>
+    <td>82 (write path)</td>
+    <td>The <em>reasons</em> for copies (OS-uniform primitives, Cowork-as-surface, exec-bit and
+        path-independence constraints), the five ManagedPath kinds and the proven
+        symlink→copy migration mechanics, managed-fields per-server MCP merge bookkeeping, and
+        credentials-encrypted-at-rest are all compressed into one rejected-alternatives bullet
+        and a Fig 2b annotation. As a consolidation pointer this is defensible; but 93 is styled
+        as <em>the</em> target architecture, and a reader implementing from it alone cannot
+        reconstruct why the substrate is shaped this way or how migration avoids a crisis.</td>
+    <td><span class="badge med">MED</span></td>
+  </tr>
+  <tr>
+    <td>94 §4.7</td>
+    <td>Release resumability/idempotency requirement absent from 93 §5.2 (present in 65) — see G3.</td>
+    <td><span class="badge med">MED</span></td>
+  </tr>
+  <tr>
+    <td>94 §3.2</td>
+    <td>The two-phase apply→write default-inversion question (a graded RISK: "the flag's ubiquity
+        is evidence the default is inverted") is recorded nowhere in 93 — not adopted, not
+        rejected-with-reason. Porcelain <code>use</code> partially moots it, but an open decision
+        silently vanishing from the decision record is exactly what the record exists to prevent.</td>
+    <td><span class="badge med">MED</span></td>
+  </tr>
+  <tr>
+    <td>89 (operator migration)</td>
+    <td>Pending one-time cleanups — diff-and-rescue the stale <code>~/dev/darwinian-harness-skills</code>
+        checkout, port the <code>@remyjkim/drwn-import-mcp-from-claude</code> improvements —
+        appear in no rollout stage. Zombie state that motivated the whole provenance push
+        (94 §1's "stranded across three copies" incident) is left un-scheduled.</td>
+    <td><span class="badge low">LOW</span></td>
+  </tr>
+  <tr>
+    <td>94 §3.4</td>
+    <td>93 lists multi-machine sync as an open front — correct — but Stage B Phase 6 <em>adds</em>
+        new unsynced machine state (the <code>projects.json</code> registry for bulk ops). The gap
+        the doc acknowledges is widened by the doc's own plan, unremarked.</td>
+    <td><span class="badge low">LOW</span></td>
+  </tr>
+</table>
+
+<h2 id="strategy">7. Strategic assessment <span class="badge risk">RISK</span></h2>
+<ul>
+  <li><strong>The moat claim is self-undermining as written.</strong> "The meta ref is the
+      reserved home for fitness/eval annotations… No competitor is positioned to copy this"
+      (93 §8). Set aside the unfalsifiable competitor claim; the concrete problem is that the
+      doc's <em>own</em> trust analysis (successor pointers as attack surface, unsigned refs,
+      instruction-injection via skills) applies with more force to fitness data than to
+      deprecations. A fitness signal in an unsigned, mutable, union-merged ref is a rankings
+      system anyone who can push can game — the moment catalogs open, exactly when the moat is
+      supposed to matter. Fitness annotations need the signing story <em>more</em> than
+      deprecation does; the Stage-B schema reservation is fine, but the roadmap should sequence
+      fitness-in-meta <em>after</em> signing, and say so.</li>
+  <li><strong>Porcelain is asserted, not measured.</strong> 94 §3.1 computed that net concept
+      count is "roughly flat" after the target model; 93 §5.6 presents three or four verbs as the
+      answer to the "single biggest adoption risk" with no success criterion. The claim is
+      plausible (git's precedent is real) but the doc should state the test: e.g.,
+      <code>bootstrap-project → drwn use → value</code> in under ten minutes with ≤4 nouns
+      encountered — 94 §5 already names this bar; 93 dropped it.</li>
+  <li><strong>Stage B is eight workstreams wearing one badge.</strong> The rollout table's single
+      "NEXT" row spans provenance, porcelain, links, conflicts, distributed metadata, defaults
+      retirement, and hardening. Tasks/65 mitigates properly (independently shippable phases,
+      dependency-honest reordering) — but 93's table hides that the <em>ordering</em> is
+      load-bearing (conflict rule before profile card; merge semantics before distributed
+      deprecation). A reader of 93 alone cannot see which arrows are blocking.</li>
+  <li><strong>The agent-as-operator lens, 94's best insight, is thin in 93.</strong> 94 §1
+      established that the primary operator is an LLM agent and every error must name the next
+      correct command; 93 carries this only inside §5.5's signpost flow. It deserves to be a
+      named principle — it is arguably the strongest justification for provenance-as-data in the
+      whole design.</li>
+</ul>
+
+<h2 id="amendments">8. Required amendments, prioritized</h2>
+<table>
+  <tr><th>#</th><th>Amendment</th><th>Where</th><th>Blocks</th></tr>
+  <tr><td>1</td>
+      <td>Fix integrity language ("recorded", not "verified") <em>and</em> add verify-on-resolve
+          (lock integrity vs recomputed extraction hash) to Stage B</td>
+      <td>93 §4.3, §5.3 · 65 (new step, Phase 0 or 1)</td>
+      <td>Honesty of the doc; cheap real verification</td></tr>
+  <tr><td>2</td>
+      <td>Specify meta-ref merge semantics: per-key LWW by <code>at</code> timestamp + machine
+          tiebreak, tombstones for retraction, <code>{value, at}</code> register for
+          <code>successor</code>, CAS push with bounded retry; add a concurrent-writer test</td>
+      <td>93 §3.2/§4.2 · 65 Phase 5</td>
+      <td>Phase 5</td></tr>
+  <tr><td>3</td>
+      <td>Decide the profile card's activation channel for team repos (local activation list vs
+          solo-only scoping) — <strong>decision needed from Remy</strong></td>
+      <td>93 §7 · 65 Phase 6</td>
+      <td>Phase 6</td></tr>
+  <tr><td>4</td>
+      <td>Acknowledge the first-wins → later-wins precedence inversion; add migration warning +
+          explicit decision record entry</td>
+      <td>93 §5.6 · 65 Phase 4</td>
+      <td>Phase 4</td></tr>
+  <tr><td>5</td>
+      <td>Card-qualified <code>exclude</code> (<code>@scope/name#skill</code>) or an equivalent
+          per-card resolution form</td>
+      <td>93 §5.6 · 65 Phase 4</td>
+      <td>Phase 4</td></tr>
+  <tr><td>6</td>
+      <td>Restore 94 §4.7 resumability into 93 §5.2; record 94 §3.2 (apply→write default) as an
+          open or rejected decision; label Fig 2b's generated-layer link as pending debt; fix
+          Fig 1 write-record location; unify <code>drwn release</code> vs <code>card release</code></td>
+      <td>93 §5.2, Fig 1, Fig 2b, §5.6 · 65 Phase 2</td>
+      <td>Doc integrity</td></tr>
+  <tr><td>7</td>
+      <td>Doctor warns on include-without-upstream; state the pinned-rev norm; add sync cache to
+          the storage layout</td>
+      <td>93 §3.1, §4.1 · 65 Phase 1</td>
+      <td>Phase 1 polish</td></tr>
+  <tr><td>8</td>
+      <td>Define <code>card update</code>/<code>drwn up</code> behavior on deprecated
+          latest-in-range; reword the successor-trust callout to what same-scope gating actually
+          buys; sequence fitness-in-meta after signing in the trust roadmap; schedule 89's
+          stale-checkout cleanup; reserve an extracted/ GC design note</td>
+      <td>93 §5.3, §4.2, §8 · 65 Phases 5/8</td>
+      <td>Follow-ups</td></tr>
+</table>
+
+<h2 id="close">9. Closing judgment</h2>
+<p>Analysis 93 is a good consolidation of a sound architecture, and analysis 94's red-team made
+it substantially better before this assessment touched it. What 94 could not do — being written
+by the model's own author against the model — is audit the <em>document</em> as an artifact:
+whether its present-tense claims are true in the code, whether its figures obey its invariants,
+and whether the consolidation preserved its sources. On that audit, 93 currently over-claims one
+security property, hides one behavior reversal, ships one team-incompatible flagship migration,
+and leaves its most novel mechanism specified by a two-word slogan. All four are paper fixes
+this week and expensive incidents next quarter. Amend first; then Stage B can execute on a
+document that is as trustworthy as the store it describes.</p>
+
+</main>
+</body>
+</html>
