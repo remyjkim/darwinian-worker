@@ -3,11 +3,12 @@
 
 import { afterEach, expect, test } from "bun:test";
 import { existsSync, lstatSync } from "node:fs";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { cardLockPath, loadCardLock, writeCardLock } from "../cli/core/card-lock";
 import { computeCardIntegrity } from "../cli/core/card-store";
 import { resolveCardBareRepoPath } from "../cli/core/store-paths";
+import { resolveProjectVendorTree } from "../cli/core/vendor";
 import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture } from "./helpers";
 import { createLocalCardRepo } from "./fixtures/git-helpers";
 
@@ -17,7 +18,7 @@ afterEach(async () => {
   await cleanupTempRoots(tempRoots);
 });
 
-async function scaffoldLockedGitProject(options?: { apply?: boolean }) {
+async function scaffoldLockedGitProject(options?: { apply?: boolean; vendor?: boolean }) {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   const remote = await createLocalCardRepo({ name: "@team/backend", version: "1.0.0", skills: ["alpha"] });
@@ -29,6 +30,10 @@ async function scaffoldLockedGitProject(options?: { apply?: boolean }) {
   expect(apply.exitCode).toBe(0);
   const use = await runAgentsCli(["worker", "stack", "use", "@team/backend"], envFor(fixture), projectDir);
   expect(use.exitCode).toBe(0);
+  if (options?.vendor) {
+    const write = await runAgentsCli(["write"], envFor(fixture), projectDir);
+    expect(write.exitCode).toBe(0);
+  }
   await rm(join(fixture.agentsDir, "drwn"), { recursive: true, force: true });
   if (options?.apply) {
     await mkdir(join(projectDir, ".claude"), { recursive: true });
@@ -68,6 +73,35 @@ test("install --frozen refuses to clone missing repos", async () => {
 
   expect(result.exitCode).not.toBe(0);
   expect(result.stderr).toContain("--frozen");
+});
+
+test("install --frozen succeeds from committed vendor bytes without a machine store", async () => {
+  const { fixture, projectDir } = await scaffoldLockedGitProject({ vendor: true });
+  const lock = await loadCardLock(projectDir);
+  const entry = lock!.cards[0]!;
+  expect(entry.treeSha).toBeDefined();
+  expect(existsSync(resolveProjectVendorTree(projectDir, entry.name, entry.treeSha!))).toBe(true);
+  expect(existsSync(resolveCardBareRepoPath(fixture.agentsDir, "@team/backend"))).toBe(false);
+
+  const result = await runAgentsCli(["install", "--frozen", "--no-apply"], envFor(fixture), projectDir);
+
+  expect(result.exitCode).toBe(0);
+  expect(result.stdout).toContain("Installed 1 card(s).");
+  expect(existsSync(resolveCardBareRepoPath(fixture.agentsDir, "@team/backend"))).toBe(false);
+});
+
+test("install --frozen reports corrupt committed vendor bytes", async () => {
+  const { fixture, projectDir } = await scaffoldLockedGitProject({ vendor: true });
+  const entry = (await loadCardLock(projectDir))!.cards[0]!;
+  const vendorDir = resolveProjectVendorTree(projectDir, entry.name, entry.treeSha!);
+  await chmod(join(vendorDir, "card.json"), 0o644);
+  await writeFile(join(vendorDir, "card.json"), "{}\n");
+
+  const result = await runAgentsCli(["install", "--frozen", "--no-apply"], envFor(fixture), projectDir);
+
+  expect(result.exitCode).not.toBe(0);
+  expect(result.stderr).toContain("committed vendor tree");
+  expect(result.stderr).toContain("corrupt");
 });
 
 test("install detects integrity mismatches", async () => {

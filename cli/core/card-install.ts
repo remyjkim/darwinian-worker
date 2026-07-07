@@ -7,11 +7,14 @@ import type { CardLockEntry } from "./card-lock";
 import { DrwnError } from "./errors";
 import * as git from "./git";
 import { assertStoreWritable, resolveCardBareRepoPath } from "./store-paths";
+import { resolveProjectVendorTree } from "./vendor";
+import { verifyVendorTreeAgainstLock } from "./vendor-manifest";
 
 export async function ensureCardPresentFromLock(
   agentsDir: string,
   entry: CardLockEntry,
   frozen: boolean,
+  options: { projectRoot?: string | null } = {},
 ): Promise<{ changed: boolean }> {
   if (entry.origin === "file") {
     if (!existsSync(entry.path)) {
@@ -28,13 +31,37 @@ export async function ensureCardPresentFromLock(
     throw new DrwnError("CARD_LOCK_MISSING_COMMIT", `lockfile entry for ${entry.name} missing git.commit`);
   }
 
+  let frozenVendorMissing = false;
+  if (frozen && options.projectRoot) {
+    if (!entry.treeSha) {
+      throw new DrwnError("FROZEN_VIOLATION", `--frozen but ${entry.name} lockfile treeSha would change`);
+    }
+    const vendorDir = resolveProjectVendorTree(options.projectRoot, entry.name, entry.treeSha);
+    const vendor = await verifyVendorTreeAgainstLock(vendorDir, entry.integrity);
+    if (vendor.ok) {
+      return { changed: false };
+    }
+    if (vendor.reason === "corrupt") {
+      throw new DrwnError(
+        "INTEGRITY_MISMATCH",
+        `committed vendor tree for ${entry.name}@${entry.version} is corrupt; expected ${entry.integrity}`,
+      );
+    }
+    frozenVendorMissing = true;
+  }
+
   const barePath = resolveCardBareRepoPath(agentsDir, entry.name);
   if (!existsSync(barePath)) {
     if (!entry.git.url) {
       throw new DrwnError("CARD_NO_REMOTE_URL", `cannot fetch ${entry.name}: no URL recorded in lockfile and no local bare repo`);
     }
     if (frozen) {
-      throw new DrwnError("FROZEN_VIOLATION", `--frozen but ${entry.name} requires clone`);
+      throw new DrwnError(
+        "FROZEN_VIOLATION",
+        frozenVendorMissing
+          ? `--frozen but committed vendor tree for ${entry.name} is missing and no local store is available`
+          : `--frozen but ${entry.name} requires clone`,
+      );
     }
     assertStoreWritable();
     await git.cloneBare(entry.git.url, barePath);
