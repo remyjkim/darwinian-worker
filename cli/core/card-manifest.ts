@@ -19,6 +19,7 @@ export interface CardManifest {
   escalation?: { humanOwner?: string; escalateWhen?: string[] };
   contextMounts?: { read?: string[]; writeProposals?: string[] };
   identity?: Record<string, unknown>;
+  instructions?: { text?: string; path?: string };
   description?: string;
   license?: string;
   harness?: { minVersion?: string };
@@ -60,6 +61,42 @@ function isStringArray(value: unknown): value is string[] {
 
 function isNonEmptyStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((entry) => typeof entry === "string" && entry.length > 0);
+}
+
+function isSafeRelativeManifestPath(value: string) {
+  const normalized = value.replace(/\\/g, "/");
+  return (
+    normalized.length > 0 &&
+    !normalized.startsWith("/") &&
+    !/^[A-Za-z]:\//.test(normalized) &&
+    !normalized.split("/").includes("..")
+  );
+}
+
+function validateInstructionsField(input: Record<string, unknown>, errors: string[]) {
+  if (input.instructions === undefined) {
+    return;
+  }
+  if (!isObject(input.instructions)) {
+    errors.push("instructions must be an object");
+    return;
+  }
+  const instructions = input.instructions;
+  const hasText = instructions.text !== undefined;
+  const hasPath = instructions.path !== undefined;
+  if (hasText === hasPath) {
+    errors.push("instructions must specify exactly one of text or path");
+    return;
+  }
+  if (hasText) {
+    if (typeof instructions.text !== "string" || instructions.text.trim().length === 0) {
+      errors.push("instructions.text must be a non-empty string");
+    }
+    return;
+  }
+  if (typeof instructions.path !== "string" || !isSafeRelativeManifestPath(instructions.path)) {
+    errors.push("instructions.path must be a relative path inside the card content root");
+  }
 }
 
 // Governance fields are forward-declared: shape-validated here, enforced by the deployment runtime, not the CLI.
@@ -217,6 +254,7 @@ export function validateCardManifest(input: unknown): CardManifestValidationResu
     }
   }
   validateBlueprintFields(record, manifest.kind === "blueprint", errors);
+  validateInstructionsField(record, errors);
   for (const [bundle, range] of Object.entries(manifest.bundles ?? {})) {
     if (!bundle || typeof range !== "string" || !validRange(range)) {
       errors.push(`invalid bundle range for ${bundle}`);

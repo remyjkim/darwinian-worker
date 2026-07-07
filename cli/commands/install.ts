@@ -54,7 +54,7 @@ export class InstallCommand extends BaseCommand {
     // so the install summary reports every failed card, not just the first one.
     await pMap(lock.cards, concurrency, async (entry) => {
       try {
-        const result = await ensureCardPresentFromLock(this.context.agentsDir, entry, this.frozen);
+        const result = await ensureCardPresentFromLock(this.context.agentsDir, entry, this.frozen, { projectRoot });
         if (result.changed) changed = true;
       } catch (error) {
         errors.push({ card: entry.name, message: error instanceof Error ? error.message : String(error) });

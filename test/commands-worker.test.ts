@@ -11,6 +11,7 @@ import { WorkerCommand } from "../cli/commands/worker/worker";
 import { WorkerDeleteCommand } from "../cli/commands/worker/delete";
 import { WorkerDeployCommand } from "../cli/commands/worker/deploy";
 import { WorkerDeploymentsCommand } from "../cli/commands/worker/deployments";
+import { WorkerChatCommand } from "../cli/commands/worker/chat";
 import { WorkerListCommand } from "../cli/commands/worker/list";
 import { WorkerRollbackCommand } from "../cli/commands/worker/rollback";
 import { WorkerStatusCommand } from "../cli/commands/worker/status";
@@ -22,7 +23,7 @@ import {
   parseSecretsFile,
 } from "../cli/core/worker-secrets";
 import type { AgentsContext } from "../cli/context";
-import { cleanupTempRoots, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, publishCardWithSkills, scaffoldCliFixture } from "./helpers";
 
 const tempRoots: string[] = [];
 const originalFetch = globalThis.fetch;
@@ -63,16 +64,16 @@ afterEach(async () => {
   await cleanupTempRoots(tempRoots);
 });
 
-async function runWorkerCommand(args: string[]) {
+async function runWorkerCommand(args: string[], fixture?: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
   process.env.DRWN_TOKEN = process.env.DRWN_TOKEN ?? fakeJwt();
-  const fixture = await scaffoldCliFixture();
-  tempRoots.push(fixture.root);
+  const commandFixture = fixture ?? await scaffoldCliFixture();
+  if (!fixture) tempRoots.push(commandFixture.root);
   const stdout = new CaptureStream();
   const stderr = new CaptureStream();
   const context: AgentsContext = {
-    repoRoot: fixture.repoRoot,
-    agentsDir: fixture.agentsDir,
-    homeDir: fixture.homeDir,
+    repoRoot: commandFixture.repoRoot,
+    agentsDir: commandFixture.agentsDir,
+    homeDir: commandFixture.homeDir,
     cwd: process.cwd(),
     projectConfigPath: null,
     stdin: process.stdin,
@@ -87,6 +88,7 @@ async function runWorkerCommand(args: string[]) {
   cli.register(WorkerListCommand);
   cli.register(WorkerStatusCommand);
   cli.register(WorkerDeploymentsCommand);
+  cli.register(WorkerChatCommand);
   cli.register(WorkerRollbackCommand);
   cli.register(WorkerDeleteCommand);
   const exitCode = await cli.run(args, context);
@@ -151,6 +153,7 @@ describe("worker command routing", () => {
       "drwn worker list",
       "drwn worker status",
       "drwn worker deployments",
+      "drwn worker chat",
       "drwn worker rollback",
       "drwn worker delete",
       "drwn login",
@@ -164,10 +167,11 @@ describe("worker command routing", () => {
     expect(stdout).not.toContain("drwn worker login");
   });
 
-  test("worker command-group help lists deploy/list/status/deployments/rollback/delete", async () => {
+  test("worker command-group help lists deploy/list/status/deployments/chat/rollback/delete", async () => {
     const result = await runWorkerCommand(["worker", "--help"]);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("drwn worker deployments");
+    expect(result.stdout).toContain("drwn worker chat");
     expect(result.stdout).toContain("<slug>");
     expect(result.stdout).not.toContain("worker login");
   });
@@ -236,6 +240,69 @@ describe("worker API commands", () => {
     expect(result.stdout).not.toContain("Chat:");
   });
 
+  test("status reports the metered chat API URL for a ready active deployment", async () => {
+    process.env.DRWN_STUDIO_API_URL = "http://api.test.local";
+    process.env.DRWN_STUDIO_GATEWAY_URL = "http://gw.test.local";
+
+    stubFetch(async (url) => {
+      const path = new URL(url).pathname;
+      if (path === "/api/minds") {
+        return json({
+          minds: [{
+            slug: "harari",
+            id: "mind_1",
+            active_deployment_id: "dep_ready",
+            model: "m",
+            status: "ready",
+            card_ref: "@me/plain@1.0.0",
+            updated_at: "2026-07-01T00:01:00.000Z",
+            created_at: "2026-07-01T00:00:00.000Z",
+            serving: true,
+          }],
+        });
+      }
+      return json({
+        active_deployment_id: "dep_ready",
+        deployments: [{
+          id: "dep_ready",
+          mind_id: "mind_1",
+          card_ref: "@me/plain@1.0.0",
+          model: "m",
+          status: "ready",
+          content_hash: "hash",
+          error: null,
+          created_at: "2026-07-01T00:00:00.000Z",
+          updated_at: "2026-07-01T00:01:00.000Z",
+        }],
+      });
+    });
+
+    const result = await runWorkerCommand(["worker", "status", "harari"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Chat: http://api.test.local/api/minds/harari/chat");
+    expect(result.stdout).not.toContain("http://gw.test.local/m/harari/chat");
+  });
+
+  test("chat posts messages to the metered chat API endpoint", async () => {
+    process.env.DRWN_STUDIO_API_URL = "http://api.test.local";
+    let postedBody: unknown;
+    const calls: string[] = [];
+    stubFetch(async (url, init) => {
+      const path = new URL(url).pathname;
+      calls.push(`${init?.method ?? "GET"} ${path}`);
+      postedBody = JSON.parse(String(init?.body));
+      return json({ output: "hello back", metered: true });
+    });
+
+    const result = await runWorkerCommand(["worker", "chat", "harari", "--message", "hello"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(calls).toEqual(["POST /api/minds/harari/chat"]);
+    expect(postedBody).toEqual({ message: "hello" });
+    expect(JSON.parse(result.stdout)).toEqual({ output: "hello back", metered: true });
+  });
+
   test("deployments marks the active deployment and supports JSON", async () => {
     const body = {
       active_deployment_id: "dep_a",
@@ -286,6 +353,9 @@ describe("worker API commands", () => {
     process.env.DRWN_POLL_MS = "1";
     process.env.DRWN_STUDIO_API_URL = "http://api.test.local";
     process.env.DRWN_STUDIO_GATEWAY_URL = "http://gw.test.local";
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    await publishCardWithSkills(fixture, { name: "@me/plain", skills: ["plain"] });
     const cwd = await mkdtemp(join(tmpdir(), "drwn-worker-test-"));
     tempRoots.push(cwd);
     process.chdir(cwd);
@@ -303,16 +373,16 @@ describe("worker API commands", () => {
       return json({ id: "dep_test", status: "ready" });
     });
 
-    const result = await runWorkerCommand(["worker", "deploy", "github:owner/repo#v1", "--name", "harari"]);
+    const result = await runWorkerCommand(["worker", "deploy", "@me/plain@^1.0.0", "--name", "harari"], fixture);
     expect(result.exitCode).toBe(0);
-    expect(postedBody).toEqual({
-      cardRef: "github:owner/repo#v1",
-      name: "harari",
-      secrets: { notion: "secret_token" },
-    });
+    expect((postedBody as Record<string, unknown>).cardRef).toBe("@me/plain@^1.0.0");
+    expect((postedBody as Record<string, unknown>).name).toBe("harari");
+    expect((postedBody as Record<string, unknown>).secrets).toEqual({ notion: "secret_token" });
+    expect((postedBody as { blueprint?: { contractVersion?: number } }).blueprint?.contractVersion).toBe(1);
+    expect((postedBody as { blueprint?: { lockfile?: { cards?: { name?: string }[] } } }).blueprint?.lockfile?.cards?.[0]?.name).toBe("@me/plain");
     expect(calls).toEqual(["POST /api/deployments", "GET /api/deployments/dep_test"]);
     expect(result.stdout).toContain("Deployment dep_test is ready.");
-    expect(result.stdout).toContain("Chat: http://gw.test.local/m/harari/chat");
+    expect(result.stdout).toContain("Chat: http://api.test.local/api/minds/harari/chat");
     expect(result.stdout).not.toContain("secret_token");
   });
 });
