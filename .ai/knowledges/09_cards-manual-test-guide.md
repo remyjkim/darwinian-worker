@@ -1,11 +1,11 @@
-# ABOUTME: Step-by-step manual test guide for Mind Cards features against a local sandbox.
-# ABOUTME: Covers card authoring, publish, apply, write, doctor, integrity, corruption, and mind content flows.
+# ABOUTME: Step-by-step manual test guide for Cards features against a local sandbox.
+# ABOUTME: Covers card authoring, publish, apply, write, doctor, integrity, corruption, and worker stack flows.
 
-# Mind Cards Manual Test Guide
+# Cards Manual Test Guide
 
 ## Purpose
 
-Use this guide to manually test the full Mind Cards feature on your local machine against the **current implementation**, not an aspirational architecture.
+Use this guide to manually test the full Cards feature on your local machine against the **current implementation**, not an aspirational architecture.
 
 It is designed for two use cases:
 
@@ -230,12 +230,11 @@ cat .agents/drwn/card.lock
 
 Verify that `card.lock` contains:
 
-- `lockfileVersion` (2/3/4; 4 once a card ships persona/beliefs/memory)
+- `lockfileVersion`
 - the exact resolved card `version` (and `requested` range)
 - `integrity`
 - `manifest`
 - `skills` and `hooks`
-- `persona`, `beliefs`, `memory` (when the card declares mind content)
 - `hookConsent` (once `card trust --hooks` is run)
 - `origin` (`store`/`git`/`file`/`npm`) and `git` (for git-origin cards)
 - `registry: null`
@@ -559,57 +558,54 @@ Expected:
 - write fails
 - the error reports that `@me/frontend@1.0.0` is missing the required skill directory `polish`
 
-## Mind Content Flow
+## Worker Stack Flow
 
-Exercises the mind-card content layer (persona / beliefs / memory), the active-mind stack, and the composed materialization. Continues in the same sandbox.
+Exercises the local worker stack — the ordered set of installed cards that compose into the runtime — plus the per-worker generated bundles and active-stack projection. Continues in the same sandbox and reuses `@me/frontend` and `@me/observability` published above.
 
-### 1. Author mind content on a card source
-
-```bash
-drwn card new @me/strategist --no-git
-drwn card source add-persona @me/strategist voice --visibility internal
-drwn card source add-belief  @me/strategist first-principles --visibility internal
-drwn card source add-memory  @me/strategist transcripts --layer l6 --visibility private --format jsonl
-drwn card source doctor @me/strategist
-drwn card publish @me/strategist
-```
-
-Verify:
-
-- `card source doctor` greens (persona/beliefs/memory dirs + required `visibility` present)
-- `publish` refuses if a declared `PERSONA.md` / `BELIEF.md` / memory entry is missing or a `jsonl` layer has invalid lines
-
-### 2. Activate a mind stack and materialize
+### 1. Install both cards and inspect the stack
 
 ```bash
-drwn card apply @me/frontend@^1.0.0 @me/strategist@^1.0.0
-drwn mind list                       # both installed; default = all active
-drwn mind use @me/frontend @me/strategist
+cd "$PROJECT"
+drwn card apply @me/frontend@^1.0.0 @me/observability@^1.0.0
+drwn worker stack                       # both installed; default = all active
+drwn worker stack use @me/frontend @me/observability
 drwn write --json
 ```
 
 Verify:
 
-- per-mind bundles under `.agents/drwn/generated/minds/@me/frontend/` and `.../@me/strategist/`
-- the registry `.agents/drwn/generated/minds.json`
-- the composed active view `.agents/drwn/generated/mind/`: stack-ordered `persona.md`, namespaced `beliefs/@me/strategist/...`, `memory/l6/@me/strategist/...`, and a `mind.json` whose `activeMinds` equals `["@me/frontend", "@me/strategist"]`
+- a per-worker index at `.agents/drwn/generated/workers/@me/frontend/worker.json` and `.../@me/observability/worker.json`, each carrying `name`, `version`, `integrity`, `path`, `skills`, `hooks`, and `servers`
+- the registry `.agents/drwn/generated/workers.json` (`{ "version": 1, "workers": [...] }`) lists every installed card, sorted by name
+- downstream projection reflects the active stack: `.claude/skills/polish`, `.claude/skills/animate`, and `.claude/skills/trace` all materialize
 
-### 3. Reorder, shrink, and clear the stack
+### 2. Reorder and shrink the stack
 
 ```bash
-drwn mind use @me/strategist @me/frontend   # reorder
-drwn write --json                           # mind.json activeMinds order flips
-drwn mind use @me/strategist                # shrink
-drwn write --json                           # @me/frontend pruned from generated/mind
-drwn mind clear                             # explicit none
+drwn worker stack use @me/observability @me/frontend   # reorder
+drwn worker stack --json                               # activeWorkers reflects new order
+drwn write --json
+drwn worker stack use @me/observability                # shrink to one worker
 drwn write --json
 ```
 
 Verify:
 
-- `generated/mind/mind.json` `activeMinds` tracks each `mind use` order
-- after shrink, the dropped mind's entries are pruned from `generated/mind/`
-- after `mind clear`, `generated/mind/` is removed while the per-mind `generated/minds/<name>/` bundles remain
+- `drwn worker stack --json` reports `activeWorkers` in the order passed to `worker stack use`, matching `activeWorkers` in `.agents/drwn/config.json`
+- after shrinking to `@me/observability`, the next write prunes `@me/frontend`'s skills (`.claude/skills/polish`, `.claude/skills/animate`) from the project
+- `@me/frontend`'s generated bundle under `.agents/drwn/generated/workers/@me/frontend/` remains, and it stays listed in `generated/workers.json` — the registry tracks installed cards, not the active stack
+
+### 3. Clear the stack
+
+```bash
+drwn worker stack clear                                # explicit none
+drwn write --json
+```
+
+Verify:
+
+- `activeWorkers` becomes `[]` in `.agents/drwn/config.json`
+- the next write removes active-stack projection, so no card-provided skills remain in `.claude/skills`
+- installed card bundles under `.agents/drwn/generated/workers/<name>/` remain materialized
 
 ## Existing Project Flow
 

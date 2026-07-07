@@ -32,7 +32,7 @@ This directory holds internal operator and maintainer knowledge that is more spe
 
 ## Manual Validation
 
-- [09_mind-cards-manual-test-guide.md](./09_mind-cards-manual-test-guide.md): sandbox-first end-to-end manual for authoring, publishing, applying, writing, and diagnosing Mind Cards locally
+- [09_cards-manual-test-guide.md](./09_cards-manual-test-guide.md): sandbox-first end-to-end manual for authoring, publishing, applying, writing, and diagnosing Cards locally
 
 ## Scope
 

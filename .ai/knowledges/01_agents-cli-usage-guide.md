@@ -138,7 +138,7 @@ Implemented groups:
 - `scan`
 - `skills`
 - `mcp`
-- `mind`
+- `worker`
 - `extensions`
 - `card`
 - `catalog`
@@ -263,35 +263,19 @@ drwn card source remove-mcp @me/backend context7 --keep-files
 `card.json` declaration. Every mutating source subcommand accepts `--dry-run`
 and `--json`.
 
-Edit mind content entries (persona, beliefs, memory, hooks):
+Edit bundled hooks:
 
 ```bash
-drwn card source add-persona @me/mind voice --visibility internal
-drwn card source remove-persona @me/mind voice
-drwn card source remove-persona @me/mind voice --keep-files
-drwn card source add-belief @me/mind engineering --visibility public
-drwn card source remove-belief @me/mind engineering
-drwn card source add-memory @me/mind raw --layer l6 --visibility private --format jsonl
-drwn card source remove-memory @me/mind raw --layer l6
 drwn card source add-hook @me/backend audit-tool-calls
 drwn card source remove-hook @me/backend audit-tool-calls
 drwn card source remove-hook @me/backend audit-tool-calls --keep-files
 ```
 
-- `add-persona` scaffolds `persona/<entry>/PERSONA.md` and appends the entry to
-  `card.json` `persona.include`. `--visibility private|internal|public` is
-  required.
-- `add-belief` scaffolds `beliefs/<entry>/BELIEF.md` and appends the entry to
-  `beliefs.include`. `--visibility private|internal|public` is required.
-- `add-memory` scaffolds `memory/<layer>/<entry>/` content and appends the entry
-  to the selected memory layer. `--layer l4|l5|l6` and
-  `--visibility private|internal|public` are required; `--format md|jsonl|mixed`
-  defaults to `md`. `remove-memory` also requires `--layer`.
 - `add-hook` scaffolds `hooks/<name>/policy.ts` from an observer policy template
   and appends the name to `hooks.include`. New hook stubs are observers by
   default so a fresh scaffold cannot fail closed.
 
-Each `remove-*` deletes the entry's files by default; `--keep-files` drops only
+`remove-hook` deletes the hook's files by default; `--keep-files` drops only
 the `card.json` declaration. These subcommands accept `--dry-run` and `--json`.
 
 Update manifest metadata and quality signals:
@@ -380,23 +364,15 @@ The default remote name is `origin`. Use `--name <remote>` with `card remote`
 commands and `--remote <remote>` with `card push` / `card fetch` when a card has
 more than one remote.
 
-`card push` guards against leaking visibility-bearing mind content to a less
-restrictive remote. It compares the card's strictest content visibility against
-the remote's visibility:
+`card push` publishes the card to its Git remote. It pushes the card's main
+branch and version tags to the configured remote:
 
 ```bash
-drwn card push @team/backend --remote-visibility private
-drwn card push @team/backend --unsafe-push-public
+drwn card push @team/backend
+drwn card push @team/backend --remote upstream
 ```
 
-- `--remote-visibility <v>` declares the remote as `private`, `internal`,
-  `public`, or `unknown`. When omitted, `drwn` infers visibility from the remote
-  URL and treats anything it cannot classify as `unknown`.
-- The push is blocked when the remote visibility is `unknown` for
-  visibility-bearing content, or when the remote is less restrictive than the
-  card (for example pushing `private` content to a `public` remote).
-- `--unsafe-push-public` overrides the gate and pushes anyway, printing a warning.
-- Cards with no visibility-bearing content are never gated.
+Git credentials are handled by Git itself; `drwn` does not store them.
 
 `card catalog publish` adds an already-published immutable card ref to a
 Git-backed catalog manifest. `--catalog` accepts a registered scope such as
@@ -421,39 +397,38 @@ drwn card validate @me/backend@1.0.0 --json
 combines the semantic card-change classification with the real Git diff between
 the selected versions.
 
-## Mind Commands
+## Worker Commands
 
-A mind is an installed card materialized as an isolated generated bundle. Mind
-commands operate on a project and select which installed minds project into the
-IDE surface, without changing which cards are installed or locked.
+A worker is an installed card materialized as an isolated generated bundle.
+Worker stack commands operate on a project and select which installed workers
+project into the IDE surface, without changing which cards are installed or
+locked.
 
 ```bash
-drwn mind list
-drwn mind list --json
-drwn mind use @team/base @team/frontend
-drwn mind clear
+drwn worker stack
+drwn worker stack --json
+drwn worker stack use @team/base @team/frontend
+drwn worker stack clear
 ```
 
-- `mind list` reads `<project>/.agents/drwn/generated/minds.json` (falling back
-  to `card.lock`) and marks which installed minds are currently active.
-- `mind use <names…>` records an ordered active stack. The argument order is the
-  projection order. It fails if any name is not installed in the project and does
-  not change installed cards.
-- `mind clear` sets the active stack to empty. Installed card bundles stay
+- `worker stack` reads `<project>/.agents/drwn/generated/workers.json` (falling
+  back to `card.lock`) and marks which installed workers are currently active.
+- `worker stack use <names…>` records an ordered active stack. The argument order
+  is the projection order. It fails if any name is not installed in the project
+  and does not change installed cards.
+- `worker stack clear` sets the active stack to empty. Installed card bundles stay
   materialized, but the next `drwn write` removes their projection.
 
-The active stack is stored as `activeMinds` in
+The active stack is stored as `activeWorkers` in
 `<project>/.agents/drwn/config.json` with three-way semantics:
 
-- absent: all installed minds are active (the default)
-- `[]`: no minds are active
-- `[names]`: exactly these minds, in this order, are active
+- absent: all installed workers are active (the default)
+- `[]`: no workers are active
+- `[names]`: exactly these workers, in this order, are active
 
 Only the active stack projects to the IDE surface (skills, MCP, and hooks).
 `drwn write` materializes each installed card as an isolated bundle under
-`<project>/.agents/drwn/generated/minds/`, records them in `minds.json`, and
-composes the active stack into a single mind view at
-`<project>/.agents/drwn/generated/mind/`.
+`<project>/.agents/drwn/generated/workers/` and records them in `workers.json`.
 
 ## Install Command
 
@@ -1203,4 +1178,4 @@ These are optional and machine-dependent. Their absence should not block the bas
 - [03_npm-skill-bundles-guide.md](./03_npm-skill-bundles-guide.md)
 - [04_homebrew-release-checklist.md](./04_homebrew-release-checklist.md)
 - [05_npm-publishing-analysis-and-manual.md](./05_npm-publishing-analysis-and-manual.md)
-- [09_mind-cards-manual-test-guide.md](./09_mind-cards-manual-test-guide.md)
+- [09_cards-manual-test-guide.md](./09_cards-manual-test-guide.md)

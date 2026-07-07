@@ -12,7 +12,7 @@
 
 ## Overview
 
-`drwn` is a single-process, Bun-executed, Clipanion-based CLI that manages local AI agent harness configuration: skills, MCP servers, target enablement, project overlays, and Mind Cards. There is no daemon, no IPC, and no persistent cache outside the filesystem. Every invocation is a fresh process that reads from a fixed set of on-disk surfaces, computes an effective state, and either reports or materializes that state into downstream agent-tool config files.
+`drwn` is a single-process, Bun-executed, Clipanion-based CLI that manages local AI agent harness configuration: skills, MCP servers, target enablement, project overlays, and cards. There is no daemon, no IPC, and no persistent cache outside the filesystem. Every invocation is a fresh process that reads from a fixed set of on-disk surfaces, computes an effective state, and either reports or materializes that state into downstream agent-tool config files.
 
 This document describes the **as-built** architecture against the code for package `darwinian-minds@0.5.0`. It is grounded in `cli/index.ts` (the entrypoint), the `cli/commands/` tree (the user-facing surface), and the `cli/core/` modules (the engine). Every concrete claim cites the source module and function/export name. Where current behavior diverges from `analyses/52_drwn-target-architecture-post-wave-1.md` (the canonical target doc), the divergence is called out in **Appendix C**.
 
@@ -56,8 +56,8 @@ Uncaught errors (outside hook invocations) render to stderr and set `process.exi
 | skills | `skills list`, `skills packages add/list/show`, `skills curate`, `skills uncurate` | `cli/commands/skills/*` (`cli/index.ts`) |
 | add | `add skill`, `add mcp`, `add card` | `cli/commands/add/{skill,mcp}.ts`, `cli/commands/card/add.ts` (`cli/index.ts`) |
 | install | `install` | `cli/commands/install.ts` (`cli/index.ts`) |
-| card (author) | `card new`, `card audit`, `card publish`, `card show`, `card source list/show/doctor/set/add-skill/remove-skill/add-mcp/remove-mcp/add-hook/remove-hook/add-persona/remove-persona/add-belief/remove-belief/add-memory/remove-memory`, `card list`, `card diff`, `card deprecate` | `cli/commands/card/{new,audit,publish,show,source/*,list,diff,deprecate}.ts` |
-| mind | `mind list`, `mind use`, `mind clear` | `cli/commands/mind/*` (`cli/index.ts`) |
+| card (author) | `card new`, `card audit`, `card publish`, `card show`, `card source list/show/doctor/set/sync/add-skill/remove-skill/add-mcp/remove-mcp/add-hook/remove-hook`, `card list`, `card diff`, `card deprecate` | `cli/commands/card/{new,audit,publish,show,source/*,list,diff,deprecate}.ts` |
+| worker (stack) | `worker stack`, `worker stack use`, `worker stack clear` | `cli/commands/worker/stack/*` (`cli/index.ts`) |
 | card (sharing) | `card catalog publish`, `card remote add/list/set/remove`, `card push`, `card fetch`, `card clone` | `cli/commands/card/{catalog-publish,remote,push,fetch,clone}.ts` (`cli/index.ts`) |
 | card (consumer) | `card apply`, `card add`, `card pin`, `card remove`, `card detach`, `card update`, `card outdated`, `card status`, `card trust`, `card untrust`, `card validate` | `cli/commands/card/{apply,add,pin,remove,detach,update,outdated,status,trust,untrust,validate}.ts` (`cli/index.ts`) |
 | top-level aliases | `apply`, `update` (alias `card apply` / `card update`) | (`cli/index.ts`) |
@@ -113,8 +113,8 @@ Store root is `~/.agents/drwn/`. `resolveAgentsDir(homeDir) = join(homeDir, ".ag
 | `catalogs.json` | `resolveCatalogsIndexPath` (`store-paths.ts`) | Registered catalogs index |
 | `generated/` | `resolveStoreGeneratedDir` (`store-paths.ts`) | Drwn-generated files for downstream tools (Cursor MCP) |
 | `generated/hooks/<runtime>/` | `resolveGeneratedHooksDir` (`store-paths.ts`) | Generated hook composer shims for Claude Code, Codex, and Mastra |
-| `generated/minds/<scope?>/<name>/` | `resolveGeneratedMindDir` (`store-paths.ts`) | Per-mind bundle (persona, content symlinks, skills, hooks, `mind.json`) for one installed card |
-| `generated/mind/` | `resolveGeneratedComposedMindDir` (`store-paths.ts`) | Composed active-stack mind (stack-ordered `persona.md`, namespaced beliefs/memory, composed `mind.json`) |
+| `generated/workers/<scope?>/<name>/` | `resolveGeneratedWorkerDir` (`store-paths.ts`) | Per-worker bundle (skill/hook symlinks, optional `mcp/servers.json`, `worker.json` index) for one installed card |
+| `generated/workers.json` | written by `syncWorkers` (`worker-generator/sync-worker.ts`) | Registry indexing every per-worker bundle (`{version, workers[]}`) |
 | `global-write-record.json` | `resolveGlobalWriteRecordPath` (`store-paths.ts`) | Machine-scope write record |
 | `url-card-map.json` | `resolveUrlCardMapPath` (`url-card-map.ts`) | Persistent URL→card-name cache |
 | `credentials.json` | `resolveCredentialsPath` (`paths.ts`) | Analyzer auth credentials written atomically with mode `0600` (`auth/credentials.ts`) |
@@ -234,7 +234,7 @@ Mutators:
 |---|---|
 | `version` | `number` (must be `1`) |
 | `cards` | `string[]` (card refs) |
-| `activeMinds` | `string[]` (ordered active-stack of card names) |
+| `activeWorkers` | `string[]` (ordered active-stack of card names) |
 | `servers` | `Record<string, ServerOverride>` |
 | `skills.include` | `string[]` |
 | `skills.exclude` | `string[]` |
@@ -308,7 +308,7 @@ Summary: **library** = local inventory (what you have); **catalog** = discovery 
 - As-active: `effectiveConfig`, `effectiveRegistry`, `activeServers`, `skillSelection`, `activeCards`.
 - Targets: `scopedOptions` with `writeScope` ∈ `{project, machine}`, `generatedDir`, `recordPath`.
 
-`lockedCards` is every card in `card.lock`; `activeCards` is the active-stack subset selected by `selectActiveCards(lockedCards, projectConfig.activeMinds)` (`effective-state.ts`). When `activeMinds` is **absent**, every locked card is active (`return lockedCards`); when it is `[]`, none are; when it is `[names]`, the named cards are returned in that explicit order. Card-manifest overlays, card MCP definitions, and the skill selection that feed downstream merges are all derived from `activeCards`, not `lockedCards` (`effective-state.ts`).
+`lockedCards` is every card in `card.lock`; `activeCards` is the active-stack subset selected by `selectActiveCards(lockedCards, projectConfig.activeWorkers)` (`effective-state.ts`). When `activeWorkers` is **absent**, every locked card is active (`return lockedCards`); when it is `[]`, none are; when it is `[names]`, the named cards are returned in that explicit order. Card-manifest overlays, card MCP definitions, and the skill selection that feed downstream merges are all derived from `activeCards`, not `lockedCards` (`effective-state.ts`).
 
 The separation between as-written and as-active is the load-bearing distinction in the codebase: every command renders one or the other, never re-deriving merges itself.
 
@@ -411,7 +411,7 @@ Entry: `resolveCard(agentsDir, ref)` (`card-store.ts`). Enforces no-legacy-layou
 | `CARD_NAME_COLLISION` | `card-store.ts` | URL→name collides with bound repo |
 | `CARD_NAME_MISMATCH` | `card-store.ts` | discovered manifest name diverges from cached/expected |
 
-### 3.4 Lockfile schema (v2 / v3 / v4)
+### 3.4 Lockfile schema (v2 / v3 / v4 / v5)
 
 Location: `<project>/.agents/drwn/card.lock` (`card-lock.ts`). Schema (`card-lock.ts`):
 
@@ -423,35 +423,32 @@ GitLockInfo { url?, ref?, commit (40-hex) }
 CardLockEntry {
   name, requested, version, path, integrity (sha256-<hex>),
   manifest: CardManifest, skills: string[], hooks: string[],
-  persona?: PersonaManifest, beliefs?: BeliefsManifest, memory?: MemoryManifest,
   hookConsent?: { consentedAt, consentedRange },
   registry: null, origin: CardOrigin, git?: GitLockInfo
 }
 
-CardLockfile { lockfileVersion: 2 | 3 | 4, store?: { minDrwnVersion? }, cards: CardLockEntry[] }
+CardLockfile { lockfileVersion: 2 | 3 | 4 | 5, store?: { minDrwnVersion? }, cards: CardLockEntry[] }
 ```
 
-The schema accreted across three versions: v2 is the base card/skill lock; v3 adds `hooks: string[]` plus optional `hookConsent`; v4 adds the mind-content sections `persona`/`beliefs`/`memory`. A mind-content section is `{ include?: string[], visibility? }` and **requires `visibility` when `include` is non-empty**; memory sections additionally carry an optional `format` (`md | jsonl | mixed`) and are keyed by layer `l4 | l5 | l6` (`card-lock.ts`).
+The schema accreted across versions: v2 is the base card/skill lock; v3 adds `hooks: string[]` plus optional `hookConsent`. Versions `4` and `5` are accepted for read-compatibility; `writeCardLock` emits `5` (`card-lock.ts`).
 
 **Validation** (`card-lock.ts`):
 
 | Field | Rule | Code |
 |---|---|---|
-| `lockfileVersion` | literal `2`, `3`, or `4` | `card-lock.ts` |
+| `lockfileVersion` | literal `2`, `3`, `4`, or `5` | `card-lock.ts` |
 | `cards` | array | `card-lock.ts` |
 | `origin` | one of `store \| git \| file \| npm` | `card-lock.ts` |
 | `name`, `requested`, `version`, `path`, `integrity` | non-empty strings | `card-lock.ts` |
 | `manifest` | passes `assertValidCardManifest` | `card-lock.ts` |
 | `skills` | `string[]` | `card-lock.ts` |
 | `hooks` | `string[]` (required at `lockfileVersion >= 3`; older locks read as `[]`) | `card-lock.ts` |
-| `persona`/`beliefs` | optional mind-content section; `visibility` required when `include` non-empty | `card-lock.ts` |
-| `memory` | optional `{l4?,l5?,l6?}`; each layer a mind-content section + optional `format` | `card-lock.ts` |
 | `hookConsent` | optional `{consentedAt (ISO), consentedRange}` | `card-lock.ts` |
 | `registry` | literal `null` (reserved Wave 3+) | `card-lock.ts` |
 | `git` | required for `store`/`git`, forbidden for `file`/`npm` | `card-lock.ts` |
 | `git.commit` | `/^[a-f0-9]{40}$/` | `card-lock.ts` |
 
-`writeCardLock` (`card-lock.ts`) emits `lockfileVersion: 4` when any entry carries `persona`/`beliefs`/`memory`, else `3`. It also writes `store.minDrwnVersion` — `0.4.0` (`MINDS_MIN_DRWN_VERSION`) for v4 locks, `0.3.0` (`HOOKS_MIN_DRWN_VERSION`) otherwise (`card-lock.ts`).
+`writeCardLock` (`card-lock.ts`) emits `lockfileVersion: 5` and writes `store.minDrwnVersion` — `0.3.0` (`HOOKS_MIN_DRWN_VERSION`).
 
 **Version floor enforcement.** `evaluateVersionFloor` (`card-lock.ts`) compares `store.minDrwnVersion` from the lockfile against the running `DRWN_VERSION` and returns a `VersionFloorStatus` with `{required, running, satisfied}`. `drwn write` evaluates this before materialization; an unsatisfied floor emits a warning to stderr, and `--strict` turns it into a hard failure (exit 1). `formatVersionFloorWarning` produces the human-readable message.
 
@@ -476,9 +473,7 @@ The schema accreted across three versions: v2 is the base card/skill lock; v3 ad
 | `skills.exclude` | — | **rejected** | "skills.exclude is not allowed in card manifests" | `card-manifest.ts` |
 | `skills.shared` | `string[]` | no | must be array; must be **empty** today (reserved Wave 2 — registry references) | `card-manifest.ts` |
 | `hooks.include` | `string[]` | no | array; `hooks.exclude`/`hooks.shared` rejected | `card-manifest.ts` |
-| `persona` | `{include?, visibility?}` | no | `include` entries must be safe path parts; `visibility` ∈ `private \| internal \| public` and **required when `include` is non-empty**; `exclude`/`shared`/`format` rejected | `card-manifest.ts` |
-| `beliefs` | `{include?, visibility?}` | no | same rules as `persona` | `card-manifest.ts` |
-| `memory` | `{l4?, l5?, l6?}` | no | each layer is `{include?, visibility?, format?}` with the same visibility rule; `format` ∈ `md \| jsonl \| mixed`; unknown layers rejected | `card-manifest.ts` |
+| `persona` / `beliefs` / `memory` | — | **rejected** | "persona/beliefs/memory is no longer supported; advanced context management (persona/beliefs/memory) moved to a separate capability card" | `card-manifest.ts` |
 | `servers` | `Record<string, ServerOverride>` | no | schema-level: none | `card-manifest.ts` |
 | `extensions` | `Record<string, ProjectExtensionConfig>` | no | schema-level: none | `card-manifest.ts` |
 | `targets` | `Partial<Record<TargetName, {enabled}>>` | no | keys ∈ `claude \| codex \| cursor` | `card-manifest.ts` |
@@ -547,7 +542,7 @@ Treated as an **optimization, not a source of truth**: malformed entries dropped
 
 ### 3.8 Card-source authoring surface
 
-Sixteen subcommands under `cli/commands/card/source/*` mutate authoring state owned by `cli/core/card-source.ts`. The read commands (`list`, `show`, `doctor`) and `set` (manifest field patches) sit alongside paired add/remove commands for each card artifact class — skills, MCP servers, hook policies (§3.10), and the three mind-content kinds:
+Eleven subcommands under `cli/commands/card/source/*` mutate or read authoring state owned by `cli/core/card-source.ts`. The read commands (`list`, `show`, `doctor`), `set` (manifest field patches), and `sync` (upstream skill provenance sync) sit alongside paired add/remove commands for each card artifact class — skills, MCP servers, and hook policies (§3.10):
 
 | Subcommand | Core function | Mutates |
 |---|---|---|
@@ -555,14 +550,12 @@ Sixteen subcommands under `cli/commands/card/source/*` mutate authoring state ow
 | `source show` | `readCardSourceState` | read |
 | `source doctor` | `doctorCardSource` | read |
 | `source set` | `patchCardSourceManifest` | `card.json` field patches |
+| `source sync` | `syncCardSource` | `skills/<n>/` from upstream git provenance refs |
 | `source add-skill` / `remove-skill` | `addCardSourceSkill` / `removeCardSourceSkill` | `card.json` `skills.include` + `skills/<n>/` dir |
 | `source add-mcp` / `remove-mcp` | `addCardSourceMcp` / `removeCardSourceMcp` | `card.json` `servers` + `mcp-servers/<id>.json` |
 | `source add-hook` / `remove-hook` | `addCardSourceHook` / `removeCardSourceHook` | `card.json` `hooks.include` + `hooks/<policy>/` dir |
-| `source add-persona` / `remove-persona` | `addCardSourcePersona` / `removeCardSourcePersona` | `card.json` `persona.include` + `persona/<entry>/PERSONA.md` |
-| `source add-belief` / `remove-belief` | `addCardSourceBelief` / `removeCardSourceBelief` | `card.json` `beliefs.include` + `beliefs/<entry>/` |
-| `source add-memory` / `remove-memory` | `addCardSourceMemory` / `removeCardSourceMemory` | `card.json` `memory.<layer>` + `memory/<layer>/<entry>/` |
 
-The mind-content add commands take a **required** `--visibility <private\|internal\|public>` flag (`add-persona.ts`, `add-belief.ts`, `add-memory.ts`); `add-memory` additionally requires `--layer <l4\|l5\|l6>` and takes `--format <md\|jsonl\|mixed>` (default `md`) (`add-memory.ts`). Every mutator accepts `--dry-run` and `--json`.
+Every mutator accepts `--dry-run` and `--json`.
 
 **`source set` accepts** (`commands/card/source/set.ts`): `--description`, `--version`, `--license`, `--harness-min-version`, `--stability`, `--last-validated-with`, `--test-status-badge`. (Doc 01 currently lists only a subset — see audit doc 54.)
 
@@ -588,7 +581,7 @@ The mind-content add commands take a **required** `--visibility <private\|intern
 | `card clone <git-ref>` | resolve & cache a `git+`/`github:`/`gitlab:` ref locally | `resolveCard` (`commands/card/clone.ts`) |
 | `card publish <name>` | publish source to bare repo + tag | `publishCard` (`commands/card/publish.ts`) |
 | `card catalog publish <ref> --catalog <scope\|url\|path> --mode <local\|direct>` | upsert one catalog entry; local mode writes only, direct mode commits and pushes catalog JSON | `publishCardToCatalog` (`card-catalog-publish.ts`) |
-| `card push <name> [--remote] [--remote-visibility <v>] [--unsafe-push-public]` | visibility-gated push of `refs/heads/main` + `--tags` | `evaluatePushGate` + `git.push` (`commands/card/push.ts`) |
+| `card push <name> [--remote]` | push `refs/heads/main` + `refs/meta/*` + `--tags` to the card's Git remote | `git.push` (`commands/card/push.ts`) |
 | `card fetch <name> [--remote]` | fetch heads + tags | `git.fetch` (`commands/card/fetch.ts`) |
 | `card validate <ref>` | resolve + integrity-check; typed error codes in JSON | `resolveCard` (`commands/card/validate.ts`) |
 | `card diff <a> <b>` | structural manifest classification + raw `git diff` | `diffCards` + `git.diff` (`commands/card/diff.ts`) |
@@ -600,7 +593,7 @@ Card hooks add a third card artifact class beside skills and MCP server definiti
 
 The source commands `card source add-hook` and `card source remove-hook` mutate both `card.json` and the `hooks/<policy>/` directory. `card source doctor` checks missing hook directories, missing `policy.ts`, orphaned hook directories, and best-effort TypeScript build failures.
 
-Publishing validates every declared hook path in the source tree and again in the extracted tree. Lockfiles are schema v3: each `CardLockEntry` carries `hooks: string[]` and optional `hookConsent`. Older v2 lockfiles read as `hooks: []`; writes emit v3.
+Publishing validates every declared hook path in the source tree and again in the extracted tree. Hook locking arrived at schema v3: each `CardLockEntry` carries `hooks: string[]` and optional `hookConsent`. Older v2 lockfiles read as `hooks: []`; writes emit v5 (§3.4).
 
 Hook materialization is consent-gated. `card trust <card> --hooks [--range <range>]` records `{consentedAt, consentedRange}` in `card.lock`; `card untrust <card> --hooks` clears it. `drwn write` skips unconsented or out-of-range hook policies with warnings, while `--strict-hooks` turns those warnings into a hard failure.
 
@@ -648,26 +641,19 @@ Resolution order is **fixed** (`card-skill-resolver.ts`):
 
 **Invariant: cards win over user-defaults, always.** A card that declares a skill in `skills.include` shadows any user-default skill of the same name. There is no "merge" semantic; the returned path is single-source.
 
-### 3.12 Mind Card subsystem
+### 3.12 Worker subsystem
 
-A Mind Card is an ordinary card that additionally carries **mind content**: a `persona`, `beliefs`, and layered `memory` (§3.5), each gated by an explicit `visibility`. The subsystem layers three concerns on top of the card lifecycle: an activation stack, mind-content authoring, and mind materialization. It is content-privacy-aware throughout (`visibility.ts`).
+A **worker** is the runtime unit materialized from an installed card: its skills, hooks, and MCP server definitions composed into a self-contained bundle for downstream tools. The subsystem layers two concerns on top of the card lifecycle: an activation stack and worker materialization.
 
-**Activation stack (`drwn mind list/use/clear`).** Installing a card via the consumer surface (§3.9) writes it into `card.lock` but does not by itself decide which minds are *active*. The active stack lives in `project.activeMinds` (`types.ts`) and is managed by three commands (`cli/commands/mind/*`):
+**Activation stack (`drwn worker stack [use|clear]`).** Installing a card via the consumer surface (§3.9) writes it into `card.lock` but does not by itself decide which workers are *active*. The active stack lives in `project.activeWorkers` (`types.ts`) and is managed by three commands (`cli/commands/worker/stack/*`):
 
-- `mind list` enumerates installed minds (read).
-- `mind use <names...>` validates that each name is installed, then persists `activeMinds = [names]` as an **ordered** stack (`mind/use.ts`).
-- `mind clear` sets `activeMinds = []` without touching installed cards or generated bundles (`mind/clear.ts`).
+- `worker stack` enumerates installed workers and the ordered active stack (read; `readInstalledWorkers`, `stack/list.ts`).
+- `worker stack use <names...>` validates that each name is installed, then persists `activeWorkers = [names]` as an **ordered** stack (`stack/use.ts`).
+- `worker stack clear` sets `activeWorkers = []` without touching installed cards or generated bundles (`stack/clear.ts`).
 
-`selectActiveCards(lockedCards, activeMinds)` (`effective-state.ts`) gives the three-way semantics consumed by every write: **absent** `activeMinds` ⇒ all installed cards active; `[]` ⇒ none active; `[names]` ⇒ exactly those cards, in that order. `mind use`/`mind clear` change projection only — the next `drwn write` re-materializes; installed bundles persist regardless.
+`selectActiveCards(lockedCards, activeWorkers)` (`effective-state.ts`) gives the three-way semantics consumed by every write: **absent** `activeWorkers` ⇒ all installed cards active; `[]` ⇒ none active; `[names]` ⇒ exactly those cards, in that order. `worker stack use`/`worker stack clear` change projection only — the active stack governs which cards' skills/MCP/hooks project into the merged downstream config via `activeCards` (§2.6); the per-worker bundles below materialize over `lockedCards` regardless. The next `drwn write` re-materializes; installed bundles persist.
 
-**Content authoring.** Authors scaffold mind content into an editable source via `card source add-persona|add-belief|add-memory` (and their `remove-*`, §3.8). Persona content lives at `persona/<entry>/PERSONA.md`, beliefs at `beliefs/<entry>/`, memory at `memory/<layer>/<entry>/` for layers `l4|l5|l6`. Each add command requires `--visibility`; memory additionally requires `--layer` and accepts `--format` (`md|jsonl|mixed`). The manifest mirrors these as `persona`/`beliefs`/`memory` sections whose `visibility` is required when `include` is non-empty (§3.5).
-
-**Materialization (`syncMinds`, `mind-generator/sync-mind.ts`).** `drwn write` runs `syncMinds` over `state.lockedCards` (`sync.ts`). Two outputs:
-
-1. **Per-mind bundles** — one isolated bundle per installed card at `generated/minds/<scope?>/<name>/` (`materializeMind`, `sync-mind.ts`): a `persona.md` with per-entry `drwn:persona` fence comments, beliefs/memory/skill content as directory symlinks into the extracted card store, an optional `mcp/servers.json`, consent-gated hook composers under `hooks/<runtime>/`, and a `mind.json` index carrying the card's strictest visibility. A top-level `generated/minds.json` indexes all per-mind bundles (`sync-mind.ts`).
-2. **Composed active-stack mind** — `materializeComposedMind` (`sync-mind.ts`) composes only `state.activeCards` into `generated/mind/`: a stack-ordered `persona.md` (active-stack order preserved), beliefs and memory symlinks **namespaced by card** (`<section>/.../<scope>/<name>/<entry>` via `splitCardName`), and a composed `mind.json` (`schemaVersion: 1`) listing `activeMinds`, persona/belief/memory entries with per-entry visibility, source card versions, and `drwnVersion`. When the active stack is empty, no composed mind is written.
-
-**Visibility push-gate.** `card push` refuses to leak private mind content to a less-restrictive remote. `cardManifestStrictestVisibility` (`visibility.ts`) computes the strictest visibility across the card's persona/beliefs/memory sections; `evaluatePushGate` (`visibility.ts`) blocks the push when the remote's visibility (from `--remote-visibility`, or inferred by `classifyRemoteUrl` — local/`file://` paths are `private`, everything else `unknown`) is less restrictive, or unknown. `--unsafe-push-public` overrides the gate with a stderr warning; cards with no visibility-bearing content pass unconditionally (`push.ts`).
+**Materialization (`syncWorkers`, `worker-generator/sync-worker.ts`).** `drwn write` runs `syncWorkers` over `state.lockedCards` whenever a project root exists (`sync.ts`). One isolated bundle is materialized per installed card at `generated/workers/<scope?>/<name>/` (`materializeWorker`, `sync-worker.ts`): skill directories as symlinks into the extracted card store, an optional `mcp/servers.json`, consent-gated hook composers under `hooks/<runtime>/`, and a `worker.json` index (`{name, version, integrity, path, skills, hooks, servers}`). A top-level `generated/workers.json` registry (`{version, workers[]}`) indexes every per-worker bundle, sorted by name.
 
 ---
 
@@ -891,11 +877,11 @@ Built-ins always shadow library entries with the same id (`library.ts`).
 1. `buildEffectiveState(options)` — resolves project root, loads project + card-merged config, computes `effectiveConfig`/`effectiveRegistry`/`activeServers`/`skillSelection`/`activeCards`, picks `scopeRoot`/`writeScope`/`generatedDir` and `recordPath`.
 2. Load previous write record and verify its managed paths (`sync.ts`).
 3. Run the materialization phases, each appending `changes`/`warnings`/`managedPaths`:
-   - **Minds** — `syncMinds(state)` runs whenever a project root exists(§3.12).
+   - **Workers** — `syncWorkers(state)` runs whenever a project root exists(§3.12).
    - **MCP** — `syncMcp` unless `skillsOnly`.
    - **Skills** — `syncSkills(scopedOptions, skillSelection, activeCards)` unless `mcpOnly`.
    - **Hooks** — `syncHooks(state)` unless `mcpOnly` or `skillsOnly`(§3.11).
-4. Dedupe `managedPaths`, diff against the previous record, clean dropped entries via `cleanupRemovedManagedPaths`, and prune the now-empty composed-mind tree when the active stack is empty.
+4. Dedupe `managedPaths`, diff against the previous record, and clean dropped entries via `cleanupRemovedManagedPaths`.
 5. Unless dry-run, atomically persist a new write record with `lastWriteHarnessVersion: DRWN_VERSION`(`write-record.ts`).
 
 **Materialization mechanisms:**
@@ -905,7 +891,7 @@ Built-ins always shadow library entries with the same id (`library.ts`).
 | 1 | Directory symlink | Claude/Codex skills | `skills.ts` (`syncSkills` recordIntent loop) |
 | 2 | `_drwn` meta-block | Claude `settings.json`, Codex `config.toml` | `managed-fields.ts`; consumed by `mergeClaudeSettingsText`/`mergeCodexTomlText` (`sync.ts`) |
 | 3 | Generated-file + symlink | Cursor `mcp.json` | `sync.ts` writes `<generatedDir>/cursor-mcp.json`; `ensureFileSymlink`s `.cursor/mcp.json` to it |
-| 4 | Generated mind bundles | `generated/minds/<name>/` per-mind + `generated/mind/` composed | `mind-generator/sync-mind.ts` `syncMinds` (§3.12) |
+| 4 | Generated worker bundles | `generated/workers/<name>/` per-worker + `generated/workers.json` registry | `worker-generator/sync-worker.ts` `syncWorkers` (§3.12) |
 
 **Atomic-mutation discipline.** `writeManagedFile` (`managed-file.ts`) compares current vs next bytes and skips if equal, then backs up any existing file via numbered `.bak`/`.bak.N` before writing. Symlink replacement removes and re-links only when the realpath differs (`skills.ts`). Write-record persistence is `tmp → fsync → rename → fsync(dir)` (`write-record.ts`).
 
@@ -1214,9 +1200,9 @@ Verified placeholder. `commands/scan.ts` registers under `["scan"]` and emits a 
 | `secret-store.ts` | 323 | AES-256-GCM secret encryption at rest under an OS-keychain-held key |
 | `materialize.ts` | 98 | Copy-based directory materialization and pointer-file writes for OS-uniform sync (replaces symlinks) |
 | `version.ts` | 4 | `DRWN_VERSION` — the CLI version stamped into generated metadata |
-| `managed-file.ts` | 62 | `writeManagedFile` — drwn-managed writes with `.bak` backups + dry-run reporting; shared by MCP and hook/mind sync |
+| `managed-file.ts` | 62 | `writeManagedFile` — drwn-managed writes with `.bak` backups + dry-run reporting; shared by MCP and hook/worker sync |
 | `card-mcp.ts` | 51 | Extracts MCP server definitions declared by locked cards, separate from project activation toggles |
-| `mind-generator/sync-mind.ts` | 346 | `syncMinds` — per-mind `generated/minds/<name>/` bundles + composed `generated/mind/` active-stack mind |
+| `worker-generator/sync-worker.ts` | 194 | `syncWorkers` — per-worker `generated/workers/<name>/` bundles + `generated/workers.json` registry |
 | `hook-generator/sync-hooks.ts` | 270 | `syncHooks` — card hook materialization into per-runtime composers |
 | `hook-generator/sync-signals.ts` | 35 | Session-signal hook config builder (`signalHooksConfig`) |
 | `hook-generator/bundle-composer.ts` | 127 | Generates runtime-specific hook composer entry scripts |
@@ -1225,7 +1211,6 @@ Verified placeholder. `commands/scan.ts` registers under `["scan"]` and emits a 
 | `hook-generator/runtime-selection.ts` | 37 | Per-hook-runtime enablement logic |
 | `hook-generator/emit-mastra-composer.ts` | 39 | Mastra-specific composer emitter |
 | `hook-policy/` | 213 | Public hook-policy subpath: `define-tool-policy`, `compose-tool-hooks`, `run-with-timeout`, `safe-hook`, types |
-| `visibility.ts` | 89 | Mind-content visibility classification + `card push` safety gate (`cardManifestStrictestVisibility`, `evaluatePushGate`) |
 | `hook-consent.ts` | 15 | `isHookConsentValid` — whether a locked card has usable hook-execution consent |
 | `hook-runner.ts` | 90 | Orchestrates session-signal hooks: sink append + card-usage write-on-change (hot path; reads `card.lock` directly) |
 | `hook-signals.ts` | 153 | Pure builders for session-signal records emitted by the hidden `drwn hook` subcommands |
@@ -1254,7 +1239,7 @@ These are points where current code diverges from `analyses/52_drwn-target-archi
 
 5. **`discoverCardNameForUrl` is inlined, not a separate helper.** §8.4 (lines 770-792) describes it as a discrete helper. → In as-built code, discovery is inlined inside `resolveFromGit` (`card-store.ts`) using the temp-clone-then-rename pattern. Behavior matches; structure differs.
 
-6. **`lockfileVersion` spans `2 | 3 | 4`.** §4.3 (line 327) says "Wave 1 uses `lockfileVersion: 2` only." → As-built, `validateCardLockfile` accepts `2`, `3`, or `4` and rejects anything else (`card-lock.ts`): v3 added hook locking, v4 added mind content. `writeCardLock` emits v3 or v4 (§3.4). There is still no v1 read-compat shim.
+6. **`lockfileVersion` spans `2 | 3 | 4 | 5`.** §4.3 (line 327) says "Wave 1 uses `lockfileVersion: 2` only." → As-built, `validateCardLockfile` accepts `2`, `3`, `4`, or `5` and rejects anything else (`card-lock.ts`): v3 added hook locking. `writeCardLock` emits v5 (§3.4). There is still no v1 read-compat shim.
 
 7. **`profiles/` is not implemented.** §3.1 lists `profiles/work.json`, `profiles/personal.json` in the per-user store. → No `resolveProfilesPath` exists in `store-paths.ts`. Forward-looking design.
 
