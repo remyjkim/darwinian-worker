@@ -89,6 +89,28 @@ Today: `POST /api/deployments {cardRef, name, model, secrets?}`; server clones+m
 - **D-E — Quarantine: design-capture doc + git history.** Write an analysis doc capturing the persona/beliefs/memory schema + materialization; delete the code; rely on git history. No dead code in the tree.
 - **D-F — Blueprint expansion: entry REMAINS alongside members.** The blueprint `CardLockEntry` stays (carrying governance/provenance); its `composedFrom` members are spliced in *addition* so governance survives into the lock.
 
+## Finalized deploy contract (W4, D-D)
+
+`drwn worker deploy <ref>` POSTs `/api/deployments` with the existing body plus, **when `ref` resolves to a `kind:"blueprint"` card**, a CLI-resolved `blueprint` object (the server materializes this fixed set; no server-side `composedFrom` resolution):
+
+```jsonc
+{
+  "cardRef": "@team/frontend-eng@^1.4.0",   // unchanged
+  "name": "fe", "model": "...", "secrets": { },
+  "blueprint": {                             // present only for kind:"blueprint" refs
+    "members": [                             // pinned member capability cards
+      { "name": "@team/react-builder", "version": "1.2.0", "integrity": "sha256-…", "treeSha": "…", "requested": "@team/react-builder@^1.0.0" }
+    ],
+    "governance": {                          // forward-declared, from the blueprint manifest
+      "composedFrom": ["@team/react-builder@^1.0.0"],
+      "tools": {}, "permissions": {}, "evals": [], "escalation": {}, "contextMounts": {}, "identity": {}
+    }
+  }
+}
+```
+
+A bare card ref sends no `blueprint` object (degenerate deploy, unchanged). Local resolution is best-effort: if it fails the CLI warns and sends the ref only. Implemented in `cli/core/worker-deploy.ts` (`resolveBlueprintDeployPayload`), consumed by `cli/commands/worker/deploy.ts`.
+
 ## Implementation strategy — four staged tasks
 
 Each task: red/green TDD, `npx tsc --noEmit` + focused tests per step, full `bun test` + `verify:release` at exit. Sequenced for minimal rework.
