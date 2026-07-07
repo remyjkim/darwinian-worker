@@ -63,6 +63,10 @@ async function waitForStableValue<T>(read: () => T, stableMs = 150, timeoutMs = 
   return false;
 }
 
+function localConfigText(overrides: Record<string, string>, watchNonce: number) {
+  return `${JSON.stringify({ overrides, _watchNonce: watchNonce }, null, 2)}\n`;
+}
+
 describe("write-watch helpers", () => {
   test("normalizeWatchPath strips file: prefix", () => {
     expect(normalizeWatchPath("file:/tmp/source")).toBe("/tmp/source");
@@ -195,9 +199,13 @@ describe("startWriteWatch", () => {
       expect(await waitForStableValue(() => runs)).toBe(true);
       runs = 0;
       const localConfigPath = join(root, ".agents", "drwn", "config.local.json");
-      expect(await writeUntilObserved(localConfigPath, () => '{"overrides":{}}\n', () => runs > 0)).toBe(
-        true,
-      );
+      expect(
+        await writeUntilObserved(
+          localConfigPath,
+          (attempt) => localConfigText({}, attempt),
+          () => runs > 0,
+        ),
+      ).toBe(true);
     } finally {
       stop();
     }
@@ -233,7 +241,7 @@ describe("startWriteWatch", () => {
       expect(
         await writeUntilObserved(
           localConfigPath,
-          () => `${JSON.stringify({ overrides: { "@me/x": `file:${firstLinked}` } }, null, 2)}\n`,
+          (attempt) => localConfigText({ "@me/x": `file:${firstLinked}` }, attempt),
           () => events.length >= 1,
         ),
       ).toBe(true);
@@ -247,7 +255,7 @@ describe("startWriteWatch", () => {
       expect(
         await writeUntilObserved(
           localConfigPath,
-          () => `${JSON.stringify({ overrides: { "@me/x": `file:${secondLinked}` } }, null, 2)}\n`,
+          (attempt) => localConfigText({ "@me/x": `file:${secondLinked}` }, attempt),
           () => events.length >= 3,
         ),
       ).toBe(true);
