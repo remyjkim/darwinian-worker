@@ -63,6 +63,10 @@ async function waitForStableValue<T>(read: () => T, stableMs = 150, timeoutMs = 
   return false;
 }
 
+function localConfigText(overrides: Record<string, string>, watchNonce: number) {
+  return `${JSON.stringify({ overrides, _watchNonce: watchNonce }, null, 2)}\n`;
+}
+
 describe("write-watch helpers", () => {
   test("normalizeWatchPath strips file: prefix", () => {
     expect(normalizeWatchPath("file:/tmp/source")).toBe("/tmp/source");
@@ -142,17 +146,25 @@ describe("startWriteWatch", () => {
     await mkdir(join(root, ".agents", "drwn"), { recursive: true });
     await writeFile(join(root, ".agents", "drwn", "config.json"), "{}\n");
     let runs = 0;
+    let activeRuns = 0;
+    let maxActiveRuns = 0;
     let release: (() => void) | undefined;
     let exerciseSingleFlight = false;
     const stop = startWriteWatch({
       projectRoot: root,
       debounceMs: 10,
       onTrigger: async () => {
-        runs += 1;
-        if (exerciseSingleFlight && runs === 1) {
-          await new Promise<void>((resolve) => {
-            release = resolve;
-          });
+        activeRuns += 1;
+        maxActiveRuns = Math.max(maxActiveRuns, activeRuns);
+        try {
+          runs += 1;
+          if (exerciseSingleFlight && runs === 1) {
+            await new Promise<void>((resolve) => {
+              release = resolve;
+            });
+          }
+        } finally {
+          activeRuns -= 1;
         }
       },
     });
@@ -170,8 +182,8 @@ describe("startWriteWatch", () => {
     release?.();
     await Bun.sleep(150);
     stop();
-    expect(runs).toBeGreaterThanOrEqual(1);
-    expect(runs).toBeLessThanOrEqual(2);
+    expect(runs).toBeGreaterThanOrEqual(2);
+    expect(maxActiveRuns).toBe(1);
   });
 
   test("creates config.local.json after watch starts and triggers write", async () => {
@@ -194,8 +206,14 @@ describe("startWriteWatch", () => {
       ).toBe(true);
       expect(await waitForStableValue(() => runs)).toBe(true);
       runs = 0;
-      await writeFile(join(root, ".agents", "drwn", "config.local.json"), '{"overrides":{}}\n');
-      expect(await waitForCondition(() => runs > 0)).toBe(true);
+      const localConfigPath = join(root, ".agents", "drwn", "config.local.json");
+      expect(
+        await writeUntilObserved(
+          localConfigPath,
+          (attempt) => localConfigText({}, attempt),
+          () => runs > 0,
+        ),
+      ).toBe(true);
     } finally {
       stop();
     }
@@ -227,20 +245,35 @@ describe("startWriteWatch", () => {
       ).toBe(true);
       expect(await waitForStableValue(() => events.length)).toBe(true);
       events.length = 0;
-      await writeFile(
-        join(root, ".agents", "drwn", "config.local.json"),
-        `${JSON.stringify({ overrides: { "@me/x": `file:${firstLinked}` } }, null, 2)}\n`,
-      );
-      expect(await waitForCondition(() => events.length >= 1)).toBe(true);
-      await writeFile(join(firstLinked, "touch.txt"), "a2\n");
-      expect(await waitForCondition(() => events.length >= 2)).toBe(true);
-      await writeFile(
-        join(root, ".agents", "drwn", "config.local.json"),
-        `${JSON.stringify({ overrides: { "@me/x": `file:${secondLinked}` } }, null, 2)}\n`,
-      );
-      expect(await waitForCondition(() => events.length >= 3)).toBe(true);
-      await writeFile(join(secondLinked, "touch.txt"), "b2\n");
-      expect(await waitForCondition(() => events.length >= 4)).toBe(true);
+      const localConfigPath = join(root, ".agents", "drwn", "config.local.json");
+      expect(
+        await writeUntilObserved(
+          localConfigPath,
+          (attempt) => localConfigText({ "@me/x": `file:${firstLinked}` }, attempt),
+          () => events.length >= 1,
+        ),
+      ).toBe(true);
+      expect(
+        await writeUntilObserved(
+          join(firstLinked, "touch.txt"),
+          (attempt) => `a${attempt + 2}\n`,
+          () => events.length >= 2,
+        ),
+      ).toBe(true);
+      expect(
+        await writeUntilObserved(
+          localConfigPath,
+          (attempt) => localConfigText({ "@me/x": `file:${secondLinked}` }, attempt),
+          () => events.length >= 3,
+        ),
+      ).toBe(true);
+      expect(
+        await writeUntilObserved(
+          join(secondLinked, "touch.txt"),
+          (attempt) => `b${attempt + 2}\n`,
+          () => events.length >= 4,
+        ),
+      ).toBe(true);
     } finally {
       stop();
     }
