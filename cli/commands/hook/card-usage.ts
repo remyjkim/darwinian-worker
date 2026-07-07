@@ -1,4 +1,4 @@
-// ABOUTME: `drwn hook card-usage` — UserPromptSubmit hook that records active Mind Cards.
+// ABOUTME: `drwn hook card-usage` — UserPromptSubmit hook that records active Cards.
 // ABOUTME: Reads Claude's hook JSON from stdin, appends a write-on-change card_usage signal, always exits 0 silently.
 
 import { BaseCommand } from "../base";

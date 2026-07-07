@@ -295,10 +295,9 @@
   <a href="#scenario-release">B · Cutting a release</a>
   <a href="#scenario-new">C · Creating a brand-new card</a>
   <a href="#scenario-capture">D · Capturing an existing project</a>
-  <a href="#scenario-mind-content">Authoring mind content</a>
 
   <h2>Consuming &amp; switching</h2>
-  <a href="#scenario-minds">Selecting the active mind stack</a>
+  <a href="#scenario-workers">Selecting the active worker stack</a>
   <a href="#scenario-apply">E · Switching the whole card set</a>
   <a href="#scenario-add">F · Adding a card alongside others</a>
   <a href="#scenario-remove">G · Removing or detaching cards</a>
@@ -374,7 +373,7 @@
 <div class="flow">
   <div class="step"><div class="step-num">1.</div><div class="step-body">Read project <code>config.json</code> + <code>card.lock</code>.</div></div>
   <div class="step"><div class="step-num">2.</div><div class="step-body">Resolve each card ref against the card store (or <code>file:</code> source).</div></div>
-  <div class="step"><div class="step-num">3.</div><div class="step-body">Select the active mind stack from <code>activeMinds</code> (absent &rarr; all installed). Compute the effective skill + MCP + persona set, layering: machine defaults &rarr; active mind stack &rarr; project overlay.</div></div>
+  <div class="step"><div class="step-num">3.</div><div class="step-body">Select the active worker stack from <code>activeWorkers</code> (absent &rarr; all installed). Compute the effective skill + MCP set, layering: machine defaults &rarr; active worker stack &rarr; project overlay.</div></div>
   <div class="step"><div class="step-num">4.</div><div class="step-body">Plan symlinks under <code>.claude/skills/</code>, <code>.codex/skills/</code>, and generated MCP configs.</div></div>
   <div class="step"><div class="step-num">5.</div><div class="step-body">Compare plan against current downstream state. Display as a diff with <code>--dry-run</code>; apply otherwise.</div></div>
   <div class="step"><div class="step-num">6.</div><div class="step-body">Replace stale drwn-managed symlinks; preserve user-owned files with a warning.</div></div>
@@ -572,97 +571,46 @@
   After capture you treat it like any other source: edit, doctor, apply to a scratch project, publish.
 </p>
 
-<h2 class="section" id="scenario-mind-content">Authoring mind content &middot; persona, beliefs, memory</h2>
+<h2 class="section" id="scenario-workers">Selecting the active worker stack</h2>
 
 <p>
-  Beyond skills and MCPs, a card source can carry <strong>mind content</strong>: a <strong>persona</strong>
-  (voice / identity), <strong>beliefs</strong> (stances), and layered <strong>memory</strong>. Each entry is
-  scaffolded into the source and recorded in <code>card.json</code> with a <em>required</em> explicit
-  visibility &mdash; the manifest rejects any non-empty section that omits it.
-</p>
-
-<h4>Commands</h4>
-
-<pre><span class="cli-comment"># Persona: scaffolds persona/&lt;entry&gt;/PERSONA.md, appends to card.json persona.include.</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn card source add-persona</span> @scope/mind voice \
-    <span class="cli-flag">--visibility</span> internal
-
-<span class="cli-comment"># Belief: scaffolds beliefs/&lt;entry&gt;/BELIEF.md, appends to card.json beliefs.include.</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn card source add-belief</span> @scope/mind engineering \
-    <span class="cli-flag">--visibility</span> public
-
-<span class="cli-comment"># Memory: scaffolds memory/&lt;layer&gt;/&lt;entry&gt;/, appends to the chosen layer.</span>
-<span class="cli-comment">#   --layer is one of l4 | l5 | l6 (required)</span>
-<span class="cli-comment">#   --format is md (default) | jsonl | mixed</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn card source add-memory</span> @scope/mind raw \
-    <span class="cli-flag">--layer</span> l6 <span class="cli-flag">--visibility</span> private <span class="cli-flag">--format</span> jsonl
-
-<span class="cli-comment"># Edit the scaffolded files, then remove entries you no longer want.</span>
-<span class="cli-comment"># remove-* delete the bundled dir by default; --keep-files drops only the manifest entry.</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn card source remove-persona</span> @scope/mind voice <span class="cli-flag">--keep-files</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn card source remove-belief</span> @scope/mind engineering
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn card source remove-memory</span> @scope/mind raw <span class="cli-flag">--layer</span> l6</pre>
-
-<h4>What's happening under the hood</h4>
-
-<table class="transitions">
-  <thead><tr><th>Step</th><th>Layer touched</th><th>Effect</th></tr></thead>
-  <tbody>
-    <tr><td><code>source add-persona</code></td><td>Source</td><td>Scaffolds <code>sources/@scope/mind/persona/&lt;entry&gt;/PERSONA.md</code>. Appends <code>&lt;entry&gt;</code> to <code>card.json.persona.include</code> and records <code>persona.visibility</code>.</td></tr>
-    <tr><td><code>source add-belief</code></td><td>Source</td><td>Scaffolds <code>beliefs/&lt;entry&gt;/BELIEF.md</code>. Appends to <code>card.json.beliefs.include</code> and records <code>beliefs.visibility</code>.</td></tr>
-    <tr><td><code>source add-memory</code></td><td>Source</td><td>Scaffolds <code>memory/&lt;layer&gt;/&lt;entry&gt;/</code> with files matching <code>--format</code>. Appends to <code>card.json.memory.&lt;layer&gt;.include</code> with <code>visibility</code> + <code>format</code>.</td></tr>
-    <tr><td><code>source remove-persona</code> / <code>remove-belief</code> / <code>remove-memory</code></td><td>Source</td><td>Drops the entry from its manifest section and deletes the bundled directory unless <code>--keep-files</code> is passed. <code>remove-memory</code> also requires <code>--layer</code>.</td></tr>
-  </tbody>
-</table>
-
-<div class="note">
-  <strong>Visibility is mandatory</strong>
-  <code>--visibility</code> (<code>private</code> | <code>internal</code> | <code>public</code>) is required on every
-  <code>add-*</code> because the manifest enforces a visibility on any persona / beliefs / memory section
-  whose <code>include</code> is non-empty. Each <code>add-*</code> / <code>remove-*</code> also accepts
-  <code>--dry-run</code> and <code>--json</code>.
-</div>
-
-<h2 class="section" id="scenario-minds">Selecting the active mind stack</h2>
-
-<p>
-  Every applied card materializes its own mind bundle, so a project can have several minds
+  Every applied card installs as its own worker, so a project can have several workers
   <em>installed</em>. Only the <strong>active stack</strong> &mdash; an ordered list stored as
-  <code>activeMinds</code> in project <code>config.json</code> &mdash; composes into the merged mind and
-  contributes to the effective skill / MCP / persona set. Order sets persona and conflict precedence.
+  <code>activeWorkers</code> in project <code>config.json</code> &mdash; selects the active worker stack and
+  contributes to the effective skill / MCP set. Order sets conflict precedence.
 </p>
 
 <h4>Commands</h4>
 
 <pre><span class="cli-prompt">$</span> cd &lt;project&gt;
 
-<span class="cli-comment"># See installed minds and which are active.</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn mind list</span> <span class="cli-flag">--json</span>
+<span class="cli-comment"># See installed workers and which are active.</span>
+<span class="cli-prompt">$</span> <span class="cli-cmd">drwn worker stack</span> <span class="cli-flag">--json</span>
 
 <span class="cli-comment"># Pin an explicit, ordered active stack (names must be installed).</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn mind use</span> @scope/base @scope/frontend
+<span class="cli-prompt">$</span> <span class="cli-cmd">drwn worker stack use</span> @scope/base @scope/frontend
 
-<span class="cli-comment"># Deactivate everything (installed bundles stay materialized).</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn mind clear</span>
+<span class="cli-comment"># Deactivate everything (installed workers stay materialized).</span>
+<span class="cli-prompt">$</span> <span class="cli-cmd">drwn worker stack clear</span>
 
 <span class="cli-comment"># Re-project downstream after changing the stack.</span>
 <span class="cli-prompt">$</span> <span class="cli-cmd">drwn write</span> <span class="cli-flag">--dry-run</span>
 <span class="cli-prompt">$</span> <span class="cli-cmd">drwn write</span></pre>
 
-<h4><code>activeMinds</code> semantics</h4>
+<h4><code>activeWorkers</code> semantics</h4>
 
 <table class="transitions">
   <thead><tr><th>Value in config.json</th><th>Meaning</th></tr></thead>
   <tbody>
-    <tr><td>key absent</td><td><strong>All installed minds active</strong> (the default). <code>mind list</code> reports the default and suggests <code>mind use</code> to pin a stack.</td></tr>
-    <tr><td><code>[]</code> (empty array)</td><td><strong>No mind active.</strong> Bundles remain on disk, but the next <code>drwn write</code> drops the composed mind and active-stack projection. Set by <code>mind clear</code>.</td></tr>
-    <tr><td><code>["@scope/a", "@scope/b"]</code></td><td><strong>Exactly these, in this order.</strong> The ordered stack that projects. Set by <code>mind use</code>; names not installed in the project are rejected.</td></tr>
+    <tr><td>key absent</td><td><strong>All installed workers active</strong> (the default). <code>drwn worker stack</code> reports the default and suggests <code>drwn worker stack use</code> to pin a stack.</td></tr>
+    <tr><td><code>[]</code> (empty array)</td><td><strong>No worker active.</strong> Workers remain on disk, but the next <code>drwn write</code> drops the active-stack projection. Set by <code>drwn worker stack clear</code>.</td></tr>
+    <tr><td><code>["@scope/a", "@scope/b"]</code></td><td><strong>Exactly these, in this order.</strong> The ordered stack that projects. Set by <code>drwn worker stack use</code>; names not installed in the project are rejected.</td></tr>
   </tbody>
 </table>
 
 <div class="note">
   <strong>Where the list comes from</strong>
-  <code>drwn mind list</code> reads <code>.agents/drwn/generated/minds.json</code> (the registry written by
+  <code>drwn worker stack</code> reads <code>.agents/drwn/generated/workers.json</code> (the registry written by
   <code>drwn write</code>), falling back to <code>card.lock</code> when the registry is absent.
 </div>
 
@@ -846,9 +794,8 @@
     <tr><td><code>~/.agents/drwn/extracted/&lt;hash&gt;/</code></td><td>Integrity-hashed extracted snapshot of a published version. Consumed via symlinks.</td><td><code>card publish</code> / resolver</td></tr>
     <tr><td><code>&lt;project&gt;/.agents/drwn/config.json</code></td><td>Declared card refs + project overlay (direct skills, servers, extensions, targets).</td><td>CLI</td></tr>
     <tr><td><code>&lt;project&gt;/.agents/drwn/card.lock</code></td><td>Resolved snapshot: exact versions, paths, integrity hashes. Reproducible build artifact.</td><td>CLI (any card mutation)</td></tr>
-    <tr><td><code>&lt;project&gt;/.agents/drwn/generated/minds.json</code></td><td>Registry of installed mind bundles (name + version). Read by <code>drwn mind list</code>.</td><td><code>drwn write</code></td></tr>
-    <tr><td><code>&lt;project&gt;/.agents/drwn/generated/minds/&lt;scope&gt;/&lt;name&gt;/</code></td><td>Per-installed-mind bundle: <code>persona.md</code>, <code>beliefs/</code>, <code>memory/l4|l5|l6/</code>, <code>skills/</code>, <code>mcp/servers.json</code>, <code>hooks/</code>, <code>mind.json</code>. One per applied card.</td><td><code>drwn write</code></td></tr>
-    <tr><td><code>&lt;project&gt;/.agents/drwn/generated/mind/</code></td><td>Composed active-stack mind: merged <code>persona.md</code>, <code>beliefs/&lt;scope&gt;/&lt;name&gt;/</code>, <code>memory/&lt;layer&gt;/&lt;scope&gt;/&lt;name&gt;/</code>, and a <code>mind.json</code> index. Only the active stack contributes.</td><td><code>drwn write</code></td></tr>
+    <tr><td><code>&lt;project&gt;/.agents/drwn/generated/workers.json</code></td><td>Registry of installed worker bundles (name + version). Read by <code>drwn worker stack</code>.</td><td><code>drwn write</code></td></tr>
+    <tr><td><code>&lt;project&gt;/.agents/drwn/generated/workers/&lt;scope&gt;/&lt;name&gt;/</code></td><td>Per-installed-worker bundle: <code>skills/</code>, <code>mcp/servers.json</code>, <code>hooks/</code>, and <code>worker.json</code> (name, version, integrity, path, skills, hooks, servers). One per applied card.</td><td><code>drwn write</code></td></tr>
     <tr><td><code>&lt;project&gt;/.claude/skills/&lt;name&gt;</code></td><td>Symlink to materialized skill dir. Replaced by next <code>drwn write</code>.</td><td><code>drwn write</code></td></tr>
     <tr><td><code>&lt;project&gt;/.codex/skills/&lt;name&gt;</code></td><td>Same as <code>.claude/</code> for Codex.</td><td><code>drwn write</code></td></tr>
     <tr><td><code>&lt;project&gt;/.cursor/mcp.json</code></td><td>Generated MCP config for Cursor.</td><td><code>drwn write</code></td></tr>
@@ -867,9 +814,6 @@
     <tr><td>Create editable source</td><td><code>drwn card new @scope/name [--from-project &lt;path&gt;] [--no-git]</code></td></tr>
     <tr><td>Add skill to source</td><td><code>drwn card source add-skill @scope/name &lt;skill&gt; --from &lt;dir&gt; [--replace]</code></td></tr>
     <tr><td>Add MCP server to source</td><td><code>drwn card source add-mcp @scope/name &lt;id&gt;</code></td></tr>
-    <tr><td>Add persona to source</td><td><code>drwn card source add-persona @scope/name &lt;entry&gt; --visibility private|internal|public</code></td></tr>
-    <tr><td>Add belief to source</td><td><code>drwn card source add-belief @scope/name &lt;entry&gt; --visibility private|internal|public</code></td></tr>
-    <tr><td>Add memory to source</td><td><code>drwn card source add-memory @scope/name &lt;entry&gt; --layer l4|l5|l6 --visibility private|internal|public [--format md|jsonl|mixed]</code></td></tr>
     <tr><td>Set source description / version / etc.</td><td><code>drwn card source set @scope/name --version 1.2.0 --description "..."</code></td></tr>
     <tr><td>Validate source</td><td><code>drwn card source doctor @scope/name [--json]</code></td></tr>
     <tr><td>Publish a version locally</td><td><code>drwn card publish @scope/name</code></td></tr>
@@ -883,9 +827,9 @@
     <tr><td>Pin a card to exact version</td><td><code>drwn card pin @scope/name@1.2.3</code></td></tr>
     <tr><td>Remove one card</td><td><code>drwn card remove @scope/name</code></td></tr>
     <tr><td>Detach project from all cards</td><td><code>drwn card detach</code></td></tr>
-    <tr><td>List installed minds + active stack</td><td><code>drwn mind list [--json]</code></td></tr>
-    <tr><td>Set the ordered active mind stack</td><td><code>drwn mind use &lt;name&gt; [&lt;name&gt; ...]</code></td></tr>
-    <tr><td>Clear the active mind stack</td><td><code>drwn mind clear</code></td></tr>
+    <tr><td>List installed workers + active stack</td><td><code>drwn worker stack [--json]</code></td></tr>
+    <tr><td>Set the ordered active worker stack</td><td><code>drwn worker stack use &lt;name&gt; [&lt;name&gt; ...]</code></td></tr>
+    <tr><td>Clear the active worker stack</td><td><code>drwn worker stack clear</code></td></tr>
     <tr><td>Re-resolve refs against store</td><td><code>drwn card update</code></td></tr>
     <tr><td>Show updates available</td><td><code>drwn card outdated [--check] [--json]</code></td></tr>
     <tr><td>Preview materialization</td><td><code>drwn write --dry-run [--json]</code></td></tr>

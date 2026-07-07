@@ -1,19 +1,22 @@
-// ABOUTME: Manages local Mind Card sources, immutable published versions, and resolution.
+// ABOUTME: Manages local Card sources, immutable published versions, and resolution.
 // ABOUTME: Centralizes card store layout so authoring and project commands share behavior.
 
 import { createHash, randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, rmSync, statSync } from "node:fs";
-import { mkdir, readdir, readFile, rename, rm, stat } from "node:fs/promises";
+import { chmod, mkdir, readdir, readFile, rename, rm, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { assertValidCardManifest, isCardScopeName, isCardUnscopedName, type CardManifest } from "./card-manifest";
 import { bumpOverrideConfigKey, assertSemverBumpMatchesClassification } from "./card-publish-guardrail";
 import { diffCards } from "./card-diff";
+import { computeIntegrityFromDir } from "./content-manifest";
 import type { CardOrigin, GitLockInfo } from "./card-lock";
 import { detectLegacyLayout } from "./migration";
 import { compareVersions, gt, isStrictSemver, maxSatisfying, validRange } from "./semver-utils";
 import { writeAtomically } from "./fs";
 import * as git from "./git";
+import { readCardMeta, readDeprecationMapFromMeta, writeCardMeta } from "./card-meta";
 import { DrwnError } from "./errors";
+import { parseUpstreamRef } from "./git-ref";
 import { readUrlCardName, writeUrlCardName } from "./url-card-map";
 import { assertSourceTrusted, loadEffectiveTrustedSourcesPolicy } from "./trusted-sources";
 import {
@@ -55,11 +58,13 @@ export interface ResolvedCard {
   integrity: string;
   manifest: CardManifest;
   origin: CardOrigin;
+  treeSha?: string;
   git?: GitLockInfo;
 }
 
 export interface ResolveCardOptions {
   allowUntrustedSource?: boolean;
+  acceptSuccessor?: boolean;
   repoRoot?: string;
   cwd?: string;
 }
@@ -251,6 +256,7 @@ export async function createCardSource(options: {
   name: string;
   scope?: string;
   noGit?: boolean;
+  kind?: "card" | "blueprint";
 }) {
   assertStoreWritable();
   assertNoLegacyLayout(options.agentsDir);
@@ -270,13 +276,14 @@ export async function createCardSource(options: {
     throw new Error(`Card source already exists: ${fullName}`);
   }
   mkdirSync(sourceDir, { recursive: true });
-  mkdirSync(join(sourceDir, "skills"), { recursive: true });
-  mkdirSync(join(sourceDir, "mcp-servers"), { recursive: true });
-  const manifest: CardManifest = {
-    name: fullName,
-    version: "1.0.0",
-    description: "",
-  };
+  const manifest: CardManifest =
+    options.kind === "blueprint"
+      ? { name: fullName, version: "1.0.0", kind: "blueprint", composedFrom: [], description: "" }
+      : { name: fullName, version: "1.0.0", description: "" };
+  if (options.kind !== "blueprint") {
+    mkdirSync(join(sourceDir, "skills"), { recursive: true });
+    mkdirSync(join(sourceDir, "mcp-servers"), { recursive: true });
+  }
   await writeJson(join(sourceDir, "card.json"), manifest);
   if (!options.noGit) {
     try {
@@ -310,50 +317,8 @@ export async function readPublishedCardManifest(agentsDir: string, name: string,
   })).manifest;
 }
 
-async function walkVersionTree(versionDir: string): Promise<Array<{ relPath: string; absPath: string; mode: number }>> {
-  const entries: Array<{ relPath: string; absPath: string; mode: number }> = [];
-
-  async function recurse(currentAbs: string, currentRel: string) {
-    const dirEntries = await readdir(currentAbs, { withFileTypes: true });
-    for (const dirent of dirEntries) {
-      const relPath = currentRel ? `${currentRel}/${dirent.name}` : dirent.name;
-      const absPath = join(currentAbs, dirent.name);
-      if (relPath === ".integrity" || relPath === ".git" || relPath.startsWith(".git/")) {
-        continue;
-      }
-      if (dirent.isDirectory()) {
-        await recurse(absPath, relPath);
-        continue;
-      }
-      if (!dirent.isFile() && !dirent.isSymbolicLink()) {
-        continue;
-      }
-      const stats = await stat(absPath);
-      if (stats.isFile()) {
-        entries.push({ relPath, absPath, mode: stats.mode });
-      }
-    }
-  }
-
-  await recurse(versionDir, "");
-  entries.sort((a, b) => a.relPath.localeCompare(b.relPath));
-  return entries;
-}
-
 export async function computeCardIntegrity(versionDir: string) {
-  const entries = await walkVersionTree(versionDir);
-  const records: Array<{ p: string; m: "x" | "-"; h: string }> = [];
-  for (const entry of entries) {
-    const content = await readFile(entry.absPath);
-    const fileHash = createHash("sha256").update(content).digest("hex");
-    records.push({
-      p: entry.relPath,
-      m: (entry.mode & 0o111) !== 0 ? "x" : "-",
-      h: fileHash,
-    });
-  }
-  const canonical = JSON.stringify(records);
-  return `sha256-${createHash("sha256").update(canonical).digest("hex")}`;
+  return computeIntegrityFromDir(versionDir);
 }
 
 function validatePublishedSkillDirs(versionDir: string, manifest: CardManifest) {
@@ -390,80 +355,6 @@ function validatePublishedHookDirs(versionDir: string, manifest: CardManifest) {
   }
 }
 
-async function validatePublishedMindContentDirs(versionDir: string, manifest: CardManifest) {
-  for (const entry of manifest.persona?.include ?? []) {
-    const dir = join(versionDir, "persona", entry);
-    const file = join(dir, "PERSONA.md");
-    if (!existsSync(dir)) {
-      throw new Error(`Card ${manifest.name}@${manifest.version} is missing persona directory '${entry}'. Expected: ${dir}`);
-    }
-    if (!existsSync(file)) {
-      throw new Error(`Card ${manifest.name}@${manifest.version} is missing PERSONA.md for persona '${entry}'. Expected: ${file}`);
-    }
-  }
-
-  for (const entry of manifest.beliefs?.include ?? []) {
-    const dir = join(versionDir, "beliefs", entry);
-    const file = join(dir, "BELIEF.md");
-    if (!existsSync(dir)) {
-      throw new Error(`Card ${manifest.name}@${manifest.version} is missing belief directory '${entry}'. Expected: ${dir}`);
-    }
-    if (!existsSync(file)) {
-      throw new Error(`Card ${manifest.name}@${manifest.version} is missing BELIEF.md for belief '${entry}'. Expected: ${file}`);
-    }
-  }
-
-  for (const layer of ["l4", "l5", "l6"] as const) {
-    const memory = manifest.memory?.[layer];
-    const format = memory?.format ?? "md";
-    for (const entry of memory?.include ?? []) {
-      const dir = join(versionDir, "memory", layer, entry);
-      if (!existsSync(dir)) {
-        throw new Error(`Card ${manifest.name}@${manifest.version} is missing memory directory '${entry}' for ${layer}. Expected: ${dir}`);
-      }
-      const files = await listPublishedContentFiles(dir);
-      if (format === "md" && !files.includes("MEMORY.md")) {
-        throw new Error(`Card ${manifest.name}@${manifest.version} is missing MEMORY.md for ${layer} memory '${entry}'. Expected: ${join(dir, "MEMORY.md")}`);
-      }
-      if (format === "jsonl" && !files.some((file) => file.endsWith(".jsonl"))) {
-        throw new Error(`Card ${manifest.name}@${manifest.version} is missing JSONL memory content for ${layer} memory '${entry}'. Expected a .jsonl file in ${dir}`);
-      }
-      if (format === "mixed" && files.length === 0) {
-        throw new Error(`Card ${manifest.name}@${manifest.version} is missing memory content for ${layer} memory '${entry}'. Expected files in ${dir}`);
-      }
-      for (const file of files.filter((candidate) => candidate.endsWith(".jsonl"))) {
-        await assertValidJsonlFile(join(dir, file));
-      }
-    }
-  }
-}
-
-async function listPublishedContentFiles(dir: string) {
-  const files: string[] = [];
-  for (const entry of await readdir(dir, { withFileTypes: true })) {
-    if (entry.isFile()) {
-      files.push(entry.name);
-    }
-  }
-  return files.sort((a, b) => a.localeCompare(b));
-}
-
-async function assertValidJsonlFile(path: string) {
-  const content = await readFile(path, "utf8");
-  const lines = content.split(/\r?\n/);
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index]!.trim();
-    if (!line) {
-      continue;
-    }
-    try {
-      JSON.parse(line);
-    } catch {
-      throw new Error(`invalid JSONL in ${path} on line ${index + 1}`);
-    }
-  }
-}
-
 export async function ensureExtracted(agentsDir: string, barePath: string, treeSha: string): Promise<string> {
   const extractedDir = resolveExtractedPath(agentsDir, treeSha);
   if (existsSync(extractedDir)) {
@@ -477,13 +368,31 @@ export async function ensureExtracted(agentsDir: string, barePath: string, treeS
   try {
     await rename(tempDir, extractedDir);
   } catch (error) {
-    if (existsSync(extractedDir)) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (existsSync(extractedDir) && (code === "EEXIST" || code === "ENOTEMPTY" || code === "EPERM")) {
       await rm(tempDir, { recursive: true, force: true });
       return extractedDir;
     }
     throw error;
   }
+  await chmodExtractedFilesReadOnly(extractedDir);
   return extractedDir;
+}
+
+async function chmodExtractedFilesReadOnly(rootDir: string) {
+  async function walk(current: string) {
+    for (const entry of await readdir(current, { withFileTypes: true })) {
+      const abs = join(current, entry.name);
+      if (entry.isDirectory()) {
+        await walk(abs);
+        continue;
+      }
+      if (entry.isFile()) {
+        await chmod(abs, 0o444);
+      }
+    }
+  }
+  await walk(rootDir);
 }
 
 async function readManifestFromDir(dir: string): Promise<CardManifest> {
@@ -553,7 +462,11 @@ async function resolveFromGit(agentsDir: string, parsed: ParsedCardRef): Promise
   }
   const existing = await findBareRepoByOriginUrl(agentsDir, parsed.gitUrl);
   if (existing) {
-    await git.fetch(existing.path, "origin", ["refs/heads/*:refs/heads/*", "refs/tags/*:refs/tags/*"]);
+    await git.fetch(existing.path, "origin", [
+      "refs/heads/*:refs/heads/*",
+      "refs/tags/*:refs/tags/*",
+      "+refs/meta/*:refs/meta/*",
+    ]);
     const resolved = await resolveGitRepoAtParsedRef(agentsDir, existing.path, parsed, existing.name);
     await writeUrlCardName(agentsDir, parsed.gitUrl, resolved.name);
     return resolved;
@@ -613,7 +526,11 @@ async function tryResolveFromCachedGitName(
         `${cachedName} is already bound to ${existingOrigin ?? "a local store repo"}; cannot bind ${parsed.gitUrl}`,
       );
     }
-    await git.fetch(targetPath, "origin", ["refs/heads/*:refs/heads/*", "refs/tags/*:refs/tags/*"]);
+    await git.fetch(targetPath, "origin", [
+      "refs/heads/*:refs/heads/*",
+      "refs/tags/*:refs/tags/*",
+      "+refs/meta/*:refs/meta/*",
+    ]);
     const resolved = await resolveGitRepoAtParsedRef(agentsDir, targetPath, parsed, cachedName);
     await writeUrlCardName(agentsDir, parsed.gitUrl, resolved.name);
     return { ...resolved, git: { ...resolved.git!, url: parsed.gitUrl } };
@@ -683,7 +600,6 @@ async function resolveRepoVersion(options: {
   }
   validatePublishedSkillDirs(dir, manifest);
   validatePublishedHookDirs(dir, manifest);
-  await validatePublishedMindContentDirs(dir, manifest);
   return {
     name: manifest.name,
     requested: options.requested,
@@ -692,6 +608,7 @@ async function resolveRepoVersion(options: {
     integrity: await computeCardIntegrity(dir),
     manifest,
     origin: options.origin,
+    treeSha,
     git: options.git,
   };
 }
@@ -742,6 +659,19 @@ export async function publishCard(agentsDir: string, name: string, options: Publ
   await ensureStoreInitialized(agentsDir);
   const manifest = await readCardSourceManifest(agentsDir, name);
   const sourceDir = resolveCardSourceDir(agentsDir, manifest.name);
+  for (const [skillName, upstreamRef] of Object.entries(manifest.skills?.upstream ?? {})) {
+    try {
+      parseUpstreamRef(upstreamRef);
+    } catch (error) {
+      if (error instanceof DrwnError && error.code === "UPSTREAM_LOCAL_PATH_REJECTED") {
+        throw new DrwnError(
+          "UPSTREAM_LOCAL_PATH_REJECTED",
+          `cannot publish ${manifest.name}: skills.upstream.${skillName} uses a local path`,
+        );
+      }
+      throw error;
+    }
+  }
   for (const skillName of manifest.skills?.include ?? []) {
     const skillDir = join(sourceDir, "skills", skillName);
     const skillMd = join(skillDir, "SKILL.md");
@@ -755,7 +685,6 @@ export async function publishCard(agentsDir: string, name: string, options: Publ
     }
   }
   validatePublishedHookDirs(sourceDir, manifest);
-  await validatePublishedMindContentDirs(sourceDir, manifest);
   const packagePath = join(resolveCardSourceDir(agentsDir, manifest.name), "package.json");
   if (existsSync(packagePath)) {
     const packageJson = JSON.parse(await readFile(packagePath, "utf8")) as { name?: string; version?: string };
@@ -796,7 +725,6 @@ export async function publishCard(agentsDir: string, name: string, options: Publ
   const versionDir = await ensureExtracted(agentsDir, barePath, treeSha);
   validatePublishedSkillDirs(versionDir, manifest);
   validatePublishedHookDirs(versionDir, manifest);
-  await validatePublishedMindContentDirs(versionDir, manifest);
   const integrity = await computeCardIntegrity(versionDir);
   const parent = await revParseOptional(barePath, "refs/heads/main");
   const commit = await git.commitTree(
@@ -840,7 +768,6 @@ export async function resolveCard(agentsDir: string, ref: string, options: Resol
     assertValidCardManifest(manifest);
     validatePublishedSkillDirs(dir, manifest);
     validatePublishedHookDirs(dir, manifest);
-    await validatePublishedMindContentDirs(dir, manifest);
     return {
       name: manifest.name,
       requested: ref,
@@ -862,18 +789,86 @@ export async function listCards(agentsDir: string) {
   if (!existsSync(root)) {
     return [];
   }
-  const cards: Array<{ name: string; versions: string[] }> = [];
+  const cards: Array<{ name: string; versions: string[]; deprecated: Record<string, string> }> = [];
   for (const repo of await listBareRepos(agentsDir)) {
-    cards.push({ name: repo.name, versions: await listPublishedVersions(agentsDir, repo.name) });
+    const versions = await listPublishedVersions(agentsDir, repo.name);
+    const barePath = resolveCardBareRepoPath(agentsDir, repo.name);
+    const deprecated = existsSync(barePath) ? await readDeprecationMap(barePath) : {};
+    cards.push({ name: repo.name, versions, deprecated });
   }
   return cards.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function deprecationConfigKey(version: string) {
+  return `drwn.deprecated.v${version.replace(/\./g, "-")}`;
+}
+
+export function versionFromDeprecationConfigKey(key: string): string | null {
+  const prefix = "drwn.deprecated.v";
+  if (!key.startsWith(prefix)) {
+    return null;
+  }
+  const encoded = key.slice(prefix.length);
+  if (!encoded) {
+    return null;
+  }
+  return encoded.replace(/-/g, ".");
+}
+
+export async function readDeprecationMap(barePath: string): Promise<Record<string, string>> {
+  const fromConfig = await readDeprecationMapFromConfig(barePath);
+  const fromMeta = await readDeprecationMapFromMeta(barePath);
+  return { ...fromConfig, ...fromMeta };
+}
+
+async function readDeprecationMapFromConfig(barePath: string): Promise<Record<string, string>> {
+  const entries = await git.configGetRegexp(barePath, "^drwn\\.deprecated\\.");
+  const deprecated: Record<string, string> = {};
+  for (const entry of entries) {
+    const version = versionFromDeprecationConfigKey(entry.key);
+    if (version) {
+      deprecated[version] = entry.value;
+    }
+  }
+  return deprecated;
+}
+
+async function migrateLegacyDeprecationConfig(barePath: string) {
+  const fromConfig = await readDeprecationMapFromConfig(barePath);
+  if (Object.keys(fromConfig).length === 0) {
+    return;
+  }
+  const fromMeta = await readDeprecationMapFromMeta(barePath);
+  const missing = Object.fromEntries(
+    Object.entries(fromConfig).filter(([version]) => !fromMeta[version]),
+  );
+  if (Object.keys(missing).length === 0) {
+    return;
+  }
+  await writeCardMeta(barePath, { deprecations: missing });
+}
+
+export async function getCardDeprecation(agentsDir: string, name: string, version: string): Promise<string | null> {
+  const barePath = resolveCardBareRepoPath(agentsDir, name);
+  if (!existsSync(barePath)) {
+    return null;
+  }
+  const fromMeta = await readDeprecationMapFromMeta(barePath);
+  if (fromMeta[version]) {
+    return fromMeta[version] ?? null;
+  }
+  const fromConfig = await readDeprecationMapFromConfig(barePath);
+  return fromConfig[version] ?? null;
 }
 
 export async function deprecateCardVersion(agentsDir: string, ref: string, message: string) {
   assertStoreWritable();
   const resolved = await resolveCard(agentsDir, ref);
   const barePath = resolveCardBareRepoPath(agentsDir, resolved.name);
-  await git.configSet(barePath, `drwn.deprecated.${resolved.version}`, message || "deprecated");
+  await migrateLegacyDeprecationConfig(barePath);
+  const deprecationMessage = message || "deprecated";
+  await writeCardMeta(barePath, { deprecations: { [resolved.version]: deprecationMessage } });
+  await git.configSet(barePath, deprecationConfigKey(resolved.version), deprecationMessage);
   return resolved;
 }
 

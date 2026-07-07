@@ -35,6 +35,14 @@ export function hashManagedContent(content: string | Uint8Array) {
   return `sha256-${createHash("sha256").update(content).digest("hex")}`;
 }
 
+export function dedupeManagedPathsByPath(paths: ManagedPath[]) {
+  const map = new Map<string, ManagedPath>();
+  for (const entry of paths) {
+    map.set(entry.path, entry);
+  }
+  return [...map.values()].sort((a, b) => a.path.localeCompare(b.path));
+}
+
 export function hashManagedDirectory(dirPath: string) {
   const records: Array<{ path: string; kind: "file" | "dir" | "symlink"; hash?: string; target?: string }> = [];
 

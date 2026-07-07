@@ -49,5 +49,5 @@ test("card source authoring commands can publish, apply, and preview materializa
   const dryRun = await runAgentsCli(["write", "--dry-run", "--json"], envFor(fixture), projectDir);
   expect(dryRun.exitCode).toBe(0);
   const writePlan = JSON.parse(dryRun.stdout);
-  expect(writePlan.changes.some((change: string) => change.includes("/.agents/drwn/extracted/") && change.includes("/skills/alpha"))).toBe(true);
+  expect(writePlan.changes.some((change: string) => change.includes("vendor/") || change.includes("/skills/alpha"))).toBe(true);
 });

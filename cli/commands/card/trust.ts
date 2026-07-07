@@ -1,8 +1,13 @@
-// ABOUTME: Implements explicit hook consent for locked Mind Cards.
+// ABOUTME: Implements explicit hook consent for locked Cards.
 // ABOUTME: Records user-reviewed version ranges in card.lock.
 
 import { Option, UsageError } from "clipanion";
 import { setHookConsent } from "../../core/card-project";
+import {
+  buildHookConsentAckKey,
+  computeHookPolicyDigest,
+  recordHookConsentAck,
+} from "../../core/hook-consent-ack";
 import { BaseCommand } from "../base";
 import { requireProjectRoot } from "./project-command";
 
@@ -35,11 +40,17 @@ export class CardTrustCommand extends BaseCommand {
     }
     let result;
     try {
-      result = await setHookConsent(requireProjectRoot(this), this.spec, this.range);
+      result = await setHookConsent(requireProjectRoot(this), this.context.agentsDir, this.spec, this.range);
     } catch (error) {
       this.context.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
       return 1;
     }
+    const projectRoot = requireProjectRoot(this);
+    const hookPolicyDigest = await computeHookPolicyDigest(result.card, result.card.path);
+    await recordHookConsentAck(
+      this.context.agentsDir,
+      buildHookConsentAckKey({ projectRoot, card: result.card, hookPolicyDigest }),
+    );
     this.context.stdout.write(
       `Trusted hooks for ${result.card.name}@${result.card.version} (${result.card.hookConsent?.consentedRange})\nWrote ${result.lockPath}\n`,
     );

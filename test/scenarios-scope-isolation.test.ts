@@ -1,5 +1,5 @@
 // ABOUTME: Verifies project writes materialize into the project, not the user's home.
-// ABOUTME: Protects Mind Card scope isolation for downstream agent tool files.
+// ABOUTME: Protects Card scope isolation for downstream agent tool files.
 
 import { afterEach, expect, test } from "bun:test";
 import { existsSync } from "node:fs";

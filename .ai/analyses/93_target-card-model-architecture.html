@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<!-- ABOUTME: Target architecture of the drwn Mind Card model — components, storage, data model, and operation flows, with SVG/HTML illustrations. -->
+<!-- ABOUTME: Consolidates the decisions of analyses 90 and 92 (upstream provenance, card link, card release, refs/meta metadata, global registry / per-project activation). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analysis 93 — Target Card Model Architecture</title>
+<style>
+  :root {
+    --ink: #1a1d23;
+    --muted: #5b6472;
+    --line: #d7dbe2;
+    --paper: #ffffff;
+    --wash: #f5f7fa;
+    --accent: #0b5fff;
+    --accent-soft: #e8f0ff;
+    --immutable: #7c3aed;
+    --immutable-soft: #f3ecfe;
+    --mutable: #0a8754;
+    --mutable-soft: #e7f6ef;
+    --meta: #b45309;
+    --meta-soft: #fdf1e0;
+    --danger: #b42318;
+    --danger-soft: #fdecea;
+    --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 2.5rem 1.5rem 5rem;
+    font: 16px/1.65 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    color: var(--ink); background: var(--paper);
+  }
+  main { max-width: 1080px; margin: 0 auto; }
+  h1 { font-size: 1.9rem; line-height: 1.25; margin: 0 0 .4rem; }
+  h2 { font-size: 1.35rem; margin: 3rem 0 .8rem; padding-top: 1.2rem; border-top: 1px solid var(--line); }
+  h3 { font-size: 1.05rem; margin: 1.8rem 0 .5rem; }
+  p, li { max-width: 78ch; }
+  .meta-block { color: var(--muted); font-size: .9rem; margin-bottom: 2rem; }
+  .meta-block code { font-size: .85rem; }
+  code { font-family: var(--mono); font-size: .86em; background: var(--wash); padding: .1em .35em; border-radius: 4px; }
+  pre { font-family: var(--mono); font-size: .8rem; line-height: 1.55; background: var(--wash);
+        border: 1px solid var(--line); border-radius: 8px; padding: 1rem 1.2rem; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; font-size: .9rem; margin: 1rem 0; }
+  th, td { border: 1px solid var(--line); padding: .45rem .8rem; text-align: left; vertical-align: top; }
+  th { background: var(--wash); }
+  figure { margin: 1.5rem 0; }
+  figcaption { font-size: .85rem; color: var(--muted); margin-top: .5rem; }
+  .legend { display: flex; flex-wrap: wrap; gap: 1rem; font-size: .82rem; color: var(--muted); margin: .6rem 0 0; }
+  .legend span { display: inline-flex; align-items: center; gap: .4rem; }
+  .swatch { width: 14px; height: 14px; border-radius: 4px; display: inline-block; border: 1px solid rgba(0,0,0,.15); }
+
+  /* Operation pipelines */
+  .flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: .35rem; margin: 1rem 0; }
+  .flow .step {
+    background: var(--wash); border: 1px solid var(--line); border-radius: 8px;
+    padding: .5rem .75rem; font-size: .82rem; line-height: 1.45; min-width: 130px; max-width: 210px; flex: 1;
+  }
+  .flow .step strong { display: block; font-family: var(--mono); font-size: .78rem; color: var(--accent); }
+  .flow .step.immutable { background: var(--immutable-soft); border-color: #cdb6f6; }
+  .flow .step.immutable strong { color: var(--immutable); }
+  .flow .step.mutable { background: var(--mutable-soft); border-color: #a6dfc5; }
+  .flow .step.mutable strong { color: var(--mutable); }
+  .flow .step.metadata { background: var(--meta-soft); border-color: #eed3a4; }
+  .flow .step.metadata strong { color: var(--meta); }
+  .flow .step.stop { background: var(--danger-soft); border-color: #f1b6b0; }
+  .flow .step.stop strong { color: var(--danger); }
+  .flow .arrow { align-self: center; color: var(--muted); font-size: 1.05rem; padding: 0 .1rem; }
+  .badge { display: inline-block; font-size: .7rem; font-weight: 600; letter-spacing: .04em;
+           padding: .1rem .5rem; border-radius: 999px; vertical-align: middle; }
+  .badge.done { background: var(--mutable-soft); color: var(--mutable); }
+  .badge.next { background: var(--accent-soft); color: var(--accent); }
+  .badge.later { background: var(--meta-soft); color: var(--meta); }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.4rem; }
+  @media (max-width: 860px) { .two-col { grid-template-columns: 1fr; } }
+  .callout { border-left: 4px solid var(--accent); background: var(--accent-soft);
+             border-radius: 0 8px 8px 0; padding: .8rem 1.1rem; margin: 1.2rem 0; font-size: .92rem; }
+  .callout.warn { border-color: var(--meta); background: var(--meta-soft); }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Analysis 93 — Target Card Model Architecture</h1>
+<div class="meta-block">
+  <strong>Date</strong>: 2026-07-02 &nbsp;·&nbsp; <strong>Author</strong>: Claude + Remy &nbsp;·&nbsp;
+  <strong>Status</strong>: Target architecture — amended by analysis 94 (red-team); corrections folded in below<br>
+  <strong>References</strong>: <code>94_harness-tooling-critical-assessment.md</code> (amends this doc),
+  <code>90_skill-update-model-investigation.md</code>,
+  <code>92_mind-card-lifecycle-storage-and-update-model.md</code>,
+  <code>89_darwinian-operator-card-migration-design.md</code>,
+  <code>82_drwn-portable-multi-surface-write-path-target-architecture.md</code>
+</div>
+
+<h2 id="glance">1. The model at a glance</h2>
+<p>The target card model rests on four load-bearing principles. Everything else in this
+document is a consequence of them.</p>
+<ol>
+  <li><strong>Global registry, per-project activation.</strong> The machine store under
+      <code>~/.agents/drwn/</code> is the single registry of everything <em>available</em>
+      (sources, published versions, catalogs). Whether a card is applied, written, and
+      used is decided per project via <code>card apply</code> + <code>drwn write</code>.
+      Machine-wide activation (the old defaults channel) is retired; personal staples
+      live in a <em>profile card</em> applied per project.</li>
+  <li><strong>Immutable content, mutable metadata.</strong> A published version never
+      changes (git commit + tag, content-addressed extraction). Facts <em>about</em>
+      versions that change over time — deprecation, successor pointers — live in a
+      dedicated mutable ref (<code>refs/meta/*</code>) that travels with push/clone.</li>
+  <li><strong>Provenance is data, not convention.</strong> Every bundled skill carries an
+      <code>upstream</code> ref naming its canonical home. Any copy, at any layer, can
+      answer “where do I edit this?” by walking recorded pointers.</li>
+  <li><strong>Copies at the edges, ceremony-free loops.</strong> Materialization stays
+      copy-based (OS-uniform primitives, per analysis 82). The cost of copying is paid
+      back by two orchestrators: <code>card link</code> (dev loop) and
+      <code>card release</code> (publish loop).</li>
+</ol>
+
+<h2 id="topology">2. Core components and how they relate</h2>
+<figure>
+<svg viewBox="0 0 1060 640" width="100%" role="img" aria-label="Component topology of the target card model">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5b6472"/>
+    </marker>
+    <marker id="arrB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#0b5fff"/>
+    </marker>
+  </defs>
+  <style>
+    .box { fill: #f5f7fa; stroke: #9aa3af; rx: 10; }
+    .box.imm { fill: #f3ecfe; stroke: #7c3aed; }
+    .box.mut { fill: #e7f6ef; stroke: #0a8754; }
+    .box.metab { fill: #fdf1e0; stroke: #b45309; }
+    .box.proj { fill: #e8f0ff; stroke: #0b5fff; }
+    .t { font: 600 14px -apple-system, "Segoe UI", sans-serif; fill: #1a1d23; }
+    .s { font: 11.5px -apple-system, "Segoe UI", sans-serif; fill: #5b6472; }
+    .m { font: 11px "SF Mono", Menlo, monospace; fill: #374151; }
+    .lab { font: 600 11px "SF Mono", Menlo, monospace; fill: #374151; }
+    .labB { font: 600 11px "SF Mono", Menlo, monospace; fill: #0b5fff; }
+    .edge { stroke: #5b6472; stroke-width: 1.6; fill: none; marker-end: url(#arr); }
+    .edgeB { stroke: #0b5fff; stroke-width: 1.8; fill: none; marker-end: url(#arrB); }
+    .edgeD { stroke: #0b5fff; stroke-width: 1.6; fill: none; stroke-dasharray: 6 5; marker-end: url(#arrB); }
+    .zone { fill: none; stroke: #d7dbe2; stroke-dasharray: 4 4; rx: 14; }
+    .zoneT { font: 600 11px -apple-system, "Segoe UI", sans-serif; fill: #9aa3af; letter-spacing: .08em; }
+  </style>
+
+  <!-- zones -->
+  <rect class="zone" x="18" y="14" width="606" height="196"/>
+  <text class="zoneT" x="30" y="34">AUTHORING (mutable)</text>
+  <rect class="zone" x="648" y="14" width="394" height="392"/>
+  <text class="zoneT" x="660" y="34">DISTRIBUTION</text>
+  <rect class="zone" x="18" y="238" width="606" height="168"/>
+  <text class="zoneT" x="30" y="258">MACHINE REGISTRY&#160;&#160;~/.agents/drwn/</text>
+  <rect class="zone" x="18" y="434" width="1024" height="188"/>
+  <text class="zoneT" x="30" y="454">PROJECT (activation is decided here)</text>
+
+  <!-- Row A: authoring -->
+  <rect class="box" x="40" y="52" width="250" height="130"/>
+  <text class="t" x="58" y="78">Canonical skill repos</text>
+  <text class="s" x="58" y="98">git; the only intended edit points</text>
+  <text class="m" x="58" y="120">darwinian-minds-skills/skills/…</text>
+  <text class="m" x="58" y="138">darwinian-minds/skills/shared/…</text>
+  <text class="s" x="58" y="162">named by upstream refs ↓</text>
+
+  <rect class="box" x="368" y="52" width="232" height="130"/>
+  <text class="t" x="386" y="78">Card source</text>
+  <text class="s" x="386" y="98">editable draft; its own .git</text>
+  <text class="m" x="386" y="120">sources/@scope/name/</text>
+  <text class="m" x="386" y="138">card.json (+ upstream refs)</text>
+  <text class="m" x="386" y="156">skills/ · mcp/ · hooks/ · persona/</text>
+
+  <path class="edge" d="M290,110 L364,110"/>
+  <text class="lab" x="276" y="44">card source sync</text>
+
+  <!-- Row B: store -->
+  <rect class="box imm" x="40" y="272" width="330" height="118"/>
+  <text class="t" x="58" y="298">Local store (immutable ledger)</text>
+  <text class="m" x="58" y="320">cards/@scope/name.git   bare repo</text>
+  <text class="m" x="58" y="338">refs/heads/main · refs/tags/vX.Y.Z</text>
+  <text class="m" x="58" y="356">extracted/&lt;treeSha&gt;/  content-addressed</text>
+  <text class="s" x="58" y="378">a published version is never edited</text>
+
+  <rect class="box metab" x="410" y="272" width="190" height="118"/>
+  <text class="t" x="426" y="298">Mutable metadata</text>
+  <text class="m" x="426" y="320">refs/meta/cards</text>
+  <text class="m" x="426" y="338">metadata.json</text>
+  <text class="s" x="426" y="360">deprecations,</text>
+  <text class="s" x="426" y="376">successor pointers</text>
+
+  <path class="edge" d="M400,182 C340,215 292,236 246,268"/>
+  <text class="lab" x="64" y="230">card publish  (commit + tag vX.Y.Z)</text>
+  <path class="edge" d="M505,182 L505,268"/>
+  <text class="lab" x="514" y="236">card deprecate</text>
+
+  <!-- Distribution column -->
+  <rect class="box" x="700" y="52" width="300" height="112"/>
+  <text class="t" x="718" y="78">Remote (git host)</text>
+  <text class="s" x="718" y="98">append-only distribution</text>
+  <text class="m" x="718" y="120">push: refs/heads/main, --tags,</text>
+  <text class="m" x="718" y="138">      refs/meta/*  ← carries metadata</text>
+
+  <rect class="box" x="700" y="252" width="300" height="130"/>
+  <text class="t" x="718" y="278">Catalog (discovery index)</text>
+  <text class="s" x="718" y="298">one entry per card — pointers, not content</text>
+  <text class="m" x="718" y="320">name → git URL</text>
+  <text class="m" x="718" y="338">versions[] + integrity per version</text>
+  <text class="m" x="718" y="356">channels: latest / stable / experimental</text>
+  <text class="s" x="718" y="376">(schema v2, decided Q3)</text>
+
+  <path class="edge" d="M372,285 C520,250 600,192 696,150"/>
+  <text class="lab" x="556" y="206">card push</text>
+  <path class="edge" d="M850,168 L850,248"/>
+  <text class="lab" x="860" y="212">card catalog publish</text>
+  <path class="edge" d="M696,132 C580,232 460,242 374,272"/>
+  <text class="lab" x="548" y="244">card clone / fetch  (consumer)</text>
+
+  <!-- Project row -->
+  <rect class="box proj" x="40" y="474" width="330" height="122"/>
+  <text class="t" x="58" y="500">Project state</text>
+  <text class="m" x="58" y="520">.agents/drwn/config.json  cards (shareable)</text>
+  <text class="m" x="58" y="537">.agents/drwn/config.local.json  link overrides (gitignored)</text>
+  <text class="m" x="58" y="554">.agents/drwn/card.lock    pinned versions + integrity</text>
+  <text class="m" x="58" y="571">.agents/drwn/generated/   minds layer · write-record.json</text>
+
+  <rect class="box" x="700" y="474" width="300" height="122"/>
+  <text class="t" x="718" y="500">Agent surfaces (copies)</text>
+  <text class="m" x="718" y="522">.claude/skills/ · .mcp.json</text>
+  <text class="m" x="718" y="540">.codex/skills/ · .codex/config.toml</text>
+  <text class="m" x="718" y="558">.cursor/mcp.json</text>
+  <text class="s" x="718" y="580">plain files; drift-gated by content hash</text>
+
+  <path class="edgeB" d="M205,394 L205,470"/>
+  <text class="labB" x="214" y="430">card apply  (pin → card.lock)</text>
+  <path class="edgeB" d="M374,536 L696,536"/>
+  <text class="labB" x="452" y="526">drwn write  (copy-based)</text>
+  <path class="edgeD" d="M604,150 C678,280 600,440 380,494"/>
+  <text class="labB" x="606" y="412">card link  (dev override,</text>
+  <text class="labB" x="606" y="428">config.local.json — machine-local)</text>
+</svg>
+<figcaption>Fig. 1 — Component topology. Solid gray arrows are producer/consumer transitions
+(every one an explicit command); blue arrows are project activation; the dashed blue arrow is
+the dev-mode path override. Purple = immutable, amber = mutable metadata, blue = project.</figcaption>
+<div class="legend">
+  <span><span class="swatch" style="background:var(--immutable-soft);border-color:var(--immutable)"></span> immutable content</span>
+  <span><span class="swatch" style="background:var(--meta-soft);border-color:var(--meta)"></span> mutable metadata</span>
+  <span><span class="swatch" style="background:var(--accent-soft);border-color:var(--accent)"></span> project / activation</span>
+  <span><span class="swatch" style="background:var(--wash);border-color:#9aa3af"></span> mutable working state</span>
+</div>
+</figure>
+
+<h2 id="storage">3. Storage in detail</h2>
+
+<h3>3.1 The machine registry</h3>
+<div class="two-col">
+<figure>
+<pre class="tree">~/.agents/drwn/
+├── sources/                    # editable card drafts (each its own .git)
+│   └── @darwinian/operator/
+│       ├── card.json           #   manifest + upstream refs
+│       ├── skills/…            #   synced copies of canonical skills
+│       └── .git/
+├── cards/                      # THE IMMUTABLE LEDGER
+│   └── @darwinian/operator.git #   bare repo, one per card
+│       ├── refs/heads/main     #   one commit per publish
+│       ├── refs/tags/v1.0.1    #   one tag per version
+│       └── refs/meta/cards     #   mutable metadata (target)
+├── extracted/
+│   └── &lt;treeSha&gt;/              # content-addressed version trees
+├── catalogs/
+│   └── github.com_…_v1/        # cloned catalog indexes
+├── catalogs.json               # registered catalog list
+├── url-card-map.json           # git URL → card (card-level provenance)
+├── machine.json                # machine config (defaults retired → thin)
+└── store.json                  # store metadata</pre>
+<figcaption>Fig. 2a — Machine store: the single registry of what is <em>available</em>.</figcaption>
+</figure>
+<figure>
+<pre class="tree">&lt;project&gt;/
+├── .agents/drwn/
+│   ├── config.json             # shareable intent: card refs (committed)
+│   ├── config.local.json       # machine-local: link overrides (gitignored)
+│   ├── card.lock               # pins: exact version + integrity
+│   ├── generated/
+│   │   └── minds/@darwinian/operator/
+│   │       ├── mind.json       #   provenance: card@version
+│   │       └── skills/* → extracted/&lt;sha&gt;/skills/*
+│   └── write-record.json       # managed paths + content hashes
+├── .claude/skills/&lt;name&gt;/      # ← copies (agent-facing)
+├── .mcp.json                   # ← managed-fields merge
+├── .codex/… · .cursor/…        # ← same content, per-surface format
+└── (source code)</pre>
+<figcaption>Fig. 2b — Project state: activation intent, pins, and materialized copies.</figcaption>
+</figure>
+</div>
+
+<h3>3.2 Inside a card’s bare repo</h3>
+<p>Each published card is a bare git repository whose refs partition cleanly by mutability.
+The <code>refs/meta/</code> namespace is the Stage-B addition: drwn controls push, fetch,
+and clone refspecs on both ends, so the metadata ref travels everywhere content does —
+something git config (the Stage-A stopgap location) can never do.</p>
+<figure>
+<pre>refs/heads/main      one commit per publish; tree = card content        IMMUTABLE history
+refs/tags/v0.2.0     annotated tag per published version                NEVER moved
+refs/tags/v1.0.1
+refs/meta/cards      single-file tree: metadata.json                    MUTABLE, union-merged
+                     └─ deprecations, successor, (future: advisories, fitness)
+
+push  = fetch → union-merge → push   (NEVER blind force — analysis 94 §4.3)
+refspecs = [refs/heads/main, --tags, refs/meta/*:refs/meta/*]
+           fetch adds +refs/meta/*:refs/meta/* (tolerant of absence for pre-Stage-B repos)</pre>
+<figcaption>Fig. 3 — Ref layout: content refs are append-only; the meta ref is deliberately
+mutable but <strong>union-merged</strong> on write (two machines deprecating different
+versions must not clobber each other).</figcaption>
+</figure>
+
+<h2 id="datamodel">4. The data model</h2>
+
+<h3>4.1 Card manifest with upstream provenance (recommendation 1)</h3>
+<pre><code>// sources/@darwinian/operator/card.json  (target shape)
+{
+  "name": "@darwinian/operator",
+  "version": "1.0.1",
+  "description": "Primary Darwinian Minds card …",
+  "skills": {
+    "include": ["apply-mind-card", "inspect-minds", "…"],
+    "upstream": {
+      "apply-mind-card":
+        "git+https://github.com/remyjkim/darwinian-minds-skills.git#skills/apply-mind-card@v0.4.0",
+      "inspect-minds":
+        "git+https://github.com/remyjkim/darwinian-minds-skills.git#skills/inspect-minds"
+      // form: git+URL#subpath[@rev]  — rev optional (tag/commit); absent = track default branch
+    }
+  },
+  "servers": {},
+  "harness": { "minVersion": "0.7.0" }
+}</code></pre>
+<ul>
+  <li><strong>Canonical ref form is a git URL + subpath, plus an optional revision</strong>
+      (<code>@&lt;tag|commit&gt;</code>) — the frozen-snapshot relationship is cross-repo in
+      practice (knowledge-docs ← darwinian-minds). Absent revision tracks the default branch;
+      a pinned revision makes <code>sync --check</code> unambiguous (analysis 94 §4.1).</li>
+  <li><strong>Local paths are dev-only</strong>; <code>card publish</code> rejects or
+      rewrites them (consistent with the check-no-local-paths CI rule).</li>
+  <li><code>drwn card source sync [--check]</code> reads this map and replaces every
+      repo’s private sync script; <code>doctor</code> fails stale copies at publish time, and
+      surfaces <em>“upstream moved”</em> (repo rename / redirect) as a warning, not a hard fail.</li>
+</ul>
+
+<h3>4.2 Mutable metadata document (Stage B)</h3>
+<pre><code>// refs/meta/cards → metadata.json
+{
+  "metadataVersion": 1,
+  "card": "@darwinian/harness-skills",
+  "successor": "@darwinian/operator",          // card-level rename pointer (trust-scoped)
+  "deprecations": {
+    "0.2.0": { "message": "Renamed to @darwinian/operator", "at": "2026-07-02T…" }
+  }
+}</code></pre>
+<p>Consumers see this on every <code>fetch</code>/<code>clone</code>; <code>card show</code>,
+<code>card list</code>, <code>card outdated</code>, <code>card apply</code>, and
+<code>card meta show</code> surface it (the ref is invisible in any web UI, so the CLI must
+show it). Stage A (shipped) stores the same facts in local git config via
+<code>deprecationKey()</code>; Stage B migrates markers on first write through the
+same helper, so no debt survives.</p>
+<div class="callout warn"><strong>Successor pointers are an attack surface (analysis 94 §4.3):</strong>
+a compromised remote could set <code>successor: @evil/operator</code> and make the tooling
+itself recommend the attacker’s card. Auto-suggest only <strong>same-scope</strong> successors;
+cross-scope requires catalog corroboration or explicit user confirmation.</div>
+
+<h3>4.3 Lockfile entry (unchanged role, richer chain)</h3>
+<pre><code>// .agents/drwn/card.lock (excerpt)
+{
+  "name": "@darwinian/operator",
+  "requested": "@darwinian/operator@^1.0.0",
+  "version": "1.0.1",
+  "integrity": "sha256-…",                      // verified on resolve
+  "path": "~/.agents/drwn/extracted/&lt;sha&gt;",
+  "origin": "store",
+  "git": { "commit": "…" }
+}</code></pre>
+
+<h3>4.4 Catalog entry, schema v2 (decided Q3)</h3>
+<pre><code>{
+  "name": "operator",
+  "url": "git+https://github.com/remyjkim/darwinian-operator.git",
+  "description": "…",
+  "channels": { "latest": "1.0.1", "stable": "1.0.1" },
+  "versions": {
+    "1.0.1": { "integrity": "sha256-…" },
+    "1.0.0": { "integrity": "sha256-…", "deprecated": "superseded by 1.0.1" }
+  }
+}</code></pre>
+<p>One entry per card; versions and stability channels inside it; integrity per version so
+<code>search → clone</code> can verify what it fetched (recommendation 5). Until schema
+v2 lands, releases auto-replace the single pointer entry; git tags keep old versions
+installable.</p>
+
+<h2 id="operations">5. How the operations work</h2>
+
+<h3>5.1 Dev loop — <code>card link</code> <span class="badge next">MODEL RELEASE</span></h3>
+<p>Per-card override with a bulk convenience form (decided Q1; location corrected by analysis
+94 §4.2). The override lives in a <strong>machine-local</strong> <code>config.local.json</code>
+(init-managed into <code>.gitignore</code>) — never <code>config.json</code> (the shareable
+intent file) and never <code>card.lock</code>. So a teammate cloning the project resolves the
+pinned version and never sees your absolute local path.</p>
+<div class="flow">
+  <div class="step"><strong>edit</strong>canonical skill or card source in your working tree</div>
+  <div class="arrow">→</div>
+  <div class="step mutable"><strong>card link @scope/name file:&lt;dir&gt;</strong>records override in config.local.json (gitignored; never the lock)</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>drwn write [--watch]</strong>re-copies from the live tree; surfaces stay copy-based</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>drwn status</strong>flags card loudly: <em>dev-linked (override)</em></div>
+  <div class="arrow">→</div>
+  <div class="step mutable"><strong>card unlink</strong>restores the published pin from card.lock</div>
+</div>
+
+<h3>5.2 Publish loop — <code>card release</code> <span class="badge next">MODEL RELEASE</span></h3>
+<p>One command, one confirmation gate, stops at first failure. This replaces the
+seven-command manual ceremony documented in analysis 92.</p>
+<div class="flow">
+  <div class="step"><strong>source sync --check</strong>bundled copies fresh vs upstream refs</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>version bump</strong>--bump patch|minor|major</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>doctor + validate</strong>require ok: true</div>
+  <div class="arrow">→</div>
+  <div class="step immutable"><strong>publish</strong>commit + tag vX.Y.Z, extract by tree SHA</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>push</strong>heads + tags + refs/meta/*</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>catalog publish</strong>update channels / auto-replace entry</div>
+</div>
+
+<h3>5.3 Consume and update</h3>
+<div class="flow">
+  <div class="step"><strong>search card</strong>catalog → entry (channels, integrity)</div>
+  <div class="arrow">→</div>
+  <div class="step immutable"><strong>card clone &lt;url&gt;</strong>remote → local store; integrity verified</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>card apply @ref</strong>pin into project card.lock</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>drwn write</strong>materialize copies into agent surfaces</div>
+</div>
+<div class="flow">
+  <div class="step"><strong>card outdated --fetch</strong>compare pins vs store/remote; warns on deprecated pins</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>card update</strong>re-pin within requested range</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>drwn write</strong>refresh copies</div>
+</div>
+
+<h3>5.4 Deprecation <span class="badge done">STAGE A SHIPPED</span> <span class="badge next">STAGE B</span></h3>
+<div class="flow">
+  <div class="step metadata"><strong>card deprecate @ref --message</strong>Stage A: digit-safe local config key · Stage B: refs/meta/cards</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>card push</strong>Stage B: meta ref travels to the remote</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>consumer fetch/clone</strong>metadata arrives with content</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>list / show / outdated / apply</strong>“0.2.0 (deprecated)” + successor pointer</div>
+</div>
+<div class="callout">Already live locally (Stage A): <code>drwn card list</code> renders
+<code>@darwinian/harness-skills&nbsp;&nbsp;0.2.0 (deprecated)</code> and <code>card show</code>
+prints <code>deprecated: Renamed to @darwinian/operator</code>.</div>
+
+<h3>5.5 Drift protection as a signpost <span class="badge next">MODEL RELEASE</span></h3>
+<p>The asymmetric gates already exist (refuse-overwrite, refuse-delete, via managed-path
+content hashes). The target adds provenance to their messages, so the error teaches the
+model instead of merely enforcing it.</p>
+<div class="flow">
+  <div class="step"><strong>user edits</strong>.claude/skills/inspect-minds/SKILL.md (a materialized copy)</div>
+  <div class="arrow">→</div>
+  <div class="step stop"><strong>drwn write refuses</strong>content hash ≠ write-record</div>
+  <div class="arrow">→</div>
+  <div class="step metadata"><strong>signpost</strong>“managed by drwn — edit git+…#skills/inspect-minds, then drwn write”</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>user edits upstream</strong>change lands once, propagates everywhere</div>
+</div>
+
+<h3>5.6 Porcelain over plumbing <span class="badge next">MODEL RELEASE</span></h3>
+<p>Everything above is <em>plumbing</em>. The single biggest adoption risk (analysis 94 §3.1,
+§4.6) is concept count — a user must learn ~15 nouns before value. Git survived the same
+problem by splitting porcelain from plumbing; drwn adds three or four porcelain verbs over the
+unchanged data model, and the operator skills teach these first:</p>
+<div class="two-col">
+<pre><code>drwn use  &lt;card-ref&gt;   # clone-if-needed + apply + write
+                       #   → one command to value
+drwn up                # outdated + update + write,
+                       #   across the whole project
+drwn dev  &lt;card&gt; &lt;dir&gt;  # link + write --watch
+drwn dev --off         #   → unlink, restore pin
+drwn release &lt;card&gt;     # the §5.2 publish pipeline,
+                       #   bump proposed from card diff</code></pre>
+<div>
+<p><strong>Duplicate-skill conflict rule</strong> (analysis 94 §4.5) — a guardrail that
+<em>must ship before the profile card</em>, since profile + operator cards will bundle
+overlapping skill names:</p>
+<ul>
+  <li>Deterministic precedence by <strong>apply order (later wins)</strong>, matching
+      mind-stack layering.</li>
+  <li>A loud <strong>per-skill warning</strong> at <code>write</code> naming both cards.</li>
+  <li>An explicit <code>exclude</code> list in project config for intentional resolution.</li>
+</ul>
+</div>
+</div>
+
+<h2 id="provenance">6. The provenance chain — “where do I edit this?”</h2>
+<p>Recommendation 1 closes the chain end-to-end. Every hop below is recorded data; the
+question is answerable mechanically from any layer via <code>inspect-minds --why</code>.</p>
+<figure>
+<div class="flow">
+  <div class="step"><strong>.claude/skills/&lt;name&gt;/</strong>materialized copy<br><em>write-record → managed path</em></div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>generated/minds/&lt;card&gt;/mind.json</strong>card@version</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>card.lock</strong>version, integrity, origin, git commit</div>
+  <div class="arrow">→</div>
+  <div class="step immutable"><strong>extracted/&lt;sha&gt; · cards/*.git</strong>published manifest</div>
+  <div class="arrow">→</div>
+  <div class="step metadata"><strong>manifest upstream ref</strong>git+https://…#skills/&lt;name&gt;</div>
+  <div class="arrow">→</div>
+  <div class="step mutable"><strong>canonical repo</strong>the one editable copy</div>
+</div>
+<figcaption>Fig. 4 — Ten-plus physical copies collapse into one logical chain with a single
+editable endpoint. (Before this model, the last hop existed only as convention.)</figcaption>
+</figure>
+
+<h2 id="scope">7. Scope and activation (decided Q2)</h2>
+<table>
+  <tr><th></th><th>Registry (availability)</th><th>Activation (usage)</th></tr>
+  <tr><td><strong>Where</strong></td><td>machine-wide, <code>~/.agents/drwn/</code></td><td>per project, <code>card apply</code> + <code>drwn write</code></td></tr>
+  <tr><td><strong>Contains</strong></td><td>sources, published versions, catalogs</td><td><code>config.json</code> intent, <code>card.lock</code> pins</td></tr>
+  <tr><td><strong>Mutated by</strong></td><td>publish, clone, fetch, deprecate</td><td>apply, update, remove, link, write</td></tr>
+  <tr><td><strong>Personal staples</strong></td><td colspan="2">a <em>profile card</em> (e.g. <code>@remyjkim/everyday</code>) in the registry, applied per project; <code>bootstrap-project</code> suggests it on init. Machine defaults retire — the double-update channel disappears by construction.</td></tr>
+</table>
+<div class="callout warn"><strong>Hardening (recommendation 5):</strong> today
+<code>writeScope = projectRoot ? "project" : "machine"</code> — machine-wide writes trigger
+by the <em>absence</em> of project config above cwd. The target requires an explicit
+<code>--scope machine</code> (or a confirmation gate) before any machine-scope
+materialization, and integrity-verified catalog fetches.</div>
+
+<h2 id="rollout">8. Rollout stages and decision record</h2>
+<table>
+  <tr><th>Stage</th><th>Contents</th><th>Status</th></tr>
+  <tr>
+    <td><strong>A — hotfix</strong></td>
+    <td><code>deprecationKey()</code> digit-safe encoding; <code>getCardDeprecation()</code> reader; surfacing in <code>card list</code>/<code>show</code>; 6 tests; harness-skills@0.2.0 deprecated; all 15 sources git-initialized</td>
+    <td><span class="badge done">DONE (uncommitted)</span></td>
+  </tr>
+  <tr>
+    <td><strong>B — model release</strong></td>
+    <td>Ordered per analysis 94 §6: (1) upstream provenance <em>with revision component</em> +
+    <code>card source sync</code>; (2) porcelain verbs <code>use</code>/<code>up</code>/<code>dev</code>/<code>release</code>
+    (release proposes bump from <code>card diff</code>); (3) <code>card link</code> via
+    <strong>machine-local</strong> <code>config.local.json</code>; (4) <strong>duplicate-skill conflict rule</strong>
+    (blocks profile card); (5) <code>refs/meta/*</code> with <strong>union-merge</strong> + trust-scoped
+    successors + <code>card meta show</code>; (6) profile-card migration <em>with bulk project ops</em>
+    (<code>projects update --all</code>) + <code>card new --from-defaults</code>; (7) drift signposts +
+    <code>--scope machine</code> gate; (8) trust-hardening roadmap (apply-time content summaries).</td>
+    <td><span class="badge next">NEXT</span></td>
+  </tr>
+  <tr>
+    <td><strong>C — catalog v2</strong></td>
+    <td>single entry per card with version list + channels (<code>latest/stable/experimental</code>); per-version integrity; deprecation reflected in entries</td>
+    <td><span class="badge later">LATER</span></td>
+  </tr>
+</table>
+
+<h3>Decided questions (2026-07-02)</h3>
+<table>
+  <tr><th>Q</th><th>Decision</th></tr>
+  <tr><td>1. <code>card link</code> granularity</td><td>Per-card primitive; bulk convenience (<code>--all-from</code>) for monorepos. <em>Override location corrected by 94 §4.2: machine-local <code>config.local.json</code>, not <code>config.json</code>.</em></td></tr>
+  <tr><td>2. Machine defaults</td><td>Global registry, per-project activation; defaults retire into a profile card</td></tr>
+  <tr><td>3. Catalog entries</td><td>Single entry per card with version list + stability channels (schema v2); auto-replace until then</td></tr>
+  <tr><td>4. Deprecation fix</td><td>Staged A → B → C; Stage A shipped; metadata becomes distributable via <code>refs/meta/*</code></td></tr>
+</table>
+
+<h3>Explicitly rejected (with reasons preserved)</h3>
+<ul>
+  <li><strong>Symlink-back materialization</strong> — breaks Windows/Cowork portability
+      (analysis 82), content-hash drift detection, and team-shared cards.</li>
+  <li><strong>Mutable published versions</strong> — destroys reproducibility;
+      <code>card link</code> removes the ceremony instead.</li>
+  <li><strong>Editing the store directly</strong> — it is a distribution cache, not a
+      workspace (nix’s read-only store reasoning).</li>
+  <li><strong>Manifest-carried deprecation</strong> — cannot deprecate a card that will
+      never publish again (harness-skills’ exact situation).</li>
+  <li><strong>Machine card for defaults</strong> — invests in machine-wide activation,
+      the opposite of the decided principle.</li>
+</ul>
+
+<h3>Open fronts (from analysis 94, not yet scheduled)</h3>
+<ul>
+  <li><strong>Trust of instructions, not just code.</strong> Hooks require consent; skills —
+      which an agent will <em>follow</em> — do not, and a card can bundle both a malicious
+      instruction and the MCP server it abuses. Small blast radius today (own cards, one
+      curated catalog); becomes the headline risk once community catalogs open. Path:
+      apply-time content summaries now → catalog quality signals → signing before any
+      default-registered community catalog.</li>
+  <li><strong>Multi-machine registry sync.</strong> The registry is per-machine; sources,
+      trust decisions, and catalogs do not sync (only cards with remotes do implicitly). Needs
+      a documented remote-first pattern and eventually <code>drwn store sync</code>.</li>
+  <li><strong>The evolutionary loop is the moat.</strong> Session signals + analyzer already
+      exist; provenance makes skill variants attributable across projects. The meta ref is the
+      reserved home for fitness / eval annotations — same mutable-metadata channel, no new
+      machinery. No competitor is positioned to copy this.</li>
+</ul>
+
+</main>
+</body>
+</html>

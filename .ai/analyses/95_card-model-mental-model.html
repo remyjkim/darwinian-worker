@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<!-- ABOUTME: Mental model of the drwn card architecture as a state machine — the states a card/skill occupies, the scenarios the model accounts for, and the CLI subcommands that transition between states. -->
+<!-- ABOUTME: Companion to analysis 93 (component topology). 93 answers "where does content live"; this answers "what state is my thing in, and which command moves it." Reflects analysis 94 decisions. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analysis 95 — Card Model Mental Model (states, scenarios, transitions)</title>
+<style>
+  :root {
+    --ink:#1a1d23; --muted:#5b6472; --line:#d7dbe2; --paper:#fff; --wash:#f5f7fa;
+    --accent:#0b5fff; --accent-soft:#e8f0ff;
+    --immutable:#7c3aed; --immutable-soft:#f3ecfe;
+    --mutable:#0a8754; --mutable-soft:#e7f6ef;
+    --meta:#b45309; --meta-soft:#fdf1e0;
+    --danger:#b42318; --danger-soft:#fdecea;
+    --mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:2.5rem 1.5rem 5rem;font:16px/1.65 -apple-system,"Segoe UI",Helvetica,Arial,sans-serif;color:var(--ink);background:var(--paper)}
+  main{max-width:1080px;margin:0 auto}
+  h1{font-size:1.9rem;line-height:1.25;margin:0 0 .4rem}
+  h2{font-size:1.35rem;margin:3rem 0 .8rem;padding-top:1.2rem;border-top:1px solid var(--line)}
+  h3{font-size:1.05rem;margin:1.8rem 0 .5rem}
+  p,li{max-width:80ch}
+  .meta-block{color:var(--muted);font-size:.9rem;margin-bottom:2rem}
+  code{font-family:var(--mono);font-size:.86em;background:var(--wash);padding:.1em .35em;border-radius:4px}
+  pre{font-family:var(--mono);font-size:.8rem;line-height:1.55;background:var(--wash);border:1px solid var(--line);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto}
+  table{border-collapse:collapse;font-size:.9rem;margin:1rem 0;width:100%}
+  th,td{border:1px solid var(--line);padding:.45rem .8rem;text-align:left;vertical-align:top}
+  th{background:var(--wash)}
+  figure{margin:1.5rem 0}
+  figcaption{font-size:.85rem;color:var(--muted);margin-top:.5rem}
+  .legend{display:flex;flex-wrap:wrap;gap:1rem;font-size:.82rem;color:var(--muted);margin:.6rem 0 0}
+  .legend span{display:inline-flex;align-items:center;gap:.4rem}
+  .swatch{width:14px;height:14px;border-radius:4px;display:inline-block;border:1px solid rgba(0,0,0,.15)}
+  .flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:.35rem;margin:1rem 0}
+  .flow .step{background:var(--wash);border:1px solid var(--line);border-radius:8px;padding:.5rem .75rem;font-size:.82rem;line-height:1.45;min-width:120px;max-width:220px;flex:1}
+  .flow .step strong{display:block;font-family:var(--mono);font-size:.76rem;color:var(--accent)}
+  .flow .step.immutable{background:var(--immutable-soft);border-color:#cdb6f6}
+  .flow .step.immutable strong{color:var(--immutable)}
+  .flow .step.mutable{background:var(--mutable-soft);border-color:#a6dfc5}
+  .flow .step.mutable strong{color:var(--mutable)}
+  .flow .step.metadata{background:var(--meta-soft);border-color:#eed3a4}
+  .flow .step.metadata strong{color:var(--meta)}
+  .flow .step.stop{background:var(--danger-soft);border-color:#f1b6b0}
+  .flow .step.stop strong{color:var(--danger)}
+  .flow .arrow{align-self:center;color:var(--muted);font-size:1.05rem;padding:0 .1rem}
+  .scenario{border:1px solid var(--line);border-radius:10px;padding:.2rem 1rem 1rem;margin:1.2rem 0;background:#fcfdff}
+  .scenario h3{margin-top:1rem}
+  .scenario .path{font-family:var(--mono);font-size:.78rem;color:var(--muted);margin:.2rem 0 .4rem}
+  .callout{border-left:4px solid var(--accent);background:var(--accent-soft);border-radius:0 8px 8px 0;padding:.8rem 1.1rem;margin:1.2rem 0;font-size:.92rem}
+  .callout.warn{border-color:var(--meta);background:var(--meta-soft)}
+  .callout.stop{border-color:var(--danger);background:var(--danger-soft)}
+</style>
+</head>
+<body>
+<main>
+
+<h1>Analysis 95 — Card Model Mental Model</h1>
+<div class="meta-block">
+  <strong>Date</strong>: 2026-07-02 &nbsp;·&nbsp; <strong>Author</strong>: Claude + Remy &nbsp;·&nbsp;
+  <strong>Status</strong>: Mental-model companion to analysis 93 (reflects analysis 94 decisions)<br>
+  <strong>Reads as</strong>: a state machine. <strong>93</strong> answers <em>“where does content live and flow?”</em>
+  (component topology). <strong>This</strong> answers <em>“what state is my card in, and which command moves it?”</em>
+</div>
+
+<h2 id="core">1. The model in one idea</h2>
+<p>A card — and every skill, MCP, or hook inside it — is never “just a file.” At any moment it
+occupies a <strong>state</strong>, and <strong>every CLI subcommand is a transition between
+states</strong>. Understanding the model means knowing (a) the states, (b) which are reversible,
+(c) which are forbidden, and (d) the one command that performs each legal move.</p>
+<p>Two rules cut across everything:</p>
+<ol>
+  <li><strong>Two planes.</strong> <span style="color:var(--immutable)"><strong>Content</strong></span>
+      (a published version) is immutable — it is never edited, only superseded.
+      <span style="color:var(--meta)"><strong>Metadata about content</strong></span> (deprecation,
+      successor) is mutable and rides a separate plane that travels with the card.</li>
+  <li><strong>Availability ≠ activation.</strong> A card being <em>in your registry</em> (machine-wide)
+      is a different state from it being <em>used by a project</em> (per-project). No command
+      silently crosses that line.</li>
+</ol>
+<div class="legend">
+  <span><span class="swatch" style="background:var(--immutable-soft);border-color:var(--immutable)"></span> immutable content</span>
+  <span><span class="swatch" style="background:var(--meta-soft);border-color:var(--meta)"></span> mutable metadata</span>
+  <span><span class="swatch" style="background:var(--accent-soft);border-color:var(--accent)"></span> activation / project</span>
+  <span><span class="swatch" style="background:var(--wash);border-color:#9aa3af"></span> working / mutable draft</span>
+  <span><span class="swatch" style="background:var(--danger-soft);border-color:var(--danger)"></span> forbidden / refused</span>
+</div>
+
+<h2 id="states">2. The states, and where each lives</h2>
+<p>Storage detail is in analysis 93; here each state is tagged with its home so the transitions
+below have somewhere to point.</p>
+<table>
+  <tr><th>State</th><th>Meaning</th><th>Lives in</th><th>Mutable?</th></tr>
+  <tr><td><strong>Canonical</strong></td><td>the one editable copy of a skill</td><td>upstream repo (external)</td><td>yes (edit here)</td></tr>
+  <tr><td><strong>Draft</strong></td><td>an editable card source</td><td><code>~/.agents/drwn/sources/</code></td><td>yes</td></tr>
+  <tr><td><strong>Bundled: synced / stale</strong></td><td>a card’s copy of a skill, fresh or drifted vs its <code>upstream</code></td><td>the Draft’s <code>skills/</code></td><td>via sync only</td></tr>
+  <tr><td><strong>Published</strong></td><td>a frozen version</td><td>store <code>cards/*.git</code> + <code>extracted/&lt;sha&gt;</code></td><td><strong>never</strong></td></tr>
+  <tr><td><strong>Deprecated</strong> <span style="color:var(--meta)">(metadata)</span></td><td>a published version marked superseded</td><td><code>refs/meta/cards</code></td><td>yes (union-merged)</td></tr>
+  <tr><td><strong>Pushed / Cataloged</strong></td><td>distributed / discoverable</td><td>git remote / catalog index</td><td>append-only / index</td></tr>
+  <tr><td><strong>Available</strong></td><td>discoverable but not in my store</td><td>a catalog entry</td><td>—</td></tr>
+  <tr><td><strong>In store</strong></td><td>cloned into my machine registry</td><td><code>cards/*.git</code></td><td>immutable</td></tr>
+  <tr><td><strong>Applied</strong></td><td>intent pinned into a project</td><td><code>card.lock</code></td><td>via apply/update</td></tr>
+  <tr><td><strong>Materialized</strong></td><td>written live into agent tools</td><td><code>.claude/</code>, <code>.codex/</code>, <code>.cursor/</code></td><td>copies (drift-gated)</td></tr>
+  <tr><td><strong>Linked</strong> (dev)</td><td>resolving from a live working tree, not the pin</td><td><code>config.local.json</code> (machine-local)</td><td>yes</td></tr>
+  <tr><td><strong>Outdated</strong></td><td>a newer version exists than the pin</td><td>derived (compare lock vs store/remote)</td><td>—</td></tr>
+  <tr><td><strong>Drifted</strong></td><td>a materialized copy was hand-edited</td><td>agent surface vs <code>write-record</code></td><td><strong>forbidden</strong></td></tr>
+</table>
+
+<h2 id="producer">3. Producer state machine — authoring &amp; distribution</h2>
+<figure>
+<svg viewBox="0 0 1040 470" width="100%" role="img" aria-label="Producer state machine">
+  <defs>
+    <marker id="pa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5b6472"/></marker>
+    <marker id="pm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b45309"/></marker>
+  </defs>
+  <style>
+    .st{rx:12;stroke-width:1.6}
+    .draft{fill:#f5f7fa;stroke:#9aa3af}
+    .canon{fill:#e7f6ef;stroke:#0a8754}
+    .pub{fill:#f3ecfe;stroke:#7c3aed}
+    .dist{fill:#fff;stroke:#9aa3af}
+    .dep{fill:#fdf1e0;stroke:#b45309}
+    .nm{font:700 15px -apple-system,"Segoe UI",sans-serif;fill:#1a1d23}
+    .sub{font:11.5px -apple-system,"Segoe UI",sans-serif;fill:#5b6472}
+    .cmd{font:600 11.5px "SF Mono",Menlo,monospace;fill:#374151}
+    .cmdm{font:600 11.5px "SF Mono",Menlo,monospace;fill:#b45309}
+    .e{stroke:#5b6472;stroke-width:1.8;fill:none;marker-end:url(#pa)}
+    .em{stroke:#b45309;stroke-width:1.6;fill:none;stroke-dasharray:6 5;marker-end:url(#pm)}
+    .rel{stroke:#0b5fff;stroke-width:1.6;fill:none;stroke-dasharray:2 4}
+    .relt{font:600 12px "SF Mono",Menlo,monospace;fill:#0b5fff}
+  </style>
+
+  <!-- Canonical feeding Draft -->
+  <rect class="st canon" x="40" y="28" width="200" height="66"/>
+  <text class="nm" x="58" y="56">Canonical</text>
+  <text class="sub" x="58" y="76">upstream repo — the one editable copy</text>
+
+  <!-- pipeline row y=170 -->
+  <rect class="st draft" x="40" y="170" width="200" height="86"/>
+  <text class="nm" x="58" y="200">Draft</text>
+  <text class="sub" x="58" y="220">editable card source</text>
+  <text class="sub" x="58" y="238">sources/@scope/name</text>
+
+  <rect class="st pub" x="320" y="170" width="200" height="86"/>
+  <text class="nm" x="338" y="200">Published</text>
+  <text class="sub" x="338" y="220">frozen version (immutable)</text>
+  <text class="sub" x="338" y="238">cards/*.git · extracted/&lt;sha&gt;</text>
+
+  <rect class="st dist" x="600" y="170" width="180" height="86"/>
+  <text class="nm" x="618" y="200">Pushed</text>
+  <text class="sub" x="618" y="220">on a git remote</text>
+  <text class="sub" x="618" y="238">append-only</text>
+
+  <rect class="st dist" x="840" y="170" width="170" height="86"/>
+  <text class="nm" x="858" y="200">Cataloged</text>
+  <text class="sub" x="858" y="220">discoverable</text>
+  <text class="sub" x="858" y="238">index entry</text>
+
+  <!-- Deprecated metadata plane -->
+  <rect class="st dep" x="320" y="330" width="260" height="70"/>
+  <text class="nm" x="338" y="358">Deprecated <tspan class="sub">(metadata plane)</tspan></text>
+  <text class="sub" x="338" y="378">refs/meta/cards · union-merged · travels on push</text>
+
+  <!-- edges -->
+  <path class="e" d="M140,94 L140,166"/>
+  <text class="cmd" x="150" y="134">card source sync</text>
+  <text class="sub" x="150" y="150">refresh Bundled from upstream (--check reports drift)</text>
+
+  <path class="e" d="M240,213 L316,213"/>
+  <text class="cmd" x="244" y="204">card publish</text>
+
+  <path class="e" d="M520,213 L596,213"/>
+  <text class="cmd" x="524" y="204">card push</text>
+
+  <path class="e" d="M780,213 L836,213"/>
+  <text class="cmd" x="754" y="160">card catalog publish</text>
+
+  <path class="em" d="M420,256 L420,326"/>
+  <text class="cmdm" x="430" y="298">card deprecate</text>
+
+  <!-- release bracket -->
+  <path class="rel" d="M40,428 L40,414 L1010,414 L1010,428"/>
+  <text class="relt" x="300" y="450">card release  = one command runs Draft → Published → Pushed → Cataloged (bump proposed from card diff)</text>
+</svg>
+<figcaption>Fig. 1 — Producer states. Solid arrows are content transitions (each an explicit command);
+the dashed amber arrow writes the mutable metadata plane; the dotted blue bracket is the
+<code>release</code> orchestration spanning the whole pipeline. <strong>There is no arrow back into
+Published</strong> — a version is never edited, only superseded by a new publish.</figcaption>
+</figure>
+
+<h2 id="consumer">4. Consumer state machine — activation &amp; the dev loop</h2>
+<figure>
+<svg viewBox="0 0 1040 400" width="100%" role="img" aria-label="Consumer state machine">
+  <defs>
+    <marker id="ca" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5b6472"/></marker>
+    <marker id="cb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#0b5fff"/></marker>
+    <marker id="cd" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b42318"/></marker>
+  </defs>
+  <style>
+    .avail{fill:#fff;stroke:#9aa3af}
+    .store{fill:#f3ecfe;stroke:#7c3aed}
+    .app{fill:#e8f0ff;stroke:#0b5fff}
+    .matz{fill:#e8f0ff;stroke:#0b5fff}
+    .out{fill:#fdf1e0;stroke:#b45309}
+    .dr{fill:#fdecea;stroke:#b42318}
+    .e2{stroke:#5b6472;stroke-width:1.8;fill:none;marker-end:url(#ca)}
+    .eb{stroke:#0b5fff;stroke-width:1.8;fill:none;marker-end:url(#cb)}
+    .edev{stroke:#0b5fff;stroke-width:1.6;fill:none;stroke-dasharray:6 5;marker-end:url(#cb)}
+    .edr{stroke:#b42318;stroke-width:1.6;fill:none;marker-end:url(#cd)}
+  </style>
+
+  <rect class="st avail" x="30" y="60" width="180" height="80"/>
+  <text class="nm" x="48" y="90">Available</text>
+  <text class="sub" x="48" y="110">catalog entry</text>
+  <text class="sub" x="48" y="128">(not yet in store)</text>
+
+  <rect class="st store" x="280" y="60" width="180" height="80"/>
+  <text class="nm" x="298" y="90">In store</text>
+  <text class="sub" x="298" y="110">machine registry</text>
+  <text class="sub" x="298" y="128">immutable version</text>
+
+  <rect class="st app" x="560" y="60" width="180" height="80"/>
+  <text class="nm" x="578" y="90">Applied</text>
+  <text class="sub" x="578" y="110">pinned in card.lock</text>
+  <text class="sub" x="578" y="128">(intent, shareable)</text>
+
+  <rect class="st matz" x="830" y="60" width="180" height="80"/>
+  <text class="nm" x="848" y="90">Materialized</text>
+  <text class="sub" x="848" y="110">.claude / .codex / .cursor</text>
+  <text class="sub" x="848" y="128">copies, drift-gated</text>
+
+  <rect class="st out" x="560" y="270" width="180" height="70"/>
+  <text class="nm" x="578" y="298">Outdated</text>
+  <text class="sub" x="578" y="318">newer version exists</text>
+
+  <rect class="st dr" x="830" y="270" width="180" height="70"/>
+  <text class="nm" x="848" y="298">Drifted</text>
+  <text class="sub" x="848" y="318">copy hand-edited</text>
+
+  <!-- main edges -->
+  <path class="e2" d="M210,100 L276,100"/>
+  <text class="cmd" x="196" y="46">card clone / fetch</text>
+  <path class="eb" d="M460,100 L556,100"/>
+  <text class="cmd" x="466" y="46">card apply (→ card.lock)</text>
+  <path class="eb" d="M740,100 L826,100"/>
+  <text class="cmd" x="712" y="185">drwn write (copy)</text>
+
+  <!-- outdated loop -->
+  <path class="e2" d="M640,140 L640,266"/>
+  <text class="cmd" x="392" y="210">card outdated ↓ detect</text>
+  <path class="eb" d="M665,266 L665,140"/>
+  <text class="cmd" x="675" y="228">card update ↑ re-pin</text>
+
+  <!-- drifted -->
+  <path class="edr" d="M915,140 L915,266"/>
+  <text class="cmd" x="925" y="205">user edits copy</text>
+  <path class="edr" d="M830,305 C700,352 705,150 645,155"/>
+  <text class="cmd" x="470" y="378">drwn write refuses → signpost → fix upstream</text>
+
+  <!-- linked (dev) alternate path -->
+  <path class="edev" d="M652,58 C700,34 762,34 902,58"/>
+  <text class="cmd" x="574" y="20">card link → write --watch → unlink  (machine-local dev)</text>
+</svg>
+<figcaption>Fig. 2 — Consumer states. Blue = activation; the amber loop is the update cycle; the red
+edges are the forbidden edit and its refusal; the dashed blue arc is the dev-mode override
+(<code>link</code>) — an alternate way to reach Materialized from a live tree, recorded machine-locally
+so it never leaks.</figcaption>
+</figure>
+
+<h2 id="metadata">5. The two planes — why deprecation doesn’t touch content</h2>
+<figure>
+<svg viewBox="0 0 1040 250" width="100%" role="img" aria-label="Content plane vs metadata plane">
+  <style>
+    .vbox{fill:#f3ecfe;stroke:#7c3aed;rx:10}
+    .mbox{fill:#fdf1e0;stroke:#b45309;rx:10}
+    .plab{font:700 12px -apple-system,"Segoe UI",sans-serif;letter-spacing:.06em}
+  </style>
+  <text class="plab" x="30" y="30" fill="#7c3aed">CONTENT PLANE — immutable, append-only</text>
+  <rect class="vbox" x="30" y="44" width="150" height="60"/><text class="nm" x="55" y="80">v1.0.0</text>
+  <rect class="vbox" x="210" y="44" width="150" height="60"/><text class="nm" x="235" y="80">v1.0.1</text>
+  <rect class="vbox" x="390" y="44" width="150" height="60"/><text class="nm" x="415" y="80">v1.0.2</text>
+  <text class="sub" x="580" y="70">each is a git commit + tag; frozen tree; </text>
+  <text class="sub" x="580" y="88">a bug is fixed by publishing v1.0.3, never by editing v1.0.1</text>
+
+  <text class="plab" x="30" y="150" fill="#b45309">METADATA PLANE — mutable, union-merged, travels on push/clone</text>
+  <rect class="mbox" x="30" y="164" width="510" height="66"/>
+  <text class="cmd" x="50" y="190">metadata.json  @ refs/meta/cards</text>
+  <text class="sub" x="50" y="210">{ deprecations: { "1.0.0":…, "1.0.1":… }, successor: "@scope/next" }</text>
+  <text class="sub" x="580" y="196">card deprecate / successor writes HERE, not the version.</text>
+  <text class="sub" x="580" y="214">Two machines’ edits union-merge — never blind-force.</text>
+
+  <line x1="105" y1="104" x2="105" y2="164" stroke="#b45309" stroke-width="1.4" stroke-dasharray="5 4"/>
+  <line x1="285" y1="104" x2="285" y2="164" stroke="#b45309" stroke-width="1.4" stroke-dasharray="5 4"/>
+</svg>
+<figcaption>Fig. 3 — The split that makes “deprecate a version” possible without violating immutability:
+facts <em>about</em> a version live on a parallel mutable plane keyed by version, distributed with the
+card but never rewriting its content.</figcaption>
+</figure>
+
+<h2 id="scenarios">6. Scenarios the model accounts for</h2>
+<p>Each is a path through the state machines above. The point of the model is that every one of these
+has a single, unambiguous command sequence — and that the wrong moves are structurally prevented.</p>
+
+<div class="scenario">
+<h3>A. Fix a typo in a published skill</h3>
+<div class="path">Canonical (edit) → Bundled (sync) → Published (new version) → consumers: Outdated → Applied</div>
+<div class="flow">
+  <div class="step mutable"><strong>edit Canonical</strong>the upstream repo — never the published version</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>card source sync</strong>refresh the Draft’s bundled copy</div>
+  <div class="arrow">→</div>
+  <div class="step immutable"><strong>card release --bump patch</strong>publishes v+1 (old version stays frozen)</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>consumer: card update → drwn write</strong>picks up v+1 within its range</div>
+</div>
+</div>
+
+<div class="scenario">
+<h3>B. Develop a card against your live working tree</h3>
+<div class="path">Applied → Linked → Materialized (loop) → Applied</div>
+<div class="flow">
+  <div class="step mutable"><strong>card link @me/x file:./x</strong>override → config.local.json (gitignored)</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>edit + drwn write --watch</strong>see changes live; no publish, no path leak</div>
+  <div class="arrow">→</div>
+  <div class="step mutable"><strong>card unlink</strong>restore the published pin</div>
+  <div class="arrow">→</div>
+  <div class="step immutable"><strong>card release</strong>when the edits are good, publish them</div>
+</div>
+<p style="font-size:.85rem;margin:.4rem 0 0"><em>Why not <code>card apply file:</code>? Because that
+rewrites <code>card.lock</code> (shared) with your absolute path and destroys the pin. Linked state is
+machine-local and restorable — that’s the distinction the model draws.</em></p>
+</div>
+
+<div class="scenario">
+<h3>C. Consume someone else’s card</h3>
+<div class="path">Available → In store → Applied → Materialized</div>
+<div class="flow">
+  <div class="step"><strong>drwn search card</strong>find it in a catalog</div>
+  <div class="arrow">→</div>
+  <div class="step immutable"><strong>card clone &lt;url&gt;</strong>into your store; integrity verified</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>card apply @scope/x</strong>pin into this project</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>drwn write</strong>materialize into your tools</div>
+</div>
+</div>
+
+<div class="scenario">
+<h3>D. A card you depend on was renamed / deprecated</h3>
+<div class="path">Applied → (metadata: Deprecated + successor) → Applied(@successor)</div>
+<div class="flow">
+  <div class="step metadata"><strong>card outdated --fetch</strong>surfaces “deprecated” + successor from refs/meta</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>same-scope? auto-suggest</strong>cross-scope needs your confirmation (attack-surface guard)</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>card apply @scope/successor</strong>re-pin to the new card</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>drwn write</strong>re-materialize</div>
+</div>
+</div>
+
+<div class="scenario">
+<h3>E. You accidentally edited a materialized copy</h3>
+<div class="path">Materialized → Drifted → (refused) → Canonical → re-Materialized</div>
+<div class="flow">
+  <div class="step stop"><strong>drwn write REFUSES</strong>content hash ≠ write-record; your edit is preserved, not clobbered</div>
+  <div class="arrow">→</div>
+  <div class="step metadata"><strong>signpost</strong>“edit git+…#skills/x, then drwn write”</div>
+  <div class="arrow">→</div>
+  <div class="step mutable"><strong>edit Canonical → sync → release</strong>the change lands where it propagates</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>drwn write</strong>now overwrites the throwaway copy cleanly</div>
+</div>
+</div>
+
+<div class="scenario">
+<h3>F. The same skills in every project (replacing machine defaults)</h3>
+<div class="path">profile card: Draft → Published → applied per project → kept current in bulk</div>
+<div class="flow">
+  <div class="step"><strong>card new --from-defaults</strong>capture your staples into a profile card</div>
+  <div class="arrow">→</div>
+  <div class="step immutable"><strong>card release</strong>publish it once</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>card apply @me/everyday</strong>in each project (activation is per-project)</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>projects update --all</strong>keep every project current in one sweep</div>
+</div>
+<p style="font-size:.85rem;margin:.4rem 0 0"><em>This is why <code>projects update --all</code> exists:
+retiring machine-wide defaults turns one update into N, and the batch op is the counterweight. The two
+are one decision.</em></p>
+</div>
+
+<div class="scenario">
+<h3>G. Deprecate an old version, and have every machine see it</h3>
+<div class="path">Published → Deprecated (metadata) → pushed → other machines fetch</div>
+<div class="flow">
+  <div class="step metadata"><strong>card deprecate @x@1.0.1</strong>writes refs/meta (union-merged)</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>card push</strong>the meta ref travels with content</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>other machine: card fetch</strong>metadata arrives</div>
+  <div class="arrow">→</div>
+  <div class="step"><strong>card list / meta show</strong>“1.0.1 (deprecated)” everywhere</div>
+</div>
+</div>
+
+<h2 id="index">7. Command → transition index</h2>
+<table>
+  <tr><th>Command</th><th>From state</th><th>To state</th><th>Plane / storage touched</th></tr>
+  <tr><td><code>card source sync</code></td><td>Bundled (stale)</td><td>Bundled (synced)</td><td>Draft source; reads <code>upstream</code></td></tr>
+  <tr><td><code>card publish</code></td><td>Draft</td><td>Published</td><td>content — immutable</td></tr>
+  <tr><td><code>card push</code></td><td>Published</td><td>Pushed</td><td>remote (heads+tags+meta)</td></tr>
+  <tr><td><code>card catalog publish</code></td><td>Pushed</td><td>Cataloged</td><td>catalog index</td></tr>
+  <tr><td><code>card release</code></td><td>Draft</td><td>Cataloged</td><td>orchestrates the four above</td></tr>
+  <tr><td><code>card deprecate</code></td><td>Published</td><td>+ Deprecated</td><td><strong>metadata plane</strong> (union-merge)</td></tr>
+  <tr><td><code>card clone</code> / <code>fetch</code></td><td>Available</td><td>In store</td><td>store (content + meta)</td></tr>
+  <tr><td><code>card apply</code></td><td>In store</td><td>Applied</td><td><code>card.lock</code> (intent)</td></tr>
+  <tr><td><code>drwn write</code></td><td>Applied / Linked</td><td>Materialized</td><td>agent surfaces (copies)</td></tr>
+  <tr><td><code>card outdated</code></td><td>Applied</td><td>detects Outdated</td><td>read-only</td></tr>
+  <tr><td><code>card update</code></td><td>Outdated</td><td>Applied (new pin)</td><td><code>card.lock</code></td></tr>
+  <tr><td><code>card link</code> / <code>unlink</code></td><td>Applied ⇄ Linked</td><td>dev override</td><td><code>config.local.json</code> (machine-local)</td></tr>
+  <tr><td><code>projects update --all</code></td><td>Applied (×N)</td><td>Materialized (×N)</td><td>every registered project</td></tr>
+</table>
+
+<h2 id="invariants">8. Forbidden transitions (what the model refuses)</h2>
+<p>A mental model is defined as much by its illegal moves as its legal ones. These are structural, not
+advisory — the tooling prevents them:</p>
+<div class="callout stop"><strong>Edit a Published version.</strong> Immutable by construction (content-addressed).
+The only way “forward” from Published is a new <code>publish</code>. → protects reproducibility &amp; team pins.</div>
+<div class="callout stop"><strong>Make a Materialized copy authoritative.</strong> Hand-edits put it in
+Drifted; <code>drwn write</code> refuses rather than clobber, and points you at Canonical. → the copy is a
+projection, never a source.</div>
+<div class="callout warn"><strong>Leak a dev override to teammates.</strong> Linked state lives only in
+<code>config.local.json</code> (gitignored); it can never enter <code>config.json</code> or <code>card.lock</code>.
+→ shareable intent stays clean.</div>
+<div class="callout warn"><strong>Clobber metadata across machines.</strong> The metadata plane is union-merged,
+never force-pushed. → two machines’ deprecations coexist.</div>
+<div class="callout warn"><strong>Activate machine-wide by accident.</strong> A write with no project above cwd
+requires explicit <code>--scope machine</code>. → availability never silently becomes activation.</div>
+<div class="callout warn"><strong>Trust a cross-scope successor blindly.</strong> A successor pointer to a
+different scope is only a <em>suggestion</em> until you confirm or a catalog corroborates. → renames can’t be
+weaponized.</div>
+
+<h2 id="how">9. How the subcommands support the three jobs you asked about</h2>
+<table>
+  <tr><th>Job</th><th>Commands</th><th>Model idea they serve</th></tr>
+  <tr><td><strong>State transitions</strong></td><td><code>publish</code>, <code>push</code>, <code>catalog publish</code>, <code>clone</code>, <code>apply</code>, <code>write</code>, <code>update</code>, <code>link</code>/<code>unlink</code>, <code>release</code></td><td>every legal edge in Figs 1–2 is exactly one command; no move is implicit</td></tr>
+  <tr><td><strong>Storage management</strong></td><td><code>store gc</code>/<code>verify</code>/<code>export</code>/<code>seed</code>, <code>library</code>, catalog registration, <code>card source *</code></td><td>the registry is the single machine-wide home; these curate it without activating anything</td></tr>
+  <tr><td><strong>Updates</strong></td><td><code>card source sync</code> (source-side), <code>outdated</code>+<code>update</code> (project-side), <code>projects update --all</code> (fleet), <code>deprecate</code> (metadata)</td><td>updates happen at the layer that owns the truth — upstream for skills, lock for pins, metadata plane for lifecycle</td></tr>
+</table>
+<p>The through-line: <strong>content flows one direction and is immutable; metadata rides a parallel
+mutable plane; availability and activation are separate states; and the dev loop is an explicit,
+machine-local override — never a rewrite of shared truth.</strong> Every command is the named door
+between two of these states, and the doors that would corrupt the model simply aren’t built.</p>
+
+</main>
+</body>
+</html>

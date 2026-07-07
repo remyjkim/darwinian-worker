@@ -5,7 +5,7 @@
 
 This guide takes you from nothing to a working Darwinian Minds harness: install the
 `drwn` CLI, set up a project (new or existing), and apply the cards that carry the
-skills, MCP servers, and mind content your agents use.
+skills, MCP servers, and hooks your agents use.
 
 `drwn` is a local meta-harness. It organizes the skills, MCP servers, extensions,
 defaults, and per-project overlays that surround the agent tools you already run
@@ -61,7 +61,7 @@ your project until you ask it to. The machine store holds:
 ├── skills/               # installed skill packages
 ├── mcp-servers/          # user-registered MCP definitions
 ├── catalogs/             # registered card catalogs
-├── generated/            # composed mind + hook output
+├── generated/            # generated worker + hook output
 └── credentials.json      # analyzer auth token (only if you log in)
 ```
 
@@ -83,8 +83,7 @@ packaged defaults  →  machine defaults  →  project overlay  →  cards
               ~/.claude · ~/.codex · ~/.cursor  (or <project>/.*)
 ```
 
-- **Cards** are versioned, Git-backed bundles of skills, MCP servers, hooks, and
-  optional **mind content** (persona, beliefs, memory). A card is a "mind."
+- **Cards** are versioned, Git-backed bundles of skills, MCP servers, and hooks.
 - **`drwn write`** is the one-way materialization step. It is non-destructive by
   default and supports `--dry-run` to preview every change first.
 - **Inspect before you write.** `drwn status`, `drwn doctor`, and
@@ -160,7 +159,7 @@ Notes:
 
 ## 6. Apply cards
 
-Cards are how you pull in a curated set of skills, MCP servers, and mind content.
+Cards are how you pull in a curated set of skills, MCP servers, and hooks.
 
 ### The canonical cards
 
@@ -168,8 +167,8 @@ The operator cards ship from the **`darwinian-minds-skills`** repository:
 
 | Card | Use it for |
 | --- | --- |
-| `@darwinian/mind-skills` | **Primary card most users should apply** — the current Darwinian Minds operator skills (project setup, install, materialization, cards, library, defaults, diagnostics, mind-stack). |
-| `@darwinian/base-mind` | Optional persona layer — a small mind carrying a persona, public beliefs, and the activate/author/audit mind skills. Composes on top of `mind-skills`. |
+| `@darwinian/mind-skills` | **Primary card most users should apply** — the current Darwinian Minds operator skills (project setup, install, materialization, cards, library, defaults, diagnostics, worker-stack). |
+| `@darwinian/base-mind` | Optional persona card that composes on top of `mind-skills`. Persona/beliefs/memory return as a separate pluggable capability card. |
 | `@darwinian/harness-skills` | Back-compat only — a one-release compatibility card with legacy aliases. New projects should use `mind-skills` instead. |
 
 ### Applying a card today
@@ -268,22 +267,20 @@ make `drwn write` fail **before** any mutation, by design.
 
 ---
 
-## 9. Advanced: the mind layer
+## 9. Advanced: the worker stack
 
-Cards can carry **mind content** — a persona, beliefs, and memory — with
-per-layer visibility. When you have more than one mind installed, you order the
-active stack explicitly:
+When you have more than one card installed, you order the active stack
+explicitly:
 
 ```bash
-drwn mind list                          # installed minds and which are active
-drwn mind use @darwinian/base-mind @team/domain-mind   # ordered active stack
-drwn mind clear                         # deactivate all
+drwn worker stack                       # installed workers and which are active
+drwn worker stack use @darwinian/base-mind @team/domain-mind   # ordered active stack
+drwn worker stack clear                 # deactivate all
 drwn write
 ```
 
-By default, all installed minds are active; `drwn mind use` pins an explicit
-stack. Authoring mind content (`drwn card source add-persona|add-belief|add-memory`,
-then `drwn card publish` / `drwn card push`) is covered in the public docs.
+By default, all installed workers are active; `drwn worker stack use` pins an
+explicit stack.
 
 ---
 

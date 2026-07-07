@@ -32,7 +32,7 @@ test("project write materializes skills and servers introduced by cards", async 
   const projectDir = join(fixture.root, "project");
   const configPath = join(projectDir, ".agents", "drwn", "config.json");
   await mkdir(dirname(configPath), { recursive: true });
-  await writeFile(configPath, JSON.stringify({ version: 1, cards: ["@me/backend@^1.0.0"], activeMinds: ["@me/backend"] }, null, 2));
+  await writeFile(configPath, JSON.stringify({ version: 1, cards: ["@me/backend@^1.0.0"], activeWorkers: ["@me/backend"] }, null, 2));
 
   const write = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);
 

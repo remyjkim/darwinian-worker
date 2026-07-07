@@ -1,12 +1,15 @@
-// ABOUTME: Reads and writes project Mind Card lockfiles.
+// ABOUTME: Reads and writes project Card lockfiles.
 // ABOUTME: Keeps card resolution deterministic once a project has selected cards.
 
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { BeliefsManifest, CardManifest, MemoryManifest, MemoryLayerManifest, PersonaManifest } from "./card-manifest";
+import type { CardManifest } from "./card-manifest";
 import { assertValidCardManifest } from "./card-manifest";
 import { writeAtomically } from "./fs";
+import { DrwnError } from "./errors";
+import * as git from "./git";
+import { resolveCardBareRepoPath } from "./store-paths";
 import { gte } from "./semver-utils";
 import { DRWN_VERSION } from "./version";
 
@@ -24,12 +27,10 @@ export interface CardLockEntry {
   version: string;
   path: string;
   integrity: string;
+  treeSha?: string;
   manifest: CardManifest;
   skills: string[];
   hooks: string[];
-  persona?: PersonaManifest;
-  beliefs?: BeliefsManifest;
-  memory?: MemoryManifest;
   hookConsent?: {
     consentedAt: string;
     consentedRange: string;
@@ -40,13 +41,12 @@ export interface CardLockEntry {
 }
 
 export interface CardLockfile {
-  lockfileVersion: 2 | 3 | 4;
+  lockfileVersion: 2 | 3 | 4 | 5;
   store?: { minDrwnVersion?: string };
   cards: CardLockEntry[];
 }
 
 export const HOOKS_MIN_DRWN_VERSION = "0.3.0";
-export const MINDS_MIN_DRWN_VERSION = "0.4.0";
 
 export interface VersionFloorStatus {
   required: string | null;
@@ -84,31 +84,64 @@ export async function loadCardLock(projectRoot: string): Promise<CardLockfile | 
 
 export async function writeCardLock(projectRoot: string, cards: CardLockEntry[]) {
   const path = cardLockPath(projectRoot);
-  const normalizedCards = cards.map((card) => ({
-    ...card,
-    ...(card.persona ?? card.manifest.persona ? { persona: card.persona ?? card.manifest.persona } : {}),
-    ...(card.beliefs ?? card.manifest.beliefs ? { beliefs: card.beliefs ?? card.manifest.beliefs } : {}),
-    ...(card.memory ?? card.manifest.memory ? { memory: card.memory ?? card.manifest.memory } : {}),
-  }));
-  const lockfileVersion = normalizedCards.some((card) => card.persona || card.beliefs || card.memory) ? 4 : 3;
+  const normalizedCards = cards.map((card) => ({ ...card }));
+  for (const card of normalizedCards) {
+    if ((card.origin === "store" || card.origin === "git") && !card.treeSha) {
+      throw new DrwnError(
+        "LOCK_TREE_SHA_REQUIRED",
+        `card.lock entry ${card.name} is missing treeSha; run card update or re-apply before writing the lock`,
+      );
+    }
+  }
+  const lockfileVersion = 5;
   const lockfile = validateCardLockfile({
     lockfileVersion,
-    store: { minDrwnVersion: lockfileVersion === 4 ? MINDS_MIN_DRWN_VERSION : HOOKS_MIN_DRWN_VERSION },
+    store: { minDrwnVersion: HOOKS_MIN_DRWN_VERSION },
     cards: normalizedCards,
   });
   await writeAtomically(path, `${JSON.stringify(lockfile, null, 2)}\n`);
   return path;
 }
 
+export async function persistCardLock(projectRoot: string, agentsDir: string, cards: CardLockEntry[]) {
+  const backfilled = await backfillLockTreeShas(agentsDir, cards);
+  return writeCardLock(projectRoot, backfilled);
+}
+
+export async function backfillLockTreeShas(agentsDir: string, cards: CardLockEntry[]): Promise<CardLockEntry[]> {
+  return Promise.all(
+    cards.map(async (card) => {
+      if (card.treeSha) {
+        return card;
+      }
+      if (card.origin === "file" || card.origin === "npm") {
+        return card;
+      }
+      if (!card.git?.commit) {
+        throw new DrwnError(
+          "LOCK_TREE_SHA_BACKFILL_FAILED",
+          `card.lock entry ${card.name} is missing git.commit; re-apply the card before writing`,
+        );
+      }
+      const barePath = resolveCardBareRepoPath(agentsDir, card.name);
+      const treeSha = await git.getCommitTree(barePath, card.git.commit);
+      return { ...card, treeSha };
+    }),
+  );
+}
+
 export function validateCardLockfile(input: unknown, source = "card lockfile"): CardLockfile {
   if (
     !isObject(input) ||
-    (input.lockfileVersion !== 2 && input.lockfileVersion !== 3 && input.lockfileVersion !== 4) ||
+    (input.lockfileVersion !== 2 &&
+      input.lockfileVersion !== 3 &&
+      input.lockfileVersion !== 4 &&
+      input.lockfileVersion !== 5) ||
     !Array.isArray(input.cards)
   ) {
-    throw new Error(`Invalid card lockfile ${source}: expected lockfileVersion: 2 or 3 or 4`);
+    throw new Error(`Invalid card lockfile ${source}: expected lockfileVersion: 2, 3, 4, or 5`);
   }
-  const lockfileVersion = input.lockfileVersion;
+  const lockfileVersion = input.lockfileVersion as CardLockfile["lockfileVersion"];
   const cards = input.cards.map((entry, index) =>
     validateCardLockEntry(entry, `${source} cards[${index}]`, lockfileVersion),
   );
@@ -116,7 +149,7 @@ export function validateCardLockfile(input: unknown, source = "card lockfile"): 
   return store ? { lockfileVersion, store, cards } : { lockfileVersion, cards };
 }
 
-function validateCardLockEntry(input: unknown, source: string, lockfileVersion: 2 | 3 | 4): CardLockEntry {
+function validateCardLockEntry(input: unknown, source: string, lockfileVersion: CardLockfile["lockfileVersion"]): CardLockEntry {
   if (!isObject(input)) {
     throw new Error(`Invalid card lock entry ${source}: expected object`);
   }
@@ -129,6 +162,10 @@ function validateCardLockEntry(input: unknown, source: string, lockfileVersion: 
   assertString(input.version, `${source}.version`);
   assertString(input.path, `${source}.path`);
   assertString(input.integrity, `${source}.integrity`);
+  const treeSha = typeof input.treeSha === "string" && input.treeSha.length > 0 ? input.treeSha : undefined;
+  if (treeSha && !/^[a-f0-9]{40}$/.test(treeSha)) {
+    throw new Error(`Invalid card lock entry ${source}: treeSha must be a 40-character SHA`);
+  }
   assertValidCardManifest(input.manifest);
   if (!Array.isArray(input.skills) || !input.skills.every((skill) => typeof skill === "string")) {
     throw new Error(`Invalid card lock entry ${source}: skills must be string[]`);
@@ -136,9 +173,6 @@ function validateCardLockEntry(input: unknown, source: string, lockfileVersion: 
   if (lockfileVersion >= 3 && (!Array.isArray(input.hooks) || !input.hooks.every((hook) => typeof hook === "string"))) {
     throw new Error(`Invalid card lock entry ${source}: hooks must be string[]`);
   }
-  const persona = validateMindContentLockSection(input.persona, `${source}.persona`);
-  const beliefs = validateMindContentLockSection(input.beliefs, `${source}.beliefs`);
-  const memory = validateMemoryLock(input.memory, `${source}.memory`);
   const hookConsent = validateHookConsent(input.hookConsent, source);
   if (input.registry !== null) {
     throw new Error(`Invalid card lock entry ${source}: registry must be null`);
@@ -151,12 +185,10 @@ function validateCardLockEntry(input: unknown, source: string, lockfileVersion: 
     version: input.version,
     path: input.path,
     integrity: input.integrity,
+    ...(treeSha ? { treeSha } : {}),
     manifest: input.manifest,
     skills: [...input.skills],
     hooks: Array.isArray(input.hooks) ? [...input.hooks] : [],
-    ...(persona ? { persona } : {}),
-    ...(beliefs ? { beliefs } : {}),
-    ...(memory ? { memory } : {}),
     ...(hookConsent ? { hookConsent } : {}),
     registry: null,
     origin,
@@ -179,59 +211,6 @@ function validateHookConsent(input: unknown, source: string): CardLockEntry["hoo
   return {
     consentedAt: input.consentedAt,
     consentedRange: input.consentedRange,
-  };
-}
-
-function validateMindContentLockSection(input: unknown, source: string): PersonaManifest | BeliefsManifest | undefined {
-  if (input === undefined) {
-    return undefined;
-  }
-  if (!isObject(input)) {
-    throw new Error(`Invalid card lock entry ${source}: expected object`);
-  }
-  const include = validateStringArray(input.include, `${source}.include`);
-  const visibility = validateVisibility(input.visibility, `${source}.visibility`);
-  if ((include?.length ?? 0) > 0 && visibility === undefined) {
-    throw new Error(`Invalid card lock entry ${source}: visibility is required when include is non-empty`);
-  }
-  return {
-    ...(include ? { include } : {}),
-    ...(visibility ? { visibility } : {}),
-  };
-}
-
-function validateMemoryLock(input: unknown, source: string): MemoryManifest | undefined {
-  if (input === undefined) {
-    return undefined;
-  }
-  if (!isObject(input)) {
-    throw new Error(`Invalid card lock entry ${source}: expected object`);
-  }
-  const memory: MemoryManifest = {};
-  for (const [layer, section] of Object.entries(input)) {
-    if (layer !== "l4" && layer !== "l5" && layer !== "l6") {
-      throw new Error(`Invalid card lock entry ${source}: unsupported memory layer ${layer}`);
-    }
-    const normalized = validateMemoryLayerLockSection(section, `${source}.${layer}`);
-    if (normalized) {
-      memory[layer] = normalized;
-    }
-  }
-  return Object.keys(memory).length > 0 ? memory : undefined;
-}
-
-function validateMemoryLayerLockSection(input: unknown, source: string): MemoryLayerManifest | undefined {
-  const section = validateMindContentLockSection(input, source);
-  if (!section) {
-    return undefined;
-  }
-  if (!isObject(input)) {
-    throw new Error(`Invalid card lock entry ${source}: expected object`);
-  }
-  const format = validateMemoryFormat(input.format, `${source}.format`);
-  return {
-    ...section,
-    ...(format ? { format } : {}),
   };
 }
 
@@ -264,36 +243,6 @@ function assertString(value: unknown, label: string): asserts value is string {
   if (typeof value !== "string" || value.length === 0) {
     throw new Error(`Invalid card lock entry: ${label} must be a non-empty string`);
   }
-}
-
-function validateStringArray(value: unknown, label: string): string[] | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-  if (!Array.isArray(value) || !value.every((entry) => typeof entry === "string")) {
-    throw new Error(`Invalid card lock entry: ${label} must be string[]`);
-  }
-  return [...value];
-}
-
-function validateVisibility(value: unknown, label: string): "private" | "internal" | "public" | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-  if (value !== "private" && value !== "internal" && value !== "public") {
-    throw new Error(`Invalid card lock entry: ${label} must be private, internal, or public`);
-  }
-  return value;
-}
-
-function validateMemoryFormat(value: unknown, label: string): "md" | "jsonl" | "mixed" | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-  if (value !== "md" && value !== "jsonl" && value !== "mixed") {
-    throw new Error(`Invalid card lock entry: ${label} must be md, jsonl, or mixed`);
-  }
-  return value;
 }
 
 function stringOrUndefined(value: unknown): string | undefined {

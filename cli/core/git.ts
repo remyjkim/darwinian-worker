@@ -2,6 +2,7 @@
 // ABOUTME: Provides typed, testable wrappers around bare-repo plumbing operations.
 
 import { randomBytes } from "node:crypto";
+import { spawn } from "node:child_process";
 import { mkdir, rename, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { extract as extractArchive } from "./archive";
@@ -59,38 +60,49 @@ export interface GitLogOptions {
 }
 
 export async function runGit(args: string[], opts: GitRunOpts = {}): Promise<GitRunResult> {
-  const proc = Bun.spawn(["git", ...args], {
-    cwd: opts.cwd,
-    env: { ...process.env, ...opts.env },
-    stdin: opts.stdin ? "pipe" : undefined,
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-
-  if (opts.stdin && proc.stdin) {
-    proc.stdin.write(opts.stdin);
-    proc.stdin.end();
-  }
-
+  const gitBin = Bun.which("git") ?? "/usr/bin/git";
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const timer = setTimeout(() => {
-    try {
-      proc.kill();
-    } catch {
-      // The process may have already exited.
-    }
-  }, timeoutMs);
 
-  try {
-    const [stdout, stderr, exitCode] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-      proc.exited,
-    ]);
-    return { exitCode: exitCode ?? -1, stdout, stderr };
-  } finally {
-    clearTimeout(timer);
-  }
+  return await new Promise<GitRunResult>((resolve, reject) => {
+    const proc = spawn(gitBin, args, {
+      cwd: opts.cwd,
+      env: { ...process.env, ...opts.env },
+      stdio: [opts.stdin ? "pipe" : "ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+    proc.stdout?.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+    proc.stderr?.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    const timer = setTimeout(() => {
+      try {
+        proc.kill();
+      } catch {
+        // The process may have already exited.
+      }
+      reject(new GitError("GIT_TIMEOUT", `git ${args.join(" ")} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    proc.on("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+
+    proc.on("close", (exitCode) => {
+      clearTimeout(timer);
+      resolve({ exitCode: exitCode ?? -1, stdout, stderr });
+    });
+
+    if (opts.stdin && proc.stdin) {
+      proc.stdin.write(opts.stdin);
+      proc.stdin.end();
+    }
+  });
 }
 
 export async function runInRepo(repoPath: string, args: string[], opts: GitRunOpts = {}): Promise<GitRunResult> {
@@ -142,6 +154,29 @@ export async function configGet(repoPath: string, key: string): Promise<string |
 export async function configSet(repoPath: string, key: string, value: string): Promise<void> {
   const result = await runInRepo(repoPath, ["config", key, value]);
   throwForFailure(result, "GIT_CONFIG_SET_FAILED", `git config failed for ${key}`, ["config", key, value]);
+}
+
+export async function configGetRegexp(repoPath: string, pattern: string): Promise<Array<{ key: string; value: string }>> {
+  const result = await runInRepo(repoPath, ["config", "--get-regexp", pattern]);
+  if (result.exitCode === 1 && result.stderr.trim() === "") {
+    return [];
+  }
+  throwForFailure(result, "GIT_CONFIG_GET_REGEXP_FAILED", `git config --get-regexp failed for ${pattern}`, [
+    "config",
+    "--get-regexp",
+    pattern,
+  ]);
+  return result.stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const space = line.indexOf(" ");
+      if (space === -1) {
+        return { key: line, value: "" };
+      }
+      return { key: line.slice(0, space), value: line.slice(space + 1) };
+    });
 }
 
 export async function lsRemote(url: string, refs: string[] = []): Promise<GitRemoteRef[]> {
@@ -242,6 +277,47 @@ export async function fetch(repoPath: string, remote: string, refspecs: string[]
   throwForFailure(result, "GIT_FETCH_FAILED", `git fetch failed from ${remote}`, args);
 }
 
+export function isGitLockContentionError(stderr: string) {
+  return /Unable to create .*lock|cannot lock ref|Reference transaction failed|index\.lock/i.test(stderr);
+}
+
+export async function fetchWithLockRetry(
+  repoPath: string,
+  remote: string,
+  refspecs: string[] = [],
+  options: {
+    run?: (repoPath: string, args: string[]) => Promise<GitRunResult>;
+    sleep?: (ms: number) => Promise<void>;
+    maxAttempts?: number;
+  } = {},
+) {
+  const run = options.run ?? ((path, args) => runInRepo(path, args));
+  const sleep = options.sleep ?? ((ms) => Bun.sleep(ms));
+  const maxAttempts = options.maxAttempts ?? 3;
+  const backoffs = [50, 100, 200];
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const args = ["fetch", remote, ...refspecs];
+    const result = await run(repoPath, args);
+    if (result.exitCode === 0) {
+      return;
+    }
+    const stderr = `${result.stderr}\n${result.stdout}`;
+    try {
+      throwForFailure(result, "GIT_FETCH_FAILED", `git fetch failed from ${remote}`, args);
+    } catch (error) {
+      lastError = error;
+      if (!isGitLockContentionError(stderr) || attempt === maxAttempts - 1) {
+        throw error;
+      }
+      await sleep(backoffs[attempt] ?? 200);
+    }
+  }
+
+  throw lastError;
+}
+
 export async function push(repoPath: string, remote: string, refs: string[]): Promise<void> {
   const args = ["push", remote, ...refs];
   const result = await runInRepo(repoPath, args);
@@ -277,6 +353,26 @@ export async function remoteList(repoPath: string): Promise<Record<string, strin
     }
   }
   return remotes;
+}
+
+export async function hashObject(repoPath: string, content: string): Promise<string> {
+  const result = await runInRepo(repoPath, ["hash-object", "-w", "--stdin"], { stdin: content });
+  throwForFailure(result, "GIT_HASH_OBJECT_FAILED", "git hash-object failed", ["hash-object", "-w", "--stdin"]);
+  return result.stdout.trim();
+}
+
+export interface MkTreeEntry {
+  mode: string;
+  type: "blob" | "tree";
+  sha: string;
+  path: string;
+}
+
+export async function mkTree(repoPath: string, entries: MkTreeEntry[]): Promise<string> {
+  const input = entries.map((entry) => `${entry.mode} ${entry.type} ${entry.sha}\t${entry.path}`).join("\n") + "\n";
+  const result = await runInRepo(repoPath, ["mktree"], { stdin: input });
+  throwForFailure(result, "GIT_MKTREE_FAILED", "git mktree failed", ["mktree"]);
+  return result.stdout.trim();
 }
 
 export async function writeTreeFromDir(repoPath: string, sourceDir: string): Promise<string> {
@@ -341,6 +437,35 @@ export async function listTags(repoPath: string): Promise<string[]> {
   const result = await runInRepo(repoPath, ["for-each-ref", "--format=%(refname:short)", "refs/tags"]);
   throwForFailure(result, "GIT_LIST_TAGS_FAILED", "git for-each-ref refs/tags failed", ["for-each-ref", "refs/tags"]);
   return result.stdout.split("\n").map((line) => line.trim()).filter(Boolean).sort();
+}
+
+export async function extractSubpathToDir(
+  repoPath: string,
+  commitSha: string,
+  subpath: string,
+  targetDir: string,
+): Promise<void> {
+  const tarPath = join(dirname(targetDir), `.drwn-archive-${randomBytes(8).toString("hex")}.tar`);
+  await mkdir(dirname(tarPath), { recursive: true });
+  await rm(targetDir, { recursive: true, force: true });
+  await mkdir(targetDir, { recursive: true });
+  try {
+    const treeish = `${commitSha}:${subpath.replace(/\/$/, "")}`;
+    const archiveResult = await runInRepo(repoPath, ["archive", "--format=tar", treeish, "-o", tarPath]);
+    throwForFailure(archiveResult, "GIT_ARCHIVE_FAILED", `git archive failed for ${treeish}`, ["archive", treeish]);
+    try {
+      await extractArchive(tarPath, targetDir);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new GitError("GIT_ARCHIVE_EXTRACT_FAILED", `tar extraction failed: ${message}`, {
+        args: ["tar", "-xf", tarPath, "-C", targetDir],
+        stderr: message,
+        exitCode: 1,
+      });
+    }
+  } finally {
+    await rm(tarPath, { force: true });
+  }
 }
 
 export async function extractTreeToDir(repoPath: string, treeSha: string, targetDir: string): Promise<void> {

@@ -58,6 +58,7 @@ function collectPolicies(
   exclusions: Set<string>,
   result: SyncResult,
   strictHooks: boolean,
+  contentRoots?: Record<string, string>,
 ): HookPolicyBundleInput[] {
   const policies: HookPolicyBundleInput[] = [];
   const consentWarnings: string[] = [];
@@ -72,10 +73,11 @@ function collectPolicies(
       continue;
     }
     for (const policyName of activeHooks) {
+      const root = contentRoots?.[card.name] ?? card.path;
       policies.push({
         cardName: card.name,
         policyName,
-        policyTsPath: join(card.path, "hooks", policyName, "policy.ts"),
+        policyTsPath: join(root, "hooks", policyName, "policy.ts"),
       });
     }
   }
@@ -166,7 +168,13 @@ export async function syncHooks(state: EffectiveState): Promise<SyncResult> {
   const projectHookConfig = state.projectConfigWithCards?.hooks ?? state.projectConfig?.hooks;
   const exclusions = new Set(projectHookConfig?.exclude ?? []);
   const signalsEnabled = projectHookConfig?.signals?.enabled === true;
-  const policies = collectPolicies(state.activeCards, exclusions, result, state.normalized.strictHooks ?? false);
+  const policies = collectPolicies(
+    state.activeCards,
+    exclusions,
+    result,
+    state.normalized.strictHooks ?? false,
+    state.contentRootsByCard,
+  );
   const hasPolicies = policies.length > 0;
 
   if (!state.scopedOptions.dryRun && hasPolicies) {

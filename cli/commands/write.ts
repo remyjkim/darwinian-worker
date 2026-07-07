@@ -3,10 +3,21 @@
 
 import { Option, UsageError } from "clipanion";
 import { evaluateVersionFloor, formatVersionFloorWarning, loadCardLock } from "../core/card-lock";
+import { assertMachineWriteScopeAllowed, buildEffectiveState, recomputeContentRootsByCard } from "../core/effective-state";
+import {
+  buildHookConsentAckKey,
+  computeHookPolicyDigest,
+  hasHookConsentAck,
+  recordHookConsentAck,
+} from "../core/hook-consent-ack";
 import { renderJson, renderOptionalMcpReport, renderSyncResult } from "../core/output";
+import { ensureGitignoreEntries, ensureVendorGitattributes } from "../core/git-hygiene";
 import { findProjectConfig, resolveProjectRootFromConfigPath } from "../core/project";
 import { syncRepository } from "../core/sync";
 import { isTargetName } from "../core/targets";
+import { reconcileVendorTrees } from "../core/vendor-reconcile";
+import { startWriteWatch } from "../core/write-watch";
+import { migrateSymlinkLayerToVendor, hasLegacyGeneratedSymlinks } from "../core/migrate-vendor";
 import { BaseCommand } from "./base";
 
 export class WriteCommand extends BaseCommand {
@@ -61,6 +72,10 @@ export class WriteCommand extends BaseCommand {
     description: "Write machine defaults to user-scope tool configs and ignore project config.",
   });
 
+  scope = Option.String("--scope", {
+    description: "Explicit write scope. Use machine to confirm user-home writes outside a project.",
+  });
+
   user = Option.Boolean("--user", false, {
     description: "Alias for --root.",
   });
@@ -73,7 +88,14 @@ export class WriteCommand extends BaseCommand {
     description: "Fail when this project's card.lock requires a newer drwn than you are running.",
   });
 
+  watch = Option.Boolean("--watch", false, {
+    description: "After writing once, rerun when config, lock, or linked sources change.",
+  });
+
   async execute() {
+    if (this.watch && (this.dryRun || this.json)) {
+      throw new UsageError("--watch is incompatible with --dry-run and --json.");
+    }
     if (this.mcpOnly && this.skillsOnly) {
       throw new UsageError("Use either --mcp-only or --skills-only, not both.");
     }
@@ -82,6 +104,12 @@ export class WriteCommand extends BaseCommand {
     }
     if (this.target && !isTargetName(this.target)) {
       throw new UsageError(`Unsupported target: ${this.target}`);
+    }
+    if (this.scope && this.scope !== "machine" && this.scope !== "project") {
+      throw new UsageError(`Unsupported scope: ${this.scope}. Use machine or project.`);
+    }
+    if (this.scope === "project" && (this.root || this.user)) {
+      throw new UsageError("--scope project cannot be combined with --root/--user.");
     }
 
     if (!(this.root || this.user)) {
@@ -96,12 +124,64 @@ export class WriteCommand extends BaseCommand {
             return 1;
           }
         }
+        if (!this.dryRun) {
+          await ensureGitignoreEntries(projectRoot);
+          await ensureVendorGitattributes(projectRoot);
+          if (hasLegacyGeneratedSymlinks(projectRoot)) {
+            const migration = await migrateSymlinkLayerToVendor(projectRoot, {
+              repoRoot: this.context.repoRoot,
+              agentsDir: this.context.agentsDir,
+              homeDir: this.context.homeDir,
+            });
+            if (migration.migrated) {
+              this.context.stderr.write(
+                `Migrated legacy generated symlinks: replaced=${migration.replacedSymlinks} vendorTrees=${migration.vendorTreesCreated}\n`,
+              );
+            }
+          }
+          const consentState = await buildEffectiveState({
+            repoRoot: this.context.repoRoot,
+            agentsDir: this.context.agentsDir,
+            homeDir: this.context.homeDir,
+            cwd: this.context.cwd,
+          });
+          const consentScratch = { changes: [] as string[], warnings: [] as string[], managedPaths: [] as [] };
+          await reconcileVendorTrees(consentState, consentScratch);
+          consentState.contentRootsByCard = recomputeContentRootsByCard(consentState, { allowPlanningFallback: false });
+          for (const card of lock?.cards ?? []) {
+            if (!card.hookConsent || card.hooks.length === 0) {
+              continue;
+            }
+            const contentRoot = consentState.contentRootsByCard[card.name] ?? card.path;
+            const hookPolicyDigest = await computeHookPolicyDigest(card, contentRoot);
+            const ackKey = buildHookConsentAckKey({ projectRoot, card, hookPolicyDigest });
+            if (await hasHookConsentAck(this.context.agentsDir, ackKey)) {
+              continue;
+            }
+            this.context.stderr.write(
+              `hooks present, consented by ${card.name} (${card.hookConsent.consentedRange}) on another machine\n`,
+            );
+            await recordHookConsentAck(this.context.agentsDir, ackKey);
+            break;
+          }
+        }
       }
     }
 
-    let result;
-    try {
-      result = await syncRepository({
+    const runOnce = async () => {
+      const previewState = await buildEffectiveState({
+        repoRoot: this.context.repoRoot,
+        agentsDir: this.context.agentsDir,
+        homeDir: this.context.homeDir,
+        cwd: this.context.cwd,
+        forceMachineScope: this.root || this.user || this.scope === "machine",
+      });
+      assertMachineWriteScopeAllowed({
+        writeScope: previewState.scopedOptions.writeScope,
+        forceMachineScope: previewState.normalized.forceMachineScope,
+        scope: this.scope as "machine" | "project" | undefined,
+      });
+      const result = await syncRepository({
         repoRoot: this.context.repoRoot,
         agentsDir: this.context.agentsDir,
         homeDir: this.context.homeDir,
@@ -112,16 +192,46 @@ export class WriteCommand extends BaseCommand {
         target: this.target as "claude" | "codex" | "cursor" | undefined,
         force: this.force,
         strictHooks: this.strictHooks,
-        forceMachineScope: this.root || this.user,
+        forceMachineScope: this.root || this.user || this.scope === "machine",
+        scope: this.scope as "machine" | "project" | undefined,
       });
+      this.context.stdout.write(
+        this.json ? renderJson(result) : `${renderSyncResult(result)}${renderOptionalMcpReport(result.optionalMcpReport)}`,
+      );
+      return result;
+    };
+
+    if (this.watch) {
+      const projectConfigPath = findProjectConfig(this.context.cwd);
+      const projectRoot = projectConfigPath ? resolveProjectRootFromConfigPath(projectConfigPath) : null;
+      if (!projectRoot) {
+        throw new UsageError("--watch requires a project context.");
+      }
+      const stop = startWriteWatch({
+        projectRoot,
+        onTrigger: async () => {
+          try {
+            await runOnce();
+          } catch (error) {
+            this.context.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+          }
+        },
+      });
+      await new Promise<void>((resolve) => {
+        process.on("SIGINT", () => {
+          stop();
+          resolve();
+        });
+      });
+      return 0;
+    }
+
+    try {
+      await runOnce();
     } catch (error) {
       this.context.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
       return 1;
     }
-
-    this.context.stdout.write(
-      this.json ? renderJson(result) : `${renderSyncResult(result)}${renderOptionalMcpReport(result.optionalMcpReport)}`,
-    );
     return 0;
   }
 }

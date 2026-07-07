@@ -113,8 +113,10 @@ export type ProjectExtensionConfig = {
 
 export interface ProjectConfig {
   version: number;
+  materialization?: "vendored" | "linked";
+  committedSurfaces?: boolean;
   cards?: string[];
-  activeMinds?: string[];
+  activeWorkers?: string[];
   servers?: Record<string, ServerOverride>;
   skills?: {
     include?: string[];
@@ -173,11 +175,20 @@ export interface SyncOptions {
   force?: boolean;
   strictHooks?: boolean;
   forceMachineScope?: boolean;
+  scope?: "machine" | "project";
+}
+
+export interface CardModeReadout {
+  mode: string;
+  reason: string;
+  lane: string;
+  sourcePath?: string;
 }
 
 export interface SyncResult {
   changes: string[];
   warnings: string[];
+  cardModes?: Record<string, CardModeReadout>;
   managedPaths?: import("./write-record").ManagedPath[];
   optionalMcpReport?: OptionalMcpReport | null;
 }
@@ -197,4 +208,5 @@ export interface NormalizedSyncOptions {
   force?: boolean;
   strictHooks?: boolean;
   forceMachineScope?: boolean;
+  scope?: "machine" | "project";
 }

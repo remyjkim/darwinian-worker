@@ -1,4 +1,4 @@
-// ABOUTME: Implements removal of explicit hook consent for locked Mind Cards.
+// ABOUTME: Implements removal of explicit hook consent for locked Cards.
 // ABOUTME: Lets users stop materializing a card's hook policies without removing the card.
 
 import { Option, UsageError } from "clipanion";
@@ -31,7 +31,7 @@ export class CardUntrustCommand extends BaseCommand {
     }
     let result;
     try {
-      result = await clearHookConsent(requireProjectRoot(this), this.spec);
+      result = await clearHookConsent(requireProjectRoot(this), this.context.agentsDir, this.spec);
     } catch (error) {
       this.context.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
       return 1;

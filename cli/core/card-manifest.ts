@@ -1,44 +1,30 @@
-// ABOUTME: Defines and validates Mind Card manifests.
+// ABOUTME: Defines and validates Card manifests.
 // ABOUTME: Keeps authoring and consumer commands aligned on schema rules.
 
 import type { ProjectExtensionConfig, ServerOverride, TargetName } from "./types";
 import { isTargetName } from "./targets";
 import { isStrictSemver, validRange } from "./semver-utils";
-import { isSafePathPart } from "./store-paths";
-
-export type MindContentVisibility = "private" | "internal" | "public";
-export type MemoryLayerName = "l4" | "l5" | "l6";
-export type MemoryFormat = "md" | "jsonl" | "mixed";
-
-export interface MindContentManifest {
-  include?: string[];
-  visibility?: MindContentVisibility;
-  exclude?: string[];
-  shared?: string[];
-}
-
-export type PersonaManifest = MindContentManifest;
-export type BeliefsManifest = MindContentManifest;
-
-export interface MemoryLayerManifest extends MindContentManifest {
-  format?: MemoryFormat;
-}
-
-export type MemoryManifest = Partial<Record<MemoryLayerName, MemoryLayerManifest>>;
+import { DrwnError } from "./errors";
+import { parseUpstreamRef } from "./git-ref";
 
 export interface CardManifest {
   $schema?: string;
   name: string;
   version: string;
+  kind?: "card" | "blueprint";
+  composedFrom?: string[];
+  tools?: { allow?: string[]; deny?: string[] };
+  permissions?: Record<string, unknown>;
+  evals?: string[];
+  escalation?: { humanOwner?: string; escalateWhen?: string[] };
+  contextMounts?: { read?: string[]; writeProposals?: string[] };
+  identity?: Record<string, unknown>;
   description?: string;
   license?: string;
   harness?: { minVersion?: string };
   bundles?: Record<string, string>;
-  skills?: { include?: string[]; exclude?: string[]; shared?: string[] };
+  skills?: { include?: string[]; exclude?: string[]; shared?: string[]; upstream?: Record<string, string> };
   hooks?: { include?: string[]; exclude?: string[]; shared?: string[] };
-  persona?: PersonaManifest;
-  beliefs?: BeliefsManifest;
-  memory?: MemoryManifest;
   servers?: Record<string, ServerOverride>;
   extensions?: Record<string, ProjectExtensionConfig>;
   targets?: Partial<Record<TargetName, { enabled: boolean }>>;
@@ -68,60 +54,70 @@ export function isStringRecord(value: unknown): value is Record<string, string> 
   return isObject(value) && Object.values(value).every((entry) => typeof entry === "string");
 }
 
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string");
+}
+
+function isNonEmptyStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string" && entry.length > 0);
+}
+
+// Governance fields are forward-declared: shape-validated here, enforced by the deployment runtime, not the CLI.
+function validateBlueprintFields(input: Record<string, unknown>, isBlueprint: boolean, errors: string[]) {
+  const blueprintOnly = ["composedFrom", "tools", "permissions", "evals", "escalation", "contextMounts", "identity"] as const;
+  for (const field of blueprintOnly) {
+    if (input[field] !== undefined && !isBlueprint) {
+      errors.push(`${field} requires kind: "blueprint"`);
+    }
+  }
+  if (input.composedFrom !== undefined && !isNonEmptyStringArray(input.composedFrom)) {
+    errors.push("composedFrom must be an array of non-empty card refs");
+  }
+  if (input.tools !== undefined) {
+    const tools = input.tools;
+    if (!isObject(tools)) {
+      errors.push("tools must be an object");
+    } else {
+      if (tools.allow !== undefined && !isStringArray(tools.allow)) errors.push("tools.allow must be an array of strings");
+      if (tools.deny !== undefined && !isStringArray(tools.deny)) errors.push("tools.deny must be an array of strings");
+    }
+  }
+  if (input.permissions !== undefined && !isObject(input.permissions)) {
+    errors.push("permissions must be an object");
+  }
+  if (input.evals !== undefined && !isStringArray(input.evals)) {
+    errors.push("evals must be an array of strings");
+  }
+  if (input.escalation !== undefined) {
+    const escalation = input.escalation;
+    if (!isObject(escalation)) {
+      errors.push("escalation must be an object");
+    } else if (escalation.escalateWhen !== undefined && !isStringArray(escalation.escalateWhen)) {
+      errors.push("escalation.escalateWhen must be an array of strings");
+    }
+  }
+  if (input.contextMounts !== undefined) {
+    const mounts = input.contextMounts;
+    if (!isObject(mounts)) {
+      errors.push("contextMounts must be an object");
+    } else {
+      if (mounts.read !== undefined && !isStringArray(mounts.read)) errors.push("contextMounts.read must be an array of strings");
+      if (mounts.writeProposals !== undefined && !isStringArray(mounts.writeProposals)) {
+        errors.push("contextMounts.writeProposals must be an array of strings");
+      }
+    }
+  }
+  if (input.identity !== undefined && !isObject(input.identity)) {
+    errors.push("identity must be an object");
+  }
+}
+
 function isHttpUrl(value: string) {
   try {
     const url = new URL(value);
     return url.protocol === "http:" || url.protocol === "https:";
   } catch {
     return false;
-  }
-}
-
-function validateMindContentSection(
-  label: string,
-  input: unknown,
-  errors: string[],
-  options: { allowFormat?: boolean } = {},
-) {
-  if (input === undefined) {
-    return;
-  }
-  if (!isObject(input)) {
-    errors.push(`${label} must be an object`);
-    return;
-  }
-  if (input.exclude !== undefined) {
-    errors.push(`${label}.exclude is not allowed in card manifests`);
-  }
-  if (input.shared !== undefined) {
-    errors.push(`${label}.shared is not allowed in card manifests`);
-  }
-  const include = input.include;
-  if (include !== undefined && !Array.isArray(include)) {
-    errors.push(`${label}.include must be an array`);
-  }
-  if (Array.isArray(include)) {
-    for (const entry of include) {
-      if (typeof entry !== "string" || !isSafePathPart(entry)) {
-        errors.push(`${label}.include contains invalid entry: ${String(entry)}`);
-      }
-    }
-    if (include.length > 0 && input.visibility === undefined) {
-      errors.push(`${label}.visibility is required when include is non-empty`);
-    }
-  }
-  if (
-    input.visibility !== undefined &&
-    (typeof input.visibility !== "string" || !["private", "internal", "public"].includes(input.visibility))
-  ) {
-    errors.push(`${label}.visibility must be private, internal, or public`);
-  }
-  if (options.allowFormat) {
-    if (input.format !== undefined && (typeof input.format !== "string" || !["md", "jsonl", "mixed"].includes(input.format))) {
-      errors.push(`${label}.format must be md, jsonl, or mixed`);
-    }
-  } else if (input.format !== undefined) {
-    errors.push(`${label}.format is not allowed in card manifests`);
   }
 }
 
@@ -173,6 +169,33 @@ export function validateCardManifest(input: unknown): CardManifestValidationResu
       errors.push("skills.shared is reserved for Wave 2 (registry references). Wave 1 supports only bundled skills.");
     }
   }
+  const upstream = manifest.skills?.upstream;
+  if (upstream !== undefined) {
+    if (!isObject(upstream)) {
+      errors.push("skills.upstream must be an object");
+    } else {
+      const include = new Set(manifest.skills?.include ?? []);
+      for (const [key, value] of Object.entries(upstream)) {
+        if (!include.has(key)) {
+          errors.push(`skills.upstream key ${key} is not listed in skills.include`);
+        }
+        if (typeof value !== "string" || value.length === 0) {
+          errors.push(`skills.upstream.${key} must be a non-empty string`);
+          continue;
+        }
+        try {
+          parseUpstreamRef(value);
+        } catch (error) {
+          const message = error instanceof DrwnError ? error.message : String(error);
+          if (error instanceof DrwnError && error.code === "UPSTREAM_LOCAL_PATH_REJECTED") {
+            errors.push(`skills.upstream.${key} cannot be a local path`);
+          } else {
+            errors.push(`skills.upstream.${key} is invalid: ${message}`);
+          }
+        }
+      }
+    }
+  }
   if (manifest.hooks?.exclude) {
     errors.push("hooks.exclude is not allowed in card manifests");
   }
@@ -182,22 +205,18 @@ export function validateCardManifest(input: unknown): CardManifestValidationResu
   if (manifest.hooks?.include && !Array.isArray(manifest.hooks.include)) {
     errors.push("hooks.include must be an array");
   }
-  validateMindContentSection("persona", (input as Record<string, unknown>).persona, errors);
-  validateMindContentSection("beliefs", (input as Record<string, unknown>).beliefs, errors);
-  const memory = (input as Record<string, unknown>).memory;
-  if (memory !== undefined) {
-    if (!isObject(memory)) {
-      errors.push("memory must be an object");
-    } else {
-      for (const [layer, section] of Object.entries(memory)) {
-        if (layer !== "l4" && layer !== "l5" && layer !== "l6") {
-          errors.push(`unsupported memory layer: ${layer}`);
-          continue;
-        }
-        validateMindContentSection(`memory.${layer}`, section, errors, { allowFormat: true });
-      }
+  if (manifest.kind !== undefined && manifest.kind !== "card" && manifest.kind !== "blueprint") {
+    errors.push("kind must be card or blueprint");
+  }
+  const record = input as Record<string, unknown>;
+  for (const field of ["persona", "beliefs", "memory"] as const) {
+    if (record[field] !== undefined) {
+      errors.push(
+        `${field} is no longer supported; advanced context management (persona/beliefs/memory) moved to a separate capability card`,
+      );
     }
   }
+  validateBlueprintFields(record, manifest.kind === "blueprint", errors);
   for (const [bundle, range] of Object.entries(manifest.bundles ?? {})) {
     if (!bundle || typeof range !== "string" || !validRange(range)) {
       errors.push(`invalid bundle range for ${bundle}`);

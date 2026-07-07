@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<!-- ABOUTME: Mental model + usage guide for the worktree-vendored drwn card architecture (analysis 97) — the three tiers, the states a card occupies, and the concrete command walkthroughs for authoring, consuming, dev-linking, per-branch divergence, updating, and contributing. -->
+<!-- ABOUTME: Companion to analysis 97 (design of record). 97 answers "how is it built"; this answers "how do I hold it in my head and drive it day to day." -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analysis 98 — Target Tooling: Mental Model &amp; Usage Guide</title>
+<style>
+  :root{
+    --ink:#1a1d23; --muted:#5b6472; --line:#d7dbe2; --paper:#fff; --wash:#f5f7fa;
+    --accent:#0b5fff; --accent-soft:#e8f0ff;
+    --source:#7c3aed; --source-soft:#f3ecfe;
+    --store:#0a8754; --store-soft:#e7f6ef;
+    --project:#0b5fff; --project-soft:#e8f0ff;
+    --local:#b45309; --local-soft:#fdf1e0;
+    --danger:#b42318; --danger-soft:#fdecea;
+    --mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:2.5rem 1.5rem 5rem;font:16px/1.65 -apple-system,"Segoe UI",Helvetica,Arial,sans-serif;color:var(--ink);background:var(--paper)}
+  main{max-width:1080px;margin:0 auto}
+  h1{font-size:1.9rem;line-height:1.25;margin:0 0 .4rem}
+  h2{font-size:1.35rem;margin:3rem 0 .8rem;padding-top:1.2rem;border-top:1px solid var(--line)}
+  h3{font-size:1.05rem;margin:1.8rem 0 .5rem}
+  p,li{max-width:82ch}
+  .meta-block{color:var(--muted);font-size:.9rem;margin-bottom:2rem}
+  code{font-family:var(--mono);font-size:.86em;background:var(--wash);padding:.1em .35em;border-radius:4px}
+  pre{font-family:var(--mono);font-size:.8rem;line-height:1.55;background:var(--wash);border:1px solid var(--line);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto}
+  pre .c{color:var(--muted)}
+  pre .k{color:var(--accent)}
+  table{border-collapse:collapse;font-size:.9rem;margin:1rem 0;width:100%}
+  th,td{border:1px solid var(--line);padding:.45rem .8rem;text-align:left;vertical-align:top}
+  th{background:var(--wash)}
+  figure{margin:1.5rem 0}
+  figcaption{font-size:.85rem;color:var(--muted);margin-top:.5rem}
+  .legend{display:flex;flex-wrap:wrap;gap:1rem;font-size:.82rem;color:var(--muted);margin:.6rem 0 0}
+  .legend span{display:inline-flex;align-items:center;gap:.4rem}
+  .swatch{width:14px;height:14px;border-radius:4px;display:inline-block;border:1px solid rgba(0,0,0,.15)}
+  /* tier diagram */
+  .tiers{display:grid;grid-template-columns:1fr;gap:.6rem;margin:1.2rem 0}
+  .tier{border:1px solid var(--line);border-radius:10px;padding:.8rem 1rem;background:#fcfdff}
+  .tier .h{font-family:var(--mono);font-size:.78rem;font-weight:700;letter-spacing:.02em;margin-bottom:.35rem}
+  .tier.source{background:var(--source-soft);border-color:#cdb6f6}
+  .tier.source .h{color:var(--source)}
+  .tier.store{background:var(--store-soft);border-color:#a6dfc5}
+  .tier.store .h{color:var(--store)}
+  .tier.project{background:var(--project-soft);border-color:#a9c6ff}
+  .tier.project .h{color:var(--project)}
+  .tier.local{background:var(--local-soft);border-color:#eed3a4}
+  .tier.local .h{color:var(--local)}
+  .tier small{color:var(--muted)}
+  .down{text-align:center;color:var(--muted);font-size:1.2rem;line-height:1}
+  /* horizontal flows */
+  .flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:.35rem;margin:1rem 0}
+  .flow .step{background:var(--wash);border:1px solid var(--line);border-radius:8px;padding:.5rem .75rem;font-size:.82rem;line-height:1.45;min-width:120px;max-width:230px;flex:1}
+  .flow .step strong{display:block;font-family:var(--mono);font-size:.74rem;color:var(--accent)}
+  .flow .step.source{background:var(--source-soft);border-color:#cdb6f6}
+  .flow .step.source strong{color:var(--source)}
+  .flow .step.store{background:var(--store-soft);border-color:#a6dfc5}
+  .flow .step.store strong{color:var(--store)}
+  .flow .step.project{background:var(--project-soft);border-color:#a9c6ff}
+  .flow .step.project strong{color:var(--project)}
+  .flow .step.stop{background:var(--danger-soft);border-color:#f1b6b0}
+  .flow .step.stop strong{color:var(--danger)}
+  .flow .arrow{align-self:center;color:var(--muted);font-size:1.05rem;padding:0 .1rem}
+  .scenario{border:1px solid var(--line);border-radius:10px;padding:.2rem 1.1rem 1.1rem;margin:1.2rem 0;background:#fcfdff}
+  .scenario h3{margin-top:1rem}
+  .callout{border-left:4px solid var(--accent);background:var(--accent-soft);border-radius:0 8px 8px 0;padding:.8rem 1.1rem;margin:1.2rem 0;font-size:.92rem}
+  .callout.warn{border-color:var(--local);background:var(--local-soft)}
+  .callout.stop{border-color:var(--danger);background:var(--danger-soft)}
+  /* decision tree */
+  .tree{font-family:var(--mono);font-size:.82rem;line-height:1.7;background:var(--wash);border:1px solid var(--line);border-radius:8px;padding:1rem 1.2rem;margin:1rem 0}
+  .tag{display:inline-block;font-family:var(--mono);font-size:.72rem;padding:.05rem .4rem;border-radius:4px;border:1px solid}
+  .tag.link{color:var(--source);background:var(--source-soft);border-color:#cdb6f6}
+  .tag.vendor{color:var(--project);background:var(--project-soft);border-color:#a9c6ff}
+</style>
+</head>
+<body>
+<main>
+
+<h1>Analysis 98 — Target Tooling: Mental Model &amp; Usage Guide</h1>
+<div class="meta-block">
+  <strong>Date</strong>: 2026-07-05 &nbsp;·&nbsp; <strong>Author</strong>: Claude + Remy &nbsp;·&nbsp;
+  <strong>Status</strong>: Usage companion to analysis 97 (design of record). Describes the <strong>target</strong> workflow delivered by
+  <strong>task 68</strong> — some porcelain (<code>drwn use</code>, <code>up</code>, <code>dev</code>, <code>release</code>, <code>card fork</code>) is
+  <strong>planned, not yet shipped</strong>; see §7 for the availability split.<br>
+  <strong>Reads as</strong>: a field guide. <strong>97</strong> answers <em>“how is the architecture built?”</em>
+  This answers <em>“how do I hold it in my head, and which command do I run?”</em>
+</div>
+
+<h2 id="idea">1. The whole model in one idea</h2>
+<p>There are <strong>three places a card lives</strong>, and one machine-local scratch layer. Content flows
+<strong>downward</strong> through them, and <strong>nothing crosses a boundary without an explicit command</strong>:</p>
+
+<div class="tiers">
+  <div class="tier source">
+    <div class="h">① SOURCE — where you write</div>
+    Editable card drafts. Managed centrally in your home store, or cloned as a shared
+    <strong>org monorepo</strong> at <code>$CARDS_SOURCE_PATH</code>. Each source has its own git remote.
+    <small> — the only intended edit point.</small>
+  </div>
+  <div class="down">▼ &nbsp;<code>card publish</code></div>
+  <div class="tier store">
+    <div class="h">② STORE — the immutable ledger (machine-wide)</div>
+    <code>~/.agents/drwn/</code> holds <em>every</em> published version, content-addressed
+    (<code>cards/*.git</code> + <code>extracted/&lt;treeSha&gt;</code>). Shared by every project and worktree.
+    <small> — availability, never edited.</small>
+  </div>
+  <div class="down">▼ &nbsp;<code>card apply</code> (pin) &nbsp;+&nbsp; <code>drwn write</code> (materialize)</div>
+  <div class="tier project">
+    <div class="h">③ PROJECT — committed activation (per branch / worktree)</div>
+    <code>&lt;project&gt;/.agents/drwn/</code>: <code>config.json</code> (intent) + <code>card.lock</code> (pins) +
+    <code>vendor/@scope/name/&lt;sha&gt;/</code> (content, <strong>CoW-cloned (reflinked) from the store, committed as real files</strong>)
+    and <code>vendor-manifests/@scope/name/&lt;shortSha&gt;.json</code> (committed prune/GC metadata, outside the content root).
+    <strong>Projection</strong> surfaces (<code>.claude/skills/</code>, <code>.cursor/</code>, project <code>.mcp.json</code>) are generated from vendor and gitignored;
+    <strong>merge</strong> surfaces (machine <code>~/.claude.json</code>, <code>.codex/config.toml</code>, <code>.claude/settings.json</code> hooks) are field-merged (§3.5).
+    <small> — usage. This is branch content, so it diverges per worktree for free.</small>
+  </div>
+  <div class="tier local">
+    <div class="h">◆ LOCAL OVERLAY — machine-local, gitignored</div>
+    <code>config.local.json</code> (personal card activation + dev links) + <code>card.lock.local</code> (their pins).
+    Layered on top of ③ at resolve time; <strong>never</strong> enters the committed lane.
+  </div>
+</div>
+
+<div class="legend">
+  <span><span class="swatch" style="background:var(--source-soft);border-color:var(--source)"></span> source (editable)</span>
+  <span><span class="swatch" style="background:var(--store-soft);border-color:var(--store)"></span> store (immutable, machine-wide)</span>
+  <span><span class="swatch" style="background:var(--project-soft);border-color:var(--project)"></span> project (committed, per-branch)</span>
+  <span><span class="swatch" style="background:var(--local-soft);border-color:var(--local)"></span> local overlay (gitignored)</span>
+  <span><span class="swatch" style="background:var(--danger-soft);border-color:var(--danger)"></span> forbidden / refused</span>
+</div>
+
+<div class="callout">
+  <strong>The one sentence to remember:</strong> the store is a shared cache of every version;
+  a project <em>commits</em> exactly the versions it pins, as self-contained reflinked (CoW-cloned) files, so a teammate can
+  <code>git clone</code> the repo and run <code>drwn write</code> <strong>offline</strong> — no store, no network, no author's machine.
+</div>
+
+<h2 id="requirements">2. The three things this must let you do</h2>
+<table>
+  <tr><th>#</th><th>You want to…</th><th>How the model delivers it</th></tr>
+  <tr><td>1</td><td>Keep sources in one home place, but commit materialized cards into a project repo</td>
+      <td>Sources in tier ①; materialization <strong>vendors</strong> content into tier ③ as committable real files (no store symlinks).</td></tr>
+  <tr><td>2</td><td>Materialize different versions / sets of cards across git worktrees or branches</td>
+      <td><code>config.json</code>+<code>card.lock</code>+<code>vendor/</code> are committed <strong>branch content</strong> → each worktree materializes its own set. The shared store holds all versions, so no contention.</td></tr>
+  <tr><td>3</td><td>Keep git remotes for sources and know when to version-up or edit</td>
+      <td>Sources = a shared <strong>org monorepo</strong> with remotes; <code>drwn up</code>/<code>outdated</code> notify pull-on-command; editing is <strong>fork-first</strong>.
+      <em>V1 caveat: version-up ships now; distributable <strong>deprecation / successor</strong> notification waits on catalog reflection (V2).</em></td></tr>
+</table>
+
+<h2 id="modes">3. Two ways a card materializes — and how the mode is chosen</h2>
+<p>Every card resolves to one of two materialization modes. <strong>Linking is always a local overlay — it never
+changes what is committed.</strong></p>
+<table>
+  <tr><th>Mode</th><th>What happens</th><th>Committed?</th><th>For</th></tr>
+  <tr><td><span class="tag vendor">vendored</span></td>
+      <td>Pinned <code>&lt;sha&gt;</code> reflinked (CoW-cloned) from the store into <code>vendor/</code>; surfaces generated from it</td>
+      <td>Yes — self-contained bytes</td><td>Consumers; anything you commit</td></tr>
+  <tr><td><span class="tag link">linked</span></td>
+      <td>Content resolved <em>live</em> from the source working tree under <code>$CARDS_SOURCE_PATH</code>; edits reflected on next <code>drwn write</code></td>
+      <td>No — machine-local only</td><td>Authors developing a card (the dev loop)</td></tr>
+</table>
+
+<p>Resolution precedence, highest wins (§8 of analysis 97 — explicit committed config outranks per-card auto):</p>
+<div class="tree">
+1. <span class="k">drwn dev @scope/x</span>                → <span class="tag link">linked</span>   <span class="c"># explicit invocation override</span>
+2. project config <span class="k">materialization: "…"</span>       → as set    <span class="c"># explicit, committed — "vendored" wins unconditionally;</span>
+                                              <span class="c">#   "linked" links if source present, else vendored+warn</span>
+3. <span class="k">CARDS_SOURCE_PATH</span> set &amp; source present → <span class="tag link">linked</span>   <span class="c"># per-card auto (only when no explicit setting)</span>
+4. <span class="c">otherwise (default, per-project):</span>       → <span class="tag vendor">vendored</span> <span class="c"># consumer, or source-absent</span>
+</div>
+<div class="callout"><code>drwn write</code> and <code>drwn status</code> <strong>print the resolved mode per card and why</strong>
+(<code>@you/x → linked from ~/org-cards/x</code>; <code>@team/y@2.1 → vendored</code>), so the behavior is never a surprise —
+to a human or to an agent operator. A committed <code>materialization: "vendored"</code> is <strong>never</strong> silently overridden by a stray <code>CARDS_SOURCE_PATH</code>.</div>
+
+<h3 id="surfaces">3.5 Two kinds of agent surface — not everything is a gitignored projection</h3>
+<p>The files agent tools read split by <strong>who owns them</strong>. Treating them uniformly loses user data (a purely-regenerated field-merged config drops the user's own entries), so:</p>
+<table>
+  <tr><th>Kind</th><th>Examples</th><th>Ownership</th><th>Committed?</th><th>Guarantee</th></tr>
+  <tr><td><strong>Projection</strong></td><td><code>.claude/skills/&lt;name&gt;/</code>, <code>.cursor/</code>, <strong>project <code>.mcp.json</code></strong>, <code>.cursor/mcp.json</code></td><td>drwn owns the whole file/dir</td><td>no (gitignored, regenerated)</td><td>byte-identical, offline</td></tr>
+  <tr><td><strong>Merge</strong></td><td>machine <code>~/.claude.json</code>, <code>.codex/config.toml</code>, <code>.claude/settings.json</code> (hooks)</td><td>drwn owns only <em>its</em> fields; user entries preserved</td><td>field-merged in place</td><td>deterministic <em>per drwn-owned field</em></td></tr>
+</table>
+<div class="callout">Project <code>.mcp.json</code> and <code>.cursor/mcp.json</code> are <strong>whole-file projections</strong> drwn owns outright (matching the shipped code) — do not confuse them with the machine-level <code>~/.claude.json</code> merge surface. Which fields drwn owns on a genuine merge surface is <strong>recomputed from the pinned cards</strong> on every write — so on a teammate's fresh checkout (no local write-record) drwn still knows exactly which entries are its own.</div>
+
+<h2 id="states">4. The states a card passes through</h2>
+<table>
+  <tr><th>State</th><th>Meaning</th><th>Lives in</th></tr>
+  <tr><td><strong>Draft</strong></td><td>editable source</td><td>tier ① <code>sources/</code> or org monorepo</td></tr>
+  <tr><td><strong>Published</strong></td><td>frozen version (commit + tag)</td><td>tier ② <code>cards/*.git</code> + <code>extracted/&lt;sha&gt;</code></td></tr>
+  <tr><td><strong>Available</strong></td><td>discoverable, not yet in your store</td><td>a catalog entry (pointer)</td></tr>
+  <tr><td><strong>In store</strong></td><td>cloned into your machine registry</td><td>tier ② (all versions on hand)</td></tr>
+  <tr><td><strong>Applied</strong></td><td>pinned as intent for a branch</td><td>tier ③ <code>card.lock</code> (or <code>card.lock.local</code>)</td></tr>
+  <tr><td><strong>Vendored</strong></td><td>content committed into the project (committed lane only)</td><td>tier ③ <code>vendor/@scope/name/&lt;sha&gt;/</code></td></tr>
+  <tr><td><strong>Overlay</strong> (personal)</td><td>locally activated; materializes <strong>from the store, never vendored</strong> — zero trace in the committed lane</td><td>store <code>extracted/&lt;sha&gt;/</code> + <code>card.lock.local</code></td></tr>
+  <tr><td><strong>Materialized</strong></td><td>live in the agent tools</td><td>projection: <code>.claude/skills/</code> · <code>.cursor/</code> · project <code>.mcp.json</code>; merge: <code>.codex/config.toml</code> · machine <code>~/.claude.json</code> …</td></tr>
+  <tr><td><strong>Linked</strong> (dev)</td><td>resolving from a live source tree, not the pin</td><td><code>config.local.json</code> (machine-local)</td></tr>
+  <tr><td><strong>Outdated</strong></td><td>a newer version exists than the pin</td><td>derived (<code>outdated --fetch</code>)</td></tr>
+  <tr><td><strong>Drifted</strong></td><td>a materialized surface was hand-edited</td><td>surface vs generated — <strong>refused</strong></td></tr>
+</table>
+
+<h2 id="walkthroughs">5. Usage walkthroughs</h2>
+
+<div class="scenario">
+<h3>A. Consume a card into a project (the 10-minute path)</h3>
+<div class="flow">
+  <div class="step">discover<strong>drwn search card</strong></div>
+  <div class="arrow">→</div>
+  <div class="step store">into store<strong>drwn card clone &lt;url&gt;</strong></div>
+  <div class="arrow">→</div>
+  <div class="step project">pin<strong>drwn card apply @t/y@^2.0</strong></div>
+  <div class="arrow">→</div>
+  <div class="step project">vendor + surfaces<strong>drwn write</strong></div>
+</div>
+<p><code>drwn use @team/y@^2.0</code> fuses the last three into one command. Result: <code>config.json</code>,
+<code>card.lock</code>, and <code>vendor/&lt;sha&gt;/</code> are ready to <code>git commit</code>; <code>.claude/</code> etc. are
+generated and gitignored.</p>
+</div>
+
+<div class="scenario">
+<h3>B. A teammate checks out the repo (offline, no store)</h3>
+<div class="flow">
+  <div class="step">clone repo<strong>git clone …</strong></div>
+  <div class="arrow">→</div>
+  <div class="step project">vendor bytes already present<strong>(committed)</strong></div>
+  <div class="arrow">→</div>
+  <div class="step project">regenerate surfaces<strong>drwn write</strong></div>
+</div>
+<p>No network, no card remote, no populated store required — the vendored trees <em>are</em> the content.
+This is the payoff of committing tier ③.</p>
+</div>
+
+<div class="scenario">
+<h3>C. Develop a card against your live tree (the dev loop)</h3>
+<div class="flow">
+  <div class="step source">edit source<strong>~/org-cards/x/…</strong></div>
+  <div class="arrow">→</div>
+  <div class="step">turn on link<strong>drwn dev @you/x</strong></div>
+  <div class="arrow">→</div>
+  <div class="step project">see it live<strong>drwn write --watch</strong></div>
+  <div class="arrow">→</div>
+  <div class="step">ship it<strong>drwn release @you/x</strong></div>
+  <div class="arrow">→</div>
+  <div class="step">restore pin<strong>drwn dev --off</strong></div>
+</div>
+<p>While linked, edits to the source materialize immediately — no publish. The link lives only in
+<code>config.local.json</code>; your committed <code>card.lock</code>/<code>vendor/</code> are untouched, so nothing leaks to teammates.</p>
+</div>
+
+<div class="scenario">
+<h3>D. Different cards per branch / worktree (requirement 2)</h3>
+<div class="flow">
+  <div class="step">worktree A (branch <code>main</code>)<strong>git worktree add ../A</strong></div>
+  <div class="arrow">→</div>
+  <div class="step project">pins X@1.0, Y@2.0<strong>drwn write</strong></div>
+  <div class="arrow">|</div>
+  <div class="step">worktree B (branch <code>exp</code>)<strong>git worktree add ../B</strong></div>
+  <div class="arrow">→</div>
+  <div class="step project">pins X@2.0, Z@1.0<strong>drwn write</strong></div>
+</div>
+<p>Because <code>config.json</code>/<code>card.lock</code>/<code>vendor/</code> are branch content, each worktree simply
+materializes what its branch pins. The shared store already holds <code>X@1.0</code> <em>and</em> <code>X@2.0</code>,
+so there is zero contention. <em>(Explicit worktree helpers and worktree-aware GC are V2; the divergence itself works today.)</em></p>
+</div>
+
+<div class="scenario">
+<h3>E. Update to a newer version (requirement 3, pull-on-command)</h3>
+<div class="flow">
+  <div class="step">check remotes<strong>drwn card outdated --fetch</strong></div>
+  <div class="arrow">→</div>
+  <div class="step project">re-pin + re-vendor + regen, whole project<strong>drwn up</strong></div>
+  <div class="arrow">→</div>
+  <div class="step project">review the diff<strong>git diff vendor/</strong></div>
+</div>
+<p>A vendored version bump is an add-tree / remove-tree change in <code>vendor/</code> — reviewable in the PR.
+You are never surprised: nothing updates until you run <code>up</code>/<code>update</code>.</p>
+</div>
+
+<div class="scenario">
+<h3>F. Edit someone else's card (fork-first)</h3>
+<div class="flow">
+  <div class="step">fork the source<strong>drwn card fork @team/y</strong></div>
+  <div class="arrow">→</div>
+  <div class="step source">edit under your scope<strong>@you/y</strong></div>
+  <div class="arrow">→</div>
+  <div class="step">publish + push<strong>drwn release @you/y</strong></div>
+  <div class="arrow">→</div>
+  <div class="step project">adopt it<strong>drwn use @you/y</strong></div>
+</div>
+<p>Editing happens in the source lane (your scope / the org monorepo), fully decoupled from any project repo — so
+card maintenance never collides with project development.</p>
+</div>
+
+<h2 id="guardrails">6. Forbidden moves (the tooling refuses these)</h2>
+<div class="callout stop"><strong>Edit a materialized surface.</strong> Hand-editing <code>.claude/skills/x/SKILL.md</code>
+puts it in <em>Drifted</em>; <code>drwn write</code> refuses and prints a <strong>signpost</strong> to the <strong>source</strong> edit point
+(<code>git+…#skills/x</code> when the card's upstream is known, else <code>drwn card fork</code> → edit → publish → update). Your edit is
+preserved, not clobbered. The surface is a projection, and <code>vendor/</code> is an immutable cache — <em>neither</em> is an edit target.</div>
+<div class="callout stop"><strong>Edit a published version.</strong> Immutable by construction — fix by publishing the next version.</div>
+<div class="callout stop"><strong>Leak a dev link or a personal card to teammates.</strong> Links and local activation live only in
+<code>config.local.json</code> / <code>card.lock.local</code> (gitignored); they can never enter <code>config.json</code>/<code>card.lock</code>.</div>
+<div class="callout warn"><strong>Commit a store symlink.</strong> Not possible — vendored content is real files reflinked (CoW-cloned) from the store,
+so a checkout on another machine gets bytes, not a dangling link.</div>
+<div class="callout warn"><strong>Poison the store by editing <code>vendor/</code>.</strong> Also not possible — the reflink is an independent inode, so an in-place
+edit to <code>vendor/…</code> can never write through to <code>~/.agents/drwn/</code>. And because <code>vendor/</code> is an immutable cache, <code>drwn write</code>
+re-verifies against the content manifest and <strong>repairs the pinned tree from the store</strong> (overwriting the edit) — it is not an accepted edit point.</div>
+
+<h2 id="commands">7. Command reference (by job)</h2>
+<div class="callout"><strong>Availability.</strong> <em>Available today:</em> <code>card clone/apply/update/outdated/publish/push/deprecate</code>, <code>store gc/verify</code>, one-shot <code>write</code>, <code>status</code>. <em>Planned porcelain (task 68 delivers):</em> <code>use</code>, <code>up</code>, <code>dev</code> / <code>card link</code>, <code>write --watch</code>, <code>release</code>, <code>card fork</code>, <code>card source sync</code>, <code>projects</code>. The table below is the <strong>target</strong> operator surface once task 68 completes.</div>
+<table>
+  <tr><th>Job</th><th>Command</th><th>Tier touched</th></tr>
+  <tr><td rowspan="4">Consume</td><td><code>drwn search card &lt;name&gt;</code></td><td>catalog</td></tr>
+  <tr><td><code>drwn card clone &lt;url&gt;</code></td><td>② store</td></tr>
+  <tr><td><code>drwn use &lt;ref&gt;</code> (clone+apply+write)</td><td>②→③</td></tr>
+  <tr><td><code>drwn up</code> / <code>drwn card outdated --fetch</code></td><td>③ (pull-notify)</td></tr>
+  <tr><td rowspan="3">Materialize</td><td><code>drwn write</code> (vendor + generate surfaces)</td><td>③</td></tr>
+  <tr><td><code>drwn dev &lt;card&gt;</code> / <code>drwn dev --off</code></td><td>◆ local overlay</td></tr>
+  <tr><td><code>drwn status</code> (prints per-card mode + provenance)</td><td>read-only</td></tr>
+  <tr><td rowspan="4">Author</td><td><code>drwn card new</code> / <code>card source add-skill</code></td><td>① source</td></tr>
+  <tr><td><code>drwn card source sync [--check]</code> (refresh from upstream)</td><td>① source</td></tr>
+  <tr><td><code>drwn card publish</code> → <code>card push</code></td><td>①→②→remote</td></tr>
+  <tr><td><code>drwn release &lt;card&gt;</code> (whole pipeline)</td><td>①→②→remote→catalog</td></tr>
+  <tr><td rowspan="2">Curate / maintain</td><td><code>drwn store gc --dry-run</code> / <code>store verify</code></td><td>② store</td></tr>
+  <tr><td><code>drwn card deprecate</code> / <code>card fork</code></td><td>metadata / ① source</td></tr>
+</table>
+
+<h2 id="files">8. What lands in the repo vs stays on your machine</h2>
+<table>
+  <tr><th>Path</th><th>Committed?</th><th>Role</th></tr>
+  <tr><td><code>.agents/drwn/config.json</code></td><td><strong>yes</strong></td><td>shared intent (which cards, per branch)</td></tr>
+  <tr><td><code>.agents/drwn/card.lock</code></td><td><strong>yes</strong></td><td>exact pins + integrity</td></tr>
+  <tr><td><code>.agents/drwn/vendor/@scope/name/&lt;sha&gt;/</code></td><td><strong>yes</strong></td><td>self-contained card content (reflinked locally)</td></tr>
+  <tr><td><code>.agents/drwn/vendor-manifests/@scope/name/&lt;shortSha&gt;.json</code></td><td><strong>yes</strong></td><td>per-tree manifest metadata for stale vendor prune + store GC (outside the content root)</td></tr>
+  <tr><td><code>.agents/drwn/.gitattributes</code></td><td><strong>yes</strong></td><td><code>vendor/** -text linguist-generated</code> — byte-exact checkout + clean PR diffs</td></tr>
+  <tr><td><code>.agents/drwn/config.local.json</code></td><td>no (gitignored)</td><td>personal activation + dev links</td></tr>
+  <tr><td><code>.agents/drwn/card.lock.local</code></td><td>no (gitignored)</td><td>pins for personal/local cards</td></tr>
+  <tr><td><code>.claude/skills/</code> · <code>.codex/skills/</code> · <code>.cursor/</code> · project <code>.mcp.json</code> · <code>.cursor/mcp.json</code> (projection surfaces)</td><td>no (regenerated; opt-in committable via <code>committedSurfaces:true</code>)</td><td>drwn-owned whole-file surfaces — rebuilt offline by <code>drwn write</code></td></tr>
+  <tr><td><code>.codex/config.toml</code> · <code>.claude/settings.json</code> hooks (merge surfaces)</td><td><strong>yes</strong> (field-merged; unaffected by <code>committedSurfaces</code>)</td><td>mixed ownership — drwn owns its fields, your entries preserved (machine <code>~/.claude.json</code> is a merge surface too, but machine-wide, not in the repo)</td></tr>
+  <tr><td><code>~/.agents/drwn/</code> (store, sources)</td><td>n/a (machine-wide)</td><td>every version available; editable drafts</td></tr>
+</table>
+
+<div class="callout">
+  <strong>See also:</strong> analysis 97 (design of record — tiers, the <code>drwn write</code> algorithm, decision ledger,
+  V1/V2 split, and code deltas vs task 65). This guide is the operator-facing view of that architecture.
+</div>
+
+</main>
+</body>
+</html>

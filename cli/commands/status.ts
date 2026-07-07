@@ -3,6 +3,8 @@
 
 import { Option } from "clipanion";
 import { answerWhy, buildDiagnosticsSections, buildStatusReport, explainStatus } from "../core/diagnostics";
+import { buildEffectiveState } from "../core/effective-state";
+import { resolveProjectRootFromConfigPath } from "../core/project";
 import { renderJson, renderTable } from "../core/output";
 import { BaseCommand } from "./base";
 
@@ -81,7 +83,30 @@ export class StatusCommand extends BaseCommand {
         this.context.homeDir,
         this.context.projectConfigPath,
       );
-      this.context.stdout.write(renderJson({ ...status, sections }));
+      let cardModes: Record<string, { mode: string; reason: string; lane: string; sourcePath?: string }> | undefined;
+      if (status.project) {
+        const projectRoot = resolveProjectRootFromConfigPath(status.project.configPath);
+        const state = await buildEffectiveState({
+          repoRoot: this.context.repoRoot,
+          agentsDir: this.context.agentsDir,
+          homeDir: this.context.homeDir,
+          cwd: projectRoot,
+        });
+        cardModes = {};
+        for (const card of state.lockedCards) {
+          const mode = state.cardModes[card.name];
+          if (!mode) {
+            continue;
+          }
+          cardModes[card.name] = {
+            mode: mode.mode,
+            reason: mode.reason,
+            lane: state.cardLanes[card.name] ?? "committed",
+            ...(mode.sourcePath ? { sourcePath: mode.sourcePath } : {}),
+          };
+        }
+      }
+      this.context.stdout.write(renderJson({ ...status, sections, ...(cardModes ? { cardModes } : {}) }));
       return 0;
     }
 
@@ -103,6 +128,22 @@ export class StatusCommand extends BaseCommand {
       output += `  Skill overrides:   ${status.project.skillIncludeCount} included, ${status.project.skillExcludeCount} excluded\n`;
       output += `  Extension overrides: ${status.project.extensionOverrides.join(", ") || "none"}\n`;
       output += `  Target overrides:  ${status.project.targetOverrides.join(", ") || "none"}\n`;
+      const projectRoot = resolveProjectRootFromConfigPath(status.project.configPath);
+      const state = await buildEffectiveState({
+        repoRoot: this.context.repoRoot,
+        agentsDir: this.context.agentsDir,
+        homeDir: this.context.homeDir,
+        cwd: projectRoot,
+      });
+      if (state.lockedCards.length > 0) {
+        output += "\nCard modes:\n";
+        for (const card of state.lockedCards) {
+          const mode = state.cardModes[card.name];
+          const lane = state.cardLanes[card.name] ?? "committed";
+          const source = mode?.sourcePath ? ` source=${mode.sourcePath}` : "";
+          output += `  - ${card.name}: ${mode?.mode ?? "unknown"} (${mode?.reason ?? "unknown"}) lane=${lane}${source}\n`;
+        }
+      }
     }
     this.context.stdout.write(output);
     return 0;

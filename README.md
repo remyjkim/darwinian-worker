@@ -36,7 +36,7 @@ For a project-local harness, run `drwn init` in the project root, then `drwn add
 
 ## Claude Session Signals Beta
 
-`drwn` includes hidden Claude Code hook commands that can record active Mind Cards and
+`drwn` includes hidden Claude Code hook commands that can record active Cards and
 skill usage beside Claude transcript files. This is an opt-in beta and is disabled by
 default.
 

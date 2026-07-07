@@ -16,8 +16,12 @@ export function renderTable(headers: string[], rows: string[][]) {
   return `${formatRow(headers)}\n${rows.map((row) => formatRow(row)).join("\n")}\n`;
 }
 
-export function renderSyncResult(result: { changes: string[]; warnings: string[] }) {
-  if (result.changes.length === 0 && result.warnings.length === 0) {
+export function renderSyncResult(result: {
+  changes: string[];
+  warnings: string[];
+  cardModes?: Record<string, { mode: string; reason: string; lane: string; sourcePath?: string }>;
+}) {
+  if (result.changes.length === 0 && result.warnings.length === 0 && !result.cardModes) {
     return "No changes.\n";
   }
 
@@ -25,10 +29,23 @@ export function renderSyncResult(result: { changes: string[]; warnings: string[]
   if (result.changes.length > 0) {
     parts.push(`Changes:\n${result.changes.map((change) => `- ${change}`).join("\n")}`);
   }
+  if (result.cardModes && Object.keys(result.cardModes).length > 0) {
+    parts.push(
+      `Modes:\n${Object.entries(result.cardModes)
+        .map(([name, mode]) => {
+          const source = mode.sourcePath ? ` source=${mode.sourcePath}` : "";
+          return `- ${name}: ${mode.mode} (${mode.reason}) lane=${mode.lane}${source}`;
+        })
+        .join("\n")}`,
+    );
+  }
   if (result.warnings.length > 0) {
     parts.push(`Warnings:\n${result.warnings.map((warning) => `- ${warning}`).join("\n")}`);
   }
 
+  if (parts.length === 0) {
+    return "No changes.\n";
+  }
   return `${parts.join("\n")}\n`;
 }
 

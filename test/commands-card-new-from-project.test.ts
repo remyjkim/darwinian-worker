@@ -22,7 +22,7 @@ test("card new --from-project captures a project and the captured source can be 
   await mkdir(dirname(configPath), { recursive: true });
   await writeFile(
     configPath,
-    JSON.stringify({ version: 1, cards: ["@me/base@1.0.0"], activeMinds: ["@me/base"], skills: { include: ["beta"] } }, null, 2),
+    JSON.stringify({ version: 1, cards: ["@me/base@1.0.0"], activeWorkers: ["@me/base"], skills: { include: ["beta"] } }, null, 2),
   );
 
   const capture = await runAgentsCli(["card", "new", "@me/captured", "--from-project", projectDir, "--no-git"], envFor(fixture));

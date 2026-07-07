@@ -1,7 +1,7 @@
 // ABOUTME: Orchestrates MCP and skill syncing using the extracted core modules.
 // ABOUTME: Shared by the Clipanion commands and the legacy sync-mcp compatibility wrapper.
 
-import { existsSync, readdirSync, readlinkSync, rmSync, readFileSync } from "node:fs";
+import { existsSync, readlinkSync, rmSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expandHomePath, resolveGlobalCodexConfig, resolveToolPaths } from "./paths";
@@ -18,7 +18,7 @@ import {
 } from "./mcp";
 import { syncSkills as syncSkillsCore } from "./skills";
 import { syncHooks } from "./hook-generator/sync-hooks";
-import { syncMinds } from "./mind-generator/sync-mind";
+import { syncWorkers } from "./worker-generator/sync-worker";
 import { ensureParentDir, lstatSafe, realpathSafe } from "./fs";
 import { backupExistingPath, writeManagedFile } from "./managed-file";
 import {
@@ -29,11 +29,11 @@ import {
   saveWriteRecord,
   type ManagedPath,
 } from "./write-record";
-import { buildEffectiveState } from "./effective-state";
+import { buildEffectiveState, recomputeContentRootsByCard } from "./effective-state";
 import { computeOptionalMcpReport } from "./mcp-report";
+import { reconcileVendorTrees } from "./vendor-reconcile";
 import { DRWN_VERSION } from "./version";
 import { canonicalJsonHash } from "./managed-fields";
-import { resolveGeneratedComposedMindDir } from "./store-paths";
 import type {
   CanonicalConfig,
   NormalizedSyncOptions,
@@ -168,31 +168,11 @@ export function cleanupRemovedManagedPaths(scopeRoot: string, previous: ManagedP
   }
 }
 
-function pruneEmptyDirectoryTree(root: string, dryRun: boolean, result: SyncResult, removeRoot: boolean) {
-  const stats = lstatSafe(root);
-  if (!stats?.isDirectory()) {
-    return false;
-  }
-
-  for (const entry of readdirSync(root)) {
-    const path = join(root, entry);
-    const childStats = lstatSafe(path);
-    if (childStats?.isDirectory()) {
-      pruneEmptyDirectoryTree(path, dryRun, result, true);
-    }
-  }
-
-  if (removeRoot && readdirSync(root).length === 0) {
-    result.changes.push(`remove ${root}`);
-    if (!dryRun) {
-      rmSync(root, { recursive: true, force: true });
-    }
-    return true;
-  }
-  return false;
-}
-
-export function verifyManagedPaths(scopeRoot: string, previous: ManagedPath[], options?: { force?: boolean }) {
+export function verifyManagedPaths(
+  scopeRoot: string,
+  previous: ManagedPath[],
+  options?: { force?: boolean; lockedCards?: import("./card-lock").CardLockEntry[] },
+) {
   if (options?.force) {
     return;
   }
@@ -220,8 +200,9 @@ export function verifyManagedPaths(scopeRoot: string, previous: ManagedPath[], o
         }
         const stats = lstatSafe(absolutePath);
         if (stats?.isDirectory() && hashManagedDirectory(absolutePath) !== entry.contentHash) {
+          const signpost = driftSignpostForPath(entry.path, options?.lockedCards ?? []);
           throw new Error(
-            `Refusing to overwrite managed directory drift at ${absolutePath}. Rerun drwn write --force to overwrite.`,
+            `Refusing to overwrite managed directory drift at ${absolutePath}. ${signpost}`,
           );
         }
       }
@@ -233,11 +214,30 @@ export function verifyManagedPaths(scopeRoot: string, previous: ManagedPath[], o
     }
     const currentHash = hashManagedContent(readFileSync(absolutePath));
     if (currentHash !== entry.contentHash) {
+      const signpost = driftSignpostForPath(entry.path, options?.lockedCards ?? []);
       throw new Error(
-        `Refusing to overwrite managed content drift at ${absolutePath}. Rerun drwn write --force to overwrite.`,
+        `Refusing to overwrite managed content drift at ${absolutePath}. ${signpost}`,
       );
     }
   }
+}
+
+function driftSignpostForPath(relPath: string, lockedCards: import("./card-lock").CardLockEntry[]) {
+  if (relPath.includes("vendor/")) {
+    return "Edit the card source, not vendor/. Run drwn card fork → edit → publish → update, or drwn card source sync when upstream is configured.";
+  }
+  for (const card of lockedCards) {
+    for (const [skill, upstreamRef] of Object.entries(card.manifest.skills?.upstream ?? {})) {
+      if (relPath.includes(skill)) {
+        return `Edit upstream ${upstreamRef} (or run drwn card source sync ${card.name}), then drwn write.`;
+      }
+    }
+  }
+  const override = lockedCards.find((card) => card.origin === "file");
+  if (override) {
+    return `Edit linked source at ${override.path}, then drwn write.`;
+  }
+  return "Run drwn card fork → edit → publish → update, then drwn write — never edit vendored projection output directly.";
 }
 
 export async function syncMcp(
@@ -245,6 +245,7 @@ export async function syncMcp(
   config: CanonicalConfig,
   servers: Record<string, RegistryServer>,
   previousManagedPaths: ManagedPath[] = [],
+  ownedServerNames: string[] = [],
 ): Promise<SyncResult> {
   const managedPaths: ManagedPath[] = [];
   const result: SyncResult = { changes: [], warnings: [], managedPaths };
@@ -260,6 +261,7 @@ export async function syncMcp(
   const previousCodexNames = previousManagedPaths
     .filter((entry): entry is ManagedFieldsPath => entry.kind === "managed-fields" && isCodexMcpEntry(entry))
     .flatMap((entry) => (entry.kind === "managed-fields" ? Object.keys(entry.fieldHashes) : []));
+  const codexManagedNames = [...new Set([...previousCodexNames, ...ownedServerNames.filter((name) => name in servers)])];
   const hasPriorMcpOwnership = previousManagedPaths.some((entry) =>
     (entry.kind === "managed-fields" && hasClaudePerServerHashes(entry)) ||
     (entry.kind === "managed-fields" && isCodexMcpEntry(entry)) ||
@@ -347,7 +349,7 @@ export async function syncMcp(
         }
       }
       const current = await readTextIfExists(configPath, "");
-      const mergedCodex = mergeCodexTomlText(current, codexServers, [...previousCodexNames, ...codexConflicts]);
+      const mergedCodex = mergeCodexTomlText(current, codexServers, [...codexManagedNames, ...codexConflicts]);
       writeManagedFile(configPath, mergedCodex, options.dryRun, result);
       const fieldHashes = hashCodexManagedServers(mergedCodex, Object.keys(codexServers));
       if (Object.keys(fieldHashes).length > 0) {
@@ -389,25 +391,54 @@ export async function syncRepository(options: SyncOptions = {}): Promise<SyncRes
         projectConfigPath: state.projectConfigPath,
         projectServerOverrides: state.projectConfig?.servers,
       });
+  result.warnings.push(...state.overlayWarnings);
+  const cardModes: NonNullable<SyncResult["cardModes"]> = {};
+  for (const [name, mode] of Object.entries(state.cardModes)) {
+    cardModes[name] = {
+      mode: mode.mode,
+      reason: mode.reason,
+      lane: state.cardLanes[name] ?? "committed",
+      ...(mode.sourcePath ? { sourcePath: mode.sourcePath } : {}),
+    };
+  }
+  result.cardModes = cardModes;
   const previousRecord = loadWriteRecord(state.recordPath);
-  verifyManagedPaths(state.scopeRoot, previousRecord?.managedPaths ?? [], { force: state.normalized.force ?? false });
+  verifyManagedPaths(state.scopeRoot, previousRecord?.managedPaths ?? [], {
+    force: state.normalized.force ?? false,
+    lockedCards: state.lockedCards,
+  });
 
   if (state.projectRoot) {
-    const mindsResult = await syncMinds(state);
-    result.changes.push(...mindsResult.changes);
-    result.warnings.push(...mindsResult.warnings);
-    result.managedPaths?.push(...(mindsResult.managedPaths ?? []));
+    await reconcileVendorTrees(state, result);
+    state.contentRootsByCard = recomputeContentRootsByCard(state, {
+      allowPlanningFallback: Boolean(state.normalized.dryRun),
+    });
+    const workersResult = await syncWorkers(state);
+    result.changes.push(...workersResult.changes);
+    result.warnings.push(...workersResult.warnings);
+    result.managedPaths?.push(...(workersResult.managedPaths ?? []));
   }
 
   if (!state.normalized.skillsOnly) {
-    const mcpResult = await syncMcp(state.scopedOptions, state.effectiveConfig, state.activeServers, previousRecord?.managedPaths ?? []);
+    const mcpResult = await syncMcp(
+      state.scopedOptions,
+      state.effectiveConfig,
+      state.activeServers,
+      previousRecord?.managedPaths ?? [],
+      Object.keys(state.activeServers),
+    );
     result.changes.push(...mcpResult.changes);
     result.warnings.push(...mcpResult.warnings);
     result.managedPaths?.push(...(mcpResult.managedPaths ?? []));
   }
 
   if (!state.normalized.mcpOnly) {
-    const skillsResult = await syncSkillsCore(state.scopedOptions, state.skillSelection, state.activeCards);
+    const skillsResult = await syncSkillsCore(
+      state.scopedOptions,
+      state.skillSelection,
+      state.skillApplyOrderCards,
+      state.contentRootsByCard,
+    );
     result.changes.push(...skillsResult.changes);
     result.warnings.push(...skillsResult.warnings);
     result.managedPaths?.push(...(skillsResult.managedPaths ?? []));
@@ -423,14 +454,6 @@ export async function syncRepository(options: SyncOptions = {}): Promise<SyncRes
   const desiredManagedPaths = uniqueManagedPaths(result.managedPaths ?? []);
   const { toRemove } = diffWriteRecord(previousRecord, desiredManagedPaths);
   cleanupRemovedManagedPaths(state.scopeRoot, toRemove, state.normalized.dryRun, result);
-  if (state.projectRoot && state.scopedOptions.generatedDir) {
-    pruneEmptyDirectoryTree(
-      resolveGeneratedComposedMindDir(state.scopedOptions.generatedDir),
-      state.normalized.dryRun,
-      result,
-      state.activeCards.length === 0,
-    );
-  }
   result.managedPaths = desiredManagedPaths;
   if (!state.normalized.dryRun) {
     saveWriteRecord(state.recordPath, {

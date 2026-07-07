@@ -1,4 +1,4 @@
-// ABOUTME: Ensures locked Mind Cards are present in the local Git-backed store.
+// ABOUTME: Ensures locked Cards are present in the local Git-backed store.
 // ABOUTME: Supports drwn install bootstrap semantics without command-layer filesystem logic.
 
 import { existsSync } from "node:fs";
@@ -13,19 +13,6 @@ export async function ensureCardPresentFromLock(
   entry: CardLockEntry,
   frozen: boolean,
 ): Promise<{ changed: boolean }> {
-  if (existsSync(entry.path)) {
-    const actual = await computeCardIntegrity(entry.path);
-    if (actual === entry.integrity) {
-      return { changed: false };
-    }
-    if (entry.origin === "file") {
-      throw new DrwnError(
-        "INTEGRITY_MISMATCH",
-        `integrity mismatch for ${entry.name}@${entry.version}: expected ${entry.integrity}, got ${actual}`,
-      );
-    }
-  }
-
   if (entry.origin === "file") {
     if (!existsSync(entry.path)) {
       throw new DrwnError("CARD_FILE_MISSING", `file-origin card path missing: ${entry.path}`);
@@ -65,11 +52,27 @@ export async function ensureCardPresentFromLock(
       throw new DrwnError("FROZEN_VIOLATION", `--frozen but ${entry.name} requires fetch`);
     }
     assertStoreWritable();
-    await git.fetch(barePath, "origin", ["refs/heads/*:refs/heads/*", "refs/tags/*:refs/tags/*"]);
+    await git.fetchWithLockRetry(barePath, "origin", ["refs/heads/*:refs/heads/*", "refs/tags/*:refs/tags/*"]);
     await git.revParse(barePath, entry.git.commit);
   }
 
   const treeSha = await git.getCommitTree(barePath, entry.git.commit);
+
+  if (existsSync(entry.path)) {
+    const actual = await computeCardIntegrity(entry.path);
+    if (actual === entry.integrity) {
+      let changed = false;
+      if (!entry.treeSha) {
+        if (frozen) {
+          throw new DrwnError("FROZEN_VIOLATION", `--frozen but ${entry.name} lockfile treeSha would change`);
+        }
+        entry.treeSha = treeSha;
+        changed = true;
+      }
+      return { changed };
+    }
+  }
+
   const extractedDir = await ensureExtracted(agentsDir, barePath, treeSha);
   const actual = await computeCardIntegrity(extractedDir);
   if (actual !== entry.integrity) {
@@ -78,12 +81,20 @@ export async function ensureCardPresentFromLock(
       `integrity mismatch for ${entry.name}@${entry.version}: expected ${entry.integrity}, got ${actual}`,
     );
   }
+  let changed = false;
+  if (!entry.treeSha) {
+    if (frozen) {
+      throw new DrwnError("FROZEN_VIOLATION", `--frozen but ${entry.name} lockfile treeSha would change`);
+    }
+    entry.treeSha = treeSha;
+    changed = true;
+  }
   if (entry.path !== extractedDir) {
     if (frozen) {
       throw new DrwnError("FROZEN_VIOLATION", `--frozen but ${entry.name} lockfile path would change`);
     }
     entry.path = extractedDir;
-    return { changed: true };
+    changed = true;
   }
-  return { changed: false };
+  return { changed };
 }

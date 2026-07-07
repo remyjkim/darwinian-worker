@@ -1,8 +1,12 @@
-// ABOUTME: Applies Mind Card selections to per-project config and lockfiles.
+// ABOUTME: Applies Card selections to per-project config and lockfiles.
 // ABOUTME: Keeps card consumer commands consistent and side-effect-light.
 
 import { dirname } from "node:path";
-import { cardLockPath, loadCardLock, writeCardLock, type CardLockEntry } from "./card-lock";
+import { existsSync } from "node:fs";
+import { cardLockPath, loadCardLock, persistCardLock, backfillLockTreeShas, type CardLockEntry } from "./card-lock";
+import { formatSuccessorSuggestion, readCardMeta } from "./card-meta";
+import { buildEffectiveState } from "./effective-state";
+import type { CardModeReadout } from "./types";
 import {
   cardNamesEqual,
   formatCardSpec,
@@ -13,7 +17,10 @@ import {
   type ResolveCardOptions,
 } from "./card-store";
 import { loadProjectConfig, resolveProjectRootFromConfigPath } from "./project";
+import { orderCardsByApplySpecs } from "./effective-state";
+import { DrwnError } from "./errors";
 import { projectConfigPath, readProjectConfigForWrite, writeProjectConfigForWrite } from "./project-writes";
+import { resolveCardBareRepoPath } from "./store-paths";
 import type { CardManifest } from "./card-manifest";
 import type { ProjectConfig } from "./types";
 import { satisfies, validRange } from "./semver-utils";
@@ -31,30 +38,65 @@ export interface CardTrustMutation {
   card: CardLockEntry;
 }
 
+type ResolvedCard = Awaited<ReturnType<typeof resolveCard>>;
+
+function toCardLockEntry(card: ResolvedCard): CardLockEntry {
+  return {
+    name: card.name,
+    requested: card.requested,
+    version: card.version,
+    path: card.dir,
+    integrity: card.integrity,
+    ...(card.treeSha ? { treeSha: card.treeSha } : {}),
+    manifest: card.manifest,
+    skills: card.manifest.skills?.include ?? [],
+    hooks: card.manifest.hooks?.include ?? [],
+    registry: null as null,
+    origin: card.origin,
+    ...(card.git ? { git: card.git } : {}),
+  };
+}
+
+// Expands each blueprint's composedFrom into member entries spliced after the blueprint
+// (which itself remains, carrying its governance). Cards-only: a blueprint member is refused.
+// Deduplicated by name, first occurrence wins so declared apply order is preserved.
+async function expandBlueprints(
+  agentsDir: string,
+  entries: CardLockEntry[],
+  options: ResolveCardOptions,
+): Promise<CardLockEntry[]> {
+  const out: CardLockEntry[] = [];
+  const seen = new Set<string>();
+  const push = (entry: CardLockEntry) => {
+    if (seen.has(entry.name)) return;
+    seen.add(entry.name);
+    out.push(entry);
+  };
+  for (const entry of entries) {
+    push(entry);
+    if (entry.manifest.kind !== "blueprint") continue;
+    for (const memberSpec of entry.manifest.composedFrom ?? []) {
+      const member = toCardLockEntry(await resolveCard(agentsDir, memberSpec, options));
+      if (member.manifest.kind === "blueprint") {
+        throw new DrwnError(
+          "BLUEPRINT_RECURSION",
+          `blueprint ${entry.name} cannot compose another blueprint ${member.name} (blueprint recursion is not supported)`,
+        );
+      }
+      push(member);
+    }
+  }
+  return out;
+}
+
 export async function resolveProjectCards(
   agentsDir: string,
   specs: string[],
   options: ResolveCardOptions = {},
 ): Promise<CardLockEntry[]> {
   const resolved = await Promise.all(specs.map((spec) => resolveCard(agentsDir, spec, options)));
-  return resolved
-    .map((card) => ({
-      name: card.name,
-      requested: card.requested,
-      version: card.version,
-      path: card.dir,
-      integrity: card.integrity,
-      manifest: card.manifest,
-      skills: card.manifest.skills?.include ?? [],
-      hooks: card.manifest.hooks?.include ?? [],
-      ...(card.manifest.persona ? { persona: card.manifest.persona } : {}),
-      ...(card.manifest.beliefs ? { beliefs: card.manifest.beliefs } : {}),
-      ...(card.manifest.memory ? { memory: card.manifest.memory } : {}),
-      registry: null as null,
-      origin: card.origin,
-      ...(card.git ? { git: card.git } : {}),
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const ordered = orderCardsByApplySpecs(resolved.map(toCardLockEntry), specs);
+  return expandBlueprints(agentsDir, ordered, options);
 }
 
 export function mergeCardManifestsIntoProjectConfig(project: ProjectConfig, manifests: CardManifest[]): ProjectConfig {
@@ -137,8 +179,10 @@ export async function writeProjectCards(
     }
     return card;
   });
-  const lockPath = await writeCardLock(projectRoot, locked);
-  return { projectConfigPath: configPath, lockPath, cards: config.cards, locked, warnings };
+  warnings.push(...await collectCardMetaWarnings(agentsDir, await backfillLockTreeShas(agentsDir, locked), options));
+  const lockPath = await persistCardLock(projectRoot, agentsDir, locked);
+  const lockedWithTreeSha = (await loadCardLock(projectRoot))?.cards ?? locked;
+  return { projectConfigPath: configPath, lockPath, cards: config.cards, locked: lockedWithTreeSha, warnings };
 }
 
 export async function getCurrentProjectCardSpecs(projectRoot: string) {
@@ -213,7 +257,12 @@ function findLockedCard(cards: CardLockEntry[], cardNameOrRef: string) {
   return cards.find((card) => cardNamesEqual(card.name, name)) ?? null;
 }
 
-export async function setHookConsent(projectRoot: string, cardNameOrRef: string, range?: string): Promise<CardTrustMutation> {
+export async function setHookConsent(
+  projectRoot: string,
+  agentsDir: string,
+  cardNameOrRef: string,
+  range?: string,
+): Promise<CardTrustMutation> {
   const lock = await loadCardLock(projectRoot);
   if (!lock) {
     throw new Error("Card lockfile not found. Run drwn card update first.");
@@ -237,14 +286,18 @@ export async function setHookConsent(projectRoot: string, cardNameOrRef: string,
         }
       : card,
   );
-  await writeCardLock(projectRoot, nextCards);
+  await persistCardLock(projectRoot, agentsDir, nextCards);
   return {
     lockPath: cardLockPath(projectRoot),
     card: nextCards.find((card) => cardNamesEqual(card.name, target.name))!,
   };
 }
 
-export async function clearHookConsent(projectRoot: string, cardNameOrRef: string): Promise<CardTrustMutation> {
+export async function clearHookConsent(
+  projectRoot: string,
+  agentsDir: string,
+  cardNameOrRef: string,
+): Promise<CardTrustMutation> {
   const lock = await loadCardLock(projectRoot);
   if (!lock) {
     throw new Error("Card lockfile not found. Run drwn card update first.");
@@ -261,21 +314,44 @@ export async function clearHookConsent(projectRoot: string, cardNameOrRef: strin
     void hookConsent;
     return rest;
   });
-  await writeCardLock(projectRoot, nextCards);
+  await persistCardLock(projectRoot, agentsDir, nextCards);
   return {
     lockPath: cardLockPath(projectRoot),
     card: nextCards.find((card) => cardNamesEqual(card.name, target.name))!,
   };
 }
 
-export async function readProjectCardStatus(projectConfigPath: string, agentsDir: string) {
+export async function readProjectCardStatus(
+  projectConfigPath: string,
+  agentsDir: string,
+  options: { repoRoot: string; homeDir: string },
+) {
   const projectRoot = resolveProjectRootFromConfigPath(projectConfigPath);
   const config = await loadProjectConfig(projectConfigPath);
   const lock = await loadCardLock(projectRoot);
   const specs = config.cards ?? [];
   const locked = lock?.cards ?? [];
   const outdated = await findOutdatedProjectCards(projectRoot, agentsDir);
-  return { projectRoot, specs, locked, outdated };
+  const state = await buildEffectiveState({
+    repoRoot: options.repoRoot,
+    agentsDir,
+    homeDir: options.homeDir,
+    cwd: projectRoot,
+  });
+  const modes: Record<string, CardModeReadout> = {};
+  for (const card of locked) {
+    const mode = state.cardModes[card.name];
+    if (!mode) {
+      continue;
+    }
+    modes[card.name] = {
+      mode: mode.mode,
+      reason: mode.reason,
+      lane: state.cardLanes[card.name] ?? "committed",
+      ...(mode.sourcePath ? { sourcePath: mode.sourcePath } : {}),
+    };
+  }
+  return { projectRoot, specs, locked, outdated, modes };
 }
 
 async function highestPublishedVersion(agentsDir: string, name: string) {
@@ -327,4 +403,30 @@ export async function findOutdatedProjectCards(
 
 export function projectRootFromConfigPath(configPath: string) {
   return dirname(dirname(dirname(configPath)));
+}
+
+export async function collectCardMetaWarnings(
+  agentsDir: string,
+  cards: CardLockEntry[],
+  options: ResolveCardOptions = {},
+): Promise<string[]> {
+  const warnings: string[] = [];
+  for (const card of cards) {
+    const barePath = resolveCardBareRepoPath(agentsDir, card.name);
+    if (!existsSync(barePath)) {
+      continue;
+    }
+    const meta = await readCardMeta(barePath);
+    const deprecation = meta?.deprecations?.[card.version];
+    if (deprecation) {
+      warnings.push(`${card.name}@${card.version} is deprecated: ${deprecation}`);
+    }
+    const suggestion = formatSuccessorSuggestion(card.name, meta, {
+      acceptSuccessor: options.acceptSuccessor,
+    });
+    if (suggestion) {
+      warnings.push(suggestion);
+    }
+  }
+  return warnings;
 }

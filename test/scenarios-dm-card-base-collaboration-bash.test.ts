@@ -88,7 +88,7 @@ if (payload.results.length !== 1 || payload.results[0].url !== 'git+' + process.
 }
 NODE
 
-(cd "$PINNED_PROJECT" && drwn_consumer init --non-interactive --no-default-catalogs && drwn_consumer card apply "git+$CARD_REMOTE_URL#v0.1.0" --write && drwn_consumer mind use "$DM_CARD_BASE_NAME" && drwn_consumer write)
+(cd "$PINNED_PROJECT" && drwn_consumer init --non-interactive --no-default-catalogs && drwn_consumer card apply "git+$CARD_REMOTE_URL#v0.1.0" --write && drwn_consumer worker stack use "$DM_CARD_BASE_NAME" && drwn_consumer write)
 assert_lock_version "$PINNED_PROJECT" 0.1.0
 assert_skill "$PINNED_PROJECT" bootstrap-project
 
@@ -108,7 +108,7 @@ test ! -e "$PINNED_PROJECT/.claude/skills/bootstrap-project/SKILL.md"
 assert_lock_version "$PINNED_PROJECT" 0.1.0
 assert_skill "$PINNED_PROJECT" bootstrap-project
 
-(cd "$RANGE_PROJECT" && drwn_consumer init --non-interactive --no-default-catalogs && drwn_consumer card apply "git+$CARD_REMOTE_URL@^0.1.0" --write && drwn_consumer mind use "$DM_CARD_BASE_NAME" && drwn_consumer write)
+(cd "$RANGE_PROJECT" && drwn_consumer init --non-interactive --no-default-catalogs && drwn_consumer card apply "git+$CARD_REMOTE_URL@^0.1.0" --write && drwn_consumer worker stack use "$DM_CARD_BASE_NAME" && drwn_consumer write)
 assert_lock_version "$RANGE_PROJECT" 0.1.0
 `,
     {

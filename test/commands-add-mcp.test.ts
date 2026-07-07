@@ -195,7 +195,7 @@ describe("drwn add mcp", () => {
     const projectDir = join(fixture.root, "project");
     const configPath = join(projectDir, ".agents", "drwn", "config.json");
     await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-    await writeFile(configPath, JSON.stringify({ version: 1, cards: ["@me/base@1.0.0"], activeMinds: ["@me/base"] }, null, 2));
+    await writeFile(configPath, JSON.stringify({ version: 1, cards: ["@me/base@1.0.0"], activeWorkers: ["@me/base"] }, null, 2));
 
     const result = await runAgentsCli(["add", "mcp", "card-local", "--json"], envFor(fixture), projectDir);
 

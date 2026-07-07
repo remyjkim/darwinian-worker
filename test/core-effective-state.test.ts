@@ -66,7 +66,7 @@ test("buildEffectiveState exposes the project card, skill, MCP, extension, and t
       {
         version: 1,
         cards: ["@me/base@1.0.0"],
-        activeMinds: ["@me/base"],
+        activeWorkers: ["@me/base"],
         skills: { include: ["beta"] },
         servers: {
           "project-server": {
@@ -127,7 +127,7 @@ test("buildEffectiveState activates a card-local optional MCP with a project tog
       {
         version: 1,
         cards: ["@me/base@1.0.0"],
-        activeMinds: ["@me/base"],
+        activeWorkers: ["@me/base"],
         servers: {
           "card-local": { enabled: true },
         },

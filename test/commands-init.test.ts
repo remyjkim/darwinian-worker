@@ -66,7 +66,7 @@ describe("drwn init", () => {
     expect(JSON.parse(await readFile(configPath, "utf8"))).toEqual({ version: 1 });
   });
 
-  test("warns when .gitignore appears to exclude .agents", async () => {
+  test("ensures drwn gitignore block when .agents is broadly ignored", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     const projectDir = join(fixture.root, "project");
@@ -80,8 +80,8 @@ describe("drwn init", () => {
     }, projectDir);
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("Warning");
-    expect(result.stdout).toContain(".agents");
+    const gitignore = await readFile(join(projectDir, ".gitignore"), "utf8");
+    expect(gitignore).toContain("# drwn");
   });
 
   test("bare init in non-TTY mode fails with explicit non-interactive guidance", async () => {

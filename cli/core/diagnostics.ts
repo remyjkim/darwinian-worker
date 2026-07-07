@@ -554,8 +554,8 @@ function generatedComposerPaths(generatedDir: string) {
     join(generatedDir, "hooks", "codex", "composer.mjs"),
     join(generatedDir, "hooks", "mastra", "composer.ts"),
   ];
-  const mindsDir = join(generatedDir, "minds");
-  if (!existsSync(mindsDir)) {
+  const workersDir = join(generatedDir, "workers");
+  if (!existsSync(workersDir)) {
     return paths;
   }
 
@@ -572,7 +572,7 @@ function generatedComposerPaths(generatedDir: string) {
     }
   }
 
-  walk(mindsDir);
+  walk(workersDir);
   return paths;
 }
 

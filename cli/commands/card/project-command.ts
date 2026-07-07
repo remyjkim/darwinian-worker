@@ -1,4 +1,4 @@
-// ABOUTME: Shared helpers for project-scoped Mind Card commands.
+// ABOUTME: Shared helpers for project-scoped Card commands.
 // ABOUTME: Keeps command classes focused on argument handling and output.
 
 import { UsageError } from "clipanion";
