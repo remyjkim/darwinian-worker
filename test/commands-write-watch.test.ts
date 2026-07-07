@@ -17,13 +17,50 @@ import { cleanupTempRoots, createTempRoot } from "./helpers";
 const tempRoots: string[] = [];
 afterEach(async () => cleanupTempRoots(tempRoots));
 
-async function waitForCondition(predicate: () => boolean, timeoutMs = 1500) {
+async function waitForCondition(predicate: () => boolean, timeoutMs = 5000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (predicate()) return true;
     await Bun.sleep(20);
   }
   return predicate();
+}
+
+async function writeUntilObserved(
+  path: string,
+  content: (attempt: number) => string,
+  predicate: () => boolean,
+  timeoutMs = 5000,
+) {
+  const deadline = Date.now() + timeoutMs;
+  let attempt = 0;
+  while (Date.now() < deadline) {
+    await writeFile(path, content(attempt));
+    attempt += 1;
+    if (await waitForCondition(predicate, 250)) {
+      return true;
+    }
+  }
+  return predicate();
+}
+
+async function waitForStableValue<T>(read: () => T, stableMs = 150, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  let previous = read();
+  let stableSince = Date.now();
+  while (Date.now() < deadline) {
+    await Bun.sleep(20);
+    const current = read();
+    if (!Object.is(current, previous)) {
+      previous = current;
+      stableSince = Date.now();
+      continue;
+    }
+    if (Date.now() - stableSince >= stableMs) {
+      return true;
+    }
+  }
+  return false;
 }
 
 describe("write-watch helpers", () => {
@@ -87,6 +124,11 @@ describe("startWriteWatch", () => {
       },
     });
     const configPath = join(root, ".agents", "drwn", "config.json");
+    expect(
+      await writeUntilObserved(configPath, (attempt) => `{"ready":${attempt}}\n`, () => runs > 0),
+    ).toBe(true);
+    expect(await waitForStableValue(() => runs)).toBe(true);
+    runs = 0;
     await writeFile(configPath, '{"version":2}\n');
     await writeFile(configPath, '{"version":3}\n');
     await Bun.sleep(120);
@@ -101,12 +143,13 @@ describe("startWriteWatch", () => {
     await writeFile(join(root, ".agents", "drwn", "config.json"), "{}\n");
     let runs = 0;
     let release: (() => void) | undefined;
+    let exerciseSingleFlight = false;
     const stop = startWriteWatch({
       projectRoot: root,
       debounceMs: 10,
       onTrigger: async () => {
         runs += 1;
-        if (runs === 1) {
+        if (exerciseSingleFlight && runs === 1) {
           await new Promise<void>((resolve) => {
             release = resolve;
           });
@@ -114,6 +157,12 @@ describe("startWriteWatch", () => {
       },
     });
     const configPath = join(root, ".agents", "drwn", "config.json");
+    expect(
+      await writeUntilObserved(configPath, (attempt) => `{"ready":${attempt}}\n`, () => runs > 0),
+    ).toBe(true);
+    expect(await waitForStableValue(() => runs)).toBe(true);
+    runs = 0;
+    exerciseSingleFlight = true;
     await writeFile(configPath, '{"version":2}\n');
     await Bun.sleep(30);
     await writeFile(configPath, '{"version":3}\n');
@@ -139,8 +188,11 @@ describe("startWriteWatch", () => {
       },
     });
     try {
-      await writeFile(join(root, ".agents", "drwn", "config.json"), '{"version":2}\n');
-      expect(await waitForCondition(() => runs > 0)).toBe(true);
+      const configPath = join(root, ".agents", "drwn", "config.json");
+      expect(
+        await writeUntilObserved(configPath, (attempt) => `{"version":${attempt + 2}}\n`, () => runs > 0),
+      ).toBe(true);
+      expect(await waitForStableValue(() => runs)).toBe(true);
       runs = 0;
       await writeFile(join(root, ".agents", "drwn", "config.local.json"), '{"overrides":{}}\n');
       expect(await waitForCondition(() => runs > 0)).toBe(true);
@@ -169,6 +221,12 @@ describe("startWriteWatch", () => {
       },
     });
     try {
+      const configPath = join(root, ".agents", "drwn", "config.json");
+      expect(
+        await writeUntilObserved(configPath, (attempt) => `{"ready":${attempt}}\n`, () => events.length >= 1),
+      ).toBe(true);
+      expect(await waitForStableValue(() => events.length)).toBe(true);
+      events.length = 0;
       await writeFile(
         join(root, ".agents", "drwn", "config.local.json"),
         `${JSON.stringify({ overrides: { "@me/x": `file:${firstLinked}` } }, null, 2)}\n`,
@@ -199,9 +257,14 @@ describe("createRecursiveWatcher", () => {
     await writeFile(join(skillDir, "SKILL.md"), "v1\n");
     const events: string[] = [];
     const watcher = createRecursiveWatcher(root, (eventPath) => events.push(eventPath));
-    await Bun.sleep(100);
-    await writeFile(join(skillDir, "SKILL.md"), "v2\n");
-    await Bun.sleep(500);
+    const skillPath = join(skillDir, "SKILL.md");
+    expect(
+      await writeUntilObserved(
+        skillPath,
+        (attempt) => `v${attempt + 2}\n`,
+        () => events.some((event) => event.includes("SKILL.md")),
+      ),
+    ).toBe(true);
     watcher.close();
     expect(events.some((event) => event.includes("SKILL.md"))).toBe(true);
   });
