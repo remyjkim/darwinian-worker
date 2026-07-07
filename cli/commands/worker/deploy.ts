@@ -8,7 +8,8 @@ import { BaseCommand } from "../base";
 import { resolveWorkerConfig } from "../../core/worker-config";
 import { fetchJsonWithWorkerAuth } from "../../core/worker-http";
 import { defaultSecretsFileCandidates, DRWN_SECRETS_FILE, parseSecretsFile } from "../../core/worker-secrets";
-import { resolveBlueprintDeployPayload } from "../../core/worker-deploy";
+import { buildWorkerDeployPayload } from "../../core/worker-deploy";
+import { resolveProjectRootFromConfigPath } from "../../core/project";
 
 export const DEPLOY_TARGETS = ["preview", "production"] as const;
 
@@ -54,7 +55,7 @@ export class WorkerDeployCommand extends BaseCommand {
   });
 
   async execute(): Promise<number> {
-    const { apiBaseUrl, gatewayBaseUrl } = resolveWorkerConfig();
+    const { apiBaseUrl } = resolveWorkerConfig();
     if (this.cardRef.startsWith("file:")) {
       this.context.stderr.write("file: refs (tarball upload) are not supported yet - use a git+/github:/gitlab: ref.\n");
       return 1;
@@ -103,19 +104,19 @@ export class WorkerDeployCommand extends BaseCommand {
     if (hasSecrets) body.secrets = secrets;
 
     try {
-      const blueprint = await resolveBlueprintDeployPayload(this.context.agentsDir, this.cardRef, {
-        allowUntrustedSource: true,
+      const blueprint = await buildWorkerDeployPayload({
+        agentsDir: this.context.agentsDir,
+        cardRef: this.cardRef,
+        projectRoot: this.context.projectConfigPath ? resolveProjectRootFromConfigPath(this.context.projectConfigPath) : null,
+        resolveOptions: {
+          allowUntrustedSource: true,
+        },
       });
-      if (blueprint) {
-        body.blueprint = blueprint;
-        this.context.stdout.write(
-          `Resolved blueprint ${this.cardRef} with ${blueprint.members.length} member card(s).\n`,
-        );
-      }
+      body.blueprint = blueprint;
+      this.context.stdout.write(`Resolved ${this.cardRef} with ${blueprint.lockfile.cards.length} locked card(s).\n`);
     } catch (error) {
-      this.context.stderr.write(
-        `Warning: could not resolve ${this.cardRef} locally (${(error as Error).message}); sending ref only.\n`,
-      );
+      this.context.stderr.write(`Cannot build deploy payload for ${this.cardRef}: ${(error as Error).message}\n`);
+      return 1;
     }
 
     let created: { deploymentId?: string; error?: string };
@@ -157,7 +158,7 @@ export class WorkerDeployCommand extends BaseCommand {
       if (deployment.status === "ready") {
         this.context.stdout.write(`Deployment ${depId} is ready.\n`);
         this.context.stdout.write(`Worker: ${this.name}\n`);
-        this.context.stdout.write(`Chat: ${gatewayBaseUrl}/m/${this.name}/chat\n`);
+        this.context.stdout.write(`Chat: ${apiBaseUrl}/api/minds/${this.name}/chat\n`);
         this.context.stdout.write(`Status: drwn worker status ${this.name}\n`);
         return 0;
       }

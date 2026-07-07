@@ -1,13 +1,22 @@
-// ABOUTME: Verifies the CLI-side blueprint deploy payload — pinned members + forward-declared governance.
-// ABOUTME: A blueprint resolves to a fixed member set; a bare card yields null (degenerate deploy, ref-only).
+// ABOUTME: Verifies the CLI-side worker deploy payload contract.
+// ABOUTME: Bare cards and blueprints both materialize through the portable lockfile + store-export bridge.
 
 import { afterEach, expect, test } from "bun:test";
 import { join } from "node:path";
-import { writeFile } from "node:fs/promises";
-import { resolveBlueprintDeployPayload } from "../cli/core/worker-deploy";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { createHash } from "node:crypto";
+import { seedStore } from "../cli/core/store-seed";
+import { buildWorkerDeployPayload, type WorkerDeployPayload } from "../cli/core/worker-deploy";
 import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import fixturePayload from "./contract/deploy-payload.v1.json";
 
 const tempRoots: string[] = [];
+const contractFixture = fixturePayload as unknown as {
+  bareCard: WorkerDeployPayload;
+  blueprint: WorkerDeployPayload;
+};
+
 afterEach(async () => {
   await cleanupTempRoots(tempRoots);
 });
@@ -28,29 +37,75 @@ async function publishBlueprint(
   expect((await runAgentsCli(["card", "publish", name], envFor(fixture))).exitCode).toBe(0);
 }
 
-test("resolveBlueprintDeployPayload pins members and governance for a blueprint", async () => {
-  const fixture = await scaffoldCliFixture();
-  tempRoots.push(fixture.root);
+function normalizeForFixture(payload: WorkerDeployPayload): WorkerDeployPayload {
+  const normalized = JSON.parse(JSON.stringify(payload)) as WorkerDeployPayload;
+  normalized.storeExport.sha256 = "sha256-normalized";
+  normalized.storeExport.byteLength = 0;
+  normalized.storeExport.bytesBase64 = "base64-normalized";
+  for (const card of normalized.lockfile.cards) {
+    if (card.git?.commit) {
+      card.git.commit = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    }
+  }
+  return normalized;
+}
+
+async function publishBlueprintFixture(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
   await publishCardWithSkills(fixture, { name: "@me/react-builder", skills: ["react"] });
   await publishBlueprint(fixture, "@me/frontend-eng", ["@me/react-builder@^1.0.0"], {
     permissions: { canMergePr: false },
     evals: ["passes_tests"],
+    identity: { instructions: "Blueprint identity." },
   });
+}
 
-  const payload = await resolveBlueprintDeployPayload(fixture.agentsDir, "@me/frontend-eng@^1.0.0");
-
-  expect(payload).not.toBeNull();
-  expect(payload!.members.map((m) => m.name)).toEqual(["@me/react-builder"]);
-  expect(payload!.members[0]!.integrity.length).toBeGreaterThan(0);
-  expect(payload!.governance.composedFrom).toEqual(["@me/react-builder@^1.0.0"]);
-  expect(payload!.governance.permissions).toEqual({ canMergePr: false });
-  expect(payload!.governance.evals).toEqual(["passes_tests"]);
-});
-
-test("resolveBlueprintDeployPayload returns null for a bare card (degenerate deploy)", async () => {
+test("buildWorkerDeployPayload emits the v1 contract for a bare card", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
-  await publishCardWithSkills(fixture, { name: "@me/plain", skills: ["x"] });
+  await publishCardWithSkills(fixture, { name: "@me/plain", skills: ["plain"] });
 
-  expect(await resolveBlueprintDeployPayload(fixture.agentsDir, "@me/plain@^1.0.0")).toBeNull();
+  const payload = await buildWorkerDeployPayload({
+    agentsDir: fixture.agentsDir,
+    cardRef: "@me/plain@^1.0.0",
+  });
+
+  expect(normalizeForFixture(payload)).toEqual(contractFixture.bareCard);
+});
+
+test("buildWorkerDeployPayload emits the v1 contract for a blueprint", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  await publishBlueprintFixture(fixture);
+
+  const payload = await buildWorkerDeployPayload({
+    agentsDir: fixture.agentsDir,
+    cardRef: "@me/frontend-eng@^1.0.0",
+  });
+
+  expect(normalizeForFixture(payload)).toEqual(contractFixture.blueprint);
+});
+
+test("buildWorkerDeployPayload storeExport decodes and seeds a store", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  await publishBlueprintFixture(fixture);
+
+  const payload = await buildWorkerDeployPayload({
+    agentsDir: fixture.agentsDir,
+    cardRef: "@me/frontend-eng@^1.0.0",
+  });
+  const bytes = Buffer.from(payload.storeExport.bytesBase64, "base64");
+
+  expect(bytes.byteLength).toBe(payload.storeExport.byteLength);
+  expect(createHash("sha256").update(bytes).digest("hex")).toBe(payload.storeExport.sha256);
+
+  const seedRoot = await mkdtemp(join(tmpdir(), "drwn-deploy-seed-"));
+  const tarPath = join(seedRoot, "store.tar");
+  await Bun.write(tarPath, bytes);
+  const agentsDir = join(seedRoot, ".agents");
+  await seedStore({ agentsDir, source: { kind: "tar", path: tarPath } });
+
+  for (const card of payload.lockfile.cards) {
+    expect(await Bun.file(join(agentsDir, card.path, "card.json")).exists()).toBe(true);
+  }
 });

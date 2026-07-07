@@ -33,7 +33,7 @@ export class WorkerStatusCommand extends BaseCommand {
   });
 
   async execute(): Promise<number> {
-    const { apiBaseUrl, gatewayBaseUrl } = resolveWorkerConfig();
+    const { apiBaseUrl } = resolveWorkerConfig();
     let worker: WorkerSummary | undefined;
     try {
       // external contract: /api/minds response key `minds`
@@ -97,8 +97,7 @@ export class WorkerStatusCommand extends BaseCommand {
       this.context.stdout.write(`Active card: ${activeDeployment.card_ref}\n`);
       this.context.stdout.write(`Active model: ${displayModel(activeDeployment.model)}\n`);
       if (activeDeployment.status === "ready") {
-        // external contract: /m/{slug}/chat gateway path
-        this.context.stdout.write(`Chat: ${gatewayBaseUrl}/m/${worker.slug}/chat\n`);
+        this.context.stdout.write(`Chat: ${apiBaseUrl}/api/minds/${worker.slug}/chat\n`);
       }
     }
     return 0;

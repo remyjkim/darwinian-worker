@@ -9,6 +9,7 @@ const DETAILS = [
   "  drwn worker list",
   "  drwn worker status <slug>",
   "  drwn worker deployments <slug>",
+  "  drwn worker chat <slug> --message <text>",
   "  drwn worker rollback <slug>",
   "  drwn worker delete <slug> --force",
   "  drwn worker stack",

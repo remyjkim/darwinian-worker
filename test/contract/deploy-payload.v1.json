@@ -1,0 +1,167 @@
+{
+  "contractVersion": 1,
+  "bareCard": {
+    "contractVersion": 1,
+    "materialization": "lockfile-store-export",
+    "entrypoint": {
+      "requested": "@me/plain@^1.0.0",
+      "name": "@me/plain",
+      "kind": "card"
+    },
+    "lockfile": {
+      "lockfileVersion": 5,
+      "store": {
+        "minDrwnVersion": "0.3.0"
+      },
+      "cards": [
+        {
+          "name": "@me/plain",
+          "requested": "@me/plain@^1.0.0",
+          "version": "1.0.0",
+          "path": "drwn/extracted/7f974905df76c6e6c9db3c53eef6e252e6139692",
+          "integrity": "sha256-cec33e719ab588bbd0ccec13dfc12248e1106ff721b59426ed7c5fa0decad54d",
+          "treeSha": "7f974905df76c6e6c9db3c53eef6e252e6139692",
+          "manifest": {
+            "name": "@me/plain",
+            "version": "1.0.0",
+            "description": "",
+            "skills": {
+              "include": [
+                "plain"
+              ]
+            }
+          },
+          "skills": [
+            "plain"
+          ],
+          "hooks": [],
+          "registry": null,
+          "origin": "store",
+          "git": {
+            "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        }
+      ]
+    },
+    "config": {
+      "version": 1,
+      "cards": [
+        "@me/plain@^1.0.0"
+      ]
+    },
+    "governance": null,
+    "storeExport": {
+      "kind": "drwn-store-export-tar",
+      "compression": "none",
+      "encoding": "base64",
+      "sha256": "sha256-normalized",
+      "byteLength": 0,
+      "bytesBase64": "base64-normalized"
+    }
+  },
+  "blueprint": {
+    "contractVersion": 1,
+    "materialization": "lockfile-store-export",
+    "entrypoint": {
+      "requested": "@me/frontend-eng@^1.0.0",
+      "name": "@me/frontend-eng",
+      "kind": "blueprint"
+    },
+    "lockfile": {
+      "lockfileVersion": 5,
+      "store": {
+        "minDrwnVersion": "0.3.0"
+      },
+      "cards": [
+        {
+          "name": "@me/frontend-eng",
+          "requested": "@me/frontend-eng@^1.0.0",
+          "version": "1.0.0",
+          "path": "drwn/extracted/12cbddc028129937e2cc5e66421a94709c34f75f",
+          "integrity": "sha256-f23fd7b62045cbacf0a45a5e1d3c178c07e16c2a02be783a55102d64710067af",
+          "treeSha": "12cbddc028129937e2cc5e66421a94709c34f75f",
+          "manifest": {
+            "name": "@me/frontend-eng",
+            "version": "1.0.0",
+            "description": "",
+            "kind": "blueprint",
+            "composedFrom": [
+              "@me/react-builder@^1.0.0"
+            ],
+            "permissions": {
+              "canMergePr": false
+            },
+            "evals": [
+              "passes_tests"
+            ],
+            "identity": {
+              "instructions": "Blueprint identity."
+            }
+          },
+          "skills": [],
+          "hooks": [],
+          "registry": null,
+          "origin": "store",
+          "git": {
+            "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        {
+          "name": "@me/react-builder",
+          "requested": "@me/react-builder@^1.0.0",
+          "version": "1.0.0",
+          "path": "drwn/extracted/8cf8a7492ec48f2967320a005efc2f712bccb236",
+          "integrity": "sha256-235150bace8d68c0082103677dca42835939afde330d6d0ef548f6a6090ce01d",
+          "treeSha": "8cf8a7492ec48f2967320a005efc2f712bccb236",
+          "manifest": {
+            "name": "@me/react-builder",
+            "version": "1.0.0",
+            "description": "",
+            "skills": {
+              "include": [
+                "react"
+              ]
+            }
+          },
+          "skills": [
+            "react"
+          ],
+          "hooks": [],
+          "registry": null,
+          "origin": "store",
+          "git": {
+            "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        }
+      ]
+    },
+    "config": {
+      "version": 1,
+      "cards": [
+        "@me/frontend-eng@^1.0.0"
+      ]
+    },
+    "governance": {
+      "composedFrom": [
+        "@me/react-builder@^1.0.0"
+      ],
+      "permissions": {
+        "canMergePr": false
+      },
+      "evals": [
+        "passes_tests"
+      ],
+      "identity": {
+        "instructions": "Blueprint identity."
+      }
+    },
+    "storeExport": {
+      "kind": "drwn-store-export-tar",
+      "compression": "none",
+      "encoding": "base64",
+      "sha256": "sha256-normalized",
+      "byteLength": 0,
+      "bytesBase64": "base64-normalized"
+    }
+  }
+}
