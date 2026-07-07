@@ -17,6 +17,15 @@ import { cleanupTempRoots, createTempRoot } from "./helpers";
 const tempRoots: string[] = [];
 afterEach(async () => cleanupTempRoots(tempRoots));
 
+async function waitForCondition(predicate: () => boolean, timeoutMs = 1500) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) return true;
+    await Bun.sleep(20);
+  }
+  return predicate();
+}
+
 describe("write-watch helpers", () => {
   test("normalizeWatchPath strips file: prefix", () => {
     expect(normalizeWatchPath("file:/tmp/source")).toBe("/tmp/source");
@@ -129,10 +138,15 @@ describe("startWriteWatch", () => {
         runs += 1;
       },
     });
-    await writeFile(join(root, ".agents", "drwn", "config.local.json"), '{"overrides":{}}\n');
-    await Bun.sleep(120);
-    stop();
-    expect(runs).toBeGreaterThan(0);
+    try {
+      await writeFile(join(root, ".agents", "drwn", "config.json"), '{"version":2}\n');
+      expect(await waitForCondition(() => runs > 0)).toBe(true);
+      runs = 0;
+      await writeFile(join(root, ".agents", "drwn", "config.local.json"), '{"overrides":{}}\n');
+      expect(await waitForCondition(() => runs > 0)).toBe(true);
+    } finally {
+      stop();
+    }
   });
 
   test("picks up linked-root override changes after startup", async () => {
@@ -154,21 +168,24 @@ describe("startWriteWatch", () => {
         events.push("run");
       },
     });
-    await writeFile(
-      join(root, ".agents", "drwn", "config.local.json"),
-      `${JSON.stringify({ overrides: { "@me/x": `file:${firstLinked}` } }, null, 2)}\n`,
-    );
-    await Bun.sleep(120);
-    await writeFile(join(firstLinked, "touch.txt"), "a2\n");
-    await Bun.sleep(120);
-    await writeFile(
-      join(root, ".agents", "drwn", "config.local.json"),
-      `${JSON.stringify({ overrides: { "@me/x": `file:${secondLinked}` } }, null, 2)}\n`,
-    );
-    await Bun.sleep(120);
-    await writeFile(join(secondLinked, "touch.txt"), "b2\n");
-    await Bun.sleep(120);
-    stop();
+    try {
+      await writeFile(
+        join(root, ".agents", "drwn", "config.local.json"),
+        `${JSON.stringify({ overrides: { "@me/x": `file:${firstLinked}` } }, null, 2)}\n`,
+      );
+      expect(await waitForCondition(() => events.length >= 1)).toBe(true);
+      await writeFile(join(firstLinked, "touch.txt"), "a2\n");
+      expect(await waitForCondition(() => events.length >= 2)).toBe(true);
+      await writeFile(
+        join(root, ".agents", "drwn", "config.local.json"),
+        `${JSON.stringify({ overrides: { "@me/x": `file:${secondLinked}` } }, null, 2)}\n`,
+      );
+      expect(await waitForCondition(() => events.length >= 3)).toBe(true);
+      await writeFile(join(secondLinked, "touch.txt"), "b2\n");
+      expect(await waitForCondition(() => events.length >= 4)).toBe(true);
+    } finally {
+      stop();
+    }
     expect(events.length).toBeGreaterThan(1);
   });
 });
