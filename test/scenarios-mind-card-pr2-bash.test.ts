@@ -32,14 +32,12 @@ cd "$PROJECT_DIR"
 test -f .agents/drwn/generated/minds.json
 test -d .agents/drwn/generated/minds/@team/base
 test -d .agents/drwn/generated/minds/@team/overlay
-test -d .agents/drwn/generated/mind
 test -d .claude/skills/alpha
 test -d .claude/skills/beta
 "$BUN_BIN" run "$DRWN_ENTRYPOINT" mind clear --json > "$CLEAR_ONE"
 "$BUN_BIN" run "$DRWN_ENTRYPOINT" write --json > "$WRITE_CLEAR"
 test ! -e .claude/skills/alpha
 test ! -e .claude/skills/beta
-test ! -e .agents/drwn/generated/mind
 "$BUN_BIN" run "$DRWN_ENTRYPOINT" mind use @team/base --json > "$USE_ONE"
 "$BUN_BIN" run "$DRWN_ENTRYPOINT" write --json > "$WRITE_TWO"
 test -d .claude/skills/alpha

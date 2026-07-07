@@ -170,10 +170,6 @@ export function resolveGeneratedMindsDir(generatedDir: string) {
   return join(generatedDir, "minds");
 }
 
-export function resolveGeneratedComposedMindDir(generatedDir: string) {
-  return join(generatedDir, "mind");
-}
-
 export function resolveGeneratedMindDir(generatedDir: string, name: string) {
   return join(resolveGeneratedMindsDir(generatedDir), ...splitCardName(name));
 }

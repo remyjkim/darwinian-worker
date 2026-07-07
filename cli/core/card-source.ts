@@ -8,9 +8,6 @@ import {
   assertValidCardManifest,
   validateCardManifest,
   type CardManifest,
-  type MemoryFormat,
-  type MemoryLayerName,
-  type MindContentVisibility,
 } from "./card-manifest";
 import { writeAtomically } from "./fs";
 import { findLibraryMcpServer, findLibrarySkill } from "./library";
@@ -45,15 +42,6 @@ export interface CardSourceHookState {
   hasPolicyTs: boolean;
 }
 
-export interface CardSourceMindContentState {
-  name: string;
-  path: string;
-  hasContentFile: boolean;
-  files?: string[];
-}
-
-export type CardSourceMemoryState = Partial<Record<MemoryLayerName, CardSourceMindContentState[]>>;
-
 export interface CardSourcePackageState {
   path: string;
   name?: string;
@@ -69,29 +57,14 @@ export interface CardSourceState {
   manifestErrors: string[];
   manifestSkills: string[];
   manifestHooks: string[];
-  manifestPersona: string[];
-  manifestBeliefs: string[];
-  manifestMemory: Partial<Record<MemoryLayerName, string[]>>;
   bundledSkills: CardSourceSkillState[];
   bundledHooks: CardSourceHookState[];
-  bundledPersona: CardSourceMindContentState[];
-  bundledBeliefs: CardSourceMindContentState[];
-  bundledMemory: CardSourceMemoryState;
   orphanedSkills: string[];
   orphanedHooks: string[];
-  orphanedPersona: string[];
-  orphanedBeliefs: string[];
-  orphanedMemory: Partial<Record<MemoryLayerName, string[]>>;
   missingSkillDirs: string[];
   missingSkillFiles: string[];
   missingHookDirs: string[];
   missingHookFiles: string[];
-  missingPersonaDirs: string[];
-  missingPersonaFiles: string[];
-  missingBeliefDirs: string[];
-  missingBeliefFiles: string[];
-  missingMemoryDirs: Partial<Record<MemoryLayerName, string[]>>;
-  missingMemoryFiles: Partial<Record<MemoryLayerName, string[]>>;
   packageJson: CardSourcePackageState | null;
   mcpServers: CardSourceMcpServerState[];
   issues: CardSourceIssue[];
@@ -137,15 +110,6 @@ export interface CardSourceMcpMutationResult {
 export interface CardSourceHookMutationResult {
   card: string;
   hook: string;
-  dryRun: boolean;
-  changes: CardSourceMutationChange[];
-}
-
-export interface CardSourceMindContentMutationResult {
-  card: string;
-  entry: string;
-  section: "persona" | "beliefs" | "memory";
-  layer?: MemoryLayerName;
   dryRun: boolean;
   changes: CardSourceMutationChange[];
 }
@@ -242,28 +206,6 @@ function assertSafeHookName(name: string) {
   assertSafePathPart(name, "hook policy");
 }
 
-function assertSafeMindContentName(name: string, label = "mind content entry") {
-  assertSafePathPart(name, label);
-}
-
-function assertMindContentVisibility(value: string): asserts value is MindContentVisibility {
-  if (value !== "private" && value !== "internal" && value !== "public") {
-    throw new Error(`Invalid visibility: ${value}. Expected private, internal, or public.`);
-  }
-}
-
-function assertMemoryLayer(value: string): asserts value is MemoryLayerName {
-  if (value !== "l4" && value !== "l5" && value !== "l6") {
-    throw new Error(`Invalid memory layer: ${value}. Expected l4, l5, or l6.`);
-  }
-}
-
-function assertMemoryFormat(value: string): asserts value is MemoryFormat {
-  if (value !== "md" && value !== "jsonl" && value !== "mixed") {
-    throw new Error(`Invalid memory format: ${value}. Expected md, jsonl, or mixed.`);
-  }
-}
-
 async function readSourceManifestForMutation(agentsDir: string, cardName: string) {
   const state = await readCardSourceState(agentsDir, cardName);
   if (!state.manifest) {
@@ -275,76 +217,6 @@ async function readSourceManifestForMutation(agentsDir: string, cardName: string
 async function writeCardSourceManifest(manifestPath: string, manifest: CardManifest) {
   assertValidCardManifest(manifest);
   await writeAtomically(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-}
-
-async function listMindContentDirs(sourceDir: string, relDir: string, requiredFile?: string): Promise<CardSourceMindContentState[]> {
-  const dir = join(sourceDir, relDir);
-  if (!existsSync(dir)) {
-    return [];
-  }
-  const entries: CardSourceMindContentState[] = [];
-  for (const entry of await readdir(dir, { withFileTypes: true })) {
-    if (entry.name.startsWith(".") || (!entry.isDirectory() && !entry.isSymbolicLink())) {
-      continue;
-    }
-    const entryPath = join(dir, entry.name);
-    const files = await listImmediateFiles(entryPath);
-    entries.push({
-      name: entry.name,
-      path: entryPath,
-      hasContentFile: requiredFile ? files.includes(requiredFile) : files.length > 0,
-      files,
-    });
-  }
-  return entries.sort((a, b) => a.name.localeCompare(b.name));
-}
-
-async function listImmediateFiles(dir: string) {
-  if (!existsSync(dir)) {
-    return [];
-  }
-  const files: string[] = [];
-  for (const entry of await readdir(dir, { withFileTypes: true })) {
-    if (entry.isFile()) {
-      files.push(entry.name);
-    }
-  }
-  return files.sort((a, b) => a.localeCompare(b));
-}
-
-async function directorySizeBytes(dir: string) {
-  let total = 0;
-  if (!existsSync(dir)) {
-    return total;
-  }
-  for (const entry of await readdir(dir, { withFileTypes: true })) {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      total += await directorySizeBytes(path);
-      continue;
-    }
-    if (entry.isFile()) {
-      total += (await stat(path)).size;
-    }
-  }
-  return total;
-}
-
-async function validateJsonlFile(path: string, issues: CardSourceIssue[]) {
-  const content = await readFile(path, "utf8");
-  const lines = content.split(/\r?\n/);
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index]!.trim();
-    if (!line) {
-      continue;
-    }
-    try {
-      JSON.parse(line);
-    } catch {
-      issues.push(issue("invalid_memory_jsonl", `Memory JSONL contains invalid JSON on line ${index + 1}: ${path}`, path));
-      return;
-    }
-  }
 }
 
 async function resolveSkillSource(options: {
@@ -555,66 +427,20 @@ export async function readCardSourceState(agentsDir: string, name: string): Prom
 
   const manifestSkills = manifest?.skills?.include ?? [];
   const manifestHooks = manifest?.hooks?.include ?? [];
-  const manifestPersona = manifest?.persona?.include ?? [];
-  const manifestBeliefs = manifest?.beliefs?.include ?? [];
-  const manifestMemory: Partial<Record<MemoryLayerName, string[]>> = {
-    ...(manifest?.memory?.l4?.include ? { l4: manifest.memory.l4.include } : {}),
-    ...(manifest?.memory?.l5?.include ? { l5: manifest.memory.l5.include } : {}),
-    ...(manifest?.memory?.l6?.include ? { l6: manifest.memory.l6.include } : {}),
-  };
   const bundledSkills = await listBundledSkills(sourceDir);
   const bundledHooks = await listBundledHooks(sourceDir);
-  const bundledPersona = await listMindContentDirs(sourceDir, "persona", "PERSONA.md");
-  const bundledBeliefs = await listMindContentDirs(sourceDir, "beliefs", "BELIEF.md");
-  const bundledMemory: CardSourceMemoryState = {
-    l4: await listMindContentDirs(sourceDir, "memory/l4"),
-    l5: await listMindContentDirs(sourceDir, "memory/l5"),
-    l6: await listMindContentDirs(sourceDir, "memory/l6"),
-  };
   const bundledNames = new Set(bundledSkills.map((skill) => skill.name));
   const bundledHookNames = new Set(bundledHooks.map((hook) => hook.name));
-  const bundledPersonaNames = new Set(bundledPersona.map((entry) => entry.name));
-  const bundledBeliefNames = new Set(bundledBeliefs.map((entry) => entry.name));
   const manifestSkillSet = new Set(manifestSkills);
   const manifestHookSet = new Set(manifestHooks);
-  const manifestPersonaSet = new Set(manifestPersona);
-  const manifestBeliefSet = new Set(manifestBeliefs);
   const orphanedSkills = bundledSkills.filter((skill) => !manifestSkillSet.has(skill.name)).map((skill) => skill.name);
   const orphanedHooks = bundledHooks.filter((hook) => !manifestHookSet.has(hook.name)).map((hook) => hook.name);
-  const orphanedPersona = bundledPersona.filter((entry) => !manifestPersonaSet.has(entry.name)).map((entry) => entry.name);
-  const orphanedBeliefs = bundledBeliefs.filter((entry) => !manifestBeliefSet.has(entry.name)).map((entry) => entry.name);
-  const orphanedMemory: Partial<Record<MemoryLayerName, string[]>> = {};
   const missingSkillDirs = manifestSkills.filter((skill) => !bundledNames.has(skill));
   const missingSkillFiles = bundledSkills.filter((skill) => !skill.hasSkillMd).map((skill) => skill.name);
   const missingHookDirs = manifestHooks.filter((hook) => !bundledHookNames.has(hook));
   const missingHookFiles = bundledHooks
     .filter((hook) => manifestHookSet.has(hook.name) && !hook.hasPolicyTs)
     .map((hook) => hook.name);
-  const missingPersonaDirs = manifestPersona.filter((entry) => !bundledPersonaNames.has(entry));
-  const missingPersonaFiles = bundledPersona
-    .filter((entry) => manifestPersonaSet.has(entry.name) && !entry.hasContentFile)
-    .map((entry) => entry.name);
-  const missingBeliefDirs = manifestBeliefs.filter((entry) => !bundledBeliefNames.has(entry));
-  const missingBeliefFiles = bundledBeliefs
-    .filter((entry) => manifestBeliefSet.has(entry.name) && !entry.hasContentFile)
-    .map((entry) => entry.name);
-  const missingMemoryDirs: Partial<Record<MemoryLayerName, string[]>> = {};
-  const missingMemoryFiles: Partial<Record<MemoryLayerName, string[]>> = {};
-
-  for (const layer of ["l4", "l5", "l6"] as const) {
-    const manifestEntries = manifestMemory[layer] ?? [];
-    const manifestSet = new Set(manifestEntries);
-    const bundledEntries = bundledMemory[layer] ?? [];
-    const bundledEntryNames = new Set(bundledEntries.map((entry) => entry.name));
-    const orphaned = bundledEntries.filter((entry) => !manifestSet.has(entry.name)).map((entry) => entry.name);
-    if (orphaned.length > 0) {
-      orphanedMemory[layer] = orphaned;
-    }
-    const missingDirs = manifestEntries.filter((entry) => !bundledEntryNames.has(entry));
-    if (missingDirs.length > 0) {
-      missingMemoryDirs[layer] = missingDirs;
-    }
-  }
 
   for (const skill of orphanedSkills) {
     issues.push(issue("orphaned_skill_dir", `Bundled skill is not declared in card.json skills.include: ${skill}`, join(sourceDir, "skills", skill)));
@@ -639,76 +465,6 @@ export async function readCardSourceState(agentsDir: string, name: string): Prom
       await validatePolicyModule(join(hook.path, "policy.ts"), issues);
     }
   }
-  for (const entry of orphanedPersona) {
-    issues.push(issue("orphaned_persona_dir", `Bundled persona is not declared in card.json persona.include: ${entry}`, join(sourceDir, "persona", entry)));
-  }
-  for (const entry of missingPersonaDirs) {
-    issues.push(issue("missing_persona_dir", `card.json persona.include references a missing persona directory: ${entry}`, join(sourceDir, "persona", entry)));
-  }
-  for (const entry of missingPersonaFiles) {
-    issues.push(issue("missing_persona_md", `Bundled persona is missing PERSONA.md: ${entry}`, join(sourceDir, "persona", entry, "PERSONA.md")));
-  }
-  for (const entry of orphanedBeliefs) {
-    issues.push(issue("orphaned_belief_dir", `Bundled belief is not declared in card.json beliefs.include: ${entry}`, join(sourceDir, "beliefs", entry)));
-  }
-  for (const entry of missingBeliefDirs) {
-    issues.push(issue("missing_belief_dir", `card.json beliefs.include references a missing belief directory: ${entry}`, join(sourceDir, "beliefs", entry)));
-  }
-  for (const entry of missingBeliefFiles) {
-    issues.push(issue("missing_belief_md", `Bundled belief is missing BELIEF.md: ${entry}`, join(sourceDir, "beliefs", entry, "BELIEF.md")));
-  }
-  for (const layer of ["l4", "l5", "l6"] as const) {
-    for (const entry of orphanedMemory[layer] ?? []) {
-      issues.push(
-        issue(
-          "orphaned_memory_dir",
-          `Bundled ${layer} memory is not declared in card.json memory.${layer}.include: ${entry}`,
-          join(sourceDir, "memory", layer, entry),
-        ),
-      );
-    }
-    for (const entry of missingMemoryDirs[layer] ?? []) {
-      issues.push(
-        issue(
-          "missing_memory_dir",
-          `card.json memory.${layer}.include references a missing memory directory: ${entry}`,
-          join(sourceDir, "memory", layer, entry),
-        ),
-      );
-    }
-    const format = manifest?.memory?.[layer]?.format ?? "md";
-    const manifestSet = new Set(manifestMemory[layer] ?? []);
-    for (const entry of bundledMemory[layer] ?? []) {
-      if (!manifestSet.has(entry.name)) {
-        continue;
-      }
-      const files = entry.files ?? [];
-      if (format === "md" && !files.includes("MEMORY.md")) {
-        missingMemoryFiles[layer] = [...(missingMemoryFiles[layer] ?? []), entry.name];
-        issues.push(issue("missing_memory_md", `Bundled ${layer} memory is missing MEMORY.md: ${entry.name}`, join(entry.path, "MEMORY.md")));
-      }
-      if (format === "jsonl" && !files.some((file) => file.endsWith(".jsonl"))) {
-        missingMemoryFiles[layer] = [...(missingMemoryFiles[layer] ?? []), entry.name];
-        issues.push(issue("missing_memory_jsonl", `Bundled ${layer} memory is missing a .jsonl file: ${entry.name}`, entry.path));
-      }
-      if (format === "mixed" && files.length === 0) {
-        missingMemoryFiles[layer] = [...(missingMemoryFiles[layer] ?? []), entry.name];
-        issues.push(issue("missing_memory_file", `Bundled ${layer} memory has no content files: ${entry.name}`, entry.path));
-      }
-      for (const file of files.filter((candidate) => candidate.endsWith(".jsonl"))) {
-        await validateJsonlFile(join(entry.path, file), issues);
-      }
-      if (layer === "l6" && (await directorySizeBytes(entry.path)) > 1024 * 1024) {
-        issues.push(
-          warning(
-            "memory_l6_size_warning",
-            `Bundled l6 memory entry exceeds 1 MiB and may be expensive to publish or consume: ${entry.name}`,
-            entry.path,
-          ),
-        );
-      }
-    }
-  }
 
   const packageJson = await readPackageJson(sourceDir, manifest, issues);
   const mcpServers = await readMcpServers(sourceDir, manifest, issues);
@@ -721,29 +477,14 @@ export async function readCardSourceState(agentsDir: string, name: string): Prom
     manifestErrors,
     manifestSkills,
     manifestHooks,
-    manifestPersona,
-    manifestBeliefs,
-    manifestMemory,
     bundledSkills,
     bundledHooks,
-    bundledPersona,
-    bundledBeliefs,
-    bundledMemory,
     orphanedSkills,
     orphanedHooks,
-    orphanedPersona,
-    orphanedBeliefs,
-    orphanedMemory,
     missingSkillDirs,
     missingSkillFiles,
     missingHookDirs,
     missingHookFiles,
-    missingPersonaDirs,
-    missingPersonaFiles,
-    missingBeliefDirs,
-    missingBeliefFiles,
-    missingMemoryDirs,
-    missingMemoryFiles,
     packageJson,
     mcpServers,
     issues,
@@ -784,276 +525,6 @@ export default defineToolPolicy({
   },
 });
 `;
-}
-
-function personaTemplate(name: string) {
-  return `# ${name}\n\nCapture stable voice, operating style, and collaboration preferences here.\n`;
-}
-
-function beliefTemplate(name: string) {
-  return `# ${name}\n\nCapture durable beliefs, principles, and decision rules here.\n`;
-}
-
-function memoryTemplate(name: string) {
-  return `# ${name}\n\nCapture durable memory notes here.\n`;
-}
-
-function jsonlMemoryTemplate(name: string) {
-  return `${JSON.stringify({ type: "memory", name, content: "" })}\n`;
-}
-
-export async function addCardSourcePersona(options: {
-  agentsDir: string;
-  cardName: string;
-  entryName: string;
-  visibility: string;
-  dryRun?: boolean;
-}): Promise<CardSourceMindContentMutationResult> {
-  assertSafeMindContentName(options.entryName, "persona");
-  assertMindContentVisibility(options.visibility);
-  const dryRun = options.dryRun === true;
-  const { state, manifest } = await readSourceManifestForMutation(options.agentsDir, options.cardName);
-  const destination = join(state.sourceDir, "persona", options.entryName);
-  const contentPath = join(destination, "PERSONA.md");
-  const include = [...(manifest.persona?.include ?? [])];
-  if (include.includes(options.entryName) || existsSync(destination)) {
-    throw new Error(`Persona already exists in card source: ${options.entryName}`);
-  }
-
-  const nextManifest: CardManifest = {
-    ...manifest,
-    persona: {
-      ...(manifest.persona ?? {}),
-      include: [...include, options.entryName],
-      visibility: options.visibility,
-    },
-  };
-  const changes: CardSourceMutationChange[] = [
-    { action: "add-persona", path: contentPath },
-    { action: "update-manifest", path: state.manifestPath },
-  ];
-
-  if (!dryRun) {
-    assertStoreWritable();
-    await writeAtomically(contentPath, personaTemplate(options.entryName));
-    await writeCardSourceManifest(state.manifestPath, nextManifest);
-  }
-
-  return { card: options.cardName, entry: options.entryName, section: "persona", dryRun, changes };
-}
-
-export async function removeCardSourcePersona(options: {
-  agentsDir: string;
-  cardName: string;
-  entryName: string;
-  keepFiles?: boolean;
-  dryRun?: boolean;
-}): Promise<CardSourceMindContentMutationResult> {
-  assertSafeMindContentName(options.entryName, "persona");
-  const dryRun = options.dryRun === true;
-  const { state, manifest } = await readSourceManifestForMutation(options.agentsDir, options.cardName);
-  const destination = join(state.sourceDir, "persona", options.entryName);
-  const include = manifest.persona?.include ?? [];
-  if (!include.includes(options.entryName)) {
-    throw new Error(`Persona is not declared in card source: ${options.entryName}`);
-  }
-
-  const nextManifest: CardManifest = {
-    ...manifest,
-    persona: {
-      ...(manifest.persona ?? {}),
-      include: include.filter((entry) => entry !== options.entryName),
-    },
-  };
-  const changes: CardSourceMutationChange[] = [
-    ...(options.keepFiles ? [] : [{ action: "remove-persona-files", path: destination }]),
-    { action: "update-manifest", path: state.manifestPath },
-  ];
-
-  if (!dryRun) {
-    assertStoreWritable();
-    if (!options.keepFiles) {
-      await rm(destination, { recursive: true, force: true });
-    }
-    await writeCardSourceManifest(state.manifestPath, nextManifest);
-  }
-
-  return { card: options.cardName, entry: options.entryName, section: "persona", dryRun, changes };
-}
-
-export async function addCardSourceBelief(options: {
-  agentsDir: string;
-  cardName: string;
-  entryName: string;
-  visibility: string;
-  dryRun?: boolean;
-}): Promise<CardSourceMindContentMutationResult> {
-  assertSafeMindContentName(options.entryName, "belief");
-  assertMindContentVisibility(options.visibility);
-  const dryRun = options.dryRun === true;
-  const { state, manifest } = await readSourceManifestForMutation(options.agentsDir, options.cardName);
-  const destination = join(state.sourceDir, "beliefs", options.entryName);
-  const contentPath = join(destination, "BELIEF.md");
-  const include = [...(manifest.beliefs?.include ?? [])];
-  if (include.includes(options.entryName) || existsSync(destination)) {
-    throw new Error(`Belief already exists in card source: ${options.entryName}`);
-  }
-
-  const nextManifest: CardManifest = {
-    ...manifest,
-    beliefs: {
-      ...(manifest.beliefs ?? {}),
-      include: [...include, options.entryName],
-      visibility: options.visibility,
-    },
-  };
-  const changes: CardSourceMutationChange[] = [
-    { action: "add-belief", path: contentPath },
-    { action: "update-manifest", path: state.manifestPath },
-  ];
-
-  if (!dryRun) {
-    assertStoreWritable();
-    await writeAtomically(contentPath, beliefTemplate(options.entryName));
-    await writeCardSourceManifest(state.manifestPath, nextManifest);
-  }
-
-  return { card: options.cardName, entry: options.entryName, section: "beliefs", dryRun, changes };
-}
-
-export async function removeCardSourceBelief(options: {
-  agentsDir: string;
-  cardName: string;
-  entryName: string;
-  keepFiles?: boolean;
-  dryRun?: boolean;
-}): Promise<CardSourceMindContentMutationResult> {
-  assertSafeMindContentName(options.entryName, "belief");
-  const dryRun = options.dryRun === true;
-  const { state, manifest } = await readSourceManifestForMutation(options.agentsDir, options.cardName);
-  const destination = join(state.sourceDir, "beliefs", options.entryName);
-  const include = manifest.beliefs?.include ?? [];
-  if (!include.includes(options.entryName)) {
-    throw new Error(`Belief is not declared in card source: ${options.entryName}`);
-  }
-
-  const nextManifest: CardManifest = {
-    ...manifest,
-    beliefs: {
-      ...(manifest.beliefs ?? {}),
-      include: include.filter((entry) => entry !== options.entryName),
-    },
-  };
-  const changes: CardSourceMutationChange[] = [
-    ...(options.keepFiles ? [] : [{ action: "remove-belief-files", path: destination }]),
-    { action: "update-manifest", path: state.manifestPath },
-  ];
-
-  if (!dryRun) {
-    assertStoreWritable();
-    if (!options.keepFiles) {
-      await rm(destination, { recursive: true, force: true });
-    }
-    await writeCardSourceManifest(state.manifestPath, nextManifest);
-  }
-
-  return { card: options.cardName, entry: options.entryName, section: "beliefs", dryRun, changes };
-}
-
-export async function addCardSourceMemory(options: {
-  agentsDir: string;
-  cardName: string;
-  entryName: string;
-  layer: string;
-  visibility: string;
-  format?: string;
-  dryRun?: boolean;
-}): Promise<CardSourceMindContentMutationResult> {
-  assertSafeMindContentName(options.entryName, "memory");
-  assertMemoryLayer(options.layer);
-  assertMindContentVisibility(options.visibility);
-  const format = options.format ?? "md";
-  assertMemoryFormat(format);
-  const dryRun = options.dryRun === true;
-  const { state, manifest } = await readSourceManifestForMutation(options.agentsDir, options.cardName);
-  const destination = join(state.sourceDir, "memory", options.layer, options.entryName);
-  const contentPath = join(destination, format === "jsonl" ? "memory.jsonl" : "MEMORY.md");
-  const currentLayer = manifest.memory?.[options.layer];
-  const include = [...(currentLayer?.include ?? [])];
-  if (include.includes(options.entryName) || existsSync(destination)) {
-    throw new Error(`Memory entry already exists in card source: ${options.entryName}`);
-  }
-
-  const nextManifest: CardManifest = {
-    ...manifest,
-    memory: {
-      ...(manifest.memory ?? {}),
-      [options.layer]: {
-        ...(currentLayer ?? {}),
-        include: [...include, options.entryName],
-        visibility: options.visibility,
-        format,
-      },
-    },
-  };
-  const changes: CardSourceMutationChange[] = [
-    { action: "add-memory", path: contentPath },
-    { action: "update-manifest", path: state.manifestPath },
-  ];
-
-  if (!dryRun) {
-    assertStoreWritable();
-    await mkdir(destination, { recursive: true });
-    await writeAtomically(contentPath, format === "jsonl" ? jsonlMemoryTemplate(options.entryName) : memoryTemplate(options.entryName));
-    await writeCardSourceManifest(state.manifestPath, nextManifest);
-  }
-
-  return { card: options.cardName, entry: options.entryName, section: "memory", layer: options.layer, dryRun, changes };
-}
-
-export async function removeCardSourceMemory(options: {
-  agentsDir: string;
-  cardName: string;
-  entryName: string;
-  layer: string;
-  keepFiles?: boolean;
-  dryRun?: boolean;
-}): Promise<CardSourceMindContentMutationResult> {
-  assertSafeMindContentName(options.entryName, "memory");
-  assertMemoryLayer(options.layer);
-  const dryRun = options.dryRun === true;
-  const { state, manifest } = await readSourceManifestForMutation(options.agentsDir, options.cardName);
-  const destination = join(state.sourceDir, "memory", options.layer, options.entryName);
-  const currentLayer = manifest.memory?.[options.layer];
-  const include = currentLayer?.include ?? [];
-  if (!include.includes(options.entryName)) {
-    throw new Error(`Memory entry is not declared in card source: ${options.entryName}`);
-  }
-
-  const nextManifest: CardManifest = {
-    ...manifest,
-    memory: {
-      ...(manifest.memory ?? {}),
-      [options.layer]: {
-        ...(currentLayer ?? {}),
-        include: include.filter((entry) => entry !== options.entryName),
-      },
-    },
-  };
-  const changes: CardSourceMutationChange[] = [
-    ...(options.keepFiles ? [] : [{ action: "remove-memory-files", path: destination }]),
-    { action: "update-manifest", path: state.manifestPath },
-  ];
-
-  if (!dryRun) {
-    assertStoreWritable();
-    if (!options.keepFiles) {
-      await rm(destination, { recursive: true, force: true });
-    }
-    await writeCardSourceManifest(state.manifestPath, nextManifest);
-  }
-
-  return { card: options.cardName, entry: options.entryName, section: "memory", layer: options.layer, dryRun, changes };
 }
 
 export async function addCardSourceHook(options: {

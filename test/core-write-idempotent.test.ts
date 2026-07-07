@@ -1,5 +1,5 @@
 // ABOUTME: Verifies consecutive drwn write runs are no-ops on stable vendored projects.
-// ABOUTME: Guards vendor reconcile and composed mind output from spurious change reporting.
+// ABOUTME: Guards vendor reconcile and generated mind output from spurious change reporting.
 
 import { afterEach, expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
@@ -34,7 +34,7 @@ test("two consecutive writes produce no material changes on a vendored project",
   expect(parsed.changes.filter((change) => change.startsWith("vendor "))).toHaveLength(0);
   expect(parsed.changes.filter((change) => change.startsWith("prune vendor "))).toHaveLength(0);
 
-  const mindJson = join(projectDir, ".agents", "drwn", "generated", "mind", "mind.json");
+  const mindJson = join(projectDir, ".agents", "drwn", "generated", "minds", "@me", "backend", "mind.json");
   const before = await readFile(mindJson, "utf8");
   const third = await runAgentsCli(["write"], envFor(fixture), projectDir);
   expect(third.exitCode).toBe(0);

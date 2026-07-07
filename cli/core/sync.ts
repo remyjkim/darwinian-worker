@@ -1,7 +1,7 @@
 // ABOUTME: Orchestrates MCP and skill syncing using the extracted core modules.
 // ABOUTME: Shared by the Clipanion commands and the legacy sync-mcp compatibility wrapper.
 
-import { existsSync, readdirSync, readlinkSync, rmSync, readFileSync } from "node:fs";
+import { existsSync, readlinkSync, rmSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expandHomePath, resolveGlobalCodexConfig, resolveToolPaths } from "./paths";
@@ -34,7 +34,6 @@ import { computeOptionalMcpReport } from "./mcp-report";
 import { reconcileVendorTrees } from "./vendor-reconcile";
 import { DRWN_VERSION } from "./version";
 import { canonicalJsonHash } from "./managed-fields";
-import { resolveGeneratedComposedMindDir } from "./store-paths";
 import type {
   CanonicalConfig,
   NormalizedSyncOptions,
@@ -167,30 +166,6 @@ export function cleanupRemovedManagedPaths(scopeRoot: string, previous: ManagedP
     }
     result.warnings.push(`preserved user-owned path: ${absolutePath}`);
   }
-}
-
-function pruneEmptyDirectoryTree(root: string, dryRun: boolean, result: SyncResult, removeRoot: boolean) {
-  const stats = lstatSafe(root);
-  if (!stats?.isDirectory()) {
-    return false;
-  }
-
-  for (const entry of readdirSync(root)) {
-    const path = join(root, entry);
-    const childStats = lstatSafe(path);
-    if (childStats?.isDirectory()) {
-      pruneEmptyDirectoryTree(path, dryRun, result, true);
-    }
-  }
-
-  if (removeRoot && readdirSync(root).length === 0) {
-    result.changes.push(`remove ${root}`);
-    if (!dryRun) {
-      rmSync(root, { recursive: true, force: true });
-    }
-    return true;
-  }
-  return false;
 }
 
 export function verifyManagedPaths(
@@ -479,14 +454,6 @@ export async function syncRepository(options: SyncOptions = {}): Promise<SyncRes
   const desiredManagedPaths = uniqueManagedPaths(result.managedPaths ?? []);
   const { toRemove } = diffWriteRecord(previousRecord, desiredManagedPaths);
   cleanupRemovedManagedPaths(state.scopeRoot, toRemove, state.normalized.dryRun, result);
-  if (state.projectRoot && state.scopedOptions.generatedDir) {
-    pruneEmptyDirectoryTree(
-      resolveGeneratedComposedMindDir(state.scopedOptions.generatedDir),
-      state.normalized.dryRun,
-      result,
-      state.activeCards.length === 0,
-    );
-  }
   result.managedPaths = desiredManagedPaths;
   if (!state.normalized.dryRun) {
     saveWriteRecord(state.recordPath, {

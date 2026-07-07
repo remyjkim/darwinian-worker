@@ -1,7 +1,7 @@
 // ABOUTME: Materializes installed cards as isolated generated mind bundles.
-// ABOUTME: Writes minds.json plus per-mind persona, content symlinks, skills, hooks, and MCP indexes.
+// ABOUTME: Writes minds.json plus per-mind skills, hooks, and MCP indexes.
 
-import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, rmSync, symlinkSync } from "node:fs";
 import { join, relative } from "node:path";
 import type { CardLockEntry } from "../card-lock";
 import { isRegistryServerDefinition } from "../card-mcp";
@@ -14,16 +14,12 @@ import { isHookConsentValid } from "../hook-consent";
 import { renderJsonMcpConfig } from "../mcp";
 import { writeManagedFile } from "../managed-file";
 import {
-  resolveGeneratedComposedMindDir,
   resolveGeneratedMindDir,
   resolveGeneratedMindsDir,
   resolveStoreGeneratedDir,
-  splitCardName,
 } from "../store-paths";
 import type { RegistryServer, SyncResult } from "../types";
 import { hashManagedContent, hashManagedDirectory, type ManagedPath } from "../write-record";
-import { cardManifestStrictestVisibility } from "../visibility";
-import { DRWN_VERSION } from "../version";
 
 function managedPath(scopeRoot: string, absolutePath: string) {
   return relative(scopeRoot, absolutePath).replace(/\\/g, "/");
@@ -43,14 +39,6 @@ function recordManagedDirectory(scopeRoot: string, pathValue: string, dryRun: bo
 
 function recordGeneratedSymlink(scopeRoot: string, linkPath: string, targetPath: string): ManagedPath {
   return { path: managedPath(scopeRoot, linkPath), kind: "generated-symlink", generatedPath: targetPath };
-}
-
-function generatedRelPath(...parts: string[]) {
-  return join(...parts).replace(/\\/g, "/");
-}
-
-function composedCardRelPath(card: CardLockEntry, section: "beliefs" | "memory", ...parts: string[]) {
-  return generatedRelPath(section, ...splitCardName(card.name), ...parts);
 }
 
 function ensureDirSymlink(linkPath: string, targetPath: string, dryRun: boolean, result: SyncResult) {
@@ -76,42 +64,6 @@ function writeJson(pathValue: string, value: unknown, state: EffectiveState, res
   const content = `${JSON.stringify(value, null, 2)}\n`;
   writeManagedFile(pathValue, content, state.scopedOptions.dryRun, result);
   result.managedPaths?.push(recordManagedContent(state.scopeRoot, pathValue, content));
-}
-
-function writeGeneratedContent(pathValue: string, content: string, state: EffectiveState, result: SyncResult) {
-  const currentContent = existsSync(pathValue) ? readFileSync(pathValue, "utf8") : undefined;
-  if (currentContent !== content) {
-    ensureParentDir(pathValue, state.scopedOptions.dryRun);
-    result.changes.push(`write ${pathValue}`);
-    if (!state.scopedOptions.dryRun) {
-      const tmpPath = `${pathValue}.tmp`;
-      writeFileSync(tmpPath, content);
-      renameSync(tmpPath, pathValue);
-    }
-  }
-  result.managedPaths?.push(recordManagedContent(state.scopeRoot, pathValue, content));
-}
-
-function writeGeneratedJson(pathValue: string, value: unknown, state: EffectiveState, result: SyncResult) {
-  writeGeneratedContent(pathValue, `${JSON.stringify(value, null, 2)}\n`, state, result);
-}
-
-function personaContent(card: CardLockEntry, contentRoot: string) {
-  const parts: string[] = [];
-  for (const entry of card.persona?.include ?? []) {
-    const file = join(contentRoot, "persona", entry, "PERSONA.md");
-    if (!existsSync(file)) {
-      continue;
-    }
-    parts.push(
-      [
-        `<!-- drwn:persona:start card="${card.name}" entry="${entry}" -->`,
-        readFileSync(file, "utf8").trimEnd(),
-        `<!-- drwn:persona:end card="${card.name}" entry="${entry}" -->`,
-      ].join("\n"),
-    );
-  }
-  return parts.length > 0 ? `${parts.join("\n\n")}\n` : null;
 }
 
 function cardServers(card: CardLockEntry): Record<string, RegistryServer> {
@@ -174,47 +126,6 @@ async function materializeMind(state: EffectiveState, card: CardLockEntry, resul
     mkdirSync(mindDir, { recursive: true });
   }
 
-  const persona = personaContent(card, contentRoot);
-  if (persona !== null) {
-    const personaPath = join(mindDir, "persona.md");
-    writeManagedFile(personaPath, persona, state.scopedOptions.dryRun, result);
-    result.managedPaths?.push(recordManagedContent(state.scopeRoot, personaPath, persona));
-  }
-
-  for (const entry of card.beliefs?.include ?? []) {
-    const target = join(contentRoot, "beliefs", entry);
-    const link = join(mindDir, "beliefs", entry);
-    if (!existsSync(target)) {
-      continue;
-    }
-    result.managedPaths?.push(
-      materializeDir(target, link, {
-        dryRun: state.scopedOptions.dryRun,
-        result,
-        relPath: managedPath(state.scopeRoot, link),
-        labelSuffix: ` ← ${card.name} beliefs/${entry}`,
-      }),
-    );
-  }
-
-  for (const layer of ["l4", "l5", "l6"] as const) {
-    for (const entry of card.memory?.[layer]?.include ?? []) {
-      const target = join(contentRoot, "memory", layer, entry);
-      const link = join(mindDir, "memory", layer, entry);
-      if (!existsSync(target)) {
-        continue;
-      }
-      result.managedPaths?.push(
-        materializeDir(target, link, {
-          dryRun: state.scopedOptions.dryRun,
-          result,
-          relPath: managedPath(state.scopeRoot, link),
-          labelSuffix: ` ← ${card.name} memory/${layer}/${entry}`,
-        }),
-      );
-    }
-  }
-
   for (const skill of card.skills) {
     const target = join(contentRoot, "skills", skill);
     const link = join(mindDir, "skills", skill);
@@ -246,10 +157,6 @@ async function materializeMind(state: EffectiveState, card: CardLockEntry, resul
     version: card.version,
     integrity: card.integrity,
     path: mindDir,
-    visibility: cardManifestStrictestVisibility(card.manifest),
-    persona: card.persona ?? null,
-    beliefs: card.beliefs ?? null,
-    memory: card.memory ?? null,
     skills: card.skills,
     hooks: card.hooks,
     servers: Object.keys(servers),
@@ -267,115 +174,7 @@ async function materializeMind(state: EffectiveState, card: CardLockEntry, resul
     version: card.version,
     integrity: card.integrity,
     path: mindDir,
-    hasPersona: (card.persona?.include?.length ?? 0) > 0,
-    hasBeliefs: (card.beliefs?.include?.length ?? 0) > 0,
-    memoryLayers: Object.entries(card.memory ?? {})
-      .filter(([, layer]) => (layer?.include?.length ?? 0) > 0)
-      .map(([layer]) => layer),
-    visibility: cardManifestStrictestVisibility(card.manifest),
   };
-}
-
-async function materializeComposedMind(state: EffectiveState, result: SyncResult) {
-  const activeCards = state.activeCards;
-  if (activeCards.length === 0) {
-    return;
-  }
-
-  const generatedDir = state.scopedOptions.generatedDir ?? resolveStoreGeneratedDir(state.scopedOptions.agentsDir);
-  const composedDir = resolveGeneratedComposedMindDir(generatedDir);
-  if (!state.scopedOptions.dryRun) {
-    mkdirSync(composedDir, { recursive: true });
-  }
-
-  const personaEntries = activeCards.flatMap((card) =>
-    (card.persona?.include ?? []).map((entry) => ({ card: card.name, entry })),
-  );
-  const personaParts = activeCards
-    .map((card) => personaContent(card, state.contentRootsByCard[card.name] ?? card.path))
-    .filter((content): content is string => content !== null)
-    .map((content) => content.trimEnd());
-  if (personaParts.length > 0) {
-    const personaPath = join(composedDir, "persona.md");
-    const content = `${personaParts.join("\n\n")}\n`;
-    writeGeneratedContent(personaPath, content, state, result);
-  }
-
-  const beliefEntries = [];
-  for (const card of activeCards) {
-    const contentRoot = state.contentRootsByCard[card.name] ?? card.path;
-    for (const entry of card.beliefs?.include ?? []) {
-      const target = join(contentRoot, "beliefs", entry);
-      const link = join(composedDir, "beliefs", ...splitCardName(card.name), entry);
-      if (!existsSync(target)) {
-        continue;
-      }
-      result.managedPaths?.push(
-        materializeDir(target, link, {
-          dryRun: state.scopedOptions.dryRun,
-          result,
-          relPath: managedPath(state.scopeRoot, link),
-          labelSuffix: ` ← composed ${card.name} beliefs/${entry}`,
-        }),
-      );
-      beliefEntries.push({
-        card: card.name,
-        entry,
-        path: composedCardRelPath(card, "beliefs", entry),
-        visibility: card.beliefs?.visibility ?? null,
-      });
-    }
-  }
-
-  const memory = Object.fromEntries(
-    (["l4", "l5", "l6"] as const).map((layer) => [
-      layer,
-      {
-        entries: activeCards.flatMap((card) => {
-          const contentRoot = state.contentRootsByCard[card.name] ?? card.path;
-          return (card.memory?.[layer]?.include ?? []).map((entry) => {
-            const target = join(contentRoot, "memory", layer, entry);
-            const link = join(composedDir, "memory", layer, ...splitCardName(card.name), entry);
-            if (existsSync(target)) {
-              result.managedPaths?.push(
-                materializeDir(target, link, {
-                  dryRun: state.scopedOptions.dryRun,
-                  result,
-                  relPath: managedPath(state.scopeRoot, link),
-                  labelSuffix: ` ← composed ${card.name} memory/${layer}/${entry}`,
-                }),
-              );
-            }
-            return {
-              card: card.name,
-              entry,
-              path: generatedRelPath("memory", layer, ...splitCardName(card.name), entry),
-              visibility: card.memory?.[layer]?.visibility ?? null,
-              format: card.memory?.[layer]?.format ?? "md",
-            };
-          });
-        }),
-      },
-    ]),
-  );
-
-  const index = {
-    schemaVersion: 1,
-    activeMinds: activeCards.map((card) => card.name),
-    persona: {
-      path: personaEntries.length > 0 ? "persona.md" : null,
-      entries: personaEntries,
-    },
-    beliefs: { entries: beliefEntries },
-    memory,
-    sources: activeCards.map((card) => ({
-      card: card.name,
-      version: card.version,
-      integrity: card.integrity,
-    })),
-    drwnVersion: DRWN_VERSION,
-  };
-  writeGeneratedJson(join(composedDir, "mind.json"), index, state, result);
 }
 
 export async function syncMinds(state: EffectiveState): Promise<SyncResult> {
@@ -391,6 +190,5 @@ export async function syncMinds(state: EffectiveState): Promise<SyncResult> {
   }
   minds.sort((a, b) => a.name.localeCompare(b.name));
   writeJson(join(generatedDir, "minds.json"), { version: 1, minds }, state, result);
-  await materializeComposedMind(state, result);
   return result;
 }

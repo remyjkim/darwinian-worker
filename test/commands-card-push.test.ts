@@ -1,5 +1,5 @@
-// ABOUTME: Verifies `drwn card push` enforces mind-content visibility gates.
-// ABOUTME: Protects tools-only card push compatibility and explicit unsafe override behavior.
+// ABOUTME: Verifies `drwn card push` publishes a local card repo to its Git remote.
+// ABOUTME: Protects the plain push path for capability cards.
 
 import { afterEach, expect, test } from "bun:test";
 import { mkdtemp } from "node:fs/promises";
@@ -22,13 +22,7 @@ async function createEmptyBareRemote(prefix: string) {
   return { tempDir, path, url: `file://${path}` };
 }
 
-async function publishMindCard(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
-  expect((await runAgentsCli(["card", "new", "@team/mind", "--no-git"], envFor(fixture))).exitCode).toBe(0);
-  expect((await runAgentsCli(["card", "source", "add-persona", "@team/mind", "voice", "--visibility", "private"], envFor(fixture))).exitCode).toBe(0);
-  expect((await runAgentsCli(["card", "publish", "@team/mind"], envFor(fixture))).exitCode).toBe(0);
-}
-
-test("card push leaves tools-only cards unchanged", async () => {
+test("card push publishes a capability card to its remote", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   await publishCardWithSkills(fixture, { name: "@team/backend", skills: ["alpha"] });
@@ -38,43 +32,4 @@ test("card push leaves tools-only cards unchanged", async () => {
   const pushed = await runAgentsCli(["card", "push", "@team/backend"], envFor(fixture));
 
   expect(pushed.exitCode).toBe(0);
-});
-
-test("card push blocks private mind content when remote visibility is public", async () => {
-  const fixture = await scaffoldCliFixture();
-  tempRoots.push(fixture.root);
-  await publishMindCard(fixture);
-  const remote = await createEmptyBareRemote("mind-remote-");
-  expect((await runAgentsCli(["card", "remote", "add", "@team/mind", remote.url], envFor(fixture))).exitCode).toBe(0);
-
-  const blocked = await runAgentsCli(["card", "push", "@team/mind", "--remote-visibility", "public"], envFor(fixture));
-
-  expect(blocked.exitCode).not.toBe(0);
-  expect(blocked.stderr).toContain("less restrictive");
-});
-
-test("card push allows explicit unsafe public override with an audit warning", async () => {
-  const fixture = await scaffoldCliFixture();
-  tempRoots.push(fixture.root);
-  await publishMindCard(fixture);
-  const remote = await createEmptyBareRemote("mind-remote-");
-  expect((await runAgentsCli(["card", "remote", "add", "@team/mind", remote.url], envFor(fixture))).exitCode).toBe(0);
-
-  const pushed = await runAgentsCli(["card", "push", "@team/mind", "--remote-visibility", "public", "--unsafe-push-public"], envFor(fixture));
-
-  expect(pushed.exitCode).toBe(0);
-  expect(pushed.stderr).toContain("unsafe");
-});
-
-test("card push blocks a network remote for private mind content before contacting it", async () => {
-  const fixture = await scaffoldCliFixture();
-  tempRoots.push(fixture.root);
-  await publishMindCard(fixture);
-  // A network remote classifies as unknown; the gate must refuse before any push is attempted.
-  expect((await runAgentsCli(["card", "remote", "add", "@team/mind", "https://github.com/example/mind.git"], envFor(fixture))).exitCode).toBe(0);
-
-  const blocked = await runAgentsCli(["card", "push", "@team/mind"], envFor(fixture));
-
-  expect(blocked.exitCode).not.toBe(0);
-  expect(blocked.stderr).toContain("unknown");
 });

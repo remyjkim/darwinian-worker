@@ -16,9 +16,6 @@ afterEach(async () => {
 
 async function publishMindFixture(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
   expect((await runAgentsCli(["card", "new", "@me/mind", "--no-git"], envFor(fixture))).exitCode).toBe(0);
-  expect((await runAgentsCli(["card", "source", "add-persona", "@me/mind", "voice", "--visibility", "internal"], envFor(fixture))).exitCode).toBe(0);
-  expect((await runAgentsCli(["card", "source", "add-belief", "@me/mind", "engineering", "--visibility", "public"], envFor(fixture))).exitCode).toBe(0);
-  expect((await runAgentsCli(["card", "source", "add-memory", "@me/mind", "raw", "--layer", "l6", "--visibility", "private", "--format", "jsonl"], envFor(fixture))).exitCode).toBe(0);
   const sourceDir = join(fixture.agentsDir, "drwn", "sources", "@me", "mind");
   const manifest = JSON.parse(await readFile(join(sourceDir, "card.json"), "utf8"));
   manifest.skills = { include: ["alpha"] };
@@ -55,20 +52,19 @@ test("syncRepository materializes isolated mind bundles and cleans removed minds
   const mindDir = join(projectDir, ".agents", "drwn", "generated", "minds", "@me", "mind");
   const registry = JSON.parse(await readFile(join(projectDir, ".agents", "drwn", "generated", "minds.json"), "utf8"));
   const mindJson = JSON.parse(await readFile(join(mindDir, "mind.json"), "utf8"));
-  const persona = await readFile(join(mindDir, "persona.md"), "utf8");
 
   expect(first.cardModes?.["@me/mind"]?.mode).toBe("vendored");
   expect(registry.minds.map((mind: { name: string }) => mind.name)).toEqual(["@me/mind"]);
   expect(mindJson.name).toBe("@me/mind");
   expect(mindJson.skills).toEqual(["alpha"]);
-  expect(mindJson.visibility).toBe("private");
-  expect(persona).toContain("drwn:persona:start");
-  expect(persona).toContain("voice");
-  expect(await readFile(join(mindDir, "beliefs", "engineering", "BELIEF.md"), "utf8")).toContain("engineering");
-  expect(await readFile(join(mindDir, "memory", "l6", "raw", "memory.jsonl"), "utf8")).toContain('"type":"memory"');
+  expect(mindJson.persona).toBeUndefined();
+  expect(mindJson.beliefs).toBeUndefined();
+  expect(mindJson.memory).toBeUndefined();
+  expect(existsSync(join(mindDir, "persona.md"))).toBe(false);
   expect(lstatSync(join(mindDir, "skills", "alpha")).isDirectory()).toBe(true);
   expect(lstatSync(join(mindDir, "skills", "alpha")).isSymbolicLink()).toBe(false);
   expect(JSON.parse(await readFile(join(mindDir, "mcp", "servers.json"), "utf8")).mcpServers["mind-server"].command).toBe("mind-server");
+  expect(existsSync(join(projectDir, ".agents", "drwn", "generated", "mind"))).toBe(false);
 
   await writeFile(configPath, JSON.stringify({ version: 1, cards: [] }, null, 2));
   const second = await syncRepository(syncOptions);

@@ -353,80 +353,6 @@ function validatePublishedHookDirs(versionDir: string, manifest: CardManifest) {
   }
 }
 
-async function validatePublishedMindContentDirs(versionDir: string, manifest: CardManifest) {
-  for (const entry of manifest.persona?.include ?? []) {
-    const dir = join(versionDir, "persona", entry);
-    const file = join(dir, "PERSONA.md");
-    if (!existsSync(dir)) {
-      throw new Error(`Card ${manifest.name}@${manifest.version} is missing persona directory '${entry}'. Expected: ${dir}`);
-    }
-    if (!existsSync(file)) {
-      throw new Error(`Card ${manifest.name}@${manifest.version} is missing PERSONA.md for persona '${entry}'. Expected: ${file}`);
-    }
-  }
-
-  for (const entry of manifest.beliefs?.include ?? []) {
-    const dir = join(versionDir, "beliefs", entry);
-    const file = join(dir, "BELIEF.md");
-    if (!existsSync(dir)) {
-      throw new Error(`Card ${manifest.name}@${manifest.version} is missing belief directory '${entry}'. Expected: ${dir}`);
-    }
-    if (!existsSync(file)) {
-      throw new Error(`Card ${manifest.name}@${manifest.version} is missing BELIEF.md for belief '${entry}'. Expected: ${file}`);
-    }
-  }
-
-  for (const layer of ["l4", "l5", "l6"] as const) {
-    const memory = manifest.memory?.[layer];
-    const format = memory?.format ?? "md";
-    for (const entry of memory?.include ?? []) {
-      const dir = join(versionDir, "memory", layer, entry);
-      if (!existsSync(dir)) {
-        throw new Error(`Card ${manifest.name}@${manifest.version} is missing memory directory '${entry}' for ${layer}. Expected: ${dir}`);
-      }
-      const files = await listPublishedContentFiles(dir);
-      if (format === "md" && !files.includes("MEMORY.md")) {
-        throw new Error(`Card ${manifest.name}@${manifest.version} is missing MEMORY.md for ${layer} memory '${entry}'. Expected: ${join(dir, "MEMORY.md")}`);
-      }
-      if (format === "jsonl" && !files.some((file) => file.endsWith(".jsonl"))) {
-        throw new Error(`Card ${manifest.name}@${manifest.version} is missing JSONL memory content for ${layer} memory '${entry}'. Expected a .jsonl file in ${dir}`);
-      }
-      if (format === "mixed" && files.length === 0) {
-        throw new Error(`Card ${manifest.name}@${manifest.version} is missing memory content for ${layer} memory '${entry}'. Expected files in ${dir}`);
-      }
-      for (const file of files.filter((candidate) => candidate.endsWith(".jsonl"))) {
-        await assertValidJsonlFile(join(dir, file));
-      }
-    }
-  }
-}
-
-async function listPublishedContentFiles(dir: string) {
-  const files: string[] = [];
-  for (const entry of await readdir(dir, { withFileTypes: true })) {
-    if (entry.isFile()) {
-      files.push(entry.name);
-    }
-  }
-  return files.sort((a, b) => a.localeCompare(b));
-}
-
-async function assertValidJsonlFile(path: string) {
-  const content = await readFile(path, "utf8");
-  const lines = content.split(/\r?\n/);
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index]!.trim();
-    if (!line) {
-      continue;
-    }
-    try {
-      JSON.parse(line);
-    } catch {
-      throw new Error(`invalid JSONL in ${path} on line ${index + 1}`);
-    }
-  }
-}
-
 export async function ensureExtracted(agentsDir: string, barePath: string, treeSha: string): Promise<string> {
   const extractedDir = resolveExtractedPath(agentsDir, treeSha);
   if (existsSync(extractedDir)) {
@@ -672,7 +598,6 @@ async function resolveRepoVersion(options: {
   }
   validatePublishedSkillDirs(dir, manifest);
   validatePublishedHookDirs(dir, manifest);
-  await validatePublishedMindContentDirs(dir, manifest);
   return {
     name: manifest.name,
     requested: options.requested,
@@ -758,7 +683,6 @@ export async function publishCard(agentsDir: string, name: string, options: Publ
     }
   }
   validatePublishedHookDirs(sourceDir, manifest);
-  await validatePublishedMindContentDirs(sourceDir, manifest);
   const packagePath = join(resolveCardSourceDir(agentsDir, manifest.name), "package.json");
   if (existsSync(packagePath)) {
     const packageJson = JSON.parse(await readFile(packagePath, "utf8")) as { name?: string; version?: string };
@@ -799,7 +723,6 @@ export async function publishCard(agentsDir: string, name: string, options: Publ
   const versionDir = await ensureExtracted(agentsDir, barePath, treeSha);
   validatePublishedSkillDirs(versionDir, manifest);
   validatePublishedHookDirs(versionDir, manifest);
-  await validatePublishedMindContentDirs(versionDir, manifest);
   const integrity = await computeCardIntegrity(versionDir);
   const parent = await revParseOptional(barePath, "refs/heads/main");
   const commit = await git.commitTree(
@@ -843,7 +766,6 @@ export async function resolveCard(agentsDir: string, ref: string, options: Resol
     assertValidCardManifest(manifest);
     validatePublishedSkillDirs(dir, manifest);
     validatePublishedHookDirs(dir, manifest);
-    await validatePublishedMindContentDirs(dir, manifest);
     return {
       name: manifest.name,
       requested: ref,
