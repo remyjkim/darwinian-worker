@@ -8,6 +8,7 @@ import { BaseCommand } from "../base";
 import { resolveWorkerConfig } from "../../core/worker-config";
 import { fetchJsonWithWorkerAuth } from "../../core/worker-http";
 import { defaultSecretsFileCandidates, DRWN_SECRETS_FILE, parseSecretsFile } from "../../core/worker-secrets";
+import { resolveBlueprintDeployPayload } from "../../core/worker-deploy";
 
 export const DEPLOY_TARGETS = ["preview", "production"] as const;
 
@@ -100,6 +101,22 @@ export class WorkerDeployCommand extends BaseCommand {
 
     const body: Record<string, unknown> = { cardRef: this.cardRef, name: this.name, model: this.model };
     if (hasSecrets) body.secrets = secrets;
+
+    try {
+      const blueprint = await resolveBlueprintDeployPayload(this.context.agentsDir, this.cardRef, {
+        allowUntrustedSource: true,
+      });
+      if (blueprint) {
+        body.blueprint = blueprint;
+        this.context.stdout.write(
+          `Resolved blueprint ${this.cardRef} with ${blueprint.members.length} member card(s).\n`,
+        );
+      }
+    } catch (error) {
+      this.context.stderr.write(
+        `Warning: could not resolve ${this.cardRef} locally (${(error as Error).message}); sending ref only.\n`,
+      );
+    }
 
     let created: { deploymentId?: string; error?: string };
     try {
