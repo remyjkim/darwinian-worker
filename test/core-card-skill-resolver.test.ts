@@ -64,7 +64,7 @@ test("resolveSkillSource prefers Layer 1 even when the same name exists in Layer
   expect(resolved.path).toBe(join(versionDir, "skills", "alpha"));
 });
 
-test("resolveSkillSource walks cards in lockfile order on conflict (first wins)", async () => {
+test("resolveSkillSource walks cards in apply order on conflict (later wins)", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   const aDir = await publishCardWithSkills(fixture, { name: "@me/a", skills: ["shared"] });

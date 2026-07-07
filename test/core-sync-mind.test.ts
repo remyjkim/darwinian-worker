@@ -57,7 +57,7 @@ test("syncRepository materializes isolated mind bundles and cleans removed minds
   const mindJson = JSON.parse(await readFile(join(mindDir, "mind.json"), "utf8"));
   const persona = await readFile(join(mindDir, "persona.md"), "utf8");
 
-  expect(first.warnings).toEqual([]);
+  expect(first.cardModes?.["@me/mind"]?.mode).toBe("vendored");
   expect(registry.minds.map((mind: { name: string }) => mind.name)).toEqual(["@me/mind"]);
   expect(mindJson.name).toBe("@me/mind");
   expect(mindJson.skills).toEqual(["alpha"]);
@@ -66,8 +66,8 @@ test("syncRepository materializes isolated mind bundles and cleans removed minds
   expect(persona).toContain("voice");
   expect(await readFile(join(mindDir, "beliefs", "engineering", "BELIEF.md"), "utf8")).toContain("engineering");
   expect(await readFile(join(mindDir, "memory", "l6", "raw", "memory.jsonl"), "utf8")).toContain('"type":"memory"');
-  expect(lstatSync(join(mindDir, "skills", "alpha")).isSymbolicLink()).toBe(true);
-  expect(readlinkSync(join(mindDir, "skills", "alpha"))).toContain("/skills/alpha");
+  expect(lstatSync(join(mindDir, "skills", "alpha")).isDirectory()).toBe(true);
+  expect(lstatSync(join(mindDir, "skills", "alpha")).isSymbolicLink()).toBe(false);
   expect(JSON.parse(await readFile(join(mindDir, "mcp", "servers.json"), "utf8")).mcpServers["mind-server"].command).toBe("mind-server");
 
   await writeFile(configPath, JSON.stringify({ version: 1, cards: [] }, null, 2));

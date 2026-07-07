@@ -2,7 +2,7 @@
 // ABOUTME: Protects status/doctor refactors from losing cards-era operational state.
 
 import { afterEach, expect, test } from "bun:test";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, chmod, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { buildDiagnosticsSections } from "../cli/core/diagnostics";
 import { writeCardLock } from "../cli/core/card-lock";
@@ -29,6 +29,7 @@ test("diagnostics sections compose cards, store, and write-record state", async 
       version: "1.0.0",
       path: join(fixture.agentsDir, "drwn", "cards", "@me", "backend", "1.0.0"),
       integrity: "sha256-test",
+      treeSha: "d".repeat(40),
       manifest: { name: "@me/backend", version: "1.0.0", skills: { include: ["alpha"] } },
       skills: ["alpha"],
       hooks: [],

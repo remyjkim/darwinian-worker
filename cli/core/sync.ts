@@ -29,8 +29,9 @@ import {
   saveWriteRecord,
   type ManagedPath,
 } from "./write-record";
-import { buildEffectiveState } from "./effective-state";
+import { buildEffectiveState, recomputeContentRootsByCard } from "./effective-state";
 import { computeOptionalMcpReport } from "./mcp-report";
+import { reconcileVendorTrees } from "./vendor-reconcile";
 import { DRWN_VERSION } from "./version";
 import { canonicalJsonHash } from "./managed-fields";
 import { resolveGeneratedComposedMindDir } from "./store-paths";
@@ -192,7 +193,11 @@ function pruneEmptyDirectoryTree(root: string, dryRun: boolean, result: SyncResu
   return false;
 }
 
-export function verifyManagedPaths(scopeRoot: string, previous: ManagedPath[], options?: { force?: boolean }) {
+export function verifyManagedPaths(
+  scopeRoot: string,
+  previous: ManagedPath[],
+  options?: { force?: boolean; lockedCards?: import("./card-lock").CardLockEntry[] },
+) {
   if (options?.force) {
     return;
   }
@@ -220,8 +225,9 @@ export function verifyManagedPaths(scopeRoot: string, previous: ManagedPath[], o
         }
         const stats = lstatSafe(absolutePath);
         if (stats?.isDirectory() && hashManagedDirectory(absolutePath) !== entry.contentHash) {
+          const signpost = driftSignpostForPath(entry.path, options?.lockedCards ?? []);
           throw new Error(
-            `Refusing to overwrite managed directory drift at ${absolutePath}. Rerun drwn write --force to overwrite.`,
+            `Refusing to overwrite managed directory drift at ${absolutePath}. ${signpost}`,
           );
         }
       }
@@ -233,11 +239,30 @@ export function verifyManagedPaths(scopeRoot: string, previous: ManagedPath[], o
     }
     const currentHash = hashManagedContent(readFileSync(absolutePath));
     if (currentHash !== entry.contentHash) {
+      const signpost = driftSignpostForPath(entry.path, options?.lockedCards ?? []);
       throw new Error(
-        `Refusing to overwrite managed content drift at ${absolutePath}. Rerun drwn write --force to overwrite.`,
+        `Refusing to overwrite managed content drift at ${absolutePath}. ${signpost}`,
       );
     }
   }
+}
+
+function driftSignpostForPath(relPath: string, lockedCards: import("./card-lock").CardLockEntry[]) {
+  if (relPath.includes("vendor/")) {
+    return "Edit the card source, not vendor/. Run drwn card fork → edit → publish → update, or drwn card source sync when upstream is configured.";
+  }
+  for (const card of lockedCards) {
+    for (const [skill, upstreamRef] of Object.entries(card.manifest.skills?.upstream ?? {})) {
+      if (relPath.includes(skill)) {
+        return `Edit upstream ${upstreamRef} (or run drwn card source sync ${card.name}), then drwn write.`;
+      }
+    }
+  }
+  const override = lockedCards.find((card) => card.origin === "file");
+  if (override) {
+    return `Edit linked source at ${override.path}, then drwn write.`;
+  }
+  return "Run drwn card fork → edit → publish → update, then drwn write — never edit vendored projection output directly.";
 }
 
 export async function syncMcp(
@@ -245,6 +270,7 @@ export async function syncMcp(
   config: CanonicalConfig,
   servers: Record<string, RegistryServer>,
   previousManagedPaths: ManagedPath[] = [],
+  ownedServerNames: string[] = [],
 ): Promise<SyncResult> {
   const managedPaths: ManagedPath[] = [];
   const result: SyncResult = { changes: [], warnings: [], managedPaths };
@@ -260,6 +286,7 @@ export async function syncMcp(
   const previousCodexNames = previousManagedPaths
     .filter((entry): entry is ManagedFieldsPath => entry.kind === "managed-fields" && isCodexMcpEntry(entry))
     .flatMap((entry) => (entry.kind === "managed-fields" ? Object.keys(entry.fieldHashes) : []));
+  const codexManagedNames = [...new Set([...previousCodexNames, ...ownedServerNames.filter((name) => name in servers)])];
   const hasPriorMcpOwnership = previousManagedPaths.some((entry) =>
     (entry.kind === "managed-fields" && hasClaudePerServerHashes(entry)) ||
     (entry.kind === "managed-fields" && isCodexMcpEntry(entry)) ||
@@ -347,7 +374,7 @@ export async function syncMcp(
         }
       }
       const current = await readTextIfExists(configPath, "");
-      const mergedCodex = mergeCodexTomlText(current, codexServers, [...previousCodexNames, ...codexConflicts]);
+      const mergedCodex = mergeCodexTomlText(current, codexServers, [...codexManagedNames, ...codexConflicts]);
       writeManagedFile(configPath, mergedCodex, options.dryRun, result);
       const fieldHashes = hashCodexManagedServers(mergedCodex, Object.keys(codexServers));
       if (Object.keys(fieldHashes).length > 0) {
@@ -389,10 +416,28 @@ export async function syncRepository(options: SyncOptions = {}): Promise<SyncRes
         projectConfigPath: state.projectConfigPath,
         projectServerOverrides: state.projectConfig?.servers,
       });
+  result.warnings.push(...state.overlayWarnings);
+  const cardModes: NonNullable<SyncResult["cardModes"]> = {};
+  for (const [name, mode] of Object.entries(state.cardModes)) {
+    cardModes[name] = {
+      mode: mode.mode,
+      reason: mode.reason,
+      lane: state.cardLanes[name] ?? "committed",
+      ...(mode.sourcePath ? { sourcePath: mode.sourcePath } : {}),
+    };
+  }
+  result.cardModes = cardModes;
   const previousRecord = loadWriteRecord(state.recordPath);
-  verifyManagedPaths(state.scopeRoot, previousRecord?.managedPaths ?? [], { force: state.normalized.force ?? false });
+  verifyManagedPaths(state.scopeRoot, previousRecord?.managedPaths ?? [], {
+    force: state.normalized.force ?? false,
+    lockedCards: state.lockedCards,
+  });
 
   if (state.projectRoot) {
+    await reconcileVendorTrees(state, result);
+    state.contentRootsByCard = recomputeContentRootsByCard(state, {
+      allowPlanningFallback: Boolean(state.normalized.dryRun),
+    });
     const mindsResult = await syncMinds(state);
     result.changes.push(...mindsResult.changes);
     result.warnings.push(...mindsResult.warnings);
@@ -400,14 +445,25 @@ export async function syncRepository(options: SyncOptions = {}): Promise<SyncRes
   }
 
   if (!state.normalized.skillsOnly) {
-    const mcpResult = await syncMcp(state.scopedOptions, state.effectiveConfig, state.activeServers, previousRecord?.managedPaths ?? []);
+    const mcpResult = await syncMcp(
+      state.scopedOptions,
+      state.effectiveConfig,
+      state.activeServers,
+      previousRecord?.managedPaths ?? [],
+      Object.keys(state.activeServers),
+    );
     result.changes.push(...mcpResult.changes);
     result.warnings.push(...mcpResult.warnings);
     result.managedPaths?.push(...(mcpResult.managedPaths ?? []));
   }
 
   if (!state.normalized.mcpOnly) {
-    const skillsResult = await syncSkillsCore(state.scopedOptions, state.skillSelection, state.activeCards);
+    const skillsResult = await syncSkillsCore(
+      state.scopedOptions,
+      state.skillSelection,
+      state.skillApplyOrderCards,
+      state.contentRootsByCard,
+    );
     result.changes.push(...skillsResult.changes);
     result.warnings.push(...skillsResult.warnings);
     result.managedPaths?.push(...(skillsResult.managedPaths ?? []));

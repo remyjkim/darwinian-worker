@@ -76,6 +76,29 @@ function recordIntent(map: Map<string, MaterializeIntent>, intent: MaterializeIn
   });
 }
 
+export function collectDuplicateSkillWarnings(cards: CardLockEntry[]): string[] {
+  const warnings: string[] = [];
+  const skillToCards = new Map<string, string[]>();
+  for (const card of cards) {
+    for (const skill of card.skills) {
+      const prior = skillToCards.get(skill) ?? [];
+      prior.push(card.name);
+      skillToCards.set(skill, prior);
+    }
+  }
+  for (const [skill, cardNames] of skillToCards) {
+    if (cardNames.length <= 1) {
+      continue;
+    }
+    const winner = cardNames.at(-1)!;
+    const dropped = cardNames.slice(0, -1);
+    warnings.push(
+      `duplicate skill ${skill}: using ${winner} (applied later), dropped ${dropped.join(", ")}`,
+    );
+  }
+  return warnings;
+}
+
 async function listScopeSkills(scopeDir: string, scope: SkillScope): Promise<RepoSkill[]> {
   if (!existsSync(scopeDir)) {
     return [];
@@ -253,6 +276,7 @@ export async function syncSkills(
   options: NormalizedSyncOptions,
   overrides?: SkillSyncOverrides,
   lockedCards: CardLockEntry[] = [],
+  contentRoots?: Record<string, string>,
 ): Promise<SyncResult> {
   const managedPaths: ManagedPath[] = [];
   const result: SyncResult = { changes: [], warnings: [], managedPaths };
@@ -260,6 +284,12 @@ export async function syncSkills(
   const scopeDirs = resolveSkillScopeDirs(options.repoRoot);
   const curatedDir = join(options.agentsDir, "skills");
   const excluded = new Set(overrides?.exclude ?? []);
+  result.warnings.push(...collectDuplicateSkillWarnings(lockedCards));
+  for (const skill of excluded) {
+    if (lockedCards.some((card) => card.skills.includes(skill))) {
+      result.warnings.push(`excluded skill ${skill}: omitted from materialization`);
+    }
+  }
   type NonMissingResolvedSkillSource = Exclude<Awaited<ReturnType<typeof resolveSkillSource>>, { layer: "missing" }>;
   const includes = (overrides?.include ?? []).filter((name) => !excluded.has(name));
   const resolvedIncludes: Array<{
@@ -268,7 +298,7 @@ export async function syncSkills(
   }> = [];
   const errors: string[] = [];
   for (const name of includes) {
-    const source = await resolveSkillSource(name, lockedCards, options.repoRoot, options.agentsDir);
+    const source = await resolveSkillSource(name, lockedCards, options.repoRoot, options.agentsDir, contentRoots);
     if (source.layer === "missing") {
       errors.push(source.reason);
       continue;

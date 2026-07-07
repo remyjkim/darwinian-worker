@@ -31,7 +31,7 @@ export class CardUntrustCommand extends BaseCommand {
     }
     let result;
     try {
-      result = await clearHookConsent(requireProjectRoot(this), this.spec);
+      result = await clearHookConsent(requireProjectRoot(this), this.context.agentsDir, this.spec);
     } catch (error) {
       this.context.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
       return 1;

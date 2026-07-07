@@ -4,8 +4,8 @@
 import { afterEach, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
-import { cardLockPath, loadCardLock, writeCardLock, validateCardLockfile } from "../cli/core/card-lock";
+import { dirname, join } from "node:path";
+import { cardLockPath, loadCardLock, writeCardLock, validateCardLockfile, persistCardLock } from "../cli/core/card-lock";
 import { cleanupTempRoots, createTempRoot } from "./helpers";
 
 const tempRoots: string[] = [];
@@ -14,7 +14,9 @@ afterEach(async () => {
   await cleanupTempRoots(tempRoots);
 });
 
-test("writeCardLock creates a v3 project lockfile and loadCardLock reads it", async () => {
+const TREE_SHA = "a".repeat(40);
+
+test("writeCardLock creates a v5 project lockfile and loadCardLock reads it", async () => {
   const root = await createTempRoot("card-lock-");
   tempRoots.push(root);
 
@@ -25,6 +27,7 @@ test("writeCardLock creates a v3 project lockfile and loadCardLock reads it", as
       version: "1.0.0",
       path: "/cards/@me/backend/1.0.0",
       integrity: "sha256-test",
+      treeSha: TREE_SHA,
       manifest: { name: "@me/backend", version: "1.0.0" },
       skills: [],
       hooks: [],
@@ -37,11 +40,12 @@ test("writeCardLock creates a v3 project lockfile and loadCardLock reads it", as
   expect(path).toBe(cardLockPath(root));
   expect(existsSync(path)).toBe(true);
   const loaded = await loadCardLock(root);
-  expect(loaded?.lockfileVersion).toBe(3);
+  expect(loaded?.lockfileVersion).toBe(5);
   expect(loaded?.store?.minDrwnVersion).toBeDefined();
   expect(loaded?.cards[0]?.name).toBe("@me/backend");
   expect(loaded?.cards[0]?.origin).toBe("store");
   expect(loaded?.cards[0]?.git?.commit).toBe("a".repeat(40));
+  expect(loaded?.cards[0]?.treeSha).toBe(TREE_SHA);
 });
 
 test("writeCardLock persists the skills[] attribution field per card entry", async () => {
@@ -55,6 +59,7 @@ test("writeCardLock persists the skills[] attribution field per card entry", asy
       version: "1.0.0",
       path: "/cards/@me/backend/1.0.0",
       integrity: "sha256-test",
+      treeSha: TREE_SHA,
       manifest: { name: "@me/backend", version: "1.0.0", skills: { include: ["alpha", "beta"] } },
       skills: ["alpha", "beta"],
       hooks: [],
@@ -106,6 +111,7 @@ test("writeCardLock preserves hooks and consent in v3", async () => {
       version: "1.0.0",
       path: "/cards/@me/backend/1.0.0",
       integrity: "sha256-test",
+      treeSha: TREE_SHA,
       manifest: { name: "@me/backend", version: "1.0.0", hooks: { include: ["audit"] } },
       skills: [],
       hooks: ["audit"],
@@ -119,7 +125,7 @@ test("writeCardLock preserves hooks and consent in v3", async () => {
   const raw = JSON.parse(await readFile(cardLockPath(root), "utf8"));
   const loaded = await loadCardLock(root);
 
-  expect(raw.lockfileVersion).toBe(3);
+  expect(raw.lockfileVersion).toBe(5);
   expect(loaded?.cards[0]?.hooks).toEqual(["audit"]);
   expect(loaded?.cards[0]?.hookConsent?.consentedRange).toBe("^1.0.0");
 });
@@ -135,6 +141,7 @@ test("writeCardLock creates a v4 lockfile with mind content metadata", async () 
       version: "1.0.0",
       path: "/cards/@me/mind/1.0.0",
       integrity: "sha256-test",
+      treeSha: TREE_SHA,
       manifest: {
         name: "@me/mind",
         version: "1.0.0",
@@ -156,8 +163,8 @@ test("writeCardLock creates a v4 lockfile with mind content metadata", async () 
   const raw = JSON.parse(await readFile(cardLockPath(root), "utf8"));
   const loaded = await loadCardLock(root);
 
-  expect(raw.lockfileVersion).toBe(4);
-  expect(loaded?.lockfileVersion).toBe(4);
+  expect(raw.lockfileVersion).toBe(5);
+  expect(loaded?.lockfileVersion).toBe(5);
   expect(loaded?.cards[0]?.persona).toEqual({ include: ["voice"], visibility: "internal" });
   expect(loaded?.cards[0]?.beliefs).toEqual({ include: ["engineering"], visibility: "public" });
   expect(loaded?.cards[0]?.memory?.l6).toEqual({ include: ["raw"], visibility: "private", format: "jsonl" });
@@ -277,7 +284,7 @@ test("loadCardLock rejects v1 lockfiles", async () => {
   await mkdir(dirname(cardLockPath(root)), { recursive: true });
   await writeFile(cardLockPath(root), JSON.stringify(v1Payload, null, 2));
 
-  await expect(loadCardLock(root)).rejects.toThrow("lockfileVersion: 2 or 3");
+  await expect(loadCardLock(root)).rejects.toThrow("lockfileVersion: 2, 3, 4, or 5");
 });
 
 test("loadCardLock returns null when no lockfile exists", async () => {
@@ -285,4 +292,60 @@ test("loadCardLock returns null when no lockfile exists", async () => {
   tempRoots.push(root);
 
   expect(await loadCardLock(root)).toBeNull();
+});
+
+test("persistCardLock backfills treeSha before writing v5 lock", async () => {
+  const { scaffoldCliFixture, cleanupTempRoots: _cleanup } = await import("./helpers");
+  const { createLocalCardRepo } = await import("./fixtures/git-helpers");
+  const { persistCardLock, loadCardLock } = await import("../cli/core/card-lock");
+  const { resolveCardBareRepoPath } = await import("../cli/core/store-paths");
+  const git = await import("../cli/core/git");
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  const remote = await createLocalCardRepo({ name: "@team/persist", version: "1.0.0", skills: ["alpha"] });
+  tempRoots.push(remote.tempDir);
+  const root = await createTempRoot("card-lock-persist-");
+  tempRoots.push(root);
+  const barePath = resolveCardBareRepoPath(fixture.agentsDir, "@team/persist");
+  await git.cloneBare(remote.url, barePath);
+  const commit = await git.revParse(barePath, "refs/tags/v1.0.0");
+  const treeSha = await git.getCommitTree(barePath, commit);
+  await persistCardLock(root, fixture.agentsDir, [
+    {
+      name: "@team/persist",
+      requested: `git+${remote.url}#v1.0.0`,
+      version: "1.0.0",
+      path: join(fixture.agentsDir, "drwn", "extracted", treeSha),
+      integrity: "sha256-test",
+      manifest: { name: "@team/persist", version: "1.0.0" },
+      skills: ["alpha"],
+      hooks: [],
+      registry: null,
+      origin: "git",
+      git: { url: remote.url, ref: "v1.0.0", commit },
+    },
+  ]);
+  const loaded = await loadCardLock(root);
+  expect(loaded?.cards[0]?.treeSha).toBe(treeSha);
+});
+
+test("persistCardLock rejects when treeSha backfill is impossible", async () => {
+  const root = await createTempRoot("card-lock-persist-fail-");
+  tempRoots.push(root);
+  await expect(
+    persistCardLock(root, join(root, "agents"), [
+      {
+        name: "@me/backend",
+        requested: "@me/backend@^1.0.0",
+        version: "1.0.0",
+        path: "/cards/@me/backend/1.0.0",
+        integrity: "sha256-test",
+        manifest: { name: "@me/backend", version: "1.0.0" },
+        skills: [],
+        hooks: [],
+        registry: null,
+        origin: "store",
+      },
+    ]),
+  ).rejects.toThrow(/git\.commit|treeSha/i);
 });

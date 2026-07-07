@@ -33,10 +33,10 @@ test("syncRepository writes a composed active mind with ordered persona and prov
   expect(persona.indexOf('card="@me/overlay"')).toBeGreaterThan(persona.indexOf('card="@me/base"'));
   expect(persona).toContain("Base voice");
   expect(persona).toContain("Overlay tone");
-  expect(lstatSync(join(composedDir, "beliefs", "@me", "base", "engineering")).isSymbolicLink()).toBe(true);
-  expect(lstatSync(join(composedDir, "beliefs", "@me", "overlay", "engineering")).isSymbolicLink()).toBe(true);
-  expect(lstatSync(join(composedDir, "memory", "l4", "@me", "base", "notes")).isSymbolicLink()).toBe(true);
-  expect(lstatSync(join(composedDir, "memory", "l6", "@me", "overlay", "raw")).isSymbolicLink()).toBe(true);
+  expect(lstatSync(join(composedDir, "beliefs", "@me", "base", "engineering")).isDirectory()).toBe(true);
+  expect(lstatSync(join(composedDir, "beliefs", "@me", "overlay", "engineering")).isDirectory()).toBe(true);
+  expect(lstatSync(join(composedDir, "memory", "l4", "@me", "base", "notes")).isDirectory()).toBe(true);
+  expect(lstatSync(join(composedDir, "memory", "l6", "@me", "overlay", "raw")).isDirectory()).toBe(true);
 
   expect(index.schemaVersion).toBe(1);
   expect(index.activeMinds).toEqual(["@me/base", "@me/overlay"]);
@@ -57,7 +57,7 @@ test("syncRepository writes a composed active mind with ordered persona and prov
   expect(index.sources).toHaveLength(2);
   expect(index.sources.every((source: { integrity?: string }) => source.integrity?.startsWith("sha256-"))).toBe(true);
   expect(typeof index.drwnVersion).toBe("string");
-  expect(index.writtenAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+  expect(index.writtenAt).toBeUndefined();
 
   expect((await runAgentsCli(["mind", "use", "@me/overlay", "@me/base"], envFor(fixture), projectDir)).exitCode).toBe(0);
   await syncRepository(syncOptions(fixture, projectDir));

@@ -2,7 +2,11 @@
 // ABOUTME: Keeps card consumer commands consistent and side-effect-light.
 
 import { dirname } from "node:path";
-import { cardLockPath, loadCardLock, writeCardLock, type CardLockEntry } from "./card-lock";
+import { existsSync } from "node:fs";
+import { cardLockPath, loadCardLock, persistCardLock, backfillLockTreeShas, type CardLockEntry } from "./card-lock";
+import { formatSuccessorSuggestion, readCardMeta } from "./card-meta";
+import { buildEffectiveState } from "./effective-state";
+import type { CardModeReadout } from "./types";
 import {
   cardNamesEqual,
   formatCardSpec,
@@ -13,7 +17,9 @@ import {
   type ResolveCardOptions,
 } from "./card-store";
 import { loadProjectConfig, resolveProjectRootFromConfigPath } from "./project";
+import { orderCardsByApplySpecs } from "./effective-state";
 import { projectConfigPath, readProjectConfigForWrite, writeProjectConfigForWrite } from "./project-writes";
+import { resolveCardBareRepoPath } from "./store-paths";
 import type { CardManifest } from "./card-manifest";
 import type { ProjectConfig } from "./types";
 import { satisfies, validRange } from "./semver-utils";
@@ -37,13 +43,13 @@ export async function resolveProjectCards(
   options: ResolveCardOptions = {},
 ): Promise<CardLockEntry[]> {
   const resolved = await Promise.all(specs.map((spec) => resolveCard(agentsDir, spec, options)));
-  return resolved
-    .map((card) => ({
+  const mapped = resolved.map((card) => ({
       name: card.name,
       requested: card.requested,
       version: card.version,
       path: card.dir,
       integrity: card.integrity,
+      ...(card.treeSha ? { treeSha: card.treeSha } : {}),
       manifest: card.manifest,
       skills: card.manifest.skills?.include ?? [],
       hooks: card.manifest.hooks?.include ?? [],
@@ -53,8 +59,8 @@ export async function resolveProjectCards(
       registry: null as null,
       origin: card.origin,
       ...(card.git ? { git: card.git } : {}),
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    }));
+  return orderCardsByApplySpecs(mapped, specs);
 }
 
 export function mergeCardManifestsIntoProjectConfig(project: ProjectConfig, manifests: CardManifest[]): ProjectConfig {
@@ -137,8 +143,10 @@ export async function writeProjectCards(
     }
     return card;
   });
-  const lockPath = await writeCardLock(projectRoot, locked);
-  return { projectConfigPath: configPath, lockPath, cards: config.cards, locked, warnings };
+  warnings.push(...await collectCardMetaWarnings(agentsDir, await backfillLockTreeShas(agentsDir, locked), options));
+  const lockPath = await persistCardLock(projectRoot, agentsDir, locked);
+  const lockedWithTreeSha = (await loadCardLock(projectRoot))?.cards ?? locked;
+  return { projectConfigPath: configPath, lockPath, cards: config.cards, locked: lockedWithTreeSha, warnings };
 }
 
 export async function getCurrentProjectCardSpecs(projectRoot: string) {
@@ -213,7 +221,12 @@ function findLockedCard(cards: CardLockEntry[], cardNameOrRef: string) {
   return cards.find((card) => cardNamesEqual(card.name, name)) ?? null;
 }
 
-export async function setHookConsent(projectRoot: string, cardNameOrRef: string, range?: string): Promise<CardTrustMutation> {
+export async function setHookConsent(
+  projectRoot: string,
+  agentsDir: string,
+  cardNameOrRef: string,
+  range?: string,
+): Promise<CardTrustMutation> {
   const lock = await loadCardLock(projectRoot);
   if (!lock) {
     throw new Error("Card lockfile not found. Run drwn card update first.");
@@ -237,14 +250,18 @@ export async function setHookConsent(projectRoot: string, cardNameOrRef: string,
         }
       : card,
   );
-  await writeCardLock(projectRoot, nextCards);
+  await persistCardLock(projectRoot, agentsDir, nextCards);
   return {
     lockPath: cardLockPath(projectRoot),
     card: nextCards.find((card) => cardNamesEqual(card.name, target.name))!,
   };
 }
 
-export async function clearHookConsent(projectRoot: string, cardNameOrRef: string): Promise<CardTrustMutation> {
+export async function clearHookConsent(
+  projectRoot: string,
+  agentsDir: string,
+  cardNameOrRef: string,
+): Promise<CardTrustMutation> {
   const lock = await loadCardLock(projectRoot);
   if (!lock) {
     throw new Error("Card lockfile not found. Run drwn card update first.");
@@ -261,21 +278,44 @@ export async function clearHookConsent(projectRoot: string, cardNameOrRef: strin
     void hookConsent;
     return rest;
   });
-  await writeCardLock(projectRoot, nextCards);
+  await persistCardLock(projectRoot, agentsDir, nextCards);
   return {
     lockPath: cardLockPath(projectRoot),
     card: nextCards.find((card) => cardNamesEqual(card.name, target.name))!,
   };
 }
 
-export async function readProjectCardStatus(projectConfigPath: string, agentsDir: string) {
+export async function readProjectCardStatus(
+  projectConfigPath: string,
+  agentsDir: string,
+  options: { repoRoot: string; homeDir: string },
+) {
   const projectRoot = resolveProjectRootFromConfigPath(projectConfigPath);
   const config = await loadProjectConfig(projectConfigPath);
   const lock = await loadCardLock(projectRoot);
   const specs = config.cards ?? [];
   const locked = lock?.cards ?? [];
   const outdated = await findOutdatedProjectCards(projectRoot, agentsDir);
-  return { projectRoot, specs, locked, outdated };
+  const state = await buildEffectiveState({
+    repoRoot: options.repoRoot,
+    agentsDir,
+    homeDir: options.homeDir,
+    cwd: projectRoot,
+  });
+  const modes: Record<string, CardModeReadout> = {};
+  for (const card of locked) {
+    const mode = state.cardModes[card.name];
+    if (!mode) {
+      continue;
+    }
+    modes[card.name] = {
+      mode: mode.mode,
+      reason: mode.reason,
+      lane: state.cardLanes[card.name] ?? "committed",
+      ...(mode.sourcePath ? { sourcePath: mode.sourcePath } : {}),
+    };
+  }
+  return { projectRoot, specs, locked, outdated, modes };
 }
 
 async function highestPublishedVersion(agentsDir: string, name: string) {
@@ -327,4 +367,30 @@ export async function findOutdatedProjectCards(
 
 export function projectRootFromConfigPath(configPath: string) {
   return dirname(dirname(dirname(configPath)));
+}
+
+export async function collectCardMetaWarnings(
+  agentsDir: string,
+  cards: CardLockEntry[],
+  options: ResolveCardOptions = {},
+): Promise<string[]> {
+  const warnings: string[] = [];
+  for (const card of cards) {
+    const barePath = resolveCardBareRepoPath(agentsDir, card.name);
+    if (!existsSync(barePath)) {
+      continue;
+    }
+    const meta = await readCardMeta(barePath);
+    const deprecation = meta?.deprecations?.[card.version];
+    if (deprecation) {
+      warnings.push(`${card.name}@${card.version} is deprecated: ${deprecation}`);
+    }
+    const suggestion = formatSuccessorSuggestion(card.name, meta, {
+      acceptSuccessor: options.acceptSuccessor,
+    });
+    if (suggestion) {
+      warnings.push(suggestion);
+    }
+  }
+  return warnings;
 }

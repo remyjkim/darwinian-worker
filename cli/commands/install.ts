@@ -3,7 +3,7 @@
 
 import { Option, UsageError } from "clipanion";
 import { ensureCardPresentFromLock } from "../core/card-install";
-import { loadCardLock, writeCardLock } from "../core/card-lock";
+import { loadCardLock, persistCardLock } from "../core/card-lock";
 import { pMap, resolveFetchConcurrency } from "../core/concurrency";
 import { renderJson, renderSyncResult } from "../core/output";
 import { syncRepository } from "../core/sync";
@@ -71,7 +71,7 @@ export class InstallCommand extends BaseCommand {
     }
 
     if (changed) {
-      await writeCardLock(projectRoot, lock.cards);
+      await persistCardLock(projectRoot, this.context.agentsDir, lock.cards);
     }
 
     if (this.noApply) {

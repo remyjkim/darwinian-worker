@@ -7,6 +7,9 @@ import { join } from "node:path";
 import type { BeliefsManifest, CardManifest, MemoryManifest, MemoryLayerManifest, PersonaManifest } from "./card-manifest";
 import { assertValidCardManifest } from "./card-manifest";
 import { writeAtomically } from "./fs";
+import { DrwnError } from "./errors";
+import * as git from "./git";
+import { resolveCardBareRepoPath } from "./store-paths";
 import { gte } from "./semver-utils";
 import { DRWN_VERSION } from "./version";
 
@@ -24,6 +27,7 @@ export interface CardLockEntry {
   version: string;
   path: string;
   integrity: string;
+  treeSha?: string;
   manifest: CardManifest;
   skills: string[];
   hooks: string[];
@@ -40,7 +44,7 @@ export interface CardLockEntry {
 }
 
 export interface CardLockfile {
-  lockfileVersion: 2 | 3 | 4;
+  lockfileVersion: 2 | 3 | 4 | 5;
   store?: { minDrwnVersion?: string };
   cards: CardLockEntry[];
 }
@@ -90,25 +94,64 @@ export async function writeCardLock(projectRoot: string, cards: CardLockEntry[])
     ...(card.beliefs ?? card.manifest.beliefs ? { beliefs: card.beliefs ?? card.manifest.beliefs } : {}),
     ...(card.memory ?? card.manifest.memory ? { memory: card.memory ?? card.manifest.memory } : {}),
   }));
-  const lockfileVersion = normalizedCards.some((card) => card.persona || card.beliefs || card.memory) ? 4 : 3;
+  for (const card of normalizedCards) {
+    if ((card.origin === "store" || card.origin === "git") && !card.treeSha) {
+      throw new DrwnError(
+        "LOCK_TREE_SHA_REQUIRED",
+        `card.lock entry ${card.name} is missing treeSha; run card update or re-apply before writing the lock`,
+      );
+    }
+  }
+  const hasMindContent = normalizedCards.some((card) => card.persona || card.beliefs || card.memory);
+  const lockfileVersion = 5;
   const lockfile = validateCardLockfile({
     lockfileVersion,
-    store: { minDrwnVersion: lockfileVersion === 4 ? MINDS_MIN_DRWN_VERSION : HOOKS_MIN_DRWN_VERSION },
+    store: { minDrwnVersion: hasMindContent ? MINDS_MIN_DRWN_VERSION : HOOKS_MIN_DRWN_VERSION },
     cards: normalizedCards,
   });
   await writeAtomically(path, `${JSON.stringify(lockfile, null, 2)}\n`);
   return path;
 }
 
+export async function persistCardLock(projectRoot: string, agentsDir: string, cards: CardLockEntry[]) {
+  const backfilled = await backfillLockTreeShas(agentsDir, cards);
+  return writeCardLock(projectRoot, backfilled);
+}
+
+export async function backfillLockTreeShas(agentsDir: string, cards: CardLockEntry[]): Promise<CardLockEntry[]> {
+  return Promise.all(
+    cards.map(async (card) => {
+      if (card.treeSha) {
+        return card;
+      }
+      if (card.origin === "file" || card.origin === "npm") {
+        return card;
+      }
+      if (!card.git?.commit) {
+        throw new DrwnError(
+          "LOCK_TREE_SHA_BACKFILL_FAILED",
+          `card.lock entry ${card.name} is missing git.commit; re-apply the card before writing`,
+        );
+      }
+      const barePath = resolveCardBareRepoPath(agentsDir, card.name);
+      const treeSha = await git.getCommitTree(barePath, card.git.commit);
+      return { ...card, treeSha };
+    }),
+  );
+}
+
 export function validateCardLockfile(input: unknown, source = "card lockfile"): CardLockfile {
   if (
     !isObject(input) ||
-    (input.lockfileVersion !== 2 && input.lockfileVersion !== 3 && input.lockfileVersion !== 4) ||
+    (input.lockfileVersion !== 2 &&
+      input.lockfileVersion !== 3 &&
+      input.lockfileVersion !== 4 &&
+      input.lockfileVersion !== 5) ||
     !Array.isArray(input.cards)
   ) {
-    throw new Error(`Invalid card lockfile ${source}: expected lockfileVersion: 2 or 3 or 4`);
+    throw new Error(`Invalid card lockfile ${source}: expected lockfileVersion: 2, 3, 4, or 5`);
   }
-  const lockfileVersion = input.lockfileVersion;
+  const lockfileVersion = input.lockfileVersion as CardLockfile["lockfileVersion"];
   const cards = input.cards.map((entry, index) =>
     validateCardLockEntry(entry, `${source} cards[${index}]`, lockfileVersion),
   );
@@ -116,7 +159,7 @@ export function validateCardLockfile(input: unknown, source = "card lockfile"): 
   return store ? { lockfileVersion, store, cards } : { lockfileVersion, cards };
 }
 
-function validateCardLockEntry(input: unknown, source: string, lockfileVersion: 2 | 3 | 4): CardLockEntry {
+function validateCardLockEntry(input: unknown, source: string, lockfileVersion: CardLockfile["lockfileVersion"]): CardLockEntry {
   if (!isObject(input)) {
     throw new Error(`Invalid card lock entry ${source}: expected object`);
   }
@@ -129,6 +172,10 @@ function validateCardLockEntry(input: unknown, source: string, lockfileVersion: 
   assertString(input.version, `${source}.version`);
   assertString(input.path, `${source}.path`);
   assertString(input.integrity, `${source}.integrity`);
+  const treeSha = typeof input.treeSha === "string" && input.treeSha.length > 0 ? input.treeSha : undefined;
+  if (treeSha && !/^[a-f0-9]{40}$/.test(treeSha)) {
+    throw new Error(`Invalid card lock entry ${source}: treeSha must be a 40-character SHA`);
+  }
   assertValidCardManifest(input.manifest);
   if (!Array.isArray(input.skills) || !input.skills.every((skill) => typeof skill === "string")) {
     throw new Error(`Invalid card lock entry ${source}: skills must be string[]`);
@@ -151,6 +198,7 @@ function validateCardLockEntry(input: unknown, source: string, lockfileVersion: 
     version: input.version,
     path: input.path,
     integrity: input.integrity,
+    ...(treeSha ? { treeSha } : {}),
     manifest: input.manifest,
     skills: [...input.skills],
     hooks: Array.isArray(input.hooks) ? [...input.hooks] : [],

@@ -4,8 +4,12 @@
 import { join } from "node:path";
 import type { CardLockEntry } from "./card-lock";
 import { mergeCardManifestsIntoProjectConfig, resolveProjectCards } from "./card-project";
+import { parseCardRef } from "./card-store";
 import { collectCardServerDefinitions, mergeCardServerDefinitionsIntoRegistry, type CardServerDefinition } from "./card-mcp";
-import { loadCardLock } from "./card-lock";
+import { loadCardLock, backfillLockTreeShas } from "./card-lock";
+import { loadConfigLocal, loadCardLockLocal, mergeProjectWithLocal } from "./config-local";
+import { resolveCardContentRoot } from "./card-content-root";
+import { resolveMode } from "./mode-resolution";
 import { loadConfig } from "./config";
 import { hasExplicitSkillDefaults, mergeUserMcpLibrary } from "./defaults";
 import { loadMcpLibrary } from "./mcp-library";
@@ -26,6 +30,8 @@ import { loadEffectiveConfig } from "./user-config";
 import { resolveProjectWriteRecordPath } from "./write-record";
 import type { SkillSyncOverrides } from "./skills";
 
+import type { ResolvedCardMode } from "./mode-resolution";
+
 export interface EffectiveState {
   normalized: NormalizedSyncOptions;
   repoConfig: CanonicalConfig;
@@ -39,6 +45,13 @@ export interface EffectiveState {
   cardServerDefinitions: CardServerDefinition[];
   lockedCards: CardLockEntry[];
   activeCards: CardLockEntry[];
+  skillApplyOrderCards: CardLockEntry[];
+  overlayCards: CardLockEntry[];
+  cardModes: Record<string, ResolvedCardMode>;
+  cardLanes: Record<string, "committed" | "localOverlay">;
+  contentRootsByCard: Record<string, string>;
+  vendorEligible: Set<string>;
+  overlayWarnings: string[];
   skillSelection?: SkillSyncOverrides;
   recordPath: string;
   scopeRoot: string;
@@ -64,15 +77,87 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
     : undefined;
   let lockedCards: CardLockEntry[] = [];
   let activeCards: CardLockEntry[] = [];
+  let skillApplyOrderCards: CardLockEntry[] = [];
   let projectConfig: ProjectConfig | null = null;
   let projectConfigWithCards: ProjectConfig | null = null;
   let cardServerDefinitions: CardServerDefinition[] = [];
+  let overlayCards: CardLockEntry[] = [];
+  const cardModes: Record<string, ResolvedCardMode> = {};
+  const cardLanes: Record<string, "committed" | "localOverlay"> = {};
+  const contentRootsByCard: Record<string, string> = {};
+  const vendorEligible = new Set<string>();
+  const overlayWarnings: string[] = [];
+  const cardsSourcePath = process.env.CARDS_SOURCE_PATH ?? null;
 
   if (projectConfigPath) {
     projectConfig = await loadProjectConfig(projectConfigPath);
+    const configLocal = projectRoot ? await loadConfigLocal(projectRoot) : null;
+    if (configLocal?.activate !== undefined && projectConfig.activeMinds !== undefined) {
+      overlayWarnings.push("config.local.json activate overrides committed activeMinds");
+    }
+    projectConfig = mergeProjectWithLocal(projectConfig, configLocal);
     const cardLock = projectRoot ? await loadCardLock(projectRoot) : null;
-    lockedCards = cardLock?.cards ?? (projectConfig.cards ? await resolveProjectCards(normalized.agentsDir, projectConfig.cards) : []);
+    const committedCards =
+      cardLock?.cards && cardLock.cards.length > 0
+        ? cardLock.cards
+        : projectConfig.cards
+          ? await resolveProjectCards(normalized.agentsDir, projectConfig.cards)
+          : [];
+    const localLockCards = projectRoot ? (await loadCardLockLocal(projectRoot)) ?? [] : [];
+    const byName = new Map<string, CardLockEntry>();
+    for (const card of committedCards) {
+      byName.set(card.name, card);
+      cardLanes[card.name] = "committed";
+    }
+    for (const card of localLockCards) {
+      if (byName.has(card.name)) {
+        overlayWarnings.push(`card.lock.local overrides committed lock entry for ${card.name}`);
+      }
+      byName.set(card.name, card);
+      cardLanes[card.name] = "localOverlay";
+    }
+    lockedCards = [...byName.values()];
+    lockedCards = await backfillLockTreeShas(normalized.agentsDir, lockedCards);
+    for (const card of lockedCards) {
+      let resolved = resolveMode(card, {
+        projectConfig,
+        configLocal,
+        cardsSourcePath,
+      });
+      if (cardLanes[card.name] === "localOverlay") {
+        resolved = {
+          mode: "overlay",
+          reason: "local lock lane overlay",
+          vendorEligible: false,
+          sourcePath: resolved.sourcePath ?? card.path,
+        };
+      }
+      cardModes[card.name] = resolved;
+      if (resolved.vendorEligible) {
+        vendorEligible.add(card.name);
+      } else {
+        overlayCards.push(card);
+      }
+      if (resolved.reason.includes("absent")) {
+        overlayWarnings.push(`${card.name}: ${resolved.reason}`);
+      }
+    }
+    if (projectRoot) {
+      for (const card of lockedCards) {
+        const mode = cardModes[card.name];
+        if (mode) {
+          contentRootsByCard[card.name] = resolveCardContentRoot({
+            projectRoot,
+            agentsDir: normalized.agentsDir,
+            card,
+            mode,
+            allowPlanningFallback: true,
+          });
+        }
+      }
+    }
     activeCards = selectActiveCards(lockedCards, projectConfig.activeMinds);
+    skillApplyOrderCards = orderCardsByApplySpecs(activeCards, projectConfig.cards ?? []);
     projectConfigWithCards = mergeCardManifestsIntoProjectConfig(
       projectConfig,
       activeCards.map((card) => card.manifest),
@@ -116,11 +201,59 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
     cardServerDefinitions,
     lockedCards,
     activeCards,
+    skillApplyOrderCards,
+    overlayCards,
+    cardModes,
+    cardLanes,
+    contentRootsByCard,
+    vendorEligible,
+    overlayWarnings,
     skillSelection,
     recordPath: projectRoot ? resolveProjectWriteRecordPath(projectRoot) : resolveGlobalWriteRecordPath(normalized.agentsDir),
     scopeRoot,
     scopedOptions,
   };
+}
+
+export function recomputeContentRootsByCard(
+  state: Pick<EffectiveState, "projectRoot" | "scopedOptions" | "lockedCards" | "cardModes">,
+  options: { allowPlanningFallback?: boolean } = {},
+): Record<string, string> {
+  if (!state.projectRoot) {
+    return {};
+  }
+  const allowPlanningFallback = options.allowPlanningFallback ?? !state.scopedOptions.dryRun;
+  const contentRootsByCard: Record<string, string> = {};
+  for (const card of state.lockedCards) {
+    const mode = state.cardModes[card.name];
+    if (!mode) {
+      continue;
+    }
+    contentRootsByCard[card.name] = resolveCardContentRoot({
+      projectRoot: state.projectRoot,
+      agentsDir: state.scopedOptions.agentsDir,
+      card,
+      mode,
+      allowPlanningFallback,
+    });
+  }
+  return contentRootsByCard;
+}
+
+export function assertMachineWriteScopeAllowed(options: {
+  writeScope?: "machine" | "project";
+  forceMachineScope?: boolean;
+  scope?: "machine" | "project";
+}) {
+  if (options.writeScope !== "machine") {
+    return;
+  }
+  if (options.forceMachineScope || options.scope === "machine") {
+    return;
+  }
+  throw new Error(
+    "Machine-scope drwn write would modify user home tool configs (~/.claude, ~/.codex, ...). Re-run with --scope machine or --root to confirm.",
+  );
 }
 
 function selectActiveCards(lockedCards: CardLockEntry[], activeMinds?: string[]) {
@@ -133,6 +266,27 @@ function selectActiveCards(lockedCards: CardLockEntry[], activeMinds?: string[])
   const byName = new Map(lockedCards.map((card) => [card.name, card]));
   return activeMinds.flatMap((name) => {
     const card = byName.get(name);
+    return card ? [card] : [];
+  });
+}
+
+export function orderCardsByApplySpecs(cards: CardLockEntry[], specs: string[]) {
+  const byName = new Map(cards.map((card) => [card.name, card]));
+  const unused = [...cards];
+  return specs.flatMap((spec) => {
+    const parsed = parseCardRef(spec);
+    if (parsed.origin === "store" && parsed.name) {
+      const card = byName.get(parsed.name);
+      if (!card) {
+        return [];
+      }
+      const idx = unused.indexOf(card);
+      if (idx >= 0) {
+        unused.splice(idx, 1);
+      }
+      return [card];
+    }
+    const card = unused.shift();
     return card ? [card] : [];
   });
 }

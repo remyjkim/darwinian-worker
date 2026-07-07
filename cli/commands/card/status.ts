@@ -51,14 +51,19 @@ export class CardStatusCommand extends BaseCommand {
       );
       return 0;
     }
-    const status = await readProjectCardStatus(this.context.projectConfigPath, this.context.agentsDir);
+    const status = await readProjectCardStatus(this.context.projectConfigPath, this.context.agentsDir, {
+      repoRoot: this.context.repoRoot,
+      homeDir: this.context.homeDir,
+    });
     if (this.json) {
       this.context.stdout.write(renderJson({
         ...status,
         locked: status.locked.map((card) => ({
           ...card,
           hookConsent: card.hookConsent ?? null,
+          mode: status.modes[card.name] ?? null,
         })),
+        modes: status.modes,
       }));
       return 0;
     }
@@ -68,9 +73,13 @@ export class CardStatusCommand extends BaseCommand {
         `Specs: ${status.specs.join(", ") || "none"}`,
         status.locked.length === 0
           ? "Locked: none"
-          : `Locked:\n${status.locked.map((card) =>
-              `- ${card.name}@${card.version} (${card.requested}) hook-consent: ${formatHookConsent(card)}`
-            ).join("\n")}`,
+          : `Locked:\n${status.locked.map((card) => {
+              const mode = status.modes[card.name];
+              const modeLine = mode
+                ? ` mode=${mode.mode} reason=${mode.reason} lane=${mode.lane}${mode.sourcePath ? ` source=${mode.sourcePath}` : ""}`
+                : "";
+              return `- ${card.name}@${card.version} (${card.requested}) hook-consent: ${formatHookConsent(card)}${modeLine}`;
+            }).join("\n")}`,
         status.outdated.length === 0
           ? "Outdated: none"
           : `Outdated:\n${status.outdated.map((card) => `- ${card.name} ${card.current} -> ${card.latest}`).join("\n")}`,

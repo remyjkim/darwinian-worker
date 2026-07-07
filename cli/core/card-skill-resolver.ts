@@ -28,12 +28,23 @@ export async function resolveSkillSource(
   lockedCards: CardLockEntry[],
   repoRoot: string,
   agentsDir: string,
+  contentRoots?: Record<string, string>,
 ): Promise<ResolvedSkillSource> {
-  for (const card of lockedCards) {
+  for (let index = lockedCards.length - 1; index >= 0; index -= 1) {
+    const card = lockedCards[index]!;
     if (!card.skills.includes(name)) {
       continue;
     }
-    const path = join(card.path, "skills", name);
+    const root = contentRoots ? contentRoots[card.name] : card.path;
+    if (!root) {
+      return {
+        layer: "missing",
+        reason: contentRoots
+          ? `no content root resolved for ${card.name} in project scope`
+          : `card store is corrupt for ${card.name}@${card.version}: missing content root. Re-run \`drwn card update\` after republishing the card.`,
+      };
+    }
+    const path = join(root, "skills", name);
     if (!existsSync(path)) {
       return {
         layer: "missing",
