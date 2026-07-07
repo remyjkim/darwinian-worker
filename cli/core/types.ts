@@ -116,7 +116,7 @@ export interface ProjectConfig {
   materialization?: "vendored" | "linked";
   committedSurfaces?: boolean;
   cards?: string[];
-  activeMinds?: string[];
+  activeWorkers?: string[];
   servers?: Record<string, ServerOverride>;
   skills?: {
     include?: string[];

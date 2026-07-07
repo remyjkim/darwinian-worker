@@ -1,4 +1,4 @@
-// ABOUTME: Inspects and diagnoses editable local Mind Card sources.
+// ABOUTME: Inspects and diagnoses editable local Card sources.
 // ABOUTME: Separates source authoring state from published card consumption state.
 
 import { existsSync } from "node:fs";

@@ -19,7 +19,7 @@ async function publishHookCard(fixture: Awaited<ReturnType<typeof scaffoldCliFix
   expect((await runAgentsCli(["card", "publish", name], envFor(fixture))).exitCode).toBe(0);
 }
 
-test("active mind hooks project as one stack composer and preserve signals", async () => {
+test("active worker hooks project as one stack composer and preserve signals", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   await publishHookCard(fixture, "@me/base", "guard");
@@ -32,7 +32,7 @@ test("active mind hooks project as one stack composer and preserve signals", asy
       {
         version: 1,
         cards: ["@me/base@1.0.0", "@me/overlay@1.0.0"],
-        activeMinds: ["@me/base", "@me/overlay"],
+        activeWorkers: ["@me/base", "@me/overlay"],
         hooks: { signals: { enabled: true } },
       },
       null,
@@ -47,8 +47,8 @@ test("active mind hooks project as one stack composer and preserve signals", asy
   const settings = JSON.parse(await readFile(join(projectDir, ".claude", "settings.json"), "utf8"));
 
   expect(write.exitCode).toBe(0);
-  expect(existsSync(join(projectDir, ".agents", "drwn", "generated", "minds", "@me", "base", "hooks", "claude", "composer.mjs"))).toBe(true);
-  expect(existsSync(join(projectDir, ".agents", "drwn", "generated", "minds", "@me", "overlay", "hooks", "claude", "composer.mjs"))).toBe(true);
+  expect(existsSync(join(projectDir, ".agents", "drwn", "generated", "workers", "@me", "base", "hooks", "claude", "composer.mjs"))).toBe(true);
+  expect(existsSync(join(projectDir, ".agents", "drwn", "generated", "workers", "@me", "overlay", "hooks", "claude", "composer.mjs"))).toBe(true);
   const preToolMatchers = settings.hooks.PreToolUse.map((entry: { matcher?: string }) => entry.matcher);
   expect(preToolMatchers.filter((matcher: string | undefined) => matcher === ".*")).toHaveLength(1);
   expect(preToolMatchers).toContain("Skill");
@@ -68,7 +68,7 @@ test("clearing the active stack drops the card composer entry while signal hooks
       {
         version: 1,
         cards: ["@me/base@1.0.0"],
-        activeMinds: ["@me/base"],
+        activeWorkers: ["@me/base"],
         hooks: { signals: { enabled: true } },
       },
       null,
@@ -86,7 +86,7 @@ test("clearing the active stack drops the card composer entry while signal hooks
   expect(active._drwn.ownedHooks.PreToolUse["m:Skill"]).toStartWith("sha256-");
 
   // Deactivate the stack and re-project: the card composer entry is dropped, signals remain.
-  expect((await runAgentsCli(["mind", "clear"], envFor(fixture), projectDir)).exitCode).toBe(0);
+  expect((await runAgentsCli(["worker", "stack", "clear"], envFor(fixture), projectDir)).exitCode).toBe(0);
   expect((await runAgentsCli(["write", "--target", "claude"], envFor(fixture), projectDir)).exitCode).toBe(0);
   const cleared = JSON.parse(await readFile(join(projectDir, ".claude", "settings.json"), "utf8"));
   expect(cleared.hooks.PreToolUse.some((entry: { matcher?: string }) => entry.matcher === ".*")).toBe(false);

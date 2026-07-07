@@ -1,5 +1,5 @@
-// ABOUTME: Single mapping from card mode to on-disk content roots for skills and minds.
-// ABOUTME: Prevents skill and mind materialization paths from drifting apart.
+// ABOUTME: Single mapping from card mode to on-disk content roots for skills and workers.
+// ABOUTME: Prevents skill and worker materialization paths from drifting apart.
 
 import { existsSync } from "node:fs";
 import { join } from "node:path";

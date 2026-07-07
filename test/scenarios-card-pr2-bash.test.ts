@@ -1,4 +1,4 @@
-// ABOUTME: Runs a Bash workflow for per-mind materialization and activation.
+// ABOUTME: Runs a Bash workflow for per-worker materialization and activation.
 // ABOUTME: Exercises shell-facing PR2 contracts through the public CLI.
 
 import { afterEach, expect, test as baseTest } from "bun:test";
@@ -14,11 +14,11 @@ afterEach(async () => {
   await cleanupTempRoots(tempRoots);
 });
 
-test("bash CLI materializes minds, activates a stack, and projects only active cards", async () => {
+test("bash CLI materializes workers, activates a stack, and projects only active cards", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
-  await publishMind(fixture, "@team/base", "alpha");
-  await publishMind(fixture, "@team/overlay", "beta");
+  await publishWorker(fixture, "@team/base", "alpha");
+  await publishWorker(fixture, "@team/overlay", "beta");
   const projectDir = join(fixture.root, "project");
   const configPath = join(projectDir, ".agents", "drwn", "config.json");
   await mkdir(dirname(configPath), { recursive: true });
@@ -29,27 +29,27 @@ test("bash CLI materializes minds, activates a stack, and projects only active c
 set -euo pipefail
 cd "$PROJECT_DIR"
 "$BUN_BIN" run "$DRWN_ENTRYPOINT" write --json > "$WRITE_ONE"
-test -f .agents/drwn/generated/minds.json
-test -d .agents/drwn/generated/minds/@team/base
-test -d .agents/drwn/generated/minds/@team/overlay
+test -f .agents/drwn/generated/workers.json
+test -d .agents/drwn/generated/workers/@team/base
+test -d .agents/drwn/generated/workers/@team/overlay
 test -d .claude/skills/alpha
 test -d .claude/skills/beta
-"$BUN_BIN" run "$DRWN_ENTRYPOINT" mind clear --json > "$CLEAR_ONE"
+"$BUN_BIN" run "$DRWN_ENTRYPOINT" worker stack clear --json > "$CLEAR_ONE"
 "$BUN_BIN" run "$DRWN_ENTRYPOINT" write --json > "$WRITE_CLEAR"
 test ! -e .claude/skills/alpha
 test ! -e .claude/skills/beta
-"$BUN_BIN" run "$DRWN_ENTRYPOINT" mind use @team/base --json > "$USE_ONE"
+"$BUN_BIN" run "$DRWN_ENTRYPOINT" worker stack use @team/base --json > "$USE_ONE"
 "$BUN_BIN" run "$DRWN_ENTRYPOINT" write --json > "$WRITE_TWO"
 test -d .claude/skills/alpha
 test ! -e .claude/skills/beta
-"$BUN_BIN" run "$DRWN_ENTRYPOINT" mind use @team/base @team/overlay --json > "$USE_TWO"
+"$BUN_BIN" run "$DRWN_ENTRYPOINT" worker stack use @team/base @team/overlay --json > "$USE_TWO"
 "$BUN_BIN" run "$DRWN_ENTRYPOINT" write --json > "$WRITE_THREE"
 test -d .claude/skills/alpha
 test -d .claude/skills/beta
 node <<'NODE'
 const fs = require('fs');
 const listed = JSON.parse(fs.readFileSync(process.env.USE_TWO, 'utf8'));
-if (listed.activeMinds.join(',') !== '@team/base,@team/overlay') throw new Error('bad active stack');
+if (listed.activeWorkers.join(',') !== '@team/base,@team/overlay') throw new Error('bad active stack');
 NODE
 `,
     {
@@ -68,7 +68,7 @@ NODE
   expect(result.exitCode).toBe(0);
 });
 
-async function publishMind(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>, name: string, skill: string) {
+async function publishWorker(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>, name: string, skill: string) {
   expect((await runAgentsCli(["card", "new", name, "--no-git"], envFor(fixture))).exitCode).toBe(0);
   const [, scope, cardName] = name.match(/^(@[^/]+)\/(.+)$/) ?? [];
   const sourceDir = join(fixture.agentsDir, "drwn", "sources", scope!, cardName!);

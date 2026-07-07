@@ -1,4 +1,4 @@
-// ABOUTME: Parses local drwn cloud secrets files for deployment-time MCP tokens.
+// ABOUTME: Parses local drwn worker secrets files for deployment-time MCP tokens.
 // ABOUTME: Supports the .iminds.secrets fallback for one compatibility release.
 
 export const DRWN_SECRETS_FILE = ".drwn.secrets";

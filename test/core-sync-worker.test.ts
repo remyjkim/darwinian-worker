@@ -1,5 +1,5 @@
-// ABOUTME: Verifies per-mind generated bundles and registry materialization.
-// ABOUTME: Protects isolated mind output, symlinks, and stale bundle cleanup.
+// ABOUTME: Verifies per-worker generated bundles and registry materialization.
+// ABOUTME: Protects isolated worker output, symlinks, and stale bundle cleanup.
 
 import { afterEach, expect, test } from "bun:test";
 import { existsSync, lstatSync, readlinkSync } from "node:fs";
@@ -14,7 +14,7 @@ afterEach(async () => {
   await cleanupTempRoots(tempRoots);
 });
 
-async function publishMindFixture(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
+async function publishWorkerFixture(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
   expect((await runAgentsCli(["card", "new", "@me/mind", "--no-git"], envFor(fixture))).exitCode).toBe(0);
   const sourceDir = join(fixture.agentsDir, "drwn", "sources", "@me", "mind");
   const manifest = JSON.parse(await readFile(join(sourceDir, "card.json"), "utf8"));
@@ -33,10 +33,10 @@ async function publishMindFixture(fixture: Awaited<ReturnType<typeof scaffoldCli
   expect((await runAgentsCli(["card", "publish", "@me/mind"], envFor(fixture))).exitCode).toBe(0);
 }
 
-test("syncRepository materializes isolated mind bundles and cleans removed minds", async () => {
+test("syncRepository materializes isolated worker bundles and cleans removed workers", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
-  await publishMindFixture(fixture);
+  await publishWorkerFixture(fixture);
   const projectDir = join(fixture.root, "project");
   const configPath = join(projectDir, ".agents", "drwn", "config.json");
   await mkdir(dirname(configPath), { recursive: true });
@@ -49,26 +49,26 @@ test("syncRepository materializes isolated mind bundles and cleans removed minds
     cwd: projectDir,
   };
   const first = await syncRepository(syncOptions);
-  const mindDir = join(projectDir, ".agents", "drwn", "generated", "minds", "@me", "mind");
-  const registry = JSON.parse(await readFile(join(projectDir, ".agents", "drwn", "generated", "minds.json"), "utf8"));
-  const mindJson = JSON.parse(await readFile(join(mindDir, "mind.json"), "utf8"));
+  const workerDir = join(projectDir, ".agents", "drwn", "generated", "workers", "@me", "mind");
+  const registry = JSON.parse(await readFile(join(projectDir, ".agents", "drwn", "generated", "workers.json"), "utf8"));
+  const workerJson = JSON.parse(await readFile(join(workerDir, "worker.json"), "utf8"));
 
   expect(first.cardModes?.["@me/mind"]?.mode).toBe("vendored");
-  expect(registry.minds.map((mind: { name: string }) => mind.name)).toEqual(["@me/mind"]);
-  expect(mindJson.name).toBe("@me/mind");
-  expect(mindJson.skills).toEqual(["alpha"]);
-  expect(mindJson.persona).toBeUndefined();
-  expect(mindJson.beliefs).toBeUndefined();
-  expect(mindJson.memory).toBeUndefined();
-  expect(existsSync(join(mindDir, "persona.md"))).toBe(false);
-  expect(lstatSync(join(mindDir, "skills", "alpha")).isDirectory()).toBe(true);
-  expect(lstatSync(join(mindDir, "skills", "alpha")).isSymbolicLink()).toBe(false);
-  expect(JSON.parse(await readFile(join(mindDir, "mcp", "servers.json"), "utf8")).mcpServers["mind-server"].command).toBe("mind-server");
+  expect(registry.workers.map((worker: { name: string }) => worker.name)).toEqual(["@me/mind"]);
+  expect(workerJson.name).toBe("@me/mind");
+  expect(workerJson.skills).toEqual(["alpha"]);
+  expect(workerJson.persona).toBeUndefined();
+  expect(workerJson.beliefs).toBeUndefined();
+  expect(workerJson.memory).toBeUndefined();
+  expect(existsSync(join(workerDir, "persona.md"))).toBe(false);
+  expect(lstatSync(join(workerDir, "skills", "alpha")).isDirectory()).toBe(true);
+  expect(lstatSync(join(workerDir, "skills", "alpha")).isSymbolicLink()).toBe(false);
+  expect(JSON.parse(await readFile(join(workerDir, "mcp", "servers.json"), "utf8")).mcpServers["mind-server"].command).toBe("mind-server");
   expect(existsSync(join(projectDir, ".agents", "drwn", "generated", "mind"))).toBe(false);
 
   await writeFile(configPath, JSON.stringify({ version: 1, cards: [] }, null, 2));
   const second = await syncRepository(syncOptions);
 
-  expect(second.changes.some((change) => change.includes(`remove ${mindDir}`))).toBe(true);
-  expect(existsSync(mindDir)).toBe(false);
+  expect(second.changes.some((change) => change.includes(`remove ${workerDir}`))).toBe(true);
+  expect(existsSync(workerDir)).toBe(false);
 });

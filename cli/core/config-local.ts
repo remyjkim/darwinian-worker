@@ -118,7 +118,7 @@ export function mergeProjectWithLocal(project: ProjectConfig, local: ConfigLocal
   }
   const next: ProjectConfig = { ...project };
   if (local.activate !== undefined) {
-    next.activeMinds = [...local.activate];
+    next.activeWorkers = [...local.activate];
   }
   return next;
 }

@@ -40,7 +40,7 @@ describe("write-watch helpers", () => {
     const root = await createTempRoot("write-watch-ignore-");
     tempRoots.push(root);
     const linked = join(root, "linked");
-    const generated = join(root, ".agents", "drwn", "generated", "minds", "x");
+    const generated = join(root, ".agents", "drwn", "generated", "workers", "x");
     expect(linkedRootOverlapsProject(root, [linked])).toBe(true);
     expect(shouldIgnoreWatchEvent(root, generated, [linked])).toBe(true);
     expect(shouldIgnoreWatchEvent(root, join(linked, "skills", "a", "SKILL.md"), [linked])).toBe(false);

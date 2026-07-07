@@ -1,4 +1,4 @@
-// ABOUTME: Applies Mind Card selections to per-project config and lockfiles.
+// ABOUTME: Applies Card selections to per-project config and lockfiles.
 // ABOUTME: Keeps card consumer commands consistent and side-effect-light.
 
 import { dirname } from "node:path";

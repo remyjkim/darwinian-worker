@@ -56,7 +56,7 @@ async function scaffoldVendoredProject() {
   await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
   await writeFile(
     join(projectDir, ".agents", "drwn", "config.json"),
-    JSON.stringify({ version: 1, cards: ["@me/prov@1.0.0"], activeMinds: ["@me/prov"] }, null, 2),
+    JSON.stringify({ version: 1, cards: ["@me/prov@1.0.0"], activeWorkers: ["@me/prov"] }, null, 2),
   );
   await writeCardLock(projectDir, [
     {

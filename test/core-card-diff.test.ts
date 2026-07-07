@@ -1,4 +1,4 @@
-// ABOUTME: Verifies structural Mind Card diff classification.
+// ABOUTME: Verifies structural Card diff classification.
 // ABOUTME: Protects version-bump guidance for card authors.
 
 import { expect, test } from "bun:test";

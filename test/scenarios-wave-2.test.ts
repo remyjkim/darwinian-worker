@@ -25,7 +25,7 @@ test("Wave 2 flow captures a Git-backed project, publishes it, and consumes the 
   await writeFile(join(projectA, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1 }, null, 2));
 
   const addRemote = await runAgentsCli(["add", `git+${remote.url}#v1.0.0`], envFor(fixture), projectA);
-  const useRemote = await runAgentsCli(["mind", "use", "@team/base"], envFor(fixture), projectA);
+  const useRemote = await runAgentsCli(["worker", "stack", "use", "@team/base"], envFor(fixture), projectA);
   const writeA = await runAgentsCli(["write"], envFor(fixture), projectA);
 
   expect(addRemote.exitCode).toBe(0);
@@ -50,7 +50,7 @@ test("Wave 2 flow captures a Git-backed project, publishes it, and consumes the 
   await mkdir(join(projectB, ".agents", "drwn"), { recursive: true });
   await writeFile(join(projectB, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1 }, null, 2));
   const addCaptured = await runAgentsCli(["add", "@me/captured-wave2@0.1.0"], envFor(fixture), projectB);
-  const useCaptured = await runAgentsCli(["mind", "use", "@me/captured-wave2"], envFor(fixture), projectB);
+  const useCaptured = await runAgentsCli(["worker", "stack", "use", "@me/captured-wave2"], envFor(fixture), projectB);
   const writeB = await runAgentsCli(["write"], envFor(fixture), projectB);
   const show = await runAgentsCli(["card", "show", "@me/captured-wave2@0.1.0", "--json"], envFor(fixture));
 

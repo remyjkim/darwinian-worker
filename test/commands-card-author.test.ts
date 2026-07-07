@@ -1,5 +1,5 @@
 // ABOUTME: Verifies card source authoring and local publishing commands.
-// ABOUTME: Protects the immutable local store contract for Mind Cards.
+// ABOUTME: Protects the immutable local store contract for Cards.
 
 import { afterEach, expect, test } from "bun:test";
 import { existsSync } from "node:fs";

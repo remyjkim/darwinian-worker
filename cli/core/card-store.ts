@@ -1,4 +1,4 @@
-// ABOUTME: Manages local Mind Card sources, immutable published versions, and resolution.
+// ABOUTME: Manages local Card sources, immutable published versions, and resolution.
 // ABOUTME: Centralizes card store layout so authoring and project commands share behavior.
 
 import { createHash, randomBytes } from "node:crypto";

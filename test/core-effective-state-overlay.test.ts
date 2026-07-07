@@ -77,7 +77,7 @@ test("name collision: card.lock.local wins with warning", async () => {
   const projectDir = await scaffoldProject(fixture, {
     version: 1,
     cards: ["@me/shared@1.0.0"],
-    activeMinds: ["@me/shared"],
+    activeWorkers: ["@me/shared"],
   });
 
   await writeCardLock(projectDir, [
@@ -130,7 +130,7 @@ test("config.local activate overrides committed active stack", async () => {
   const projectDir = await scaffoldProject(fixture, {
     version: 1,
     cards: ["@me/one@1.0.0", "@me/two@1.0.0"],
-    activeMinds: ["@me/one"],
+    activeWorkers: ["@me/one"],
   });
 
   await writeCardLock(projectDir, [

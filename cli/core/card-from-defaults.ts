@@ -1,4 +1,4 @@
-// ABOUTME: Captures machine default skills into a new profile Mind Card source.
+// ABOUTME: Captures machine default skills into a new profile Card source.
 // ABOUTME: Reuses card source scaffolding and bundled skill copy helpers.
 
 import { addCardSourceSkill } from "./card-source";

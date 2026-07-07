@@ -18,7 +18,7 @@ test("hasLegacyGeneratedSymlinks detects generated-symlink write-record entries"
     join(root, ".agents", "drwn", "write-record.json"),
     `${JSON.stringify({
       writeRecordVersion: 1,
-      managedPaths: [{ path: ".agents/drwn/generated/minds/x/skills/a", kind: "generated-symlink", generatedPath: "/store/x" }],
+      managedPaths: [{ path: ".agents/drwn/generated/workers/x/skills/a", kind: "generated-symlink", generatedPath: "/store/x" }],
     }, null, 2)}\n`,
   );
   const { hasLegacyGeneratedSymlinks } = await import("../cli/core/migrate-vendor");
@@ -36,7 +36,7 @@ test("migrateSymlinkLayerToVendor returns structured report when no symlinks rem
       writeRecordVersion: 1,
       lastWriteAt: "2026-01-01T00:00:00.000Z",
       lastWriteHarnessVersion: "0.0.0",
-      managedPaths: [{ path: ".agents/drwn/generated/minds/x", kind: "managed-directory", contentHash: "sha256-x" }],
+      managedPaths: [{ path: ".agents/drwn/generated/workers/x", kind: "managed-directory", contentHash: "sha256-x" }],
     }, null, 2)}\n`,
   );
   const { migrateSymlinkLayerToVendor } = await import("../cli/core/migrate-vendor");
@@ -63,7 +63,7 @@ test("migrateSymlinkLayerToVendor preserves unrelated managed-path ownership", a
       lastWriteAt: "2026-01-01T00:00:00.000Z",
       lastWriteHarnessVersion: "0.0.0",
       managedPaths: [
-        { path: ".agents/drwn/generated/minds/x/skills/a", kind: "generated-symlink", generatedPath: "/store/x" },
+        { path: ".agents/drwn/generated/workers/x/skills/a", kind: "generated-symlink", generatedPath: "/store/x" },
         { path: ".cursor/mcp.json", kind: "managed-content", contentHash: "sha256-mcp" },
         { path: ".claude/skills/alpha", kind: "managed-directory", contentHash: "sha256-skill" },
       ],

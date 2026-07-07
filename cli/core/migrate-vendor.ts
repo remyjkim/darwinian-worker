@@ -5,7 +5,7 @@ import { existsSync, lstatSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { buildEffectiveState, recomputeContentRootsByCard } from "./effective-state";
-import { syncMinds } from "./mind-generator/sync-mind";
+import { syncWorkers } from "./worker-generator/sync-worker";
 import { reconcileVendorTrees } from "./vendor-reconcile";
 import { DRWN_VERSION } from "./version";
 import { dedupeManagedPathsByPath, loadWriteRecord, saveWriteRecord, type ManagedPath } from "./write-record";
@@ -45,12 +45,12 @@ export async function migrateSymlinkLayerToVendor(
   state.contentRootsByCard = recomputeContentRootsByCard(state, { allowPlanningFallback: false });
   const vendorTreesCreated = result.changes.filter((change) => change.startsWith("vendor ")).length;
 
-  const mindsResult = await syncMinds(state);
-  result.changes.push(...mindsResult.changes);
-  result.managedPaths.push(...(mindsResult.managedPaths ?? []));
+  const workersResult = await syncWorkers(state);
+  result.changes.push(...workersResult.changes);
+  result.managedPaths.push(...(workersResult.managedPaths ?? []));
 
   const preserved = (record?.managedPaths ?? []).filter((entry) => entry.kind !== "generated-symlink");
-  const rewritten = (mindsResult.managedPaths ?? []).filter((entry) => entry.kind !== "generated-symlink");
+  const rewritten = (workersResult.managedPaths ?? []).filter((entry) => entry.kind !== "generated-symlink");
   const nextManagedPaths = dedupeManagedPathsByPath([...preserved, ...rewritten]);
   saveWriteRecord(recordPath, {
     writeRecordVersion: 1,

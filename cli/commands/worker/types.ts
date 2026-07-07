@@ -1,7 +1,7 @@
-// ABOUTME: Deploy API DTOs and display helpers consumed by drwn cloud commands.
+// ABOUTME: Deploy API DTOs and display helpers consumed by drwn worker commands.
 // ABOUTME: Mirrors the server response shape without importing worker runtime code.
 
-export interface MindSummary {
+export interface WorkerSummary {
   id: string;
   slug: string;
   created_at: string;
@@ -15,7 +15,7 @@ export interface MindSummary {
 
 export interface DeploymentRow {
   id: string;
-  mind_id?: string;
+  mind_id?: string; // external contract: server DTO field
   card_ref: string;
   model: string | null;
   status: string;

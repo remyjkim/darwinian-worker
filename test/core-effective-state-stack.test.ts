@@ -1,4 +1,4 @@
-// ABOUTME: Verifies active mind stack selection feeds project projection.
+// ABOUTME: Verifies active worker stack selection feeds project projection.
 // ABOUTME: Protects explicit activation from implicit all-installed card merging.
 
 import { afterEach, expect, test } from "bun:test";
@@ -13,7 +13,7 @@ afterEach(async () => {
   await cleanupTempRoots(tempRoots);
 });
 
-test("buildEffectiveState projects only the ordered active mind stack", async () => {
+test("buildEffectiveState projects only the ordered active worker stack", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   await publishCardWithSkills(fixture, {
@@ -39,7 +39,7 @@ test("buildEffectiveState projects only the ordered active mind stack", async ()
       {
         version: 1,
         cards: ["@me/base@1.0.0", "@me/overlay@1.0.0"],
-        activeMinds: ["@me/base", "@me/overlay"],
+        activeWorkers: ["@me/base", "@me/overlay"],
       },
       null,
       2,
@@ -66,7 +66,7 @@ test("buildEffectiveState leaves explicitly inactive cards out of projection", a
   const projectDir = join(fixture.root, "project");
   const configPath = join(projectDir, ".agents", "drwn", "config.json");
   await mkdir(dirname(configPath), { recursive: true });
-  await writeFile(configPath, JSON.stringify({ version: 1, cards: ["@me/base@1.0.0"], activeMinds: [] }, null, 2));
+  await writeFile(configPath, JSON.stringify({ version: 1, cards: ["@me/base@1.0.0"], activeWorkers: [] }, null, 2));
 
   const state = await buildEffectiveState({
     repoRoot: fixture.repoRoot,
@@ -80,7 +80,7 @@ test("buildEffectiveState leaves explicitly inactive cards out of projection", a
   expect(state.skillSelection?.include ?? []).not.toContain("alpha");
 });
 
-test("buildEffectiveState defaults absent activeMinds to all installed cards", async () => {
+test("buildEffectiveState defaults absent activeWorkers to all installed cards", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   await publishCardWithSkills(fixture, { name: "@me/base", skills: ["alpha"] });
@@ -125,12 +125,12 @@ test("active stack order determines materialized MCP precedence end-to-end", asy
     JSON.parse(await readFile(join(projectDir, ".mcp.json"), "utf8")).mcpServers.shared.command;
 
   // Stack [base, overlay]: the later layer (overlay) wins the conflicting server.
-  expect((await runAgentsCli(["mind", "use", "@me/base", "@me/overlay"], envFor(fixture), projectDir)).exitCode).toBe(0);
+  expect((await runAgentsCli(["worker", "stack", "use", "@me/base", "@me/overlay"], envFor(fixture), projectDir)).exitCode).toBe(0);
   expect((await runAgentsCli(["write", "--json"], envFor(fixture), projectDir)).exitCode).toBe(0);
   expect(await mcpServerCommand()).toBe("overlay-server");
 
   // Reordering the stack flips precedence end-to-end through the materialized surface.
-  expect((await runAgentsCli(["mind", "use", "@me/overlay", "@me/base"], envFor(fixture), projectDir)).exitCode).toBe(0);
+  expect((await runAgentsCli(["worker", "stack", "use", "@me/overlay", "@me/base"], envFor(fixture), projectDir)).exitCode).toBe(0);
   expect((await runAgentsCli(["write", "--json"], envFor(fixture), projectDir)).exitCode).toBe(0);
   expect(await mcpServerCommand()).toBe("base-server");
 });

@@ -1,11 +1,11 @@
-// ABOUTME: Unit tests for the cloud Deploy API auth-aware fetch helper.
+// ABOUTME: Unit tests for the worker Deploy API auth-aware fetch helper.
 // ABOUTME: Covers bearer attachment, the 401 -> refresh-once -> retry path, the env-token no-retry short-circuit, and the not-authenticated guard.
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fetchWithCloudAuth } from "../cli/core/cloud-http";
+import { fetchWithWorkerAuth } from "../cli/core/worker-http";
 import { writeCredentials } from "../cli/core/auth/credentials";
 import { resolveCredentialsPath } from "../cli/core/paths";
 
@@ -47,11 +47,11 @@ afterEach(async () => {
 });
 
 async function freshContext() {
-  tmp = await mkdtemp(join(tmpdir(), "drwn-cloud-http-"));
+  tmp = await mkdtemp(join(tmpdir(), "drwn-worker-http-"));
   return { agentsDir: tmp };
 }
 
-describe("fetchWithCloudAuth", () => {
+describe("fetchWithWorkerAuth", () => {
   test("attaches a bearer from stored credentials and returns the first response when ok", async () => {
     const context = await freshContext();
     const token = fakeJwt();
@@ -63,7 +63,7 @@ describe("fetchWithCloudAuth", () => {
       return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
     }) as unknown as typeof fetch;
 
-    const res = await fetchWithCloudAuth(context, "https://deploy.test/api/minds", undefined, { fetcher, env: {} });
+    const res = await fetchWithWorkerAuth(context, "https://deploy.test/api/minds", undefined, { fetcher, env: {} });
     expect(res.status).toBe(200);
     expect(seen).toEqual([{ url: "https://deploy.test/api/minds", auth: `Bearer ${token}` }]);
   });
@@ -89,7 +89,7 @@ describe("fetchWithCloudAuth", () => {
       return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
     }) as unknown as typeof fetch;
 
-    const res = await fetchWithCloudAuth(context, "https://deploy.test/api/minds", undefined, { fetcher, env: {} });
+    const res = await fetchWithWorkerAuth(context, "https://deploy.test/api/minds", undefined, { fetcher, env: {} });
 
     expect(res.status).toBe(200);
     expect(refreshHits).toBe(1);
@@ -113,7 +113,7 @@ describe("fetchWithCloudAuth", () => {
       return new Response("unauthorized", { status: 401 });
     }) as unknown as typeof fetch;
 
-    const res = await fetchWithCloudAuth(
+    const res = await fetchWithWorkerAuth(
       context,
       "https://deploy.test/api/minds",
       undefined,
@@ -128,7 +128,7 @@ describe("fetchWithCloudAuth", () => {
   test("throws Not authenticated when no env token and no credentials", async () => {
     const context = await freshContext();
     await expect(
-      fetchWithCloudAuth(context, "https://deploy.test/api/minds", undefined, { env: {} }),
+      fetchWithWorkerAuth(context, "https://deploy.test/api/minds", undefined, { env: {} }),
     ).rejects.toThrow("Not authenticated. Run `drwn login` first");
   });
 });

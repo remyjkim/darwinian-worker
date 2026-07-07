@@ -1,22 +1,22 @@
-// ABOUTME: Implements drwn cloud deploy against the Studio Deployment API.
+// ABOUTME: Implements drwn worker deploy against the Deploy API.
 // ABOUTME: Uploads card refs and optional MCP tokens, then polls deployment status.
 
 import { readFileSync } from "node:fs";
 import { Option } from "clipanion";
 import * as t from "typanion";
 import { BaseCommand } from "../base";
-import { resolveCloudConfig } from "../../core/cloud-config";
-import { fetchJsonWithCloudAuth } from "../../core/cloud-http";
-import { defaultSecretsFileCandidates, DRWN_SECRETS_FILE, parseSecretsFile } from "../../core/cloud-secrets";
+import { resolveWorkerConfig } from "../../core/worker-config";
+import { fetchJsonWithWorkerAuth } from "../../core/worker-http";
+import { defaultSecretsFileCandidates, DRWN_SECRETS_FILE, parseSecretsFile } from "../../core/worker-secrets";
 
 export const DEPLOY_TARGETS = ["preview", "production"] as const;
 
-export class CloudDeployCommand extends BaseCommand {
-  static override paths = [["cloud", "deploy"]];
+export class WorkerDeployCommand extends BaseCommand {
+  static override paths = [["worker", "deploy"]];
 
   static override usage = BaseCommand.Usage({
-    category: "Cloud",
-    description: "Deploy a Mind harness card to Studio Deployment.",
+    category: "Worker",
+    description: "Deploy a worker harness card.",
     details: `
       Accepts drwn card refs such as github:owner/repo#v1.0.0, git+https://...
       refs, and semver-style tags. Materialization happens server-side; the CLI
@@ -27,15 +27,15 @@ export class CloudDeployCommand extends BaseCommand {
       as a one-release fallback when the new file is absent.
     `,
     examples: [
-      ["Deploy a card from GitHub", "drwn cloud deploy github:curation-labs/harari-mind#v1.4.0 --name harari"],
-      ["Preview deploy", "drwn cloud deploy github:owner/repo#v2.0.0 --name my-mind --env preview"],
+      ["Deploy a card from GitHub", "drwn worker deploy github:curation-labs/harari-worker#v1.4.0 --name harari"],
+      ["Preview deploy", "drwn worker deploy github:owner/repo#v2.0.0 --name my-worker --env preview"],
     ],
   });
 
   cardRef = Option.String();
 
   name = Option.String("--name", {
-    description: "Mind slug used by the studio deployment gateway.",
+    description: "Worker slug used by the deployment gateway.",
   });
 
   model = Option.String("--model", {
@@ -53,7 +53,7 @@ export class CloudDeployCommand extends BaseCommand {
   });
 
   async execute(): Promise<number> {
-    const { apiBaseUrl, gatewayBaseUrl } = resolveCloudConfig();
+    const { apiBaseUrl, gatewayBaseUrl } = resolveWorkerConfig();
     if (this.cardRef.startsWith("file:")) {
       this.context.stderr.write("file: refs (tarball upload) are not supported yet - use a git+/github:/gitlab: ref.\n");
       return 1;
@@ -103,7 +103,7 @@ export class CloudDeployCommand extends BaseCommand {
 
     let created: { deploymentId?: string; error?: string };
     try {
-      const { response: res, body: createdBody } = await fetchJsonWithCloudAuth<{ deploymentId?: string; error?: string }>(this.context, `${apiBaseUrl}/api/deployments`, {
+      const { response: res, body: createdBody } = await fetchJsonWithWorkerAuth<{ deploymentId?: string; error?: string }>(this.context, `${apiBaseUrl}/api/deployments`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
@@ -126,7 +126,7 @@ export class CloudDeployCommand extends BaseCommand {
       await new Promise((resolve) => setTimeout(resolve, pollMs));
       let deployment: { status?: string; error?: string };
       try {
-        deployment = (await fetchJsonWithCloudAuth<{ status?: string; error?: string }>(
+        deployment = (await fetchJsonWithWorkerAuth<{ status?: string; error?: string }>(
           this.context,
           `${apiBaseUrl}/api/deployments/${depId}`,
         )).body;
@@ -139,19 +139,19 @@ export class CloudDeployCommand extends BaseCommand {
       }
       if (deployment.status === "ready") {
         this.context.stdout.write(`Deployment ${depId} is ready.\n`);
-        this.context.stdout.write(`Mind: ${this.name}\n`);
+        this.context.stdout.write(`Worker: ${this.name}\n`);
         this.context.stdout.write(`Chat: ${gatewayBaseUrl}/m/${this.name}/chat\n`);
-        this.context.stdout.write(`Status: drwn cloud status ${this.name}\n`);
+        this.context.stdout.write(`Status: drwn worker status ${this.name}\n`);
         return 0;
       }
       if (deployment.status === "failed") {
         this.context.stderr.write(`Deployment ${depId} failed: ${deployment.error ?? "unknown error"}\n`);
-        this.context.stderr.write(`Details: drwn cloud deployments ${this.name}\n`);
+        this.context.stderr.write(`Details: drwn worker deployments ${this.name}\n`);
         return 1;
       }
     }
     this.context.stderr.write(`Timed out waiting for deployment ${depId} to become ready.\n`);
-    this.context.stderr.write(`Details: drwn cloud deployments ${this.name}\n`);
+    this.context.stderr.write(`Details: drwn worker deployments ${this.name}\n`);
     return 1;
   }
 }

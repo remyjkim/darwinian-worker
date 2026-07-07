@@ -1,4 +1,4 @@
-// ABOUTME: Extracts MCP server definitions declared by locked Mind Cards.
+// ABOUTME: Extracts MCP server definitions declared by locked Cards.
 // ABOUTME: Keeps card MCP definitions separate from project activation toggles.
 
 import type { CardLockEntry } from "./card-lock";

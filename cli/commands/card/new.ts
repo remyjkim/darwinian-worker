@@ -16,7 +16,7 @@ export class CardNewCommand extends BaseCommand {
 
   static override usage = BaseCommand.Usage({
     category: "Cards",
-    description: "Create an editable Mind Card source under ~/.agents/drwn/sources.",
+    description: "Create an editable Card source under ~/.agents/drwn/sources.",
     details: `
       Creates a source directory with card.json, skills/, and mcp-servers/.
       Unscoped names require --scope or a saved authoring.scope in machine.json.

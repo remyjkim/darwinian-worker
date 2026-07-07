@@ -1,4 +1,4 @@
-// ABOUTME: Auth-aware Deploy API fetch helpers for drwn cloud commands.
+// ABOUTME: Auth-aware Deploy API fetch helpers for drwn worker commands.
 // ABOUTME: Adds DAH bearer tokens and retries once after a 401 by refreshing stored credentials.
 
 import type { AgentsContext } from "../context";
@@ -18,7 +18,7 @@ async function parseJsonOrText(response: Response): Promise<unknown> {
   return response.text();
 }
 
-export async function fetchWithCloudAuth(
+export async function fetchWithWorkerAuth(
   context: Pick<AgentsContext, "agentsDir">,
   input: string,
   init?: RequestInit,
@@ -45,11 +45,11 @@ export async function fetchWithCloudAuth(
   return fetcher(input, withBearer(init, refreshed.accessToken));
 }
 
-export async function fetchJsonWithCloudAuth<T>(
+export async function fetchJsonWithWorkerAuth<T>(
   context: Pick<AgentsContext, "agentsDir">,
   input: string,
   init?: RequestInit,
 ): Promise<{ response: Response; body: T }> {
-  const response = await fetchWithCloudAuth(context, input, init);
+  const response = await fetchWithWorkerAuth(context, input, init);
   return { response, body: await parseJsonOrText(response) as T };
 }

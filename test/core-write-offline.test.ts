@@ -94,7 +94,7 @@ test("drwn write materializes from committed vendor with an empty machine store"
   await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
   await writeFile(
     join(projectDir, ".agents", "drwn", "config.json"),
-    JSON.stringify({ version: 1, cards: ["@me/tool@1.0.0"], activeMinds: ["@me/tool"] }, null, 2),
+    JSON.stringify({ version: 1, cards: ["@me/tool@1.0.0"], activeWorkers: ["@me/tool"] }, null, 2),
   );
   await writeCardLock(projectDir, [
     {

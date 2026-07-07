@@ -1,5 +1,5 @@
-// ABOUTME: Materializes installed cards as isolated generated mind bundles.
-// ABOUTME: Writes minds.json plus per-mind skills, hooks, and MCP indexes.
+// ABOUTME: Materializes installed cards as isolated generated worker bundles.
+// ABOUTME: Writes workers.json plus per-worker skills, hooks, and MCP indexes.
 
 import { existsSync, lstatSync, mkdirSync, rmSync, symlinkSync } from "node:fs";
 import { join, relative } from "node:path";
@@ -14,8 +14,8 @@ import { isHookConsentValid } from "../hook-consent";
 import { renderJsonMcpConfig } from "../mcp";
 import { writeManagedFile } from "../managed-file";
 import {
-  resolveGeneratedMindDir,
-  resolveGeneratedMindsDir,
+  resolveGeneratedWorkerDir,
+  resolveGeneratedWorkersDir,
   resolveStoreGeneratedDir,
 } from "../store-paths";
 import type { RegistryServer, SyncResult } from "../types";
@@ -85,11 +85,11 @@ function hookPolicies(card: CardLockEntry, contentRoot: string): HookPolicyBundl
   }));
 }
 
-async function materializeMindHooks(
+async function materializeWorkerHooks(
   state: EffectiveState,
   card: CardLockEntry,
   contentRoot: string,
-  mindDir: string,
+  workerDir: string,
   result: SyncResult,
 ) {
   const policies = hookPolicies(card, contentRoot);
@@ -107,7 +107,7 @@ async function materializeMindHooks(
       continue;
     }
     const runtimeDir = runtime === "claude-code" ? "claude" : runtime;
-    const outputDir = join(mindDir, "hooks", runtimeDir);
+    const outputDir = join(workerDir, "hooks", runtimeDir);
     const composerPath = join(outputDir, "composer.mjs");
     if (!state.scopedOptions.dryRun) {
       await bundleHookComposer({ runtime, outputDir, policies });
@@ -118,17 +118,17 @@ async function materializeMindHooks(
   }
 }
 
-async function materializeMind(state: EffectiveState, card: CardLockEntry, result: SyncResult) {
+async function materializeWorker(state: EffectiveState, card: CardLockEntry, result: SyncResult) {
   const contentRoot = state.contentRootsByCard[card.name] ?? card.path;
   const generatedDir = state.scopedOptions.generatedDir ?? resolveStoreGeneratedDir(state.scopedOptions.agentsDir);
-  const mindDir = resolveGeneratedMindDir(generatedDir, card.name);
+  const workerDir = resolveGeneratedWorkerDir(generatedDir, card.name);
   if (!state.scopedOptions.dryRun) {
-    mkdirSync(mindDir, { recursive: true });
+    mkdirSync(workerDir, { recursive: true });
   }
 
   for (const skill of card.skills) {
     const target = join(contentRoot, "skills", skill);
-    const link = join(mindDir, "skills", skill);
+    const link = join(workerDir, "skills", skill);
     if (!existsSync(target)) {
       continue;
     }
@@ -144,51 +144,51 @@ async function materializeMind(state: EffectiveState, card: CardLockEntry, resul
 
   const servers = cardServers(card);
   if (Object.keys(servers).length > 0) {
-    const serversPath = join(mindDir, "mcp", "servers.json");
+    const serversPath = join(workerDir, "mcp", "servers.json");
     const content = renderJsonMcpConfig(servers);
     writeManagedFile(serversPath, content, state.scopedOptions.dryRun, result);
     result.managedPaths?.push(recordManagedContent(state.scopeRoot, serversPath, content));
   }
 
-  await materializeMindHooks(state, card, contentRoot, mindDir, result);
+  await materializeWorkerHooks(state, card, contentRoot, workerDir, result);
 
   const index = {
     name: card.name,
     version: card.version,
     integrity: card.integrity,
-    path: mindDir,
+    path: workerDir,
     skills: card.skills,
     hooks: card.hooks,
     servers: Object.keys(servers),
   };
-  writeJson(join(mindDir, "mind.json"), index, state, result);
+  writeJson(join(workerDir, "worker.json"), index, state, result);
 
-  if (!state.scopedOptions.dryRun && existsSync(mindDir) && lstatSync(mindDir).isDirectory()) {
-    result.managedPaths?.push(recordManagedDirectory(state.scopeRoot, mindDir, false));
+  if (!state.scopedOptions.dryRun && existsSync(workerDir) && lstatSync(workerDir).isDirectory()) {
+    result.managedPaths?.push(recordManagedDirectory(state.scopeRoot, workerDir, false));
   } else {
-    result.managedPaths?.push(recordManagedDirectory(state.scopeRoot, mindDir, true));
+    result.managedPaths?.push(recordManagedDirectory(state.scopeRoot, workerDir, true));
   }
 
   return {
     name: card.name,
     version: card.version,
     integrity: card.integrity,
-    path: mindDir,
+    path: workerDir,
   };
 }
 
-export async function syncMinds(state: EffectiveState): Promise<SyncResult> {
+export async function syncWorkers(state: EffectiveState): Promise<SyncResult> {
   const result: SyncResult = { changes: [], warnings: [], managedPaths: [] };
   const generatedDir = state.scopedOptions.generatedDir ?? resolveStoreGeneratedDir(state.scopedOptions.agentsDir);
-  const mindsRoot = resolveGeneratedMindsDir(generatedDir);
+  const workersRoot = resolveGeneratedWorkersDir(generatedDir);
   if (!state.scopedOptions.dryRun) {
-    mkdirSync(mindsRoot, { recursive: true });
+    mkdirSync(workersRoot, { recursive: true });
   }
-  const minds = [];
+  const workers = [];
   for (const card of state.lockedCards) {
-    minds.push(await materializeMind(state, card, result));
+    workers.push(await materializeWorker(state, card, result));
   }
-  minds.sort((a, b) => a.name.localeCompare(b.name));
-  writeJson(join(generatedDir, "minds.json"), { version: 1, minds }, state, result);
+  workers.sort((a, b) => a.name.localeCompare(b.name));
+  writeJson(join(generatedDir, "workers.json"), { version: 1, workers }, state, result);
   return result;
 }

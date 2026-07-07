@@ -1,4 +1,4 @@
-// ABOUTME: Verifies Mind Card manifest validation and naming rules.
+// ABOUTME: Verifies Card manifest validation and naming rules.
 // ABOUTME: Protects the authoring contract before card commands consume manifests.
 
 import { expect, test } from "bun:test";

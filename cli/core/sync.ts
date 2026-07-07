@@ -18,7 +18,7 @@ import {
 } from "./mcp";
 import { syncSkills as syncSkillsCore } from "./skills";
 import { syncHooks } from "./hook-generator/sync-hooks";
-import { syncMinds } from "./mind-generator/sync-mind";
+import { syncWorkers } from "./worker-generator/sync-worker";
 import { ensureParentDir, lstatSafe, realpathSafe } from "./fs";
 import { backupExistingPath, writeManagedFile } from "./managed-file";
 import {
@@ -413,10 +413,10 @@ export async function syncRepository(options: SyncOptions = {}): Promise<SyncRes
     state.contentRootsByCard = recomputeContentRootsByCard(state, {
       allowPlanningFallback: Boolean(state.normalized.dryRun),
     });
-    const mindsResult = await syncMinds(state);
-    result.changes.push(...mindsResult.changes);
-    result.warnings.push(...mindsResult.warnings);
-    result.managedPaths?.push(...(mindsResult.managedPaths ?? []));
+    const workersResult = await syncWorkers(state);
+    result.changes.push(...workersResult.changes);
+    result.warnings.push(...workersResult.warnings);
+    result.managedPaths?.push(...(workersResult.managedPaths ?? []));
   }
 
   if (!state.normalized.skillsOnly) {

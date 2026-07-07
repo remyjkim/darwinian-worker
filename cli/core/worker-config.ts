@@ -1,14 +1,14 @@
-// ABOUTME: Resolves Studio Deployment endpoints for drwn cloud commands.
+// ABOUTME: Resolves Deployment endpoints for drwn worker commands.
 // ABOUTME: Keeps one-release IMINDS env fallbacks while preferring DRWN names.
 
-export type CloudConfig = {
+export type WorkerConfig = {
   apiBaseUrl: string;
   gatewayBaseUrl: string;
 };
 
-export function resolveCloudConfig(
+export function resolveWorkerConfig(
   env: Record<string, string | undefined> = process.env as Record<string, string | undefined>,
-): CloudConfig {
+): WorkerConfig {
   return {
     apiBaseUrl:
       env.DRWN_STUDIO_API_URL ??

@@ -1,4 +1,4 @@
-// ABOUTME: Verifies `drwn mind` activation commands over installed cards.
+// ABOUTME: Verifies `drwn worker stack` activation commands over installed cards.
 // ABOUTME: Protects ordered active stack persistence and projection workflow.
 
 import { afterEach, expect, test } from "bun:test";
@@ -13,7 +13,7 @@ afterEach(async () => {
   await cleanupTempRoots(tempRoots);
 });
 
-test("mind list/use/clear manage the ordered active stack", async () => {
+test("worker stack list/use/clear manage the ordered active stack", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   await publishCardWithSkills(fixture, { name: "@me/base", skills: ["alpha"] });
@@ -24,26 +24,26 @@ test("mind list/use/clear manage the ordered active stack", async () => {
   await writeFile(configPath, JSON.stringify({ version: 1, cards: ["@me/base@1.0.0", "@me/overlay@1.0.0"] }, null, 2));
 
   expect((await runAgentsCli(["write"], envFor(fixture), projectDir)).exitCode).toBe(0);
-  const listed = await runAgentsCli(["mind", "list", "--json"], envFor(fixture), projectDir);
+  const listed = await runAgentsCli(["worker", "stack", "--json"], envFor(fixture), projectDir);
 
   expect(listed.exitCode).toBe(0);
   const listedPayload = JSON.parse(listed.stdout);
-  expect(listedPayload.minds.map((mind: { name: string }) => mind.name)).toEqual(["@me/base", "@me/overlay"]);
-  expect(listedPayload.minds.map((mind: { active: boolean }) => mind.active)).toEqual([true, true]);
-  expect(listedPayload.activeMinds).toEqual(["@me/base", "@me/overlay"]);
-  expect(listedPayload.defaultActiveMinds).toBe(true);
+  expect(listedPayload.workers.map((worker: { name: string }) => worker.name)).toEqual(["@me/base", "@me/overlay"]);
+  expect(listedPayload.workers.map((worker: { active: boolean }) => worker.active)).toEqual([true, true]);
+  expect(listedPayload.activeWorkers).toEqual(["@me/base", "@me/overlay"]);
+  expect(listedPayload.defaultActiveWorkers).toBe(true);
 
-  const use = await runAgentsCli(["mind", "use", "@me/base", "@me/overlay", "--json"], envFor(fixture), projectDir);
+  const use = await runAgentsCli(["worker", "stack", "use", "@me/base", "@me/overlay", "--json"], envFor(fixture), projectDir);
   expect(use.exitCode).toBe(0);
-  expect(JSON.parse(use.stdout).activeMinds).toEqual(["@me/base", "@me/overlay"]);
-  expect(JSON.parse(await readFile(configPath, "utf8")).activeMinds).toEqual(["@me/base", "@me/overlay"]);
+  expect(JSON.parse(use.stdout).activeWorkers).toEqual(["@me/base", "@me/overlay"]);
+  expect(JSON.parse(await readFile(configPath, "utf8")).activeWorkers).toEqual(["@me/base", "@me/overlay"]);
 
   expect((await runAgentsCli(["write"], envFor(fixture), projectDir)).exitCode).toBe(0);
   expect(existsSync(join(projectDir, ".claude", "skills", "alpha"))).toBe(true);
   expect(existsSync(join(projectDir, ".claude", "skills", "beta"))).toBe(true);
 
-  const clear = await runAgentsCli(["mind", "clear", "--json"], envFor(fixture), projectDir);
+  const clear = await runAgentsCli(["worker", "stack", "clear", "--json"], envFor(fixture), projectDir);
   expect(clear.exitCode).toBe(0);
-  expect(JSON.parse(clear.stdout).activeMinds).toEqual([]);
-  expect(JSON.parse(await readFile(configPath, "utf8")).activeMinds).toEqual([]);
+  expect(JSON.parse(clear.stdout).activeWorkers).toEqual([]);
+  expect(JSON.parse(await readFile(configPath, "utf8")).activeWorkers).toEqual([]);
 });

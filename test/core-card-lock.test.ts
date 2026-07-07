@@ -1,4 +1,4 @@
-// ABOUTME: Verifies Mind Card lockfile v2 read/write helpers.
+// ABOUTME: Verifies Card lockfile v2 read/write helpers.
 // ABOUTME: Protects origin metadata and Git commit persistence for project cards.
 
 import { afterEach, expect, test } from "bun:test";
@@ -130,7 +130,7 @@ test("writeCardLock preserves hooks and consent in v3", async () => {
   expect(loaded?.cards[0]?.hookConsent?.consentedRange).toBe("^1.0.0");
 });
 
-test("validateCardLockfile reads v3 entries with absent mind content metadata", () => {
+test("validateCardLockfile reads v3 entries with absent card content metadata", () => {
   const lock = validateCardLockfile({
     lockfileVersion: 3,
     cards: [

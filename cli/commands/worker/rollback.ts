@@ -1,25 +1,25 @@
-// ABOUTME: Implements drwn cloud rollback for moving a Mind alias to an older deployment.
-// ABOUTME: The Deploy API keeps immutable deployment workers; this only changes routing.
+// ABOUTME: Implements drwn worker rollback for moving a worker alias to an older deployment.
+// ABOUTME: The Deploy API keeps immutable deployment records; this only changes routing.
 
 import { Option } from "clipanion";
 import { BaseCommand } from "../base";
-import { resolveCloudConfig } from "../../core/cloud-config";
-import { fetchJsonWithCloudAuth } from "../../core/cloud-http";
+import { resolveWorkerConfig } from "../../core/worker-config";
+import { fetchJsonWithWorkerAuth } from "../../core/worker-http";
 
-export class CloudRollbackCommand extends BaseCommand {
-  static override paths = [["cloud", "rollback"]];
+export class WorkerRollbackCommand extends BaseCommand {
+  static override paths = [["worker", "rollback"]];
 
   static override usage = BaseCommand.Usage({
-    category: "Cloud",
-    description: "Roll a Mind back to a previous deployment.",
+    category: "Worker",
+    description: "Roll a worker back to a previous deployment.",
     details: `
-      Requests that Studio Deployment repoint the Mind alias to a previous ready
+      Requests that the Deploy API repoint the worker alias to a previous ready
       deployment. Without --to, the Deploy API chooses the most recent ready
       deployment before the currently active one.
     `,
     examples: [
-      ["Roll back one deployment", "drwn cloud rollback harari"],
-      ["Roll back to a specific deployment", "drwn cloud rollback harari --to dep_abc123"],
+      ["Roll back one deployment", "drwn worker rollback harari"],
+      ["Roll back to a specific deployment", "drwn worker rollback harari --to dep_abc123"],
     ],
   });
 
@@ -30,9 +30,9 @@ export class CloudRollbackCommand extends BaseCommand {
   });
 
   async execute(): Promise<number> {
-    const { apiBaseUrl } = resolveCloudConfig();
+    const { apiBaseUrl } = resolveWorkerConfig();
     try {
-      const { response: res, body } = await fetchJsonWithCloudAuth<{ activeDeploymentId?: string; error?: string }>(this.context, `${apiBaseUrl}/api/minds/${this.slug}/rollback`, {
+      const { response: res, body } = await fetchJsonWithWorkerAuth<{ activeDeploymentId?: string; error?: string }>(this.context, `${apiBaseUrl}/api/minds/${this.slug}/rollback`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(this.to ? { to: this.to } : {}),

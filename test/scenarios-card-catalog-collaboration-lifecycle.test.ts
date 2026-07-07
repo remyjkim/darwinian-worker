@@ -169,7 +169,7 @@ async function expectLockVersion(projectDir: string, version: string) {
 }
 
 async function activateDmCardBase(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>, projectDir: string) {
-  const use = await runAgentsCli(["mind", "use", DM_CARD_BASE_NAME], envFor(fixture), projectDir);
+  const use = await runAgentsCli(["worker", "stack", "use", DM_CARD_BASE_NAME], envFor(fixture), projectDir);
   expect(use.exitCode, use.stderr).toBe(0);
   const write = await runAgentsCli(["write"], envFor(fixture), projectDir);
   expect(write.exitCode, write.stderr).toBe(0);

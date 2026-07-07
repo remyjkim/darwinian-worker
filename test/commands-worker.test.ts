@@ -1,5 +1,5 @@
-// ABOUTME: Command-level tests for the drwn cloud command surface.
-// ABOUTME: Verifies Task 17 CLI routing, output contracts, env fallbacks, and API calls.
+// ABOUTME: Command-level tests for the drwn worker command surface.
+// ABOUTME: Verifies CLI routing, output contracts, env fallbacks, and API calls.
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { Cli } from "clipanion";
@@ -7,20 +7,20 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Writable } from "node:stream";
-import { CloudCommand } from "../cli/commands/cloud/cloud";
-import { CloudDeleteCommand } from "../cli/commands/cloud/delete";
-import { CloudDeployCommand } from "../cli/commands/cloud/deploy";
-import { CloudDeploymentsCommand } from "../cli/commands/cloud/deployments";
-import { CloudListCommand } from "../cli/commands/cloud/list";
-import { CloudRollbackCommand } from "../cli/commands/cloud/rollback";
-import { CloudStatusCommand } from "../cli/commands/cloud/status";
-import { resolveCloudConfig } from "../cli/core/cloud-config";
+import { WorkerCommand } from "../cli/commands/worker/worker";
+import { WorkerDeleteCommand } from "../cli/commands/worker/delete";
+import { WorkerDeployCommand } from "../cli/commands/worker/deploy";
+import { WorkerDeploymentsCommand } from "../cli/commands/worker/deployments";
+import { WorkerListCommand } from "../cli/commands/worker/list";
+import { WorkerRollbackCommand } from "../cli/commands/worker/rollback";
+import { WorkerStatusCommand } from "../cli/commands/worker/status";
+import { resolveWorkerConfig } from "../cli/core/worker-config";
 import {
   defaultSecretsFileCandidates,
   DRWN_SECRETS_FILE,
   LEGACY_IMINDS_SECRETS_FILE,
   parseSecretsFile,
-} from "../cli/core/cloud-secrets";
+} from "../cli/core/worker-secrets";
 import type { AgentsContext } from "../cli/context";
 import { cleanupTempRoots, scaffoldCliFixture } from "./helpers";
 
@@ -38,7 +38,7 @@ function fakeJwt(): string {
     iss: "https://auth.darwiniantools.com/api/auth",
     aud: "https://api.darwiniantools.com",
     sub: "user_123",
-    email: "cloud@example.com",
+    email: "worker@example.com",
     exp: Math.floor(Date.now() / 1000) + 900,
   })}.sig`;
 }
@@ -63,7 +63,7 @@ afterEach(async () => {
   await cleanupTempRoots(tempRoots);
 });
 
-async function runCloudCommand(args: string[]) {
+async function runWorkerCommand(args: string[]) {
   process.env.DRWN_TOKEN = process.env.DRWN_TOKEN ?? fakeJwt();
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
@@ -82,13 +82,13 @@ async function runCloudCommand(args: string[]) {
     colorDepth: 1,
   };
   const cli = new Cli({ binaryName: "drwn", binaryLabel: "drwn", binaryVersion: "0.0.0" });
-  cli.register(CloudCommand);
-  cli.register(CloudDeployCommand);
-  cli.register(CloudListCommand);
-  cli.register(CloudStatusCommand);
-  cli.register(CloudDeploymentsCommand);
-  cli.register(CloudRollbackCommand);
-  cli.register(CloudDeleteCommand);
+  cli.register(WorkerCommand);
+  cli.register(WorkerDeployCommand);
+  cli.register(WorkerListCommand);
+  cli.register(WorkerStatusCommand);
+  cli.register(WorkerDeploymentsCommand);
+  cli.register(WorkerRollbackCommand);
+  cli.register(WorkerDeleteCommand);
   const exitCode = await cli.run(args, context);
   return { stdout: stdout.text(), stderr: stderr.text(), exitCode };
 }
@@ -101,20 +101,20 @@ function stubFetch(handler: (url: string, init?: RequestInit) => Promise<Respons
   globalThis.fetch = handler as unknown as typeof fetch;
 }
 
-describe("cloud config and secrets", () => {
+describe("worker config and secrets", () => {
   test("uses DRWN studio env values before one-release IMINDS fallbacks", () => {
-    expect(resolveCloudConfig({})).toEqual({
+    expect(resolveWorkerConfig({})).toEqual({
       apiBaseUrl: "https://studio.darwiniantools.com",
       gatewayBaseUrl: "https://minds.darwiniantools.com",
     });
-    expect(resolveCloudConfig({
+    expect(resolveWorkerConfig({
       IMINDS_API_URL: "https://old-api.example",
       IMINDS_GATEWAY_URL: "https://old-gw.example",
     })).toEqual({
       apiBaseUrl: "https://old-api.example",
       gatewayBaseUrl: "https://old-gw.example",
     });
-    expect(resolveCloudConfig({
+    expect(resolveWorkerConfig({
       DRWN_STUDIO_API_URL: "https://new-api.example",
       DRWN_STUDIO_GATEWAY_URL: "https://new-gw.example",
       IMINDS_API_URL: "https://old-api.example",
@@ -135,8 +135,8 @@ describe("cloud config and secrets", () => {
   });
 });
 
-describe("cloud command routing", () => {
-  test("help exposes cloud commands, keeps existing top-level auth available, and omits cloud login", async () => {
+describe("worker command routing", () => {
+  test("help exposes worker commands, keeps existing top-level auth available, and omits worker login", async () => {
     const proc = Bun.spawn(["bun", "run", "cli/index.ts", "--help"], {
       stdin: "ignore",
       stdout: "pipe",
@@ -147,12 +147,12 @@ describe("cloud command routing", () => {
     expect(await proc.exited).toBe(0);
 
     for (const command of [
-      "drwn cloud deploy",
-      "drwn cloud list",
-      "drwn cloud status",
-      "drwn cloud deployments",
-      "drwn cloud rollback",
-      "drwn cloud delete",
+      "drwn worker deploy",
+      "drwn worker list",
+      "drwn worker status",
+      "drwn worker deployments",
+      "drwn worker rollback",
+      "drwn worker delete",
       "drwn login",
       "drwn whoami",
       "drwn logout",
@@ -161,32 +161,32 @@ describe("cloud command routing", () => {
     ]) {
       expect(stdout).toContain(command);
     }
-    expect(stdout).not.toContain("drwn cloud login");
+    expect(stdout).not.toContain("drwn worker login");
   });
 
-  test("cloud command-group help lists deploy/list/status/deployments/rollback/delete", async () => {
-    const result = await runCloudCommand(["cloud", "--help"]);
+  test("worker command-group help lists deploy/list/status/deployments/rollback/delete", async () => {
+    const result = await runWorkerCommand(["worker", "--help"]);
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("drwn cloud deployments");
+    expect(result.stdout).toContain("drwn worker deployments");
     expect(result.stdout).toContain("<slug>");
-    expect(result.stdout).not.toContain("cloud login");
+    expect(result.stdout).not.toContain("worker login");
   });
 
-  test("cloud login is not registered", async () => {
-    const result = await runCloudCommand(["cloud", "login"]);
+  test("worker login is not registered", async () => {
+    const result = await runWorkerCommand(["worker", "login"]);
     expect(result.exitCode).not.toBe(0);
   });
 });
 
-describe("cloud API commands", () => {
+describe("worker API commands", () => {
   test("list prints the empty state and supports JSON", async () => {
     stubFetch(async () => json({ minds: [] }));
 
-    const result = await runCloudCommand(["cloud", "list"]);
+    const result = await runWorkerCommand(["worker", "list"]);
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toBe("No Minds deployed.\n");
+    expect(result.stdout).toBe("No workers deployed.\n");
 
-    const asJson = await runCloudCommand(["cloud", "list", "--json"]);
+    const asJson = await runWorkerCommand(["worker", "list", "--json"]);
     expect(asJson.exitCode).toBe(0);
     expect(JSON.parse(asJson.stdout)).toEqual([]);
   });
@@ -227,7 +227,7 @@ describe("cloud API commands", () => {
       });
     });
 
-    const result = await runCloudCommand(["cloud", "status", "harari"]);
+    const result = await runWorkerCommand(["worker", "status", "harari"]);
     expect(result.exitCode).toBe(0);
     expect(calls).toEqual(["/api/minds", "/api/minds/harari/deployments"]);
     expect(result.stdout).toContain("Latest deployment: dep_pending");
@@ -249,12 +249,12 @@ describe("cloud API commands", () => {
       return json(body);
     });
 
-    const result = await runCloudCommand(["cloud", "deployments", "harari"]);
+    const result = await runWorkerCommand(["worker", "deployments", "harari"]);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatch(/^\*\s+dep_a/m);
     expect(result.stdout).toContain("boom");
 
-    const asJson = await runCloudCommand(["cloud", "deployments", "harari", "--json"]);
+    const asJson = await runWorkerCommand(["worker", "deployments", "harari", "--json"]);
     expect(asJson.exitCode).toBe(0);
     expect(JSON.parse(asJson.stdout)).toEqual(body);
   });
@@ -268,15 +268,15 @@ describe("cloud API commands", () => {
       return json({ deleted: "harari" });
     });
 
-    const rollback = await runCloudCommand(["cloud", "rollback", "harari"]);
+    const rollback = await runWorkerCommand(["worker", "rollback", "harari"]);
     expect(rollback.exitCode).toBe(0);
     expect(rollback.stdout).toContain("dep_prev");
 
-    const refused = await runCloudCommand(["cloud", "delete", "harari"]);
+    const refused = await runWorkerCommand(["worker", "delete", "harari"]);
     expect(refused.exitCode).toBe(1);
     expect(refused.stderr).toContain("without --force");
 
-    const deleted = await runCloudCommand(["cloud", "delete", "harari", "--force"]);
+    const deleted = await runWorkerCommand(["worker", "delete", "harari", "--force"]);
     expect(deleted.exitCode).toBe(0);
     expect(deleted.stdout).toContain("Deleted");
     expect(calls).toEqual(["POST /api/minds/harari/rollback", "DELETE /api/minds/harari"]);
@@ -286,7 +286,7 @@ describe("cloud API commands", () => {
     process.env.DRWN_POLL_MS = "1";
     process.env.DRWN_STUDIO_API_URL = "http://api.test.local";
     process.env.DRWN_STUDIO_GATEWAY_URL = "http://gw.test.local";
-    const cwd = await mkdtemp(join(tmpdir(), "drwn-cloud-test-"));
+    const cwd = await mkdtemp(join(tmpdir(), "drwn-worker-test-"));
     tempRoots.push(cwd);
     process.chdir(cwd);
     await writeFile(join(cwd, ".drwn.secrets"), "notion=secret_token\n");
@@ -303,7 +303,7 @@ describe("cloud API commands", () => {
       return json({ id: "dep_test", status: "ready" });
     });
 
-    const result = await runCloudCommand(["cloud", "deploy", "github:owner/repo#v1", "--name", "harari"]);
+    const result = await runWorkerCommand(["worker", "deploy", "github:owner/repo#v1", "--name", "harari"]);
     expect(result.exitCode).toBe(0);
     expect(postedBody).toEqual({
       cardRef: "github:owner/repo#v1",

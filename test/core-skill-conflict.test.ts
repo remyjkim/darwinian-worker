@@ -1,4 +1,4 @@
-// ABOUTME: Verifies duplicate skill conflict resolution across overlapping Mind Cards.
+// ABOUTME: Verifies duplicate skill conflict resolution across overlapping Cards.
 // ABOUTME: Ensures later-applied cards win, exclusions are honored, and drops are reported.
 
 import { afterEach, expect, test } from "bun:test";

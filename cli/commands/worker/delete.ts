@@ -1,25 +1,25 @@
-// ABOUTME: Implements drwn cloud delete for removing a deployed Mind.
+// ABOUTME: Implements drwn worker delete for removing a deployed worker.
 // ABOUTME: Requires --force for destructive deletion until interactive confirmation exists.
 
 import { Option } from "clipanion";
 import { BaseCommand } from "../base";
-import { resolveCloudConfig } from "../../core/cloud-config";
-import { fetchWithCloudAuth } from "../../core/cloud-http";
+import { resolveWorkerConfig } from "../../core/worker-config";
+import { fetchWithWorkerAuth } from "../../core/worker-http";
 
-export class CloudDeleteCommand extends BaseCommand {
-  static override paths = [["cloud", "delete"]];
+export class WorkerDeleteCommand extends BaseCommand {
+  static override paths = [["worker", "delete"]];
 
   static override usage = BaseCommand.Usage({
-    category: "Cloud",
-    description: "Delete a Mind and all of its deployments.",
+    category: "Worker",
+    description: "Delete a worker and all of its deployments.",
     details: `
-      Sends a destructive delete request for the Mind slug, including its
+      Sends a destructive delete request for the worker slug, including its
       deployments and aliases. This command requires --force so scripted usage is
       explicit and accidental deletes fail before making a network request.
     `,
     examples: [
-      ["Delete a Mind", "drwn cloud delete harari --force"],
-      ["See the safety check", "drwn cloud delete harari"],
+      ["Delete a worker", "drwn worker delete harari --force"],
+      ["See the safety check", "drwn worker delete harari"],
     ],
   });
 
@@ -34,9 +34,9 @@ export class CloudDeleteCommand extends BaseCommand {
       this.context.stderr.write(`Refusing to delete "${this.slug}" without --force.\n`);
       return 1;
     }
-    const { apiBaseUrl } = resolveCloudConfig();
+    const { apiBaseUrl } = resolveWorkerConfig();
     try {
-      const res = await fetchWithCloudAuth(this.context, `${apiBaseUrl}/api/minds/${this.slug}`, { method: "DELETE" });
+      const res = await fetchWithWorkerAuth(this.context, `${apiBaseUrl}/api/minds/${this.slug}`, { method: "DELETE" });
       if (!res.ok) {
         this.context.stderr.write(`Delete failed (${res.status}): ${await res.text()}\n`);
         return 1;

@@ -1,4 +1,4 @@
-// ABOUTME: Ensures locked Mind Cards are present in the local Git-backed store.
+// ABOUTME: Ensures locked Cards are present in the local Git-backed store.
 // ABOUTME: Supports drwn install bootstrap semantics without command-layer filesystem logic.
 
 import { existsSync } from "node:fs";

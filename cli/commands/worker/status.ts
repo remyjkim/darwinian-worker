@@ -1,28 +1,28 @@
-// ABOUTME: Implements drwn cloud status for a Mind.
+// ABOUTME: Implements drwn worker status for a worker.
 // ABOUTME: Shows latest and active deployment state, including first-deploy progress.
 
 import { Option } from "clipanion";
 import { BaseCommand } from "../base";
-import { resolveCloudConfig } from "../../core/cloud-config";
-import { fetchJsonWithCloudAuth } from "../../core/cloud-http";
+import { resolveWorkerConfig } from "../../core/worker-config";
+import { fetchJsonWithWorkerAuth } from "../../core/worker-http";
 import { renderJson } from "../../core/output";
-import type { DeploymentsResponse, MindSummary } from "./types";
+import type { DeploymentsResponse, WorkerSummary } from "./types";
 import { displayModel, displayValue } from "./types";
 
-export class CloudStatusCommand extends BaseCommand {
-  static override paths = [["cloud", "status"]];
+export class WorkerStatusCommand extends BaseCommand {
+  static override paths = [["worker", "status"]];
 
   static override usage = BaseCommand.Usage({
-    category: "Cloud",
-    description: "Show the active deployment and health of a Mind.",
+    category: "Worker",
+    description: "Show the active deployment and health of a worker.",
     details: `
-      Reads the Mind list and deployment history endpoints, then prints the
+      Reads the worker list and deployment history endpoints, then prints the
       latest deployment and the active deployment separately. This makes pending
-      first deployments visible before a Mind has an active serving alias.
+      first deployments visible before a worker has an active serving alias.
     `,
     examples: [
-      ["Check a Mind", "drwn cloud status harari"],
-      ["Check a Mind as JSON", "drwn cloud status harari --json"],
+      ["Check a worker", "drwn worker status harari"],
+      ["Check a worker as JSON", "drwn worker status harari --json"],
     ],
   });
 
@@ -33,10 +33,11 @@ export class CloudStatusCommand extends BaseCommand {
   });
 
   async execute(): Promise<number> {
-    const { apiBaseUrl, gatewayBaseUrl } = resolveCloudConfig();
-    let mind: MindSummary | undefined;
+    const { apiBaseUrl, gatewayBaseUrl } = resolveWorkerConfig();
+    let worker: WorkerSummary | undefined;
     try {
-      const { response: res, body } = await fetchJsonWithCloudAuth<{ minds: MindSummary[] }>(
+      // external contract: /api/minds response key `minds`
+      const { response: res, body } = await fetchJsonWithWorkerAuth<{ minds: WorkerSummary[] }>(
         this.context,
         `${apiBaseUrl}/api/minds`,
       );
@@ -45,19 +46,19 @@ export class CloudStatusCommand extends BaseCommand {
         return 1;
       }
       const { minds } = body;
-      mind = minds.find((candidate) => candidate.slug === this.slug);
+      worker = minds.find((candidate) => candidate.slug === this.slug);
     } catch (error) {
       this.context.stderr.write(`Cannot reach Deploy API at ${apiBaseUrl}: ${(error as Error).message}\n`);
       return 1;
     }
-    if (!mind) {
-      this.context.stderr.write(`No Mind named "${this.slug}".\n`);
+    if (!worker) {
+      this.context.stderr.write(`No worker named "${this.slug}".\n`);
       return 1;
     }
 
     let history: DeploymentsResponse;
     try {
-      const { response: res, body } = await fetchJsonWithCloudAuth<DeploymentsResponse>(
+      const { response: res, body } = await fetchJsonWithWorkerAuth<DeploymentsResponse>(
         this.context,
         `${apiBaseUrl}/api/minds/${this.slug}/deployments`,
       );
@@ -74,13 +75,13 @@ export class CloudStatusCommand extends BaseCommand {
     const latestDeployment = history.deployments[0] ?? null;
     const activeDeployment =
       history.deployments.find((deployment) => deployment.id === history.active_deployment_id) ?? null;
-    const result = { mind, active_deployment_id: history.active_deployment_id, latestDeployment, activeDeployment };
+    const result = { worker, active_deployment_id: history.active_deployment_id, latestDeployment, activeDeployment };
     if (this.json) {
       this.context.stdout.write(renderJson(result));
       return 0;
     }
 
-    this.context.stdout.write(`Mind: ${mind.slug}\n`);
+    this.context.stdout.write(`Worker: ${worker.slug}\n`);
     this.context.stdout.write(`Latest deployment: ${latestDeployment?.id ?? "-"}\n`);
     if (latestDeployment) {
       this.context.stdout.write(`Latest status: ${latestDeployment.status}\n`);
@@ -96,7 +97,8 @@ export class CloudStatusCommand extends BaseCommand {
       this.context.stdout.write(`Active card: ${activeDeployment.card_ref}\n`);
       this.context.stdout.write(`Active model: ${displayModel(activeDeployment.model)}\n`);
       if (activeDeployment.status === "ready") {
-        this.context.stdout.write(`Chat: ${gatewayBaseUrl}/m/${mind.slug}/chat\n`);
+        // external contract: /m/{slug}/chat gateway path
+        this.context.stdout.write(`Chat: ${gatewayBaseUrl}/m/${worker.slug}/chat\n`);
       }
     }
     return 0;

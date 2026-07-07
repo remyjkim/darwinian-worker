@@ -92,8 +92,8 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
   if (projectConfigPath) {
     projectConfig = await loadProjectConfig(projectConfigPath);
     const configLocal = projectRoot ? await loadConfigLocal(projectRoot) : null;
-    if (configLocal?.activate !== undefined && projectConfig.activeMinds !== undefined) {
-      overlayWarnings.push("config.local.json activate overrides committed activeMinds");
+    if (configLocal?.activate !== undefined && projectConfig.activeWorkers !== undefined) {
+      overlayWarnings.push("config.local.json activate overrides committed activeWorkers");
     }
     projectConfig = mergeProjectWithLocal(projectConfig, configLocal);
     const cardLock = projectRoot ? await loadCardLock(projectRoot) : null;
@@ -156,7 +156,7 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
         }
       }
     }
-    activeCards = selectActiveCards(lockedCards, projectConfig.activeMinds);
+    activeCards = selectActiveCards(lockedCards, projectConfig.activeWorkers);
     skillApplyOrderCards = orderCardsByApplySpecs(activeCards, projectConfig.cards ?? []);
     projectConfigWithCards = mergeCardManifestsIntoProjectConfig(
       projectConfig,
@@ -256,15 +256,15 @@ export function assertMachineWriteScopeAllowed(options: {
   );
 }
 
-function selectActiveCards(lockedCards: CardLockEntry[], activeMinds?: string[]) {
-  if (activeMinds === undefined) {
+function selectActiveCards(lockedCards: CardLockEntry[], activeWorkers?: string[]) {
+  if (activeWorkers === undefined) {
     return lockedCards;
   }
-  if (activeMinds.length === 0) {
+  if (activeWorkers.length === 0) {
     return [];
   }
   const byName = new Map(lockedCards.map((card) => [card.name, card]));
-  return activeMinds.flatMap((name) => {
+  return activeWorkers.flatMap((name) => {
     const card = byName.get(name);
     return card ? [card] : [];
   });

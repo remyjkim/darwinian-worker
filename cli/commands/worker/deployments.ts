@@ -1,28 +1,28 @@
-// ABOUTME: Implements drwn cloud deployments for per-Mind deployment history.
+// ABOUTME: Implements drwn worker deployments for per-worker deployment history.
 // ABOUTME: Marks the active deployment and supports stable JSON output.
 
 import { Option } from "clipanion";
 import { BaseCommand } from "../base";
-import { resolveCloudConfig } from "../../core/cloud-config";
-import { fetchJsonWithCloudAuth } from "../../core/cloud-http";
+import { resolveWorkerConfig } from "../../core/worker-config";
+import { fetchJsonWithWorkerAuth } from "../../core/worker-http";
 import { renderJson, renderTable } from "../../core/output";
 import type { DeploymentsResponse } from "./types";
 import { displayModel, displayValue } from "./types";
 
-export class CloudDeploymentsCommand extends BaseCommand {
-  static override paths = [["cloud", "deployments"]];
+export class WorkerDeploymentsCommand extends BaseCommand {
+  static override paths = [["worker", "deployments"]];
 
   static override usage = BaseCommand.Usage({
-    category: "Cloud",
-    description: "Show deployment history for a Mind.",
+    category: "Worker",
+    description: "Show deployment history for a worker.",
     details: `
-      Calls the deployment history endpoint for one Mind and renders each
+      Calls the deployment history endpoint for one worker and renders each
       deployment with status, card ref, model, content hash, timestamps, and any
       error text. The active deployment is marked with an asterisk.
     `,
     examples: [
-      ["Show deployment history", "drwn cloud deployments harari"],
-      ["Show deployment history as JSON", "drwn cloud deployments harari --json"],
+      ["Show deployment history", "drwn worker deployments harari"],
+      ["Show deployment history as JSON", "drwn worker deployments harari --json"],
     ],
   });
 
@@ -33,10 +33,10 @@ export class CloudDeploymentsCommand extends BaseCommand {
   });
 
   async execute(): Promise<number> {
-    const { apiBaseUrl } = resolveCloudConfig();
+    const { apiBaseUrl } = resolveWorkerConfig();
     let body: DeploymentsResponse;
     try {
-      const result = await fetchJsonWithCloudAuth<DeploymentsResponse>(
+      const result = await fetchJsonWithWorkerAuth<DeploymentsResponse>(
         this.context,
         `${apiBaseUrl}/api/minds/${this.slug}/deployments`,
       );

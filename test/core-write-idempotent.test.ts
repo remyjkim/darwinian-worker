@@ -1,5 +1,5 @@
 // ABOUTME: Verifies consecutive drwn write runs are no-ops on stable vendored projects.
-// ABOUTME: Guards vendor reconcile and generated mind output from spurious change reporting.
+// ABOUTME: Guards vendor reconcile and generated worker output from spurious change reporting.
 
 import { afterEach, expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
@@ -22,7 +22,7 @@ test("two consecutive writes produce no material changes on a vendored project",
   await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
   await writeFile(
     join(projectDir, ".agents", "drwn", "config.json"),
-    JSON.stringify({ version: 1, cards: ["@me/backend@^1.0.0"], activeMinds: ["@me/backend"] }, null, 2),
+    JSON.stringify({ version: 1, cards: ["@me/backend@^1.0.0"], activeWorkers: ["@me/backend"] }, null, 2),
   );
 
   const first = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);
@@ -34,10 +34,10 @@ test("two consecutive writes produce no material changes on a vendored project",
   expect(parsed.changes.filter((change) => change.startsWith("vendor "))).toHaveLength(0);
   expect(parsed.changes.filter((change) => change.startsWith("prune vendor "))).toHaveLength(0);
 
-  const mindJson = join(projectDir, ".agents", "drwn", "generated", "minds", "@me", "backend", "mind.json");
-  const before = await readFile(mindJson, "utf8");
+  const workerJson = join(projectDir, ".agents", "drwn", "generated", "workers", "@me", "backend", "worker.json");
+  const before = await readFile(workerJson, "utf8");
   const third = await runAgentsCli(["write"], envFor(fixture), projectDir);
   expect(third.exitCode).toBe(0);
-  const after = await readFile(mindJson, "utf8");
+  const after = await readFile(workerJson, "utf8");
   expect(after).toBe(before);
 });
