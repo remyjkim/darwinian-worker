@@ -33,7 +33,7 @@ test("resolveBlueprintDeployPayload pins members and governance for a blueprint"
   tempRoots.push(fixture.root);
   await publishCardWithSkills(fixture, { name: "@me/react-builder", skills: ["react"] });
   await publishBlueprint(fixture, "@me/frontend-eng", ["@me/react-builder@^1.0.0"], {
-    permissions: { can_merge_pr: false },
+    permissions: { canMergePr: false },
     evals: ["passes_tests"],
   });
 
@@ -43,7 +43,7 @@ test("resolveBlueprintDeployPayload pins members and governance for a blueprint"
   expect(payload!.members.map((m) => m.name)).toEqual(["@me/react-builder"]);
   expect(payload!.members[0]!.integrity.length).toBeGreaterThan(0);
   expect(payload!.governance.composedFrom).toEqual(["@me/react-builder@^1.0.0"]);
-  expect(payload!.governance.permissions).toEqual({ can_merge_pr: false });
+  expect(payload!.governance.permissions).toEqual({ canMergePr: false });
   expect(payload!.governance.evals).toEqual(["passes_tests"]);
 });
 

@@ -16,8 +16,8 @@ export interface CardManifest {
   tools?: { allow?: string[]; deny?: string[] };
   permissions?: Record<string, unknown>;
   evals?: string[];
-  escalation?: { human_owner?: string; escalate_when?: string[] };
-  contextMounts?: { read?: string[]; write_proposals?: string[] };
+  escalation?: { humanOwner?: string; escalateWhen?: string[] };
+  contextMounts?: { read?: string[]; writeProposals?: string[] };
   identity?: Record<string, unknown>;
   description?: string;
   license?: string;
@@ -92,8 +92,8 @@ function validateBlueprintFields(input: Record<string, unknown>, isBlueprint: bo
     const escalation = input.escalation;
     if (!isObject(escalation)) {
       errors.push("escalation must be an object");
-    } else if (escalation.escalate_when !== undefined && !isStringArray(escalation.escalate_when)) {
-      errors.push("escalation.escalate_when must be an array of strings");
+    } else if (escalation.escalateWhen !== undefined && !isStringArray(escalation.escalateWhen)) {
+      errors.push("escalation.escalateWhen must be an array of strings");
     }
   }
   if (input.contextMounts !== undefined) {
@@ -102,8 +102,8 @@ function validateBlueprintFields(input: Record<string, unknown>, isBlueprint: bo
       errors.push("contextMounts must be an object");
     } else {
       if (mounts.read !== undefined && !isStringArray(mounts.read)) errors.push("contextMounts.read must be an array of strings");
-      if (mounts.write_proposals !== undefined && !isStringArray(mounts.write_proposals)) {
-        errors.push("contextMounts.write_proposals must be an array of strings");
+      if (mounts.writeProposals !== undefined && !isStringArray(mounts.writeProposals)) {
+        errors.push("contextMounts.writeProposals must be an array of strings");
       }
     }
   }

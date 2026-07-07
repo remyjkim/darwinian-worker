@@ -89,6 +89,13 @@ Today: `POST /api/deployments {cardRef, name, model, secrets?}`; server clones+m
 - **D-E — Quarantine: design-capture doc + git history.** Write an analysis doc capturing the persona/beliefs/memory schema + materialization; delete the code; rely on git history. No dead code in the tree.
 - **D-F — Blueprint expansion: entry REMAINS alongside members.** The blueprint `CardLockEntry` stays (carrying governance/provenance); its `composedFrom` members are spliced in *addition* so governance survives into the lock.
 
+## Blueprint manifest design decisions (ratified 2026-07-07, post-W3)
+
+- **Format: JSON `card.json`.** A blueprint is a `kind:"blueprint"` card; its definition lives in the standard card manifest (no separate YAML). One manifest format for the whole substrate; `worker new/compose` author it.
+- **Casing: all camelCase.** `composedFrom`, `contextMounts.read/writeProposals`, `escalation.humanOwner/escalateWhen` — consistent with the existing manifest (`lastValidatedWith`, `testStatusBadge`). User-chosen `permissions` keys are freeform author data.
+- **`tools` = gating `{ allow?: string[]; deny?: string[] }`.** A blueprint's tools field is an allow/deny gate over tool calls (mirrors the hook tool-policy model), distinct from the capabilities its member cards already provide via skills/MCP.
+- **Governance stays loose / forward-declared.** `permissions` (freeform object), `evals` (string[]), `escalation`/`contextMounts`/`identity` are shape-validated only; the enforced schema (permission keys, eval-spec grammar) is Foundry's to define.
+
 ## Finalized deploy contract (W4, D-D)
 
 `drwn worker deploy <ref>` POSTs `/api/deployments` with the existing body plus, **when `ref` resolves to a `kind:"blueprint"` card**, a CLI-resolved `blueprint` object (the server materializes this fixed set; no server-side `composedFrom` resolution):

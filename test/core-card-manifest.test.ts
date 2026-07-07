@@ -88,10 +88,10 @@ test("validateCardManifest accepts a full blueprint manifest", () => {
       kind: "blueprint",
       composedFrom: ["@me/a@^1.0.0", "@me/b@^1.0.0"],
       tools: { allow: ["Bash"], deny: ["WebFetch"] },
-      permissions: { can_merge_pr: false, requires_human_approval_for: ["production_changes"] },
+      permissions: { canMergePr: false, requiresHumanApprovalFor: ["production_changes"] },
       evals: ["passes_tests"],
-      escalation: { human_owner: "eng_lead", escalate_when: ["confidence_below_threshold"] },
-      contextMounts: { read: ["/eng/frontend"], write_proposals: ["/eng/frontend/wm"] },
+      escalation: { humanOwner: "eng_lead", escalateWhen: ["confidence_below_threshold"] },
+      contextMounts: { read: ["/eng/frontend"], writeProposals: ["/eng/frontend/wm"] },
       identity: { role: "frontend-engineer" },
     }),
   ).toEqual({ ok: true, errors: [] });
@@ -118,14 +118,14 @@ test("validateCardManifest rejects malformed blueprint governance shapes", () =>
     composedFrom: ["@me/a@^1.0.0", ""],
     tools: { allow: "Bash" },
     evals: [1],
-    escalation: { escalate_when: "always" },
+    escalation: { escalateWhen: "always" },
     identity: "me",
   });
   expect(result.ok).toBe(false);
   expect(result.errors).toContain("composedFrom must be an array of non-empty card refs");
   expect(result.errors).toContain("tools.allow must be an array of strings");
   expect(result.errors).toContain("evals must be an array of strings");
-  expect(result.errors).toContain("escalation.escalate_when must be an array of strings");
+  expect(result.errors).toContain("escalation.escalateWhen must be an array of strings");
   expect(result.errors).toContain("identity must be an object");
 });
 
