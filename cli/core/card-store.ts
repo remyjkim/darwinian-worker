@@ -256,6 +256,7 @@ export async function createCardSource(options: {
   name: string;
   scope?: string;
   noGit?: boolean;
+  kind?: "card" | "blueprint";
 }) {
   assertStoreWritable();
   assertNoLegacyLayout(options.agentsDir);
@@ -275,13 +276,14 @@ export async function createCardSource(options: {
     throw new Error(`Card source already exists: ${fullName}`);
   }
   mkdirSync(sourceDir, { recursive: true });
-  mkdirSync(join(sourceDir, "skills"), { recursive: true });
-  mkdirSync(join(sourceDir, "mcp-servers"), { recursive: true });
-  const manifest: CardManifest = {
-    name: fullName,
-    version: "1.0.0",
-    description: "",
-  };
+  const manifest: CardManifest =
+    options.kind === "blueprint"
+      ? { name: fullName, version: "1.0.0", kind: "blueprint", composedFrom: [], description: "" }
+      : { name: fullName, version: "1.0.0", description: "" };
+  if (options.kind !== "blueprint") {
+    mkdirSync(join(sourceDir, "skills"), { recursive: true });
+    mkdirSync(join(sourceDir, "mcp-servers"), { recursive: true });
+  }
   await writeJson(join(sourceDir, "card.json"), manifest);
   if (!options.noGit) {
     try {

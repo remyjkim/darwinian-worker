@@ -748,6 +748,45 @@ export async function patchCardSourceManifest(options: {
   return { card: options.cardName, dryRun, changes };
 }
 
+export async function composeCardSourceBlueprint(options: {
+  agentsDir: string;
+  cardName: string;
+  add?: string[];
+  remove?: string[];
+  dryRun?: boolean;
+}): Promise<CardSourceManifestSetResult> {
+  const dryRun = options.dryRun === true;
+  const { state, manifest } = await readSourceManifestForMutation(options.agentsDir, options.cardName);
+  if (manifest.kind !== "blueprint") {
+    throw new Error(`${options.cardName} is not a blueprint; compose requires kind: "blueprint"`);
+  }
+  const next = [...(manifest.composedFrom ?? [])];
+  const changes: CardSourceManifestChange[] = [];
+  for (const ref of options.remove ?? []) {
+    const idx = next.indexOf(ref);
+    if (idx >= 0) {
+      next.splice(idx, 1);
+      changes.push({ field: "composedFrom", oldValue: ref, newValue: undefined });
+    }
+  }
+  for (const ref of options.add ?? []) {
+    if (!next.includes(ref)) {
+      next.push(ref);
+      changes.push({ field: "composedFrom", oldValue: undefined, newValue: ref });
+    }
+  }
+  if (changes.length === 0) {
+    throw new Error("No composedFrom changes were applied.");
+  }
+  const nextManifest: CardManifest = { ...manifest, composedFrom: next };
+  assertValidCardManifest(nextManifest);
+  if (!dryRun) {
+    assertStoreWritable();
+    await writeCardSourceManifest(state.manifestPath, nextManifest);
+  }
+  return { card: options.cardName, dryRun, changes };
+}
+
 export async function addCardSourceMcp(options: {
   agentsDir: string;
   repoRoot: string;
