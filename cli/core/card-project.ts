@@ -18,6 +18,7 @@ import {
 } from "./card-store";
 import { loadProjectConfig, resolveProjectRootFromConfigPath } from "./project";
 import { orderCardsByApplySpecs } from "./effective-state";
+import { DrwnError } from "./errors";
 import { projectConfigPath, readProjectConfigForWrite, writeProjectConfigForWrite } from "./project-writes";
 import { resolveCardBareRepoPath } from "./store-paths";
 import type { CardManifest } from "./card-manifest";
@@ -37,27 +38,65 @@ export interface CardTrustMutation {
   card: CardLockEntry;
 }
 
+type ResolvedCard = Awaited<ReturnType<typeof resolveCard>>;
+
+function toCardLockEntry(card: ResolvedCard): CardLockEntry {
+  return {
+    name: card.name,
+    requested: card.requested,
+    version: card.version,
+    path: card.dir,
+    integrity: card.integrity,
+    ...(card.treeSha ? { treeSha: card.treeSha } : {}),
+    manifest: card.manifest,
+    skills: card.manifest.skills?.include ?? [],
+    hooks: card.manifest.hooks?.include ?? [],
+    registry: null as null,
+    origin: card.origin,
+    ...(card.git ? { git: card.git } : {}),
+  };
+}
+
+// Expands each blueprint's composedFrom into member entries spliced after the blueprint
+// (which itself remains, carrying its governance). Cards-only: a blueprint member is refused.
+// Deduplicated by name, first occurrence wins so declared apply order is preserved.
+async function expandBlueprints(
+  agentsDir: string,
+  entries: CardLockEntry[],
+  options: ResolveCardOptions,
+): Promise<CardLockEntry[]> {
+  const out: CardLockEntry[] = [];
+  const seen = new Set<string>();
+  const push = (entry: CardLockEntry) => {
+    if (seen.has(entry.name)) return;
+    seen.add(entry.name);
+    out.push(entry);
+  };
+  for (const entry of entries) {
+    push(entry);
+    if (entry.manifest.kind !== "blueprint") continue;
+    for (const memberSpec of entry.manifest.composedFrom ?? []) {
+      const member = toCardLockEntry(await resolveCard(agentsDir, memberSpec, options));
+      if (member.manifest.kind === "blueprint") {
+        throw new DrwnError(
+          "BLUEPRINT_RECURSION",
+          `blueprint ${entry.name} cannot compose another blueprint ${member.name} (blueprint recursion is not supported)`,
+        );
+      }
+      push(member);
+    }
+  }
+  return out;
+}
+
 export async function resolveProjectCards(
   agentsDir: string,
   specs: string[],
   options: ResolveCardOptions = {},
 ): Promise<CardLockEntry[]> {
   const resolved = await Promise.all(specs.map((spec) => resolveCard(agentsDir, spec, options)));
-  const mapped = resolved.map((card) => ({
-      name: card.name,
-      requested: card.requested,
-      version: card.version,
-      path: card.dir,
-      integrity: card.integrity,
-      ...(card.treeSha ? { treeSha: card.treeSha } : {}),
-      manifest: card.manifest,
-      skills: card.manifest.skills?.include ?? [],
-      hooks: card.manifest.hooks?.include ?? [],
-      registry: null as null,
-      origin: card.origin,
-      ...(card.git ? { git: card.git } : {}),
-    }));
-  return orderCardsByApplySpecs(mapped, specs);
+  const ordered = orderCardsByApplySpecs(resolved.map(toCardLockEntry), specs);
+  return expandBlueprints(agentsDir, ordered, options);
 }
 
 export function mergeCardManifestsIntoProjectConfig(project: ProjectConfig, manifests: CardManifest[]): ProjectConfig {
