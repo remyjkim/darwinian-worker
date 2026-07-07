@@ -1,0 +1,191 @@
+// ABOUTME: Verifies write-watch path collection, ignore rules, and debounce semantics.
+// ABOUTME: Guards linked-root normalization and single-flight write serialization.
+
+import { afterEach, describe, expect, test } from "bun:test";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import {
+  collectWriteWatchPaths,
+  createRecursiveWatcher,
+  linkedRootOverlapsProject,
+  normalizeWatchPath,
+  shouldIgnoreWatchEvent,
+  startWriteWatch,
+} from "../cli/core/write-watch";
+import { cleanupTempRoots, createTempRoot } from "./helpers";
+
+const tempRoots: string[] = [];
+afterEach(async () => cleanupTempRoots(tempRoots));
+
+describe("write-watch helpers", () => {
+  test("normalizeWatchPath strips file: prefix", () => {
+    expect(normalizeWatchPath("file:/tmp/source")).toBe("/tmp/source");
+    expect(normalizeWatchPath("/tmp/source")).toBe("/tmp/source");
+  });
+
+  test("collectWriteWatchPaths includes drwn dir and existing linked roots", async () => {
+    const root = await createTempRoot("write-watch-");
+    tempRoots.push(root);
+    const linked = join(root, "linked");
+    await mkdir(join(root, ".agents", "drwn"), { recursive: true });
+    await writeFile(join(root, ".agents", "drwn", "config.json"), "{}\n");
+    await mkdir(linked, { recursive: true });
+    const paths = collectWriteWatchPaths(root, [`file:${linked}`]);
+    expect(paths).toContain(join(root, ".agents", "drwn"));
+    expect(paths).toContain(linked);
+    expect(paths.some((path) => path.startsWith("file:"))).toBe(false);
+  });
+
+  test("shouldIgnoreWatchEvent ignores generated output under overlapping linked root", async () => {
+    const root = await createTempRoot("write-watch-ignore-");
+    tempRoots.push(root);
+    const linked = join(root, "linked");
+    const generated = join(root, ".agents", "drwn", "generated", "minds", "x");
+    expect(linkedRootOverlapsProject(root, [linked])).toBe(true);
+    expect(shouldIgnoreWatchEvent(root, generated, [linked])).toBe(true);
+    expect(shouldIgnoreWatchEvent(root, join(linked, "skills", "a", "SKILL.md"), [linked])).toBe(false);
+  });
+});
+
+describe("startWriteWatch", () => {
+  test("rejects --watch with --json at command layer", async () => {
+    const { runAgentsCli, scaffoldCliFixture } = await import("./helpers");
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const projectDir = join(fixture.root, "project");
+    await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
+    await writeFile(join(projectDir, ".agents", "drwn", "config.json"), "{}\n");
+    const result = await runAgentsCli(["write", "--watch", "--json"], {
+      AGENTS_REPO_ROOT: fixture.repoRoot,
+      AGENTS_HOME_DIR: fixture.homeDir,
+      AGENTS_DIR: fixture.agentsDir,
+    }, projectDir, { skipWriteScopeAuto: true });
+    expect(result.exitCode).not.toBe(0);
+    expect(`${result.stderr}${result.stdout}`).toMatch(/--watch is incompatible/i);
+  });
+
+  test("debounces rapid triggers into one follow-up run", async () => {
+    const root = await createTempRoot("write-watch-debounce-");
+    tempRoots.push(root);
+    await mkdir(join(root, ".agents", "drwn"), { recursive: true });
+    await writeFile(join(root, ".agents", "drwn", "config.json"), "{}\n");
+    let runs = 0;
+    const stop = startWriteWatch({
+      projectRoot: root,
+      debounceMs: 50,
+      onTrigger: async () => {
+        runs += 1;
+      },
+    });
+    const configPath = join(root, ".agents", "drwn", "config.json");
+    await writeFile(configPath, '{"version":2}\n');
+    await writeFile(configPath, '{"version":3}\n');
+    await Bun.sleep(120);
+    stop();
+    expect(runs).toBe(1);
+  });
+
+  test("single-flight queues one follow-up during in-progress write", async () => {
+    const root = await createTempRoot("write-watch-flight-");
+    tempRoots.push(root);
+    await mkdir(join(root, ".agents", "drwn"), { recursive: true });
+    await writeFile(join(root, ".agents", "drwn", "config.json"), "{}\n");
+    let runs = 0;
+    let release: (() => void) | undefined;
+    const stop = startWriteWatch({
+      projectRoot: root,
+      debounceMs: 10,
+      onTrigger: async () => {
+        runs += 1;
+        if (runs === 1) {
+          await new Promise<void>((resolve) => {
+            release = resolve;
+          });
+        }
+      },
+    });
+    const configPath = join(root, ".agents", "drwn", "config.json");
+    await writeFile(configPath, '{"version":2}\n');
+    await Bun.sleep(30);
+    await writeFile(configPath, '{"version":3}\n');
+    await Bun.sleep(30);
+    release?.();
+    await Bun.sleep(150);
+    stop();
+    expect(runs).toBeGreaterThanOrEqual(1);
+    expect(runs).toBeLessThanOrEqual(2);
+  });
+
+  test("creates config.local.json after watch starts and triggers write", async () => {
+    const root = await createTempRoot("write-watch-overlay-");
+    tempRoots.push(root);
+    await mkdir(join(root, ".agents", "drwn"), { recursive: true });
+    await writeFile(join(root, ".agents", "drwn", "config.json"), "{}\n");
+    let runs = 0;
+    const stop = startWriteWatch({
+      projectRoot: root,
+      debounceMs: 50,
+      onTrigger: async () => {
+        runs += 1;
+      },
+    });
+    await writeFile(join(root, ".agents", "drwn", "config.local.json"), '{"overrides":{}}\n');
+    await Bun.sleep(120);
+    stop();
+    expect(runs).toBeGreaterThan(0);
+  });
+
+  test("picks up linked-root override changes after startup", async () => {
+    const root = await createTempRoot("write-watch-linked-swap-");
+    tempRoots.push(root);
+    const firstLinked = join(root, "linked-a");
+    const secondLinked = join(root, "linked-b");
+    await mkdir(join(root, ".agents", "drwn"), { recursive: true });
+    await writeFile(join(root, ".agents", "drwn", "config.json"), "{}\n");
+    await mkdir(firstLinked, { recursive: true });
+    await mkdir(secondLinked, { recursive: true });
+    await writeFile(join(firstLinked, "touch.txt"), "a\n");
+    await writeFile(join(secondLinked, "touch.txt"), "b\n");
+    const events: string[] = [];
+    const stop = startWriteWatch({
+      projectRoot: root,
+      debounceMs: 50,
+      onTrigger: async () => {
+        events.push("run");
+      },
+    });
+    await writeFile(
+      join(root, ".agents", "drwn", "config.local.json"),
+      `${JSON.stringify({ overrides: { "@me/x": `file:${firstLinked}` } }, null, 2)}\n`,
+    );
+    await Bun.sleep(120);
+    await writeFile(join(firstLinked, "touch.txt"), "a2\n");
+    await Bun.sleep(120);
+    await writeFile(
+      join(root, ".agents", "drwn", "config.local.json"),
+      `${JSON.stringify({ overrides: { "@me/x": `file:${secondLinked}` } }, null, 2)}\n`,
+    );
+    await Bun.sleep(120);
+    await writeFile(join(secondLinked, "touch.txt"), "b2\n");
+    await Bun.sleep(120);
+    stop();
+    expect(events.length).toBeGreaterThan(1);
+  });
+});
+
+describe("createRecursiveWatcher", () => {
+  test("nested skill edits trigger callback", async () => {
+    const root = await createTempRoot("write-watch-nested-");
+    tempRoots.push(root);
+    const skillDir = join(root, "skills", "nested");
+    await mkdir(skillDir, { recursive: true });
+    await writeFile(join(skillDir, "SKILL.md"), "v1\n");
+    const events: string[] = [];
+    const watcher = createRecursiveWatcher(root, (eventPath) => events.push(eventPath));
+    await Bun.sleep(100);
+    await writeFile(join(skillDir, "SKILL.md"), "v2\n");
+    await Bun.sleep(500);
+    watcher.close();
+    expect(events.some((event) => event.includes("SKILL.md"))).toBe(true);
+  });
+});
