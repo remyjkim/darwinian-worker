@@ -1,12 +1,12 @@
 # ABOUTME: Handoff-ready target architecture for the drwn card model — home-managed sources, an immutable content-addressed machine store, and per-project committed, vendored materialization (CoW-cloned from the store, never a shared inode) that diverges cleanly per git branch/worktree.
-# ABOUTME: Rebuilt around four spike-validated invariants (vendor integrity, surface taxonomy, crash-recoverable reconcile, honest requirement-3 scope) plus the rev-3 boundary contracts (§5a: immutable vendor, file:-origin rule, lock-backfill location, crash-recoverable wording); supersedes the store-symlink materialization of analyses 90–96 and resolves every finding in 97_review01 + review02.
+# ABOUTME: Rebuilt around four spike-validated invariants (vendor integrity, surface taxonomy, crash-recoverable reconcile, honest requirement-3 scope) plus the rev-3 boundary contracts (§5a: immutable vendor, file:-origin rule, lock-backfill location, crash-recoverable wording) and rev-4 vendor-manifest sidecars (§5a·5); supersedes the store-symlink materialization of analyses 90–96 and resolves every finding in 97_review01 + review02.
 
-# Analysis 97 — Worktree-Vendored Card Architecture (Target Design, rev 3)
+# Analysis 97 — Worktree-Vendored Card Architecture (Target Design, rev 4)
 
-**Date**: 2026-07-05 (rev 3: boundary contracts ratified after review02; rev 2: post-review, spike-validated)
+**Date**: 2026-07-05 (rev 4: committed `vendor-manifests/` sidecars for stale-tree prune + GC — ratified in task 68 review01 reply; rev 3: boundary contracts ratified after review02; rev 2: post-review, spike-validated)
 **Author**: Claude + Remy
-**Status**: Target architecture — **stable design of record** for the materialization substrate. Rev 3 adds the §5a boundary contracts resolving review02 (vendor immutability, project `.mcp.json` as projection, legacy-lock backfill location, `file:` origins, crash-recoverable wording); rev 2 resolved `97_review01` and is grounded in an executable spike (Appendix B). Supersedes the store-symlink generated layer in analysis 93 §3/§5; amends the Stage-B plan (tasks/65) and drives the execution plan (tasks/68).
-**References**: [97_review01_vendored-architecture-faults-and-amendments.md (all findings resolved here), 93_target-card-model-architecture.html (materialization tier superseded), 94_harness-tooling-critical-assessment.md, 95_card-model-mental-model.html, 96_target-card-model-architecture-critical-assessment.html (D1/D3/G1/G2/G8), 90_skill-update-model-investigation.md, 92_mind-card-lifecycle-storage-and-update-model.md, 82_drwn-portable-multi-surface-write-path-target-architecture.md, 52_drwn-target-architecture-post-wave-1.md, 44_drwn-git-storage-backend-options.md, tasks/65_drwn-card-model-stage-b-implementation-plan.md, cli/core/effective-state.ts, cli/core/sync.ts, cli/core/materialize.ts, cli/core/card-lock.ts, cli/core/card-store.ts, cli/core/store-paths.ts, cli/core/write-record.ts, cli/core/card-manifest.ts, cli/core/project.ts, cli/core/git.ts, cli/commands/write.ts]
+**Status**: Target architecture — **stable design of record** for the materialization substrate. Rev 4 adds committed per-tree manifest sidecars (§5a·5) so stale vendor prune and store GC have authoritative metadata after a lock entry disappears. Rev 3 adds the §5a boundary contracts resolving review02 (vendor immutability, project `.mcp.json` as projection, legacy-lock backfill location, `file:` origins, crash-recoverable wording); rev 2 resolved `97_review01` and is grounded in an executable spike (Appendix B). Supersedes the store-symlink generated layer in analysis 93 §3/§5; amends the Stage-B plan (tasks/65) and drives the execution plan (tasks/68).
+**References**: [97_review01_vendored-architecture-faults-and-amendments.md (all findings resolved here), tasks/68_review01_task68_implementation_alignment_review.md, tasks/68_review01_re_repair-strategies.md, 93_target-card-model-architecture.html (materialization tier superseded), 94_harness-tooling-critical-assessment.md, 95_card-model-mental-model.html, 96_target-card-model-architecture-critical-assessment.html (D1/D3/G1/G2/G8), 90_skill-update-model-investigation.md, 92_mind-card-lifecycle-storage-and-update-model.md, 82_drwn-portable-multi-surface-write-path-target-architecture.md, 52_drwn-target-architecture-post-wave-1.md, 44_drwn-git-storage-backend-options.md, tasks/65_drwn-card-model-stage-b-implementation-plan.md, cli/core/effective-state.ts, cli/core/sync.ts, cli/core/materialize.ts, cli/core/card-lock.ts, cli/core/card-store.ts, cli/core/store-paths.ts, cli/core/write-record.ts, cli/core/card-manifest.ts, cli/core/project.ts, cli/core/git.ts, cli/commands/write.ts]
 
 ---
 
@@ -59,6 +59,7 @@ CARDS_SOURCE_PATH → org card-sources MONOREPO      <project>/.agents/drwn/
   many sources as subdirs, addressed via             config.json              ← intent   (COMMITTED, per-branch)
   git+URL#subpath ; its own git + remote             card.lock                ← pins+integ(COMMITTED, per-branch)
         │ edit → publish (commit + tag) → push       vendor/@scope/name/<sha>/← content  (COMMITTED, reflink-from-store)
+        │                                            vendor-manifests/@scope/name/<sha>.json ← prune/GC metadata (COMMITTED)
         │                                            .gitattributes           ← vendor/** -text (COMMITTED)
         ▼                                            config.local.json        ← local activation + dev links (gitignored)
   ~/.agents/drwn/                                    card.lock.local          ← local pins (gitignored)
@@ -72,7 +73,7 @@ CARDS_SOURCE_PATH → org card-sources MONOREPO      <project>/.agents/drwn/
 |------|---------|--------------|------------|--------|
 | **Source** | `~/.agents/drwn/sources/@scope/name/`, or a cloned org monorepo referenced by `CARDS_SOURCE_PATH` | its own repo + remote | editable | Requirement 3 (authoring + distribution) |
 | **Store** | `~/.agents/drwn/cards/*.git` + `extracted/<treeSha>/` | machine-global, immutable | never | Requirement 2 (every version on hand, zero cross-worktree contention) |
-| **Vendor (activation)** | `<project>/.agents/drwn/{config.json, card.lock, vendor/@scope/name/<sha>/, .gitattributes}` | **committed branch content** | per-branch | Requirements 1 + 2 |
+| **Vendor (activation)** | `<project>/.agents/drwn/{config.json, card.lock, vendor/@scope/name/<sha>/, vendor-manifests/@scope/name/<shortSha>.json, .gitattributes}` | **committed branch content** | per-branch | Requirements 1 + 2 |
 | **Local overlay** | `<project>/.agents/drwn/{config.local.json, card.lock.local}` | gitignored | machine-local | personal cards + dev links without leaking to the team |
 | **Agent surfaces** | projection: `.claude/skills/`, `.cursor/…`, project `.mcp.json`, `.cursor/mcp.json`; merge: machine `~/.claude.json`, `.codex/config.toml`, `.claude/settings.json` (hooks) | projection gitignored; **merge committed** (§5) | derived | what the agent tools actually read |
 
@@ -106,6 +107,7 @@ The big architecture (source / store / vendor / local-overlay; reflink-first; no
 2. **`file:` card origins are never vendored into the committed lane.** `file:` resolution yields no git tree SHA (`cli/core/card-store.ts:844`), so it cannot produce the machine-independent `treeSha` a committed vendor tree requires. A `file:` card is **linked / overlay / dev-only**; to vendor it, publish or import it into the git-backed store first (it then locks as a `git`/`store` origin with a real `treeSha`).
 3. **`treeSha` is required to *write* a v5 lock, optional on *load* of v2–v4.** Backfill happens in a layer that has store context — `resolveCard` / `update` / `write` / migration with `agentsDir` — **not** in `loadCardLock(projectRoot)`, which has no bare-repo context (`cli/core/card-lock.ts:77`). Legacy entries load with `treeSha?: string` and are backfilled on the next resolve/update.
 4. **Replacement is crash-recoverable, not atomically crash-safe.** The temp tree is built in full *before* the live tree is removed, so a crash during population never touches the live tree. The residual `rm`→`rename` window is small; a crash inside it leaves the tree missing, which the next `drwn write` rebuilds deterministically. We claim **"converges after crash,"** not "atomic replace."
+5. **Committed vendor-manifest sidecars (rev 4).** Each populated vendor tree has a committed sidecar at `vendor-manifests/@scope/name/<shortSha>.json` recording `{ card, treeSha, integrity, manifest }`. Sidecars live **outside** the vendored content root (never inside `vendor/…` where materializers would read them). **Current-tree verification** uses `card.lock.integrity` digest-compare against live `vendor/` bytes — no sidecar required. Sidecars exist so **stale** trees (after card removal/update, when no lock entry remains) can still be pruned safely and so store GC can resolve short SHA → full `treeSha`. Rules: (a) missing or self-inconsistent sidecars ⇒ **preserve** the tree + warn — never delete; (b) self-consistency requires `treeSha.slice(0,12) === <shortSha>`, `integrity === manifestIntegrityDigest(manifest)`, and sidecar `card`/path matches the vendor tree; (c) a verified current vendor tree with a missing sidecar **backfills the sidecar offline**; (d) sidecar deleted when its tree is pruned.
 
 ## 6. The `drwn write` reconcile algorithm (invariant C)
 
@@ -122,20 +124,23 @@ drwn write:
   4. ADD / REPAIR (crash-recoverable, idempotent — vendor is an immutable cache, §5a·1):
         for (name, sha) in DESIRED_VENDOR:
           tree = vendor/<card-name-path>/<shortSha>/
-          if verifyManifest(tree) == OK: continue                  # already correct → no-op
+          if verifyManifest(tree) == OK: continue                  # lock.integrity digest-compare; no store access
+          if verifyManifest(tree) == OK and sidecar missing: write sidecar offline from computed manifest
           ensureStore(sha)                                         # extract from bare repo if missing (§10)
           verifyStore(sha)                                         # re-verify store side BEFORE re-vendoring (F1 repair rule)
           tmp = vendor/.tmp-<sha>-<pid>; reflink-or-copy each file store→tmp   # build the COMPLETE tree first (§7)
           rm -rf tree; rename(tmp → tree)                          # short replace window; a crash here leaves the tree
                                                                    #   missing → next write rebuilds it (converges, §5a·4)
           if verifyManifest(tree) != OK: abort loudly
+          write vendor-manifest sidecar for tree (self-consistency validated)
         # a pinned tree that fails verify is REPAIRED from the store (overwritten) — vendor is not an edit point
 
-  5. PRUNE (drift-gated, defensive):
+  5. PRUNE (drift-gated, defensive — uses sidecars for stale trees):
         for tree in existing vendor/ trees not in DESIRED_VENDOR paths:
-          if verifyManifest(tree) == OK: rm -rf tree               # stale version/removed card
-          else: preserve + report anomaly                          # unexpected edit in an immutable cache: never silently
-                                                                   #   delete; signpost to the SOURCE edit path (§5a·1)
+          load sidecar at vendor-manifests/…/<shortSha>.json
+          if sidecar missing or self-inconsistent: preserve + warn (never delete)
+          else if verifyManifest(tree, sidecar.manifest) == OK: rm -rf tree + sidecar   # stale clean
+          else: preserve + report anomaly                          # drifted immutable cache: never silently delete
 
   6. CONTENT SOURCE per card:
         vendored  → read bytes from vendor/<card-name-path>/<shortSha>/
@@ -204,7 +209,7 @@ Personal/local cards must never enter the shared lane. The overlay mirrors the c
 
 ## 11. Distribution — GC, org monorepo, fork-first, and honest requirement-3 scope (invariant D)
 
-**GC (V1 scope).** V1 roots = discovered project `card.lock`s + every committed `vendor/<card-name-path>/<shortSha>/` tree + local sources + a **retention window** for recently-used shas; dry-run default. Vendored content is durable in-repo, so the store is a **cache** — a pruned sha re-populates from remote or from the committed vendor tree. **Worktree-aware GC roots (`git worktree list`) are V2** (§13).
+**GC (V1 scope).** V1 roots = discovered project `card.lock`s + every committed `vendor/<card-name-path>/<shortSha>/` tree's full `treeSha` (from sidecar when present, else lock when current) + local sources + a **retention window** for recently-used shas; dry-run default. Short-SHA vendor dirs without a resolvable sidecar/lock mapping produce a warning and do not protect arbitrary extractions. Vendored content is durable in-repo, so the store is a **cache** — a pruned sha re-populates from remote or from the committed vendor tree. **Worktree-aware GC roots (`git worktree list`) are V2** (§13).
 
 **Org card-sources monorepo.** Teams maintain a shared **monorepo of card sources** — many sources as subdirectories, each addressed via `git+URL#subpath`. One clone (referenced by `CARDS_SOURCE_PATH`), one collaborative edit/publish place, decoupled from any project repo. Makes publish history shared and durable (closes 96 G3-half).
 
@@ -220,14 +225,14 @@ Personal/local cards must never enter the shared lane. The overlay mirrors the c
 |---|----------|--------|
 | 1 | Three tiers: home **sources** (org monorepo, subpath-addressed) → machine **store** (immutable, content-addressed) → per-project **committed activation** (`config.json` + `card.lock` + `vendor/@scope/name/<sha>/`) | §4 |
 | 2 | Materialize **from vendor, not store**; vendor populated by **reflink (`COPYFILE_FICLONE`) → read-only-hardlink fallback → copy fallback**, **never a shared writable inode**; repair re-verifies the store side before re-vendoring | §2, §6, §7 |
-| 3 | **Integrity anchor = normalization-tolerant content manifest** derived from `card.lock.integrity` (not the git tree SHA); committed `.gitattributes vendor/** -text linguist-generated` for byte-exact checkout + clean diffs | §7 |
+| 3 | **Integrity anchor = normalization-tolerant content manifest** derived from `card.lock.integrity` (not the git tree SHA); committed `.gitattributes vendor/** -text linguist-generated` for byte-exact checkout + clean diffs; **committed `vendor-manifests/` sidecars** for stale-tree prune + GC (§5a·5) | §7, §5a·5 |
 | 4 | **Surface taxonomy** (ownership × distribution): projection surfaces gitignored + deterministic; **merge surfaces committed + field-merged**, owned-field set **derived from the effective lock** (not the write-record) | §5 |
 | 5 | `drwn write` is a **total, crash-recoverable, idempotent reconcile** (add via build-temp-then-swap+verify; drift-gated prune; overlay branch); "converges after crash," not atomic (§5a·4); determinism scoped to projection surfaces | §6 |
 | 6 | Mode resolution precedence: explicit override → **explicit project setting** → per-card auto → default (`CARDS_SOURCE_PATH` unset ⇒ vendored); set-but-source-absent ⇒ vendored; linking never mutates the committed lane | §8 |
 | 7 | Overlay cards materialize **from `extracted/<sha>`, never vendored**; overlay + linked excluded from `DESIRED_VENDOR` | §9 |
 | 8 | Machine-local overlay: `config.local.json` + `card.lock.local`; **local-wins-with-warning**; write-record shrinks to a disposable managed-path list | §9 |
 | 9 | Store concurrency: idempotent content-addressed extraction via **store-local** temp + atomic rename (`EEXIST`/`EPERM`/`ENOTEMPTY` = success) + git-lock retry/backoff; **no global lock** | §10 |
-| 10 | V1 GC roots = project locks + committed vendor + local sources + retention; store = cache; dry-run default | §11 |
+| 10 | V1 GC roots = project locks + committed vendor sidecar `treeSha`s + local sources + retention; store = cache; dry-run default | §11 |
 | 11 | Distribution: shared **org monorepo**; **`drwn card fork` V1 tooling**; version-up = **pull-on-command**; **requirement 3 partially served in V1** (no distributable deprecation until catalog reflection — named closing move) | §11 |
 | — | **Deferred to V2:** explicit worktree tooling, worktree-aware GC roots, many-parallel-worktree hardening, push/hook update nudges, `refs/meta/cards` union-merge | §13 |
 
@@ -270,7 +275,7 @@ Personal/local cards must never enter the shared lane. The overlay mirrors the c
 1. Detect the legacy generated-symlink layer via the existing write-record; re-vendor each pinned sha (reflink) and drop the symlinks.
 2. Shrink the write-record from the current schema to the disposable managed-path list (a from-schema migration step, not a "we're not bound to it" hand-wave).
 3. Add the gitignore/`.gitattributes` entries; **classify existing committed surfaces**: projection surfaces move to gitignored (one-time team-visible change, announced), merge surfaces stay committed.
-4. **Drwn-less teammates:** once projection surfaces are gitignored, a teammate without drwn checks out a repo whose skill content sits in `vendor/` (which no agent tool reads) — a regression vs a committed `.claude/`. V1 offers an opt-in **committed-surfaces mode** (a team may commit projection surfaces too, at the cost of larger diffs) as the non-default escape hatch; teams that require zero-tooling consumption use it. Pure drwn-less consumption without that flag is explicitly out of scope.
+4. **Drwn-less teammates:** once projection surfaces are gitignored, a teammate without drwn checks out a repo whose skill content sits in `vendor/` (which no agent tool reads) — a regression vs a committed `.claude/`. V1 offers an opt-in **committed-surfaces mode** (`committedSurfaces:true` in committed `config.json`) that omits these projection paths from the drwn gitignore block: `.claude/skills/`, `.codex/skills/`, `.cursor/`, project `.mcp.json`, `.cursor/mcp.json`. Merge surfaces (`.codex/config.toml`, `.claude/settings.json` hooks) remain field-merged and committed regardless. Non-default escape hatch for zero-tooling consumption; pure drwn-less consumption without that flag is explicitly out of scope.
 
 **De-prioritized:** `refs/meta/cards` union-merge (task 65 Phase 5) — catalog reflection is the reach-everyone channel (§11, 96 G9); V1 keeps the Stage-A local-config deprecation marker + catalog reflection.
 

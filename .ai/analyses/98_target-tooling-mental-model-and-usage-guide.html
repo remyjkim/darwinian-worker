@@ -111,7 +111,8 @@
   <div class="tier project">
     <div class="h">③ PROJECT — committed activation (per branch / worktree)</div>
     <code>&lt;project&gt;/.agents/drwn/</code>: <code>config.json</code> (intent) + <code>card.lock</code> (pins) +
-    <code>vendor/@scope/name/&lt;sha&gt;/</code> (content, <strong>CoW-cloned (reflinked) from the store, committed as real files</strong>).
+    <code>vendor/@scope/name/&lt;sha&gt;/</code> (content, <strong>CoW-cloned (reflinked) from the store, committed as real files</strong>)
+    and <code>vendor-manifests/@scope/name/&lt;shortSha&gt;.json</code> (committed prune/GC metadata, outside the content root).
     <strong>Projection</strong> surfaces (<code>.claude/skills/</code>, <code>.cursor/</code>, project <code>.mcp.json</code>) are generated from vendor and gitignored;
     <strong>merge</strong> surfaces (machine <code>~/.claude.json</code>, <code>.codex/config.toml</code>, <code>.claude/settings.json</code> hooks) are field-merged (§3.5).
     <small> — usage. This is branch content, so it diverges per worktree for free.</small>
@@ -330,11 +331,12 @@ re-verifies against the content manifest and <strong>repairs the pinned tree fro
   <tr><td><code>.agents/drwn/config.json</code></td><td><strong>yes</strong></td><td>shared intent (which cards, per branch)</td></tr>
   <tr><td><code>.agents/drwn/card.lock</code></td><td><strong>yes</strong></td><td>exact pins + integrity</td></tr>
   <tr><td><code>.agents/drwn/vendor/@scope/name/&lt;sha&gt;/</code></td><td><strong>yes</strong></td><td>self-contained card content (reflinked locally)</td></tr>
+  <tr><td><code>.agents/drwn/vendor-manifests/@scope/name/&lt;shortSha&gt;.json</code></td><td><strong>yes</strong></td><td>per-tree manifest metadata for stale vendor prune + store GC (outside the content root)</td></tr>
   <tr><td><code>.agents/drwn/.gitattributes</code></td><td><strong>yes</strong></td><td><code>vendor/** -text linguist-generated</code> — byte-exact checkout + clean PR diffs</td></tr>
   <tr><td><code>.agents/drwn/config.local.json</code></td><td>no (gitignored)</td><td>personal activation + dev links</td></tr>
   <tr><td><code>.agents/drwn/card.lock.local</code></td><td>no (gitignored)</td><td>pins for personal/local cards</td></tr>
-  <tr><td><code>.claude/skills/</code> · <code>.cursor/</code> · project <code>.mcp.json</code> · <code>.cursor/mcp.json</code> (projection surfaces)</td><td>no (regenerated)</td><td>drwn-owned whole-file surfaces — rebuilt offline by <code>drwn write</code></td></tr>
-  <tr><td><code>.codex/config.toml</code> · <code>.claude/settings.json</code> hooks (merge surfaces)</td><td><strong>yes</strong> (field-merged)</td><td>mixed ownership — drwn owns its fields, your entries preserved (machine <code>~/.claude.json</code> is a merge surface too, but machine-wide, not in the repo)</td></tr>
+  <tr><td><code>.claude/skills/</code> · <code>.codex/skills/</code> · <code>.cursor/</code> · project <code>.mcp.json</code> · <code>.cursor/mcp.json</code> (projection surfaces)</td><td>no (regenerated; opt-in committable via <code>committedSurfaces:true</code>)</td><td>drwn-owned whole-file surfaces — rebuilt offline by <code>drwn write</code></td></tr>
+  <tr><td><code>.codex/config.toml</code> · <code>.claude/settings.json</code> hooks (merge surfaces)</td><td><strong>yes</strong> (field-merged; unaffected by <code>committedSurfaces</code>)</td><td>mixed ownership — drwn owns its fields, your entries preserved (machine <code>~/.claude.json</code> is a merge surface too, but machine-wide, not in the repo)</td></tr>
   <tr><td><code>~/.agents/drwn/</code> (store, sources)</td><td>n/a (machine-wide)</td><td>every version available; editable drafts</td></tr>
 </table>
 

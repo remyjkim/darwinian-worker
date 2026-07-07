@@ -5,13 +5,13 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan phase-by-phase, in order.
 
-**Status**: Ready for implementation (sequential, rev 4 — review02 boundary contracts resolved; watch/backfill handoff gaps closed). Supersedes tasks 65 and 67.
+**Status**: Implementation complete (phases 1–18); **repair in progress** per `.ai/tasks/68_review01_task68_implementation_alignment_review.md` and `.ai/tasks/68_review01_re_repair-strategies.md` (R0 doc ratification → R1–R5 code). Supersedes tasks 65 and 67.
 **Created**: 2026-07-05
 **Assigned**: Claude + Remy
 **Priority**: High
-**Estimated Effort**: 18 sequential phases. Phases 1–13 deliver the analysis 97/98 **V1 acceptance gate**; phases 14–18 are post-V1 hardening (Stage-B quality/trust work not required to satisfy 97/98).
-**Dependencies**: Analysis 97 rev 3 (design of record — decision ledger §12, boundary contracts §5a), 97_review01 + review02 (findings resolved), 98 (operator mental model, target-scope). Stage A (deprecation reader/writer) already shipped in the working tree.
-**References**: [.ai/analyses/97_worktree-vendored-card-architecture.md, .ai/analyses/97_review01_vendored-architecture-faults-and-amendments.md, .ai/analyses/98_target-tooling-mental-model-and-usage-guide.html, .ai/analyses/94_harness-tooling-critical-assessment.md, .ai/analyses/82_drwn-portable-multi-surface-write-path-target-architecture.md, .ai/tasks/65_drwn-card-model-stage-b-implementation-plan.md (superseded), .ai/tasks/67_vendored-card-materialization-implementation-plan.md (superseded), cli/core/card-store.ts, cli/core/card-lock.ts, cli/core/card-install.ts, cli/core/card-project.ts, cli/core/materialize.ts, cli/core/sync.ts, cli/core/mcp.ts, cli/core/skills.ts, cli/core/mind-generator/sync-mind.ts, cli/core/write-record.ts, cli/core/effective-state.ts, cli/core/store-paths.ts, cli/core/git.ts, cli/core/project.ts, cli/core/card-manifest.ts, cli/core/types.ts, cli/commands/write.ts, cli/commands/init.ts, cli/commands/store/gc.ts, cli/index.ts]
+**Estimated Effort**: 18 sequential phases (shipped) + 5 repair phases (R0–R5). Phases 1–13 deliver the analysis 97/98 **V1 acceptance gate**; phases 14–18 are post-V1 hardening. Repair R1–R3 is core substrate work (not a small patch).
+**Dependencies**: Analysis **97 rev 4** (design of record — decision ledger §12, boundary contracts §5a incl. §5a·5 vendor-manifest sidecars), 97_review01 + review02 (findings resolved), 98 (operator mental model, target-scope). Stage A (deprecation reader/writer) already shipped in the working tree.
+**References**: [.ai/analyses/97_worktree-vendored-card-architecture.md, .ai/tasks/68_review01_task68_implementation_alignment_review.md, .ai/tasks/68_review01_re_repair-strategies.md, .ai/analyses/97_review01_vendored-architecture-faults-and-amendments.md, .ai/analyses/98_target-tooling-mental-model-and-usage-guide.html, .ai/analyses/94_harness-tooling-critical-assessment.md, .ai/analyses/82_drwn-portable-multi-surface-write-path-target-architecture.md, .ai/tasks/65_drwn-card-model-stage-b-implementation-plan.md (superseded), .ai/tasks/67_vendored-card-materialization-implementation-plan.md (superseded), cli/core/card-store.ts, cli/core/card-lock.ts, cli/core/card-install.ts, cli/core/card-project.ts, cli/core/materialize.ts, cli/core/sync.ts, cli/core/mcp.ts, cli/core/skills.ts, cli/core/mind-generator/sync-mind.ts, cli/core/write-record.ts, cli/core/effective-state.ts, cli/core/store-paths.ts, cli/core/git.ts, cli/core/project.ts, cli/core/card-manifest.ts, cli/core/types.ts, cli/commands/write.ts, cli/commands/init.ts, cli/commands/store/gc.ts, cli/index.ts]
 
 ---
 
@@ -64,11 +64,13 @@ Verified by survey of the CLI:
 
 **PD-8 — replacement is crash-recoverable, not atomically crash-safe (review02 finding 4; mirrors 97 §5a·4).** `ensureVendorTree` builds the complete temp tree **before** removing the live tree, then does a short `rm`→`rename` swap. A crash in that window leaves the tree missing, which the next `drwn write` rebuilds deterministically. The claim is **"converges after crash,"** not "atomic replace." Wording is scrubbed accordingly (invariant C, Phase 3 Step 4, Phase 9).
 
+**PD-9 — committed vendor-manifest sidecars (task 68 review01 reply; mirrors 97 §5a·5).** Each populated vendor tree has a committed sidecar at `.agents/drwn/vendor-manifests/@scope/name/<shortSha>.json` recording `{ card, treeSha, integrity, manifest }`. Sidecars live outside the vendored content root. **Current-tree verification** uses `card.lock.integrity` digest-compare against live `vendor/` bytes (offline, no store). Sidecars enable stale-tree prune (after lock entry gone) and store GC short-SHA→full-SHA resolution. Missing/invalid sidecars **preserve** stale trees (never delete). Verified current trees **backfill missing sidecars offline**. Lands in repair R1 (`cli/core/vendor-manifest.ts`).
+
 ## 3. Combined ratified decisions (from 97 §12 + §5a + task 65 recap)
 
 | # | Decision | Phase |
 |---|----------|-------|
-| A | Vendor is independent, normalization-stable, content-addressed; **reflink → read-only-hardlink → copy**; integrity anchor = normalization-tolerant manifest derived from `card.lock.integrity`; committed `.gitattributes vendor/** -text linguist-generated` | 1,3,4 |
+| A | Vendor is independent, normalization-stable, content-addressed; **reflink → read-only-hardlink → copy**; integrity anchor = normalization-tolerant manifest derived from `card.lock.integrity`; committed `.gitattributes vendor/** -text linguist-generated`; **committed `vendor-manifests/` sidecars** (PD-9) | 1,3,4, repair R1 |
 | B | **Surface taxonomy**: projection (gitignored, deterministic) vs merge (committed, field-merged); owned-field set derived from the effective lock | 6 |
 | C | `drwn write` is a **total, crash-recoverable, idempotent reconcile** (build-temp-then-swap add, drift-gated prune, overlay branch); "converges after crash," not atomic replace (PD-8); determinism scoped to projection surfaces | 9 |
 | D | Requirement 3 partially served in V1 (pull-based version-up ships; distributable deprecation is post-V1, catalog-reflected) | 12,15 |
@@ -212,7 +214,7 @@ Verified by survey of the CLI:
 **Files:** Modify `cli/core/sync.ts:380`, `cli/core/mind-generator/sync-mind.ts:55-71,176-199`, `cli/core/materialize.ts`, `cli/commands/write.ts:104-116`; Test `test/core-reconcile.test.ts`, `test/core-write-offline.test.ts`, `test/core-write-idempotent.test.ts`, `test/commands-write-mode-readout.test.ts`.
 
 1. **Desired-set + add/repair (failing test).** `DESIRED_VENDOR = { (name, treeSha) | committed-lane card ∧ mode==vendored }`, keyed by the resolved vendor tree path rather than bare SHA (overlay + linked excluded; a `file:`-origin card has no `treeSha` and is excluded, PD-7). For each, `ensureVendorTree` (Phase 3) using the manifest (Phase 1).
-2. **Prune (failing test).** `pruneVendorTrees` after add; stale clean removed, drifted preserved+reported.
+2. **Prune (failing test).** `pruneVendorTrees` after add; stale clean removed via sidecar manifest (PD-9), drifted/missing/invalid sidecar preserved+reported — never delete without a valid sidecar.
 3. **Single content-root abstraction (failing test — review02 finding 6).** Introduce **one** `resolveCardContentRoot(card, state)` helper as the sole place mode→content-root mapping lives, so skill routing (`card-skill-resolver.ts:36`) and mind routing (`sync-mind.ts:176`) cannot drift: `vendored` → `resolveProjectVendorTree(projectRoot, card.name, card.treeSha)`; `linked` → live `CARDS_SOURCE_PATH` source; `overlay` → `extracted/<sha>/`. Both skills and mind content route through it; test each mode resolves the expected root and that both callers use the helper.
 4. **De-symlink the mind layer (failing test — PD-4).** Replace `ensureDirSymlink` with reflink placement (via `resolveCardContentRoot`) into per-card `generated/minds/<card>/…` for every locked card; rebuild composed `generated/mind/…` from the active stack (locked-vs-active split preserved). Drop `generated-symlink` for new writes (keep reader for Phase 18). No symlink created; second-machine empty-store checkout reconstructs `generated/` offline.
 5. **Offline + idempotent + crash-recoverable (failing tests).** (a) wipe store, offline `drwn write` succeeds; (b) two runs identical + no-op second diff; (c) corrupt a file under `resolveProjectVendorTree(...)` → repaired from store (converges); (d) interrupt mid-populate → next run converges.
@@ -247,7 +249,7 @@ Verified by survey of the CLI:
 1. **Rename-success spelling (failing test).** Treat POSIX `EEXIST`/`ENOTEMPTY` **and Windows `EPERM`/`ENOTEMPTY`** as "another writer finished" → return existing dir.
 2. **Concurrent extract (failing test).** `Promise.all` of two extractions → identical content, one surviving dir.
 3. **Narrow fetch lock.** Bounded retry+backoff on git ref-lock; different cards parallel; **no global lock**.
-4. **GC roots (failing test — PD-5).** `computeGcRoots` = current project's pinned treeShas + committed `vendor/**/<sha>` + local sources + retention window; `projectRoots` from `~/.agents/drwn/projects.json` when present (Phase 16), else current-project-only. `planGc` → `{ prune[], keep[] }` over `extracted/` + stale `*.tmp.*`. A committed-vendor sha is never pruned.
+4. **GC roots (failing test — PD-5, PD-9).** `computeGcRoots` = current project's pinned treeShas + committed vendor sidecar `treeSha`s (full 40-char) + local sources + retention window; `projectRoots` from `~/.agents/drwn/projects.json` when present (Phase 16), else current-project-only. Short-SHA vendor dirs without resolvable sidecar/lock mapping warn and do not protect arbitrary extractions. `planGc` → `{ prune[], keep[] }` over `extracted/` + stale `*.tmp.*`. A committed-vendor sha is never pruned.
 5. **Wire `store gc`.** `[--dry-run(default)] [--prune]`; bare repos still get `git gc`.
 6. **Commit gate:** `bun test` (ubuntu+windows) `&& npx tsc --noEmit`.
 
@@ -261,7 +263,7 @@ Verified by survey of the CLI:
 
 1. **`drwn card fork` (failing test).** `card fork @team/y [--scope @you] [--into <org-monorepo>]`: clone source into your scope / org monorepo, rewrite `card.json` name; original untouched.
 2. **`card update` re-vendors (failing test).** re-resolve pins → refresh `card.lock` (new `treeSha`, PD-2) → next `write` re-vendors new + prunes old. `card outdated --fetch` reports correctly against a vendored pin. (`drwn up` already wired in Phase 10.)
-3. **Hook-consent notice (failing test).** First `drwn write` on a machine where `card.lock` has `hookConsent` (`card-lock.ts:33-36`) but no local ack prints **"hooks present, consented by `<lock entry>` on another machine"** loudly.
+3. **Hook-consent notice (failing test).** First `drwn write` on a machine where `card.lock` has `hookConsent` but no local ack (keyed by project + card + `treeSha` + hook-policy digest + consent range) prints **"hooks present, consented by `<lock entry>` on another machine"** once; `drwn card trust --hooks` records ack at consent time.
 4. **Requirement-3 scope note (doc).** Command help + `docs-astro`: V1 notifies version-up only; distributable deprecation is post-V1 (Phase 15 / catalog-reflected).
 5. **Commit gate + acceptance:** `card fork --help` works; `card update`+`write` re-vendors/prunes; hook-consent notice surfaces on cross-machine checkout.
 
@@ -273,7 +275,7 @@ Verified by survey of the CLI:
 
 1. **Detect + migrate (failing test).** `migrateSymlinkLayerToVendor(projectRoot)`: find `generated-symlink` write-record entries, re-vendor each pinned sha (Phase 3), replace symlinks with reflinked content; shrink the write-record to the disposable managed-path list (reuse analysis 82 `diffWriteRecord` routing).
 2. **Surface reclassification (failing test).** Projection surfaces → gitignored (announced); merge surfaces stay committed.
-3. **Committed-surfaces mode (failing test).** `committedSurfaces:true` commits projection surfaces too (zero-tooling consumption for drwn-less teammates) — non-default escape hatch.
+3. **Committed-surfaces mode (failing test).** `committedSurfaces:true` in committed `config.json` omits these **projection** paths from the drwn gitignore block: `.claude/skills/`, `.codex/skills/`, `.cursor/`, project `.mcp.json`, `.cursor/mcp.json`. Merge surfaces (`.codex/config.toml`, `.claude/settings.json` hooks, machine `~/.claude.json`) stay field-merged and committed regardless. Local overlay files and `generated/` remain gitignored unconditionally.
 4. **Runbook doc.** publish→re-vendor→announce-gitignore; when to use committed-surfaces; pure drwn-less consumption without the flag is out of scope.
 5. **Commit gate:** `bun test` (ubuntu+windows) `&& npx tsc --noEmit && verify:release`.
 
@@ -281,7 +283,26 @@ Verified by survey of the CLI:
 
 ## ✅ 97/98 V1 ACCEPTANCE GATE
 
-After Phase 13, run the full §4 checklist. When green, the analysis 97/98 target architecture is realized: home-managed sources, committed vendored materialization diverging per branch/worktree, reflink-safe store, normalization-tolerant integrity, the total reconcile, the surface taxonomy, mode resolution + overlay, pull-based updates, `card fork`, and the migration path. **This is the shippable V1.** Phases 14–18 are hardening and do not gate it.
+After Phase 13 **and repair R1–R5**, run the full §4 checklist. Initial implementation (phases 1–18) is shipped but review01 found substrate gaps — repair is required before claiming this gate (see `.ai/tasks/68_review01_re_repair-strategies.md`). When green, the analysis 97/98 target architecture is realized: home-managed sources, committed vendored materialization diverging per branch/worktree, reflink-safe store, normalization-tolerant integrity, the total reconcile, the surface taxonomy, mode resolution + overlay, pull-based updates, `card fork`, and the migration path. **This is the shippable V1.**
+
+---
+
+# PART III — Post-implementation repair (review01 → R0–R5)
+
+**Trigger**: `.ai/tasks/68_review01_task68_implementation_alignment_review.md` — implementation compiles and tests pass but does not yet satisfy 97/98 V1 substrate (store-backed vendor copy vs committed-vendor offline architecture).
+
+**Strategy doc**: `.ai/tasks/68_review01_re_repair-strategies.md` (mentor-amended 2026-07-06).
+
+| Phase | Scope | Exit |
+|-------|-------|------|
+| **R0** | Ratify PD-9 / sidecar semantics in 97 rev 4, 98, task 68 | Docs grep-clean for `vendor-manifests` contract |
+| **R1** | F1, F2, F7 — lock/vendor authority, sidecars, idempotency | `core-write-offline`, `core-reconcile`, `core-write-idempotent` |
+| **R2** | F3 — single content-root routing | Skills/hooks from vendor with store deleted |
+| **R3** | F4, F5 — per-card source presence + local lock lane | Overlay acceptance criteria |
+| **R4** | F6, F11, F12 — watch, status, hook-consent ack | Porcelain + observability tests |
+| **R5** | F8, F9, F10 + porcelain test debt | Full §4 checklist + `verify:release` |
+
+**Execution rule:** R0 before any R1 code. R1→R3 sequential (core substrate — substantial diffs); R4/R5 parallelizable after R3.
 
 ---
 
