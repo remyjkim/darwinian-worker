@@ -50,7 +50,7 @@ This is the single linear path from the current card/mind model to the Workers m
 - [ ] Author → publish → `use` a `kind:"blueprint"` card; `composedFrom` members compose via the one engine; degenerate single-card path intact; `diffCards` composition-aware.
 - [ ] `drwn worker deploy <blueprint>` resolves members CLI-side and sends the pinned set; degenerate card deploy works.
 - [ ] `npx tsc --noEmit`, `bun test`, `bun run verify:release --json` all green.
-- [ ] Analysis 102 (persona/beliefs/memory design capture) written; external contracts (§Out of scope) untouched.
+- [ ] Analysis 103 (persona/beliefs/memory design capture) written; external contracts (§Out of scope) untouched.
 
 ---
 
@@ -61,14 +61,14 @@ This is the single linear path from the current card/mind model to the Workers m
 **Goal:** preserve the persona/beliefs/memory design (D-E), then make the canonical validator reject those keys while staying forward-compatible for blueprint governance (D-B).
 
 **Files:**
-- Create: `.ai/analyses/102_persona-beliefs-memory-capability-card-design-capture.md`
+- Create: `.ai/analyses/103_persona-beliefs-memory-capability-card-design-capture.md`
 - Modify: `cli/core/card-manifest.ts` (`validateCardManifest` ~:130-247; the `MindContent*` types ~:11-128)
 - Test: `test/core-card-manifest.test.ts`
 
 **Steps:**
-1. Write analysis 102: capture the persona/beliefs/memory schema (`MindContentManifest`, `MemoryLayerManifest`, l4/l5/l6, visibility), the materialization shape (`materializeComposedMind` layout), the authoring commands, and the doctor checks — enough to rebuild it later as a pluggable capability card. Point at the pre-descope git SHA for the implementation.
+1. Write analysis 103: capture the persona/beliefs/memory schema (`MindContentManifest`, `MemoryLayerManifest`, l4/l5/l6, visibility), the materialization shape (`materializeComposedMind` layout), the authoring commands, and the doctor checks — enough to rebuild it later as a pluggable capability card. Point at the pre-descope git SHA for the implementation.
 2. Write failing test: a manifest with `persona`/`beliefs`/`memory` returns a validation error naming the field and pointing to "advanced context management moved to a separate capability card". A manifest with an unknown *future* key (e.g. `tools` on a blueprint) still passes. Run: `bun test test/core-card-manifest.test.ts` → FAIL.
-3. Implement: introduce a `kind?: "card" | "blueprint"` field (default `"card"`). In `validateCardManifest`, when `kind !== "blueprint"`, push a named error for each of `persona`/`beliefs`/`memory` present. Do **not** add a blanket unknown-key reject. Remove the `persona`/`beliefs`/`memory` fields from the `CardManifest` interface (types move to analysis 102 / git history per D-E).
+3. Implement: introduce a `kind?: "card" | "blueprint"` field (default `"card"`). In `validateCardManifest`, when `kind !== "blueprint"`, push a named error for each of `persona`/`beliefs`/`memory` present. Do **not** add a blanket unknown-key reject. Remove the `persona`/`beliefs`/`memory` fields from the `CardManifest` interface (types move to analysis 103 / git history per D-E).
 4. Run tests → PASS. `npx tsc --noEmit` (expect breakages in dependents — fixed in later phases; keep this phase's test green).
 5. Commit: `feat(card): reject persona/beliefs/memory on canonical cards; add kind field`.
 
@@ -109,7 +109,7 @@ This is the single linear path from the current card/mind model to the Workers m
 **Goal:** capability cards have no visibility → push gate no-op (D-C); regenerate all fixtures without persona/beliefs/memory.
 
 **Files:**
-- Modify: `cli/core/visibility.ts` (`cardManifestStrictestVisibility` :42-57 — capture in 102, remove), `cli/commands/card/push.ts` (`evaluatePushGate` visibility branch)
+- Modify: `cli/core/visibility.ts` (`cardManifestStrictestVisibility` :42-57 — capture in 103, remove), `cli/commands/card/push.ts` (`evaluatePushGate` visibility branch)
 - Modify: `test/fixtures/dm-card-base-fixture.ts`, `test/helpers.ts` (drop persona/beliefs/memory)
 - Test: `test/core-card-push.test.ts` (or equivalent), broad suite
 
@@ -203,7 +203,7 @@ This is the single linear path from the current card/mind model to the Workers m
 - **Fixture regeneration churn (W1/D-B).** Concentrated in ~3 dedicated + ~6 mixed files + 2 fixtures; do it phase-by-phase, keep active-stack/selection tests green.
 - **Rename touching task-68 code.** W2 runs after W1 shrinks the surface; rename by category with `tsc` between each to localize breakage.
 - **Empty-mind choke point (blueprint).** D-A keeps the thinned bundle, so a composition-only blueprint materializes a minimal capability bundle; verify it is inert and members carry the real capabilities.
-- **Hard-reject breaking existing store cards.** Accepted (pre-release, D-B); analysis 102 + git history preserve the descoped design for the future pluggable card.
+- **Hard-reject breaking existing store cards.** Accepted (pre-release, D-B); analysis 103 + git history preserve the descoped design for the future pluggable card.
 
 ## Out of scope (tracked elsewhere)
 
@@ -211,7 +211,7 @@ This is the single linear path from the current card/mind model to the Workers m
 - External-contract renames: npm package name `darwinian-minds`, `darwinian-minds-skills` submodule, wire endpoints `/api/minds`, domain `minds.darwiniantools.com`, env vars, `darwinian-minds/hook-policy` export path.
 - Foundry runtime: background execution, scheduling, orchestration, eval-gating enforcement, ContextSpace.
 - Blueprints composing Blueprints (recursion) — post-V1.
-- The persona/beliefs/memory pluggable capability card build (analysis 102 captures the design).
+- The persona/beliefs/memory pluggable capability card build (analysis 103 captures the design).
 
 ## Provenance
 
