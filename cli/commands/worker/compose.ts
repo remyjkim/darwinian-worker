@@ -11,6 +11,11 @@ export class WorkerComposeCommand extends BaseCommand {
   static override usage = BaseCommand.Usage({
     category: "Worker",
     description: "Add or remove member cards on a Worker Blueprint's composedFrom.",
+    details: `
+      Mutates the blueprint source's composedFrom list and re-validates the
+      manifest. Only valid on a kind:"blueprint" card. Adds are idempotent and
+      removes are no-ops when absent; publish the blueprint afterwards to ship it.
+    `,
     examples: [
       ["Add a member card", "drwn worker compose @you/frontend-eng --add @you/react-builder@^1.0.0"],
       ["Remove a member card", "drwn worker compose @you/frontend-eng --remove @you/react-builder@^1.0.0"],

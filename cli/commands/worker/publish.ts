@@ -11,6 +11,12 @@ export class WorkerPublishCommand extends BaseCommand {
   static override usage = BaseCommand.Usage({
     category: "Worker",
     description: "Publish a Worker Blueprint source into the local card store.",
+    details: `
+      Validates the blueprint manifest and commits the source into its Git-backed
+      bare repo, tagging the manifest version. A blueprint is a kind:"blueprint"
+      card, so this reuses the card publish path; existing versions are never
+      overwritten.
+    `,
     examples: [["Publish a blueprint", "drwn worker publish @you/frontend-eng"]],
   });
 
