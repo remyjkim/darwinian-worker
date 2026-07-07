@@ -146,17 +146,25 @@ describe("startWriteWatch", () => {
     await mkdir(join(root, ".agents", "drwn"), { recursive: true });
     await writeFile(join(root, ".agents", "drwn", "config.json"), "{}\n");
     let runs = 0;
+    let activeRuns = 0;
+    let maxActiveRuns = 0;
     let release: (() => void) | undefined;
     let exerciseSingleFlight = false;
     const stop = startWriteWatch({
       projectRoot: root,
       debounceMs: 10,
       onTrigger: async () => {
-        runs += 1;
-        if (exerciseSingleFlight && runs === 1) {
-          await new Promise<void>((resolve) => {
-            release = resolve;
-          });
+        activeRuns += 1;
+        maxActiveRuns = Math.max(maxActiveRuns, activeRuns);
+        try {
+          runs += 1;
+          if (exerciseSingleFlight && runs === 1) {
+            await new Promise<void>((resolve) => {
+              release = resolve;
+            });
+          }
+        } finally {
+          activeRuns -= 1;
         }
       },
     });
@@ -174,8 +182,8 @@ describe("startWriteWatch", () => {
     release?.();
     await Bun.sleep(150);
     stop();
-    expect(runs).toBeGreaterThanOrEqual(1);
-    expect(runs).toBeLessThanOrEqual(2);
+    expect(runs).toBeGreaterThanOrEqual(2);
+    expect(maxActiveRuns).toBe(1);
   });
 
   test("creates config.local.json after watch starts and triggers write", async () => {

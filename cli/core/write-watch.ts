@@ -1,7 +1,7 @@
 // ABOUTME: Debounced file watching for drwn write --watch and drwn dev loops.
 // ABOUTME: Watches drwn overlay files and dynamically refreshes linked source roots.
 
-import { existsSync, readdirSync, statSync, watch, type FSWatcher } from "node:fs";
+import { existsSync, watch, watchFile, unwatchFile, type FSWatcher, type StatsListener } from "node:fs";
 import { join, relative } from "node:path";
 import { loadConfigLocal } from "./config-local";
 import { createRecursiveWatcher, type RecursiveWatcher } from "./write-watch-recursive";
@@ -70,6 +70,7 @@ export function startWriteWatch(options: WriteWatchOptions) {
   let queued = false;
   let linkedRoots: string[] = [];
   const linkedWatchers = new Map<string, RecursiveWatcher>();
+  const polledFiles: Array<{ path: string; listener: StatsListener }> = [];
 
   const closeLinkedWatchers = () => {
     for (const watcher of linkedWatchers.values()) {
@@ -127,10 +128,24 @@ export function startWriteWatch(options: WriteWatchOptions) {
     }, debounceMs);
   };
 
+  const watchPolledFile = (path: string) => {
+    const listener: StatsListener = (current, previous) => {
+      if (current.mtimeMs === previous.mtimeMs && current.size === previous.size) {
+        return;
+      }
+      schedule(path);
+    };
+    watchFile(path, { interval: Math.max(50, Math.min(500, debounceMs)), persistent: true }, listener);
+    polledFiles.push({ path, listener });
+  };
+
   const drwnDir = join(options.projectRoot, ".agents", "drwn");
   const watchers: Array<RecursiveWatcher | FSWatcher> = [];
   if (existsSync(drwnDir)) {
     watchers.push(createRecursiveWatcher(drwnDir, schedule));
+    for (const filename of ["config.json", "config.local.json", "card.lock", "card.lock.local"]) {
+      watchPolledFile(join(drwnDir, filename));
+    }
   } else {
     const parent = join(options.projectRoot, ".agents");
     if (existsSync(parent)) {
@@ -151,6 +166,9 @@ export function startWriteWatch(options: WriteWatchOptions) {
     closeLinkedWatchers();
     for (const watcher of watchers) {
       watcher.close();
+    }
+    for (const file of polledFiles) {
+      unwatchFile(file.path, file.listener);
     }
   };
 }
