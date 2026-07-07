@@ -194,8 +194,10 @@ describe("startWriteWatch", () => {
       ).toBe(true);
       expect(await waitForStableValue(() => runs)).toBe(true);
       runs = 0;
-      await writeFile(join(root, ".agents", "drwn", "config.local.json"), '{"overrides":{}}\n');
-      expect(await waitForCondition(() => runs > 0)).toBe(true);
+      const localConfigPath = join(root, ".agents", "drwn", "config.local.json");
+      expect(await writeUntilObserved(localConfigPath, () => '{"overrides":{}}\n', () => runs > 0)).toBe(
+        true,
+      );
     } finally {
       stop();
     }
@@ -227,20 +229,35 @@ describe("startWriteWatch", () => {
       ).toBe(true);
       expect(await waitForStableValue(() => events.length)).toBe(true);
       events.length = 0;
-      await writeFile(
-        join(root, ".agents", "drwn", "config.local.json"),
-        `${JSON.stringify({ overrides: { "@me/x": `file:${firstLinked}` } }, null, 2)}\n`,
-      );
-      expect(await waitForCondition(() => events.length >= 1)).toBe(true);
-      await writeFile(join(firstLinked, "touch.txt"), "a2\n");
-      expect(await waitForCondition(() => events.length >= 2)).toBe(true);
-      await writeFile(
-        join(root, ".agents", "drwn", "config.local.json"),
-        `${JSON.stringify({ overrides: { "@me/x": `file:${secondLinked}` } }, null, 2)}\n`,
-      );
-      expect(await waitForCondition(() => events.length >= 3)).toBe(true);
-      await writeFile(join(secondLinked, "touch.txt"), "b2\n");
-      expect(await waitForCondition(() => events.length >= 4)).toBe(true);
+      const localConfigPath = join(root, ".agents", "drwn", "config.local.json");
+      expect(
+        await writeUntilObserved(
+          localConfigPath,
+          () => `${JSON.stringify({ overrides: { "@me/x": `file:${firstLinked}` } }, null, 2)}\n`,
+          () => events.length >= 1,
+        ),
+      ).toBe(true);
+      expect(
+        await writeUntilObserved(
+          join(firstLinked, "touch.txt"),
+          (attempt) => `a${attempt + 2}\n`,
+          () => events.length >= 2,
+        ),
+      ).toBe(true);
+      expect(
+        await writeUntilObserved(
+          localConfigPath,
+          () => `${JSON.stringify({ overrides: { "@me/x": `file:${secondLinked}` } }, null, 2)}\n`,
+          () => events.length >= 3,
+        ),
+      ).toBe(true);
+      expect(
+        await writeUntilObserved(
+          join(secondLinked, "touch.txt"),
+          (attempt) => `b${attempt + 2}\n`,
+          () => events.length >= 4,
+        ),
+      ).toBe(true);
     } finally {
       stop();
     }
