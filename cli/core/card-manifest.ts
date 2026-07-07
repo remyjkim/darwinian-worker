@@ -12,6 +12,13 @@ export interface CardManifest {
   name: string;
   version: string;
   kind?: "card" | "blueprint";
+  composedFrom?: string[];
+  tools?: { allow?: string[]; deny?: string[] };
+  permissions?: Record<string, unknown>;
+  evals?: string[];
+  escalation?: { human_owner?: string; escalate_when?: string[] };
+  contextMounts?: { read?: string[]; write_proposals?: string[] };
+  identity?: Record<string, unknown>;
   description?: string;
   license?: string;
   harness?: { minVersion?: string };
@@ -45,6 +52,64 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 export function isStringRecord(value: unknown): value is Record<string, string> {
   return isObject(value) && Object.values(value).every((entry) => typeof entry === "string");
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string");
+}
+
+function isNonEmptyStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string" && entry.length > 0);
+}
+
+// Governance fields are forward-declared: shape-validated here, enforced by the deployment runtime, not the CLI.
+function validateBlueprintFields(input: Record<string, unknown>, isBlueprint: boolean, errors: string[]) {
+  const blueprintOnly = ["composedFrom", "tools", "permissions", "evals", "escalation", "contextMounts", "identity"] as const;
+  for (const field of blueprintOnly) {
+    if (input[field] !== undefined && !isBlueprint) {
+      errors.push(`${field} requires kind: "blueprint"`);
+    }
+  }
+  if (input.composedFrom !== undefined && !isNonEmptyStringArray(input.composedFrom)) {
+    errors.push("composedFrom must be an array of non-empty card refs");
+  }
+  if (input.tools !== undefined) {
+    const tools = input.tools;
+    if (!isObject(tools)) {
+      errors.push("tools must be an object");
+    } else {
+      if (tools.allow !== undefined && !isStringArray(tools.allow)) errors.push("tools.allow must be an array of strings");
+      if (tools.deny !== undefined && !isStringArray(tools.deny)) errors.push("tools.deny must be an array of strings");
+    }
+  }
+  if (input.permissions !== undefined && !isObject(input.permissions)) {
+    errors.push("permissions must be an object");
+  }
+  if (input.evals !== undefined && !isStringArray(input.evals)) {
+    errors.push("evals must be an array of strings");
+  }
+  if (input.escalation !== undefined) {
+    const escalation = input.escalation;
+    if (!isObject(escalation)) {
+      errors.push("escalation must be an object");
+    } else if (escalation.escalate_when !== undefined && !isStringArray(escalation.escalate_when)) {
+      errors.push("escalation.escalate_when must be an array of strings");
+    }
+  }
+  if (input.contextMounts !== undefined) {
+    const mounts = input.contextMounts;
+    if (!isObject(mounts)) {
+      errors.push("contextMounts must be an object");
+    } else {
+      if (mounts.read !== undefined && !isStringArray(mounts.read)) errors.push("contextMounts.read must be an array of strings");
+      if (mounts.write_proposals !== undefined && !isStringArray(mounts.write_proposals)) {
+        errors.push("contextMounts.write_proposals must be an array of strings");
+      }
+    }
+  }
+  if (input.identity !== undefined && !isObject(input.identity)) {
+    errors.push("identity must be an object");
+  }
 }
 
 function isHttpUrl(value: string) {
@@ -151,6 +216,7 @@ export function validateCardManifest(input: unknown): CardManifestValidationResu
       );
     }
   }
+  validateBlueprintFields(record, manifest.kind === "blueprint", errors);
   for (const [bundle, range] of Object.entries(manifest.bundles ?? {})) {
     if (!bundle || typeof range !== "string" || !validRange(range)) {
       errors.push(`invalid bundle range for ${bundle}`);

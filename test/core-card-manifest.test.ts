@@ -80,16 +80,53 @@ test("validateCardManifest rejects persona/beliefs/memory on any card kind", () 
   }
 });
 
-test("validateCardManifest allows forward-declared governance keys to pass silently", () => {
+test("validateCardManifest accepts a full blueprint manifest", () => {
   expect(
     validateCardManifest({
-      name: "@me/blueprint",
+      name: "@me/frontend-eng",
       version: "1.0.0",
       kind: "blueprint",
       composedFrom: ["@me/a@^1.0.0", "@me/b@^1.0.0"],
-      tools: { allow: ["Bash"] },
+      tools: { allow: ["Bash"], deny: ["WebFetch"] },
+      permissions: { can_merge_pr: false, requires_human_approval_for: ["production_changes"] },
+      evals: ["passes_tests"],
+      escalation: { human_owner: "eng_lead", escalate_when: ["confidence_below_threshold"] },
+      contextMounts: { read: ["/eng/frontend"], write_proposals: ["/eng/frontend/wm"] },
+      identity: { role: "frontend-engineer" },
     }),
   ).toEqual({ ok: true, errors: [] });
+});
+
+test("validateCardManifest accepts an empty (degenerate) blueprint", () => {
+  expect(validateCardManifest({ name: "@me/bp", version: "1.0.0", kind: "blueprint" })).toEqual({ ok: true, errors: [] });
+});
+
+test("validateCardManifest rejects composedFrom/governance on a non-blueprint card", () => {
+  for (const field of ["composedFrom", "tools", "permissions", "evals", "escalation", "contextMounts", "identity"] as const) {
+    const value = field === "composedFrom" || field === "evals" ? ["@me/x@^1.0.0"] : {};
+    const result = validateCardManifest({ name: "@me/x", version: "1.0.0", [field]: value });
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain(`${field} requires kind: "blueprint"`);
+  }
+});
+
+test("validateCardManifest rejects malformed blueprint governance shapes", () => {
+  const result = validateCardManifest({
+    name: "@me/bp",
+    version: "1.0.0",
+    kind: "blueprint",
+    composedFrom: ["@me/a@^1.0.0", ""],
+    tools: { allow: "Bash" },
+    evals: [1],
+    escalation: { escalate_when: "always" },
+    identity: "me",
+  });
+  expect(result.ok).toBe(false);
+  expect(result.errors).toContain("composedFrom must be an array of non-empty card refs");
+  expect(result.errors).toContain("tools.allow must be an array of strings");
+  expect(result.errors).toContain("evals must be an array of strings");
+  expect(result.errors).toContain("escalation.escalate_when must be an array of strings");
+  expect(result.errors).toContain("identity must be an object");
 });
 
 test("validateCardManifest accepts optional quality fields", () => {
