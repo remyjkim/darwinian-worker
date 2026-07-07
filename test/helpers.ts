@@ -253,16 +253,39 @@ export async function createExecutable(dir: string, name: string, body: string) 
   return path;
 }
 
+function withTestWriteScope(args: string[], cwd?: string, env?: Record<string, string>): string[] {
+  if (args[0] !== "write") {
+    return args;
+  }
+  const hasScope = args.some(
+    (arg, index) =>
+      arg === "--root" ||
+      arg === "--user" ||
+      arg === "--scope" ||
+      arg.startsWith("--scope=") ||
+      (index > 0 && args[index - 1] === "--scope"),
+  );
+  if (hasScope) {
+    return args;
+  }
+  const root = cwd ?? env?.AGENTS_REPO_ROOT;
+  if (root && existsSync(join(root, ".agents", "drwn", "config.json"))) {
+    return args;
+  }
+  return [...args, "--scope", "machine"];
+}
+
 export async function runAgentsCli(
   args: string[],
   env: Record<string, string>,
   cwd?: string,
-  options?: { stdin?: string },
+  options?: { stdin?: string; skipWriteScopeAuto?: boolean },
 ) {
   const entrypoint = fileURLToPath(new URL("../cli/index.ts", import.meta.url));
+  const cliArgs = options?.skipWriteScopeAuto ? args : withTestWriteScope(args, cwd, env);
   // Resolve bun via PATH; process.execPath is not reliably spawnable on some CI runners.
   const bunBin = Bun.which("bun") ?? process.execPath;
-  const proc = Bun.spawn([bunBin, "run", entrypoint, ...args], {
+  const proc = Bun.spawn([bunBin, "run", entrypoint, ...cliArgs], {
     cwd: cwd ?? env.AGENTS_REPO_ROOT ?? join(import.meta.dir, ".."),
     // Close stdin when none is provided so a spawned subprocess can never block reading it.
     stdin: options?.stdin !== undefined ? Buffer.from(options.stdin) : "ignore",

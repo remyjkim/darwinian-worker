@@ -10,7 +10,9 @@ import {
   getCardDeprecation,
   listCards,
   publishCard,
+  readDeprecationMap,
 } from "../cli/core/card-store";
+import { resolveCardBareRepoPath } from "../cli/core/store-paths";
 import { cleanupTempRoots, createTempRoot } from "./helpers";
 
 const tempRoots: string[] = [];
@@ -79,4 +81,32 @@ test("deprecateCardVersion defaults the message when omitted", async () => {
   await deprecateCardVersion(agentsDir, "@me/tool@1.0.0", "");
 
   expect(await getCardDeprecation(agentsDir, "@me/tool", "1.0.0")).toBe("deprecated");
+});
+
+test("readDeprecationMap batch-reads all deprecations for a card repo", async () => {
+  const root = await createTempRoot("card-deprecate-batch-");
+  tempRoots.push(root);
+  const agentsDir = join(root, "agents");
+  const sourceDir = join(agentsDir, "drwn", "sources", "@me", "tool");
+  await mkdir(sourceDir, { recursive: true });
+
+  for (const version of ["1.0.0", "1.1.0", "1.2.0"]) {
+    await writeFile(join(sourceDir, "card.json"), JSON.stringify({ name: "@me/tool", version }, null, 2));
+    await publishCard(agentsDir, "@me/tool");
+    if (version !== "1.1.0") {
+      await deprecateCardVersion(agentsDir, `@me/tool@${version}`, `deprecated ${version}`);
+    }
+  }
+
+  const barePath = resolveCardBareRepoPath(agentsDir, "@me/tool");
+  expect(await readDeprecationMap(barePath)).toEqual({
+    "1.0.0": "deprecated 1.0.0",
+    "1.2.0": "deprecated 1.2.0",
+  });
+
+  const cards = await listCards(agentsDir);
+  expect(cards.find((entry) => entry.name === "@me/tool")?.deprecated).toEqual({
+    "1.0.0": "deprecated 1.0.0",
+    "1.2.0": "deprecated 1.2.0",
+  });
 });

@@ -4,6 +4,7 @@
 import { Option } from "clipanion";
 import { createInterface } from "node:readline/promises";
 import { captureProjectAsCard } from "../../core/card-capture";
+import { createProfileCardFromDefaults } from "../../core/card-from-defaults";
 import { isCardUnscopedName } from "../../core/card-manifest";
 import { createCardSource, readMachineConfig } from "../../core/card-store";
 import { probeAuthoringScope, resolveScopeForCardNew } from "../../core/authoring-scope";
@@ -37,6 +38,10 @@ export class CardNewCommand extends BaseCommand {
     description: "Capture a project's effective harness into the new card source.",
   });
 
+  fromDefaults = Option.Boolean("--from-defaults", false, {
+    description: "Capture machine default skills into a profile card source.",
+  });
+
   scope = Option.String("--scope", {
     description: "Scope to apply to an unscoped card name (e.g., @your-handle). Auto-derived from gh / git config on first use.",
   });
@@ -48,6 +53,10 @@ export class CardNewCommand extends BaseCommand {
   async execute() {
     if (this.projectPath && !this.fromProject) {
       this.context.stderr.write("Project path is only valid with --from-project\n");
+      return 1;
+    }
+    if (this.fromProject && this.fromDefaults) {
+      this.context.stderr.write("Use either --from-project or --from-defaults, not both.\n");
       return 1;
     }
     const machine = await readMachineConfig(this.context.agentsDir);
@@ -79,6 +88,27 @@ export class CardNewCommand extends BaseCommand {
         return 1;
       }
       scopeForCreate = resolved.scope;
+    }
+
+    if (this.fromDefaults) {
+      let captured;
+      try {
+        captured = await createProfileCardFromDefaults({
+          agentsDir: this.context.agentsDir,
+          repoRoot: this.context.repoRoot,
+          homeDir: this.context.homeDir,
+          name: this.name,
+          scope: scopeForCreate,
+          noGit: this.noGit,
+        });
+      } catch (error) {
+        this.context.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+        return 1;
+      }
+      this.context.stdout.write(`Created profile card ${captured.name}: ${captured.sourceDir}\n`);
+      this.context.stdout.write(`Skills captured: ${captured.skillCount}\n`);
+      this.context.stdout.write(`Next: drwn card publish ${captured.name}\n`);
+      return 0;
     }
 
     if (this.fromProject) {

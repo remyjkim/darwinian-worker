@@ -52,7 +52,7 @@ export class CardOutdatedCommand extends BaseCommand {
         await git.fetch(
           resolveCardBareRepoPath(this.context.agentsDir, entry.name),
           "origin",
-          ["refs/heads/*:refs/heads/*", "refs/tags/*:refs/tags/*"],
+          ["refs/heads/*:refs/heads/*", "refs/tags/*:refs/tags/*", "+refs/meta/*:refs/meta/*"],
         );
       });
     }

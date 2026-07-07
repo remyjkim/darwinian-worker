@@ -3,6 +3,8 @@
 
 import { Option } from "clipanion";
 import { applyProjectCardSpecs } from "../../core/card-project";
+import { buildApplySummaries } from "../../core/card-apply-summary";
+import { loadCardLock } from "../../core/card-lock";
 import { BaseCommand } from "../base";
 import { renderCardMutation, requireProjectRoot, runChainedWrite } from "./project-command";
 
@@ -30,16 +32,27 @@ export class CardApplyCommand extends BaseCommand {
     description: "Resolve card refs even when trustedSources.strict would reject them.",
   });
 
+  acceptSuccessor = Option.Boolean("--accept-successor", false, {
+    description: "Acknowledge a cross-scope successor pointer from card metadata.",
+  });
+
   async execute() {
     if (this.allowUntrustedSource) {
       this.context.stderr.write(`Warning: --allow-untrusted-source used for card apply\n`);
     }
-    const result = await applyProjectCardSpecs(requireProjectRoot(this), this.context.agentsDir, this.specs, {
+    const projectRoot = requireProjectRoot(this);
+    const previousLock = await loadCardLock(projectRoot);
+    const result = await applyProjectCardSpecs(projectRoot, this.context.agentsDir, this.specs, {
       allowUntrustedSource: this.allowUntrustedSource,
+      acceptSuccessor: this.acceptSuccessor,
       repoRoot: this.context.repoRoot,
       cwd: this.context.cwd,
     });
+    const summaries = buildApplySummaries(result.locked, previousLock?.cards ?? []);
     this.context.stdout.write(renderCardMutation(result));
+    if (summaries.length > 0) {
+      this.context.stdout.write(`${summaries.join("\n\n")}\n`);
+    }
     if (this.write) {
       return await runChainedWrite(this);
     }

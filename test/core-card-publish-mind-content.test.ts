@@ -2,7 +2,7 @@
 // ABOUTME: Protects complete mind-card sources from producing incomplete published trees.
 
 import { afterEach, expect, test } from "bun:test";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile, chmod } from "node:fs/promises";
 import { join } from "node:path";
 import { computeCardIntegrity, publishCard, resolveCard } from "../cli/core/card-store";
 import { cleanupTempRoots, createTempRoot } from "./helpers";
@@ -68,7 +68,9 @@ test("publishCard succeeds for complete mind content and integrity covers new fi
   const published = await publishCard(agentsDir, "@me/mind");
   const resolved = await resolveCard(agentsDir, "@me/mind@1.0.0");
   const before = await computeCardIntegrity(published.versionDir);
-  await writeFile(join(published.versionDir, "persona", "voice", "PERSONA.md"), "modified\n");
+  const personaPath = join(published.versionDir, "persona", "voice", "PERSONA.md");
+  await chmod(personaPath, 0o644);
+  await writeFile(personaPath, "modified\n");
   const after = await computeCardIntegrity(published.versionDir);
 
   expect(resolved.manifest.persona?.include).toEqual(["voice"]);

@@ -3,14 +3,27 @@
 
 import { Option } from "clipanion";
 import { doctorCardSource, type CardSourceDoctorReport } from "../../../core/card-source";
+import { checkCardSourceUpstream } from "../../../core/card-source-sync";
 import { renderJson } from "../../../core/output";
 import { BaseCommand } from "../../base";
 
-function renderSourceDoctorReport(report: CardSourceDoctorReport) {
-  if (report.ok) {
+function renderSourceDoctorReport(report: CardSourceDoctorReport, upstreamWarnings: string[] = []) {
+  const lines: string[] = [];
+  if (upstreamWarnings.length > 0) {
+    lines.push("Upstream warnings:");
+    for (const warning of upstreamWarnings) {
+      lines.push(`- ${warning}`);
+    }
+  }
+  if (report.ok && upstreamWarnings.length === 0) {
     return "No issues found.\n";
   }
-  return `Issues:\n${report.issues.map((issue) => `- ${issue.code}: ${issue.message}`).join("\n")}\n`;
+  if (!report.ok) {
+    lines.push(`Issues:\n${report.issues.map((issue) => `- ${issue.code}: ${issue.message}`).join("\n")}`);
+  } else if (lines.length === 0) {
+    return "No issues found.\n";
+  }
+  return `${lines.join("\n")}\n`;
 }
 
 export class CardSourceDoctorCommand extends BaseCommand {
@@ -39,7 +52,23 @@ export class CardSourceDoctorCommand extends BaseCommand {
 
   async execute() {
     const report = await doctorCardSource(this.context.agentsDir, this.name);
-    this.context.stdout.write(this.json ? renderJson(report) : renderSourceDoctorReport(report));
+    const upstreamWarnings: string[] = [];
+    if (this.name) {
+      try {
+        const upstream = await checkCardSourceUpstream(this.context.agentsDir, this.name);
+        for (const skill of upstream.stale) {
+          upstreamWarnings.push(`upstream stale: skill ${skill} differs from upstream`);
+        }
+        for (const skill of upstream.moved) {
+          upstreamWarnings.push(`upstream moved: skill ${skill} has a newer upstream commit`);
+        }
+      } catch {
+        // Named-card doctor already surfaces fatal source errors.
+      }
+    }
+    this.context.stdout.write(
+      this.json ? renderJson({ ...report, upstreamWarnings }) : renderSourceDoctorReport(report, upstreamWarnings),
+    );
     return 0;
   }
 }

@@ -1,5 +1,5 @@
 // ABOUTME: Implements the drwn init command for creating per-project config scaffolding.
-// ABOUTME: Keeps project bootstrap simple and explicit without mutating gitignore or other repo state.
+// ABOUTME: Keeps project bootstrap simple while authoring drwn gitignore and vendor gitattributes hygiene.
 
 import { Option } from "clipanion";
 import { existsSync, readFileSync } from "node:fs";
@@ -11,6 +11,8 @@ import { loadConfig } from "../core/config";
 import { ensureBeadsProjectExtensionConfig, normalizeBeadsTargets } from "../core/extensions/beads";
 import { ensureParallelProjectExtensionConfig } from "../core/extensions/parallel";
 import { resolveInitMode } from "../core/interactivity";
+import { ensureGitignoreEntries, ensureVendorGitattributes } from "../core/git-hygiene";
+import { registerProject } from "../core/project-registry";
 import { scaffoldProjectConfig } from "../core/project";
 import { BaseCommand } from "./base";
 
@@ -74,12 +76,15 @@ export class InitCommand extends BaseCommand {
     const configPath = mode.mode === "guided"
       ? await this.executeGuided(projectDir)
       : await scaffoldProjectConfig(projectDir, { force: this.force });
+    await ensureGitignoreEntries(projectDir);
+    await ensureVendorGitattributes(projectDir);
+    await registerProject(this.context.agentsDir, projectDir);
     const gitignorePath = join(projectDir, ".gitignore");
     const messages: string[] = [`Created project config: ${configPath}`];
 
     if (existsSync(gitignorePath)) {
       const gitignore = readFileSync(gitignorePath, "utf8");
-      if (gitignore.includes(".agents")) {
+      if (gitignore.includes(".agents") && !gitignore.includes(".agents/drwn/config.local.json")) {
         messages.push("Warning: .gitignore appears to exclude .agents; this config may not be shared with collaborators.");
       }
     }

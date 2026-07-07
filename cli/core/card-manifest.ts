@@ -5,6 +5,8 @@ import type { ProjectExtensionConfig, ServerOverride, TargetName } from "./types
 import { isTargetName } from "./targets";
 import { isStrictSemver, validRange } from "./semver-utils";
 import { isSafePathPart } from "./store-paths";
+import { DrwnError } from "./errors";
+import { parseUpstreamRef } from "./git-ref";
 
 export type MindContentVisibility = "private" | "internal" | "public";
 export type MemoryLayerName = "l4" | "l5" | "l6";
@@ -34,7 +36,7 @@ export interface CardManifest {
   license?: string;
   harness?: { minVersion?: string };
   bundles?: Record<string, string>;
-  skills?: { include?: string[]; exclude?: string[]; shared?: string[] };
+  skills?: { include?: string[]; exclude?: string[]; shared?: string[]; upstream?: Record<string, string> };
   hooks?: { include?: string[]; exclude?: string[]; shared?: string[] };
   persona?: PersonaManifest;
   beliefs?: BeliefsManifest;
@@ -171,6 +173,33 @@ export function validateCardManifest(input: unknown): CardManifestValidationResu
       errors.push("skills.shared must be an array");
     } else if (manifest.skills.shared.length > 0) {
       errors.push("skills.shared is reserved for Wave 2 (registry references). Wave 1 supports only bundled skills.");
+    }
+  }
+  const upstream = manifest.skills?.upstream;
+  if (upstream !== undefined) {
+    if (!isObject(upstream)) {
+      errors.push("skills.upstream must be an object");
+    } else {
+      const include = new Set(manifest.skills?.include ?? []);
+      for (const [key, value] of Object.entries(upstream)) {
+        if (!include.has(key)) {
+          errors.push(`skills.upstream key ${key} is not listed in skills.include`);
+        }
+        if (typeof value !== "string" || value.length === 0) {
+          errors.push(`skills.upstream.${key} must be a non-empty string`);
+          continue;
+        }
+        try {
+          parseUpstreamRef(value);
+        } catch (error) {
+          const message = error instanceof DrwnError ? error.message : String(error);
+          if (error instanceof DrwnError && error.code === "UPSTREAM_LOCAL_PATH_REJECTED") {
+            errors.push(`skills.upstream.${key} cannot be a local path`);
+          } else {
+            errors.push(`skills.upstream.${key} is invalid: ${message}`);
+          }
+        }
+      }
     }
   }
   if (manifest.hooks?.exclude) {

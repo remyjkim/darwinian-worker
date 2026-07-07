@@ -72,7 +72,7 @@ export class CardPushCommand extends BaseCommand {
     if (gate.warning) {
       this.context.stderr.write(`${gate.warning}\n`);
     }
-    await git.push(barePath, this.remote, ["refs/heads/main", "--tags"]);
+    await git.push(barePath, this.remote, ["refs/heads/main", "refs/meta/*", "--tags"]);
     this.context.stdout.write(`Pushed ${this.name} to ${this.remote}\n`);
     return 0;
   }
