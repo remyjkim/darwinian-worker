@@ -7,6 +7,7 @@ import type { CardLockEntry } from "../card-lock";
 import { isRegistryServerDefinition } from "../card-mcp";
 import type { EffectiveState } from "../effective-state";
 import { ensureParentDir, lstatSafe, realpathSafe } from "../fs";
+import { materializeDir } from "../materialize";
 import { bundleHookComposer, type HookPolicyBundleInput } from "../hook-generator/bundle-composer";
 import { resolveHookRuntimes } from "../hook-generator/runtime-selection";
 import { isHookConsentValid } from "../hook-consent";
@@ -95,10 +96,10 @@ function writeGeneratedJson(pathValue: string, value: unknown, state: EffectiveS
   writeGeneratedContent(pathValue, `${JSON.stringify(value, null, 2)}\n`, state, result);
 }
 
-function personaContent(card: CardLockEntry) {
+function personaContent(card: CardLockEntry, contentRoot: string) {
   const parts: string[] = [];
   for (const entry of card.persona?.include ?? []) {
-    const file = join(card.path, "persona", entry, "PERSONA.md");
+    const file = join(contentRoot, "persona", entry, "PERSONA.md");
     if (!existsSync(file)) {
       continue;
     }
@@ -121,19 +122,25 @@ function cardServers(card: CardLockEntry): Record<string, RegistryServer> {
   );
 }
 
-function hookPolicies(card: CardLockEntry): HookPolicyBundleInput[] {
+function hookPolicies(card: CardLockEntry, contentRoot: string): HookPolicyBundleInput[] {
   if (card.hooks.length === 0 || !isHookConsentValid(card)) {
     return [];
   }
   return card.hooks.map((policyName) => ({
     cardName: card.name,
     policyName,
-    policyTsPath: join(card.path, "hooks", policyName, "policy.ts"),
+    policyTsPath: join(contentRoot, "hooks", policyName, "policy.ts"),
   }));
 }
 
-async function materializeMindHooks(state: EffectiveState, card: CardLockEntry, mindDir: string, result: SyncResult) {
-  const policies = hookPolicies(card);
+async function materializeMindHooks(
+  state: EffectiveState,
+  card: CardLockEntry,
+  contentRoot: string,
+  mindDir: string,
+  result: SyncResult,
+) {
+  const policies = hookPolicies(card, contentRoot);
   if (policies.length === 0) {
     return;
   }
@@ -160,13 +167,14 @@ async function materializeMindHooks(state: EffectiveState, card: CardLockEntry, 
 }
 
 async function materializeMind(state: EffectiveState, card: CardLockEntry, result: SyncResult) {
+  const contentRoot = state.contentRootsByCard[card.name] ?? card.path;
   const generatedDir = state.scopedOptions.generatedDir ?? resolveStoreGeneratedDir(state.scopedOptions.agentsDir);
   const mindDir = resolveGeneratedMindDir(generatedDir, card.name);
   if (!state.scopedOptions.dryRun) {
     mkdirSync(mindDir, { recursive: true });
   }
 
-  const persona = personaContent(card);
+  const persona = personaContent(card, contentRoot);
   if (persona !== null) {
     const personaPath = join(mindDir, "persona.md");
     writeManagedFile(personaPath, persona, state.scopedOptions.dryRun, result);
@@ -174,29 +182,53 @@ async function materializeMind(state: EffectiveState, card: CardLockEntry, resul
   }
 
   for (const entry of card.beliefs?.include ?? []) {
-    const target = join(card.path, "beliefs", entry);
+    const target = join(contentRoot, "beliefs", entry);
     const link = join(mindDir, "beliefs", entry);
-    ensureDirSymlink(link, target, state.scopedOptions.dryRun, result);
-    result.managedPaths?.push(recordGeneratedSymlink(state.scopeRoot, link, target));
+    if (!existsSync(target)) {
+      continue;
+    }
+    result.managedPaths?.push(
+      materializeDir(target, link, {
+        dryRun: state.scopedOptions.dryRun,
+        result,
+        relPath: managedPath(state.scopeRoot, link),
+        labelSuffix: ` ← ${card.name} beliefs/${entry}`,
+      }),
+    );
   }
 
   for (const layer of ["l4", "l5", "l6"] as const) {
     for (const entry of card.memory?.[layer]?.include ?? []) {
-      const target = join(card.path, "memory", layer, entry);
+      const target = join(contentRoot, "memory", layer, entry);
       const link = join(mindDir, "memory", layer, entry);
-      ensureDirSymlink(link, target, state.scopedOptions.dryRun, result);
-      result.managedPaths?.push(recordGeneratedSymlink(state.scopeRoot, link, target));
+      if (!existsSync(target)) {
+        continue;
+      }
+      result.managedPaths?.push(
+        materializeDir(target, link, {
+          dryRun: state.scopedOptions.dryRun,
+          result,
+          relPath: managedPath(state.scopeRoot, link),
+          labelSuffix: ` ← ${card.name} memory/${layer}/${entry}`,
+        }),
+      );
     }
   }
 
   for (const skill of card.skills) {
-    const target = join(card.path, "skills", skill);
+    const target = join(contentRoot, "skills", skill);
     const link = join(mindDir, "skills", skill);
     if (!existsSync(target)) {
       continue;
     }
-    ensureDirSymlink(link, target, state.scopedOptions.dryRun, result);
-    result.managedPaths?.push(recordGeneratedSymlink(state.scopeRoot, link, target));
+    result.managedPaths?.push(
+      materializeDir(target, link, {
+        dryRun: state.scopedOptions.dryRun,
+        result,
+        relPath: managedPath(state.scopeRoot, link),
+        labelSuffix: ` ← ${card.name} skill ${skill}`,
+      }),
+    );
   }
 
   const servers = cardServers(card);
@@ -207,7 +239,7 @@ async function materializeMind(state: EffectiveState, card: CardLockEntry, resul
     result.managedPaths?.push(recordManagedContent(state.scopeRoot, serversPath, content));
   }
 
-  await materializeMindHooks(state, card, mindDir, result);
+  await materializeMindHooks(state, card, contentRoot, mindDir, result);
 
   const index = {
     name: card.name,
@@ -260,7 +292,7 @@ async function materializeComposedMind(state: EffectiveState, result: SyncResult
     (card.persona?.include ?? []).map((entry) => ({ card: card.name, entry })),
   );
   const personaParts = activeCards
-    .map((card) => personaContent(card))
+    .map((card) => personaContent(card, state.contentRootsByCard[card.name] ?? card.path))
     .filter((content): content is string => content !== null)
     .map((content) => content.trimEnd());
   if (personaParts.length > 0) {
@@ -271,11 +303,21 @@ async function materializeComposedMind(state: EffectiveState, result: SyncResult
 
   const beliefEntries = [];
   for (const card of activeCards) {
+    const contentRoot = state.contentRootsByCard[card.name] ?? card.path;
     for (const entry of card.beliefs?.include ?? []) {
-      const target = join(card.path, "beliefs", entry);
+      const target = join(contentRoot, "beliefs", entry);
       const link = join(composedDir, "beliefs", ...splitCardName(card.name), entry);
-      ensureDirSymlink(link, target, state.scopedOptions.dryRun, result);
-      result.managedPaths?.push(recordGeneratedSymlink(state.scopeRoot, link, target));
+      if (!existsSync(target)) {
+        continue;
+      }
+      result.managedPaths?.push(
+        materializeDir(target, link, {
+          dryRun: state.scopedOptions.dryRun,
+          result,
+          relPath: managedPath(state.scopeRoot, link),
+          labelSuffix: ` ← composed ${card.name} beliefs/${entry}`,
+        }),
+      );
       beliefEntries.push({
         card: card.name,
         entry,
@@ -289,12 +331,21 @@ async function materializeComposedMind(state: EffectiveState, result: SyncResult
     (["l4", "l5", "l6"] as const).map((layer) => [
       layer,
       {
-        entries: activeCards.flatMap((card) =>
-          (card.memory?.[layer]?.include ?? []).map((entry) => {
-            const target = join(card.path, "memory", layer, entry);
+        entries: activeCards.flatMap((card) => {
+          const contentRoot = state.contentRootsByCard[card.name] ?? card.path;
+          return (card.memory?.[layer]?.include ?? []).map((entry) => {
+            const target = join(contentRoot, "memory", layer, entry);
             const link = join(composedDir, "memory", layer, ...splitCardName(card.name), entry);
-            ensureDirSymlink(link, target, state.scopedOptions.dryRun, result);
-            result.managedPaths?.push(recordGeneratedSymlink(state.scopeRoot, link, target));
+            if (existsSync(target)) {
+              result.managedPaths?.push(
+                materializeDir(target, link, {
+                  dryRun: state.scopedOptions.dryRun,
+                  result,
+                  relPath: managedPath(state.scopeRoot, link),
+                  labelSuffix: ` ← composed ${card.name} memory/${layer}/${entry}`,
+                }),
+              );
+            }
             return {
               card: card.name,
               entry,
@@ -302,8 +353,8 @@ async function materializeComposedMind(state: EffectiveState, result: SyncResult
               visibility: card.memory?.[layer]?.visibility ?? null,
               format: card.memory?.[layer]?.format ?? "md",
             };
-          }),
-        ),
+          });
+        }),
       },
     ]),
   );
@@ -323,7 +374,6 @@ async function materializeComposedMind(state: EffectiveState, result: SyncResult
       integrity: card.integrity,
     })),
     drwnVersion: DRWN_VERSION,
-    writtenAt: new Date().toISOString(),
   };
   writeGeneratedJson(join(composedDir, "mind.json"), index, state, result);
 }
