@@ -2,7 +2,7 @@
 
 ## Cloning
 
-Clone with submodules so the `darwinian-minds-skills/` working tree is populated:
+Clone with submodules so the `darwinian-worker-skills/` working tree is populated:
 
 ```bash
 git clone --recurse-submodules https://github.com/remyjkim/darwinian-worker.git
