@@ -1,6 +1,6 @@
 # darwinian-minds docs
 
-Docusaurus 3 site for [darwinian-minds](https://github.com/remyjkim/darwinian-minds). Published at https://darwiniantools.com.
+Docusaurus 3 site for [darwinian-minds](https://github.com/remyjkim/darwinian-worker). Published at https://darwiniantools.com.
 
 ## Local development
 

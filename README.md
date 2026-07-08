@@ -18,8 +18,8 @@ drwn status
 Or work from a checkout:
 
 ```bash
-git clone https://github.com/remyjkim/darwinian-minds.git
-cd darwinian-minds
+git clone https://github.com/remyjkim/darwinian-worker.git
+cd darwinian-worker
 bun install
 bun run drwn -- status
 ```

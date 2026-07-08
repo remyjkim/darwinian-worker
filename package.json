@@ -16,13 +16,13 @@
   "version": "0.6.0",
   "license": "Apache-2.0",
   "author": "remyjkim <jkkim123@gmail.com>",
-  "homepage": "https://github.com/remyjkim/darwinian-minds",
+  "homepage": "https://github.com/remyjkim/darwinian-worker",
   "bugs": {
-    "url": "https://github.com/remyjkim/darwinian-minds/issues"
+    "url": "https://github.com/remyjkim/darwinian-worker/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/remyjkim/darwinian-minds.git"
+    "url": "git+https://github.com/remyjkim/darwinian-worker.git"
   },
   "files": [
     "cli",

@@ -55,11 +55,11 @@ const moreDocs = allDocs.filter((d) => !featuredSlugs.has(d.slug));
           </div>
           <div>
             <div class="text-sm font-semibold text-black/70 mb-1">From source</div>
-            <Code code={`git clone https://github.com/remyjkim/darwinian-minds.git\ncd darwinian-minds && bun install\nbun run drwn -- status`} lang="bash" theme="github-dark" />
+            <Code code={`git clone https://github.com/remyjkim/darwinian-worker.git\ncd darwinian-worker && bun install\nbun run drwn -- status`} lang="bash" theme="github-dark" />
           </div>
           <div>
             <div class="text-sm font-semibold text-black/70 mb-1">Point global install at a checkout</div>
-            <Code code={`export AGENTS_REPO_ROOT=/path/to/darwinian-minds\ndrwn status`} lang="bash" theme="github-dark" />
+            <Code code={`export AGENTS_REPO_ROOT=/path/to/darwinian-worker\ndrwn status`} lang="bash" theme="github-dark" />
           </div>
         </div>
       </section>

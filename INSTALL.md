@@ -302,8 +302,8 @@ explicit stack.
 Use a checkout only to edit the registry, maintain a fork, or develop the CLI.
 
 ```bash
-git clone https://github.com/remyjkim/darwinian-minds.git
-cd darwinian-minds
+git clone https://github.com/remyjkim/darwinian-worker.git
+cd darwinian-worker
 bun install
 bun run drwn -- status
 ```
@@ -311,7 +311,7 @@ bun run drwn -- status
 Point a globally-installed `drwn` at the checkout:
 
 ```bash
-export AGENTS_REPO_ROOT=/path/to/darwinian-minds
+export AGENTS_REPO_ROOT=/path/to/darwinian-worker
 drwn status
 ```
 

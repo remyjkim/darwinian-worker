@@ -28,8 +28,8 @@ The published package includes built-in harness defaults. By default, global `dr
 Use this mode if you want to edit the registry, maintain your own fork, add built-in skills, or develop the CLI:
 
 ```bash
-git clone https://github.com/remyjkim/darwinian-minds.git
-cd darwinian-minds
+git clone https://github.com/remyjkim/darwinian-worker.git
+cd darwinian-worker
 bun install
 bun run drwn -- status
 ```
@@ -37,7 +37,7 @@ bun run drwn -- status
 You can also point a global install at a checkout:
 
 ```bash
-export AGENTS_REPO_ROOT=/path/to/darwinian-minds
+export AGENTS_REPO_ROOT=/path/to/darwinian-worker
 drwn status
 ```
 

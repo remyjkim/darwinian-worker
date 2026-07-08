@@ -23,7 +23,7 @@ The in-tree `skills/shared/` directory in this repo holds the small set of skill
 For new contributors:
 
 ```bash
-git clone --recurse-submodules https://github.com/remyjkim/darwinian-minds.git
+git clone --recurse-submodules https://github.com/remyjkim/darwinian-worker.git
 ```
 
 For existing clones (after the submodule was added or a pull brought in a pin bump):

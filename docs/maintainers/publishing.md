@@ -21,7 +21,7 @@ To avoid machine-state drift, use an explicit temporary npm config for manual pu
 From the repo root:
 
 ```bash
-cd /path/to/darwinian-minds
+cd /path/to/darwinian-worker
 ```
 
 Check package-name state:
@@ -92,7 +92,7 @@ rm -f "$TMP_NPMRC"
 ## Safer Full Sequence
 
 ```bash
-cd /path/to/darwinian-minds
+cd /path/to/darwinian-worker
 
 set -a
 source .env
