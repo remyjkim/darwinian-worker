@@ -16,9 +16,8 @@ describe("package readiness", () => {
     expect(existsSync(join(process.cwd(), "LICENSE"))).toBe(true);
     expect(existsSync(join(process.cwd(), "README.md"))).toBe(true);
     expect(existsSync(join(process.cwd(), "CONTRIBUTING.md"))).toBe(true);
-    expect(pkg.name).toBe("darwinian-minds");
+    expect(pkg.name).toBe("darwinian");
     expect((pkg.bin as Record<string, string>).drwn).toBe("cli/index.ts");
-    expect((pkg.bin as Record<string, string>).dminds).toBe("cli/index.ts");
     expect((pkg.bin as Record<string, string>)["drwn-hx"]).toBeUndefined();
     expect((pkg.scripts as Record<string, string>).drwn).toBe("bun run cli/index.ts");
     expect((pkg.scripts as Record<string, string>).sync).toBeUndefined();
@@ -100,7 +99,7 @@ describe("package readiness", () => {
     expect(workflow).toContain("if: ${{ github.event_name == 'push' || inputs.dry_run == false }}");
     expect(workflow).toContain("name: Dry run complete");
     expect(workflow).toContain("if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true }}");
-    expect(workflow).toContain("npm install -g \"darwinian-minds@${{ needs.validate.outputs.version }}\"");
+    expect(workflow).toContain("npm install -g \"darwinian@${{ needs.validate.outputs.version }}\"");
     expect(workflow).toContain("runs-on: macos-latest");
     expect(workflow).toContain("gh release create \"$TAG\"");
     expect(workflow).toContain("--generate-notes");

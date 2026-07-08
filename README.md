@@ -2,17 +2,16 @@
   <img src="./docs/assets/darwinian-minds-logo.png" alt="Darwinian Minds" width="120" height="120" />
 </p>
 
-# darwinian-minds
+# darwinian
 
-`darwinian-minds` is a local meta-harness for AI agent tools — a CLI that organizes the skills, MCP servers, extensions, defaults, project overlays, and downstream tool state surrounding the agents you already use.
+`darwinian` is a local meta-harness for AI agent tools — a CLI that organizes the skills, MCP servers, extensions, defaults, project overlays, and downstream tool state surrounding the agents you already use.
 
-The package is `darwinian-minds`. The command is `drwn`. The secondary package
-alias is `dminds`.
+The package is `darwinian`. The command is `drwn`.
 
 ## Install
 
 ```bash
-npm install -g darwinian-minds
+npm install -g darwinian
 drwn status
 ```
 

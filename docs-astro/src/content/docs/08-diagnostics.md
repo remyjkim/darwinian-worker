@@ -60,7 +60,7 @@ Baseline CLI usage does not require external tools beyond Bun, Node.js, and npm.
 ### Packaged harness
 
 ```bash
-npm install -g darwinian-minds
+npm install -g darwinian
 drwn write --dry-run
 ```
 

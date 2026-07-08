@@ -4,16 +4,16 @@
 import type { Site, Metadata } from "@types";
 
 export const SITE: Site = {
-  NAME: "darwinian-minds",
+  NAME: "darwinian",
   EMAIL: "contact@darwinian-minds.dev",
 };
 
 export const HOME: Metadata = {
   TITLE: "Docs",
-  DESCRIPTION: "darwinian-minds documentation — guides and reference for the local meta-harness CLI.",
+  DESCRIPTION: "darwinian documentation — guides and reference for the local meta-harness CLI.",
 };
 
 export const DOCS: Metadata = {
   TITLE: "Documentation",
-  DESCRIPTION: "Guides and reference for using darwinian-minds.",
+  DESCRIPTION: "Guides and reference for using darwinian.",
 };

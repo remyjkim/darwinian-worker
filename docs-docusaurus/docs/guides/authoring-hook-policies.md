@@ -20,7 +20,7 @@ drwn card source add-hook @your-handle/backend audit-tool-calls
 This creates `hooks/audit-tool-calls/policy.ts` in the card source with an **observer stub** — the safest default:
 
 ```ts
-import { defineToolPolicy } from "darwinian-minds/hook-policy";
+import { defineToolPolicy } from "darwinian/hook-policy";
 
 export default defineToolPolicy({
   policyKind: "observer",
@@ -37,7 +37,7 @@ Observer policies swallow errors and never block tool calls, so a fresh policy c
 `beforeToolCall` runs before the tool executes. Return a decision to influence the outcome:
 
 ```ts
-import { defineToolPolicy } from "darwinian-minds/hook-policy";
+import { defineToolPolicy } from "darwinian/hook-policy";
 
 export default defineToolPolicy({
   policyKind: "observer",

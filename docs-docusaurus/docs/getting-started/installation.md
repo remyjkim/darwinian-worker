@@ -16,12 +16,11 @@ Pick the installation path that matches what you want to do. The published packa
 ## Install the published package
 
 ```bash
-npm install -g darwinian-minds
+npm install -g darwinian
 drwn status
 ```
 
 The published package ships with built-in harness defaults. By default, a global `drwn` uses that packaged harness source.
-The package also installs `dminds` as a secondary alias for the same CLI.
 
 ## Work from a checkout
 

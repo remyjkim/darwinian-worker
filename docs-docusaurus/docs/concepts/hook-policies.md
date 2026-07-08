@@ -9,7 +9,7 @@ A **hook policy** is a TypeScript module that intercepts tool calls at runtime, 
 ## The `ToolPolicy` interface
 
 ```ts
-import { defineToolPolicy } from "darwinian-minds/hook-policy";
+import { defineToolPolicy } from "darwinian/hook-policy";
 
 export default defineToolPolicy({
   policyKind: "enforcement",  // or "observer"

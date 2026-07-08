@@ -12,7 +12,7 @@ defaults, and per-project overlays that surround the agent tools you already run
 (Claude Code, Codex, Cursor), then materializes that state into their config
 directories with one command: `drwn write`.
 
-- **Package:** `darwinian-minds` · **Command:** `drwn` · **Alias:** `dminds`
+- **Package:** `darwinian` · **Command:** `drwn`
 - **Public docs:** <https://darwiniantools.com>
 - **Command reference:** [`docs/cli-quickref.md`](docs/cli-quickref.md)
 
@@ -40,13 +40,13 @@ required if you run the TypeScript source directly from a checkout (see
 ## 2. Install the CLI
 
 ```bash
-npm install -g darwinian-minds
+npm install -g darwinian
 drwn status
 ```
 
 `drwn status` prints the resolved store path, the enabled targets
-(`claude`, `codex`, `cursor`), and current inventory counts. The package also
-installs `dminds` as a secondary alias for the same CLI; use `drwn` everywhere.
+(`claude`, `codex`, `cursor`), and current inventory counts. Use `drwn`
+everywhere.
 
 ### What lands on disk
 
