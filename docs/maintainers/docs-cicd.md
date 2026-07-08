@@ -130,7 +130,7 @@ Or re-run the previous successful `docs-deploy-production` workflow run from the
 
 ## Operational notes
 
-- The submodule (`darwinian-minds-skills/`) is **not** fetched in CI (`submodules: false` in every workflow). The docs site is self-contained; pulling the submodule would add clone time for no build benefit.
+- The submodule (`darwinian-worker-skills/`) is **not** fetched in CI (`submodules: false` in every workflow). The docs site is self-contained; pulling the submodule would add clone time for no build benefit.
 - Bun version is pinned in workflow `env.BUN_VERSION` for reproducibility. Bump in lockstep with local toolchain.
 - Cloudflare Pages project name is centralized in workflow `env.CF_PAGES_PROJECT = darwiniantools-docs`. Single-source for the project identifier.
 

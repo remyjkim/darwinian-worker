@@ -163,7 +163,7 @@ Cards are how you pull in a curated set of skills, MCP servers, and hooks.
 
 ### The canonical cards
 
-The operator cards ship from the **`darwinian-minds-skills`** repository:
+The operator cards ship from the **`darwinian-worker-skills`** repository:
 
 | Card | Use it for |
 | --- | --- |
@@ -173,12 +173,12 @@ The operator cards ship from the **`darwinian-minds-skills`** repository:
 
 ### Applying a card today
 
-The canonical cards are distributed via the `darwinian-minds-skills` Git repo. Clone
+The canonical cards are distributed via the `darwinian-worker-skills` Git repo. Clone
 it and apply the card source directly with a `file:` ref:
 
 ```bash
-git clone https://github.com/remyjkim/darwinian-minds-skills.git
-drwn card apply file:/absolute/path/to/darwinian-minds-skills/cards/mind-skills
+git clone https://github.com/remyjkim/darwinian-worker-skills.git
+drwn card apply file:/absolute/path/to/darwinian-worker-skills/cards/mind-skills
 drwn write --dry-run
 drwn write
 ```

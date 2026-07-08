@@ -9,7 +9,7 @@ agent runtimes. Install it when you want agents to follow the same inspect,
 dry-run, approval, mutation, and verification sequence you would use manually.
 
 The full skill bodies live in the
-[darwinian-minds-skills](https://github.com/remyjkim/darwinian-minds-skills)
+[darwinian-worker-skills](https://github.com/remyjkim/darwinian-worker-skills)
 repo. This page covers installation, activation, and choosing the right skill.
 
 ## Install The Bundle
@@ -17,16 +17,16 @@ repo. This page covers installation, activation, and choosing the right skill.
 Install from GitHub:
 
 ```bash
-drwn library add skill github:remyjkim/darwinian-minds-skills
-drwn skills packages show darwinian-minds-skills
+drwn library add skill github:remyjkim/darwinian-worker-skills
+drwn skills packages show darwinian-worker-skills
 ```
 
 For local development, install from a checkout:
 
 ```bash
-git clone git@github.com:remyjkim/darwinian-minds-skills.git
-drwn library add skill ./darwinian-minds-skills
-drwn skills packages show darwinian-minds-skills
+git clone git@github.com:remyjkim/darwinian-worker-skills.git
+drwn library add skill ./darwinian-worker-skills
+drwn skills packages show darwinian-worker-skills
 ```
 
 Installing a bundle makes its skills available. It does not activate them in a
@@ -64,7 +64,7 @@ layer at `~/.agents/skills`.
 The skills repo also ships a stable Mind Card source. From a checkout:
 
 ```bash
-drwn apply file:/path/to/darwinian-minds-skills/cards/harness-skills
+drwn apply file:/path/to/darwinian-worker-skills/cards/harness-skills
 drwn write --dry-run
 ```
 
