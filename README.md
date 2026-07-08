@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./docs/assets/darwinian-minds-logo.png" alt="Darwinian Minds" width="120" height="120" />
+  <img src="./docs/assets/darwinian-worker-logo.png" alt="Darwinian Worker" width="120" height="120" />
 </p>
 
 # darwinian

@@ -133,7 +133,7 @@ describe("package readiness", () => {
     expect(paths).not.toContain("mcp-servers.json");
     expect(paths).toContain("registry/config.json");
     expect(paths).toContain("registry/mcp-servers.json");
-    expect(paths).toContain("docs/assets/darwinian-minds-logo.png");
+    expect(paths).toContain("docs/assets/darwinian-worker-logo.png");
     expect(paths).toContain("skills/shared/frontend-design/SKILL.md");
   });
 });
