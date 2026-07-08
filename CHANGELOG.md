@@ -3,6 +3,35 @@
 All notable changes to `darwinian-minds` (the `drwn` CLI) are documented here. This
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] — 2026-07-07
+
+Mind cards: persona and beliefs return to card manifests as versioned seeds, and
+workers gain DB-backed minds in BeginningDB with a shared, placement-based memory
+pool.
+
+### Added
+
+- Card manifests accept `persona`, `beliefs`, and `memory` sections again.
+  Persona/beliefs carry `include` entries with required `visibility`; memory
+  declares layers (`l4` reflections, `l5` observations; `l6` reserved) and
+  formats only — memory content is DB-native and never ships in cards.
+- `drwn card source add-persona/remove-persona/add-belief/remove-belief`
+  authoring commands, source-doctor checks, and publish validation for
+  persona/beliefs content.
+- The mind-content visibility push gate: `drwn card push` blocks
+  visibility-bearing content toward less restrictive remotes
+  (`--remote-visibility`, `--unsafe-push-public`).
+- `drwn worker mind` verb group: `provision` (seed a mind from the active card
+  stack), `status` (drift table), `sync` (rebase seeds; DB edits win unless
+  `--force`), `diff`, `checkpoint` (write DB edits back into card sources),
+  `doctor` (binding, ledger, and pool health), and `pool retire` (human-only
+  delete-everywhere with confirmation).
+- Mind connections resolve from `BGDB_*` environment variables; `worker deploy`
+  captures the deployment's `mindId` and caches non-secret binding coordinates
+  in `~/.agents/drwn/mind-bindings.json` (tokens are never persisted).
+- Locks carrying mind content raise the version floor to 0.7.0
+  (`MINDS_MIN_DRWN_VERSION`).
+
 ## [0.5.0] — 2026-06-29
 
 Gives the `minDrwnVersion` lock floor teeth. Reading a project whose `card.lock`
