@@ -131,7 +131,7 @@ drwn write --force
 Use the published package when you want the default config and CLI behavior:
 
 ```bash
-npm install -g darwinian-minds
+npm install -g darwinian
 drwn write --dry-run
 ```
 

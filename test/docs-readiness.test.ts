@@ -79,7 +79,7 @@ describe("documentation readiness", () => {
     // harnesses", "Why this exists") lives in the docs site; the README links
     // to the corresponding concepts pages.
     expect(readme).toContain("local meta-harness");
-    expect(readme).toContain("The package is `darwinian-minds`. The command is `drwn`.");
+    expect(readme).toContain("The package is `darwinian`. The command is `drwn`.");
     expect(readme).toContain("<img src=\"./docs/assets/darwinian-minds-logo.png\"");
     expect(readme).toContain("Install");
     expect(readme).toContain("First run");
@@ -185,6 +185,6 @@ describe("documentation readiness", () => {
     expect(releaseProcess).toContain("bun run verify:release");
     expect(releaseProcess).toContain("git tag -a v");
     expect(releaseProcess).toContain("npm-publish");
-    expect(releaseProcess).toContain("npm view darwinian-minds@");
+    expect(releaseProcess).toContain("npm view darwinian@");
   });
 });

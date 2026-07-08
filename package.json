@@ -1,8 +1,7 @@
 {
-  "name": "darwinian-minds",
+  "name": "darwinian",
   "bin": {
-    "drwn": "cli/index.ts",
-    "dminds": "cli/index.ts"
+    "drwn": "cli/index.ts"
   },
   "exports": {
     "./hook-policy": {
@@ -35,7 +34,7 @@
     "CONTRIBUTING.md"
   ],
   "keywords": [
-    "darwinian-minds",
+    "darwinian",
     "drwn",
     "mind",
     "harness",

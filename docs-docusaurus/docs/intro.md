@@ -5,11 +5,11 @@ slug: /
 
 # Darwinian Minds
 
-`darwinian-minds` is a local meta-harness for AI agent tools: one CLI to organize skills, MCP servers, extensions, defaults, project overlays, downstream tool configs, and diagnostics.
+`darwinian` is a local meta-harness for AI agent tools: one CLI to organize skills, MCP servers, extensions, defaults, project overlays, downstream tool configs, and diagnostics.
 
 The CLI is `drwn`.
 
-Agents are only as reliable as the harness around them. `darwinian-minds` makes that harness explicit, inspectable, reusable, and safe to write into downstream tools.
+Agents are only as reliable as the harness around them. `darwinian` makes that harness explicit, inspectable, reusable, and safe to write into downstream tools.
 
 ## What it harnesses
 
@@ -25,7 +25,7 @@ Agents are only as reliable as the harness around them. `darwinian-minds` makes 
 
 Local agent setups tend to drift. One tool gets a new MCP server, another has an older skill directory, and a project needs a slightly different harness than the global baseline.
 
-The harness around an agent is usually scattered across dotfiles, skill directories, MCP configs, extension setup scripts, and project conventions. `darwinian-minds` gives those pieces a local control plane you can inspect, version, dry-run, and write deliberately.
+The harness around an agent is usually scattered across dotfiles, skill directories, MCP configs, extension setup scripts, and project conventions. `darwinian` gives those pieces a local control plane you can inspect, version, dry-run, and write deliberately.
 
 It is useful when you want:
 
@@ -51,4 +51,4 @@ If you want to understand how drwn thinks before installing it:
 
 - **New here?** Start with [Installation](./getting-started/installation).
 - **Want the conceptual map first?** Read [The Layered Model](./concepts/layered-model).
-- **Joining a team that already uses `darwinian-minds`?** Skip to [Use a Team's Harness](./getting-started/paths/use-team-harness).
+- **Joining a team that already uses `darwinian`?** Skip to [Use a Team's Harness](./getting-started/paths/use-team-harness).

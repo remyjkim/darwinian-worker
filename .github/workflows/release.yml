@@ -89,7 +89,7 @@ jobs:
       id-token: write
     environment:
       name: npm-publish
-      url: https://www.npmjs.com/package/darwinian-minds
+      url: https://www.npmjs.com/package/darwinian
     env:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -116,8 +116,8 @@ jobs:
       - name: Verify package not already published
         run: |
           VERSION="${{ needs.validate.outputs.version }}"
-          if npm view "darwinian-minds@${VERSION}" version >/dev/null 2>&1; then
-            echo "darwinian-minds@${VERSION} already exists on npm" >&2
+          if npm view "darwinian@${VERSION}" version >/dev/null 2>&1; then
+            echo "darwinian@${VERSION} already exists on npm" >&2
             exit 1
           fi
 
@@ -128,7 +128,7 @@ jobs:
 
       - name: Smoke install (ubuntu)
         run: |
-          npm install -g "darwinian-minds@${{ needs.validate.outputs.version }}"
+          npm install -g "darwinian@${{ needs.validate.outputs.version }}"
           drwn --version
           test "$(drwn --version | tr -d '[:space:]')" = "${{ needs.validate.outputs.version }}"
 
@@ -171,7 +171,7 @@ jobs:
 
       - name: Smoke install (macos)
         run: |
-          npm install -g "darwinian-minds@${{ needs.validate.outputs.version }}"
+          npm install -g "darwinian@${{ needs.validate.outputs.version }}"
           drwn --version
           test "$(drwn --version | tr -d '[:space:]')" = "${{ needs.validate.outputs.version }}"
 

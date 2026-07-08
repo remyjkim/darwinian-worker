@@ -34,6 +34,6 @@ export function createAgentsContext(): Omit<AgentsContext, keyof BaseContext> {
 
 export function validateRepoRoot(repoRoot: string) {
   if (!existsSync(resolvePackagedConfigPath(repoRoot))) {
-    throw new Error(`No registry/config.json found at ${repoRoot}. Run drwn from a darwinian-minds checkout or set AGENTS_REPO_ROOT.`);
+    throw new Error(`No registry/config.json found at ${repoRoot}. Run drwn from a darwinian checkout or set AGENTS_REPO_ROOT.`);
   }
 }

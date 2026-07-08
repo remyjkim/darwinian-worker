@@ -1,6 +1,6 @@
 ---
 title: "Getting Started"
-description: "Install and configure darwinian-minds in minutes."
+description: "Install and configure darwinian in minutes."
 date: 2026-04-28
 order: 1
 ---
@@ -17,12 +17,11 @@ order: 1
 ### Published package
 
 ```bash
-npm install -g darwinian-minds
+npm install -g darwinian
 drwn status
 ```
 
 The published package includes built-in harness defaults. By default, global `drwn` uses that packaged harness source.
-The package also installs `dminds` as a secondary alias for the same CLI.
 
 ### Work from a checkout
 

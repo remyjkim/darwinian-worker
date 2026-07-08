@@ -79,7 +79,7 @@ drwn card source add-hook @your-handle/mind audit-tool-calls
 Edit the generated `hooks/audit-tool-calls/policy.ts`. The scaffold is an observer stub:
 
 ```ts
-import { defineToolPolicy } from "darwinian-minds/hook-policy";
+import { defineToolPolicy } from "darwinian/hook-policy";
 
 export default defineToolPolicy({
   policyKind: "observer",

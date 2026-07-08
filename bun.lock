@@ -2,7 +2,7 @@
   "lockfileVersion": 1,
   "workspaces": {
     "": {
-      "name": "darwinian-minds",
+      "name": "darwinian",
       "dependencies": {
         "clipanion": "4.0.0-rc.4",
         "drwn-catalog-schema": "^0.1.0",

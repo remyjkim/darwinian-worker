@@ -27,8 +27,8 @@ job can run.
 6. After publish completes, verify npm and the GitHub Release:
 
    ```bash
-   npm view darwinian-minds@0.2.2 version
-   npm install -g darwinian-minds@0.2.2
+   npm view darwinian@0.2.2 version
+   npm install -g darwinian@0.2.2
    drwn --version
    ```
 

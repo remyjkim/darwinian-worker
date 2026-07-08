@@ -3,9 +3,9 @@
 
 import { describe, expect, it } from "bun:test";
 
-describe("darwinian-minds/hook-policy", () => {
+describe("darwinian/hook-policy", () => {
   it("should expose author and composer helpers", async () => {
-    const mod = await import("darwinian-minds/hook-policy");
+    const mod = await import("darwinian/hook-policy");
 
     expect(typeof mod.defineToolPolicy).toBe("function");
     expect(typeof mod.composeToolHooks).toBe("function");

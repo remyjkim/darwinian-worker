@@ -87,12 +87,11 @@ The normal write path is conservative:
 Use the published package when you want the default config and CLI behavior:
 
 ```bash
-npm install -g darwinian-minds
+npm install -g darwinian
 drwn write --dry-run
 ```
 
-The package also installs `dminds` as a secondary alias for the same CLI. Keep
-using `drwn` as the primary command in examples and automation.
+Keep using `drwn` as the primary command in examples and automation.
 
 ### Editable harness source
 
@@ -451,7 +450,7 @@ Only shared skills can be curated into `~/.agents/skills`. Claude-only and Codex
 
 ## Extension skill bundles
 
-`darwinian-minds` supports package-backed skill bundles and loose local `SKILL.md` imports for skills that should be available without being added to the built-in first-party tree.
+`darwinian` supports package-backed skill bundles and loose local `SKILL.md` imports for skills that should be available without being added to the built-in first-party tree.
 
 Typical flow:
 
