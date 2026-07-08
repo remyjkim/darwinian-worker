@@ -80,7 +80,7 @@ describe("documentation readiness", () => {
     // to the corresponding concepts pages.
     expect(readme).toContain("local meta-harness");
     expect(readme).toContain("The package is `darwinian`. The command is `drwn`.");
-    expect(readme).toContain("<img src=\"./docs/assets/darwinian-minds-logo.png\"");
+    expect(readme).toContain("<img src=\"./docs/assets/darwinian-worker-logo.png\"");
     expect(readme).toContain("Install");
     expect(readme).toContain("First run");
     expect(readme).toContain("Documentation");
