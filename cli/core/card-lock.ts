@@ -4,8 +4,8 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { CardManifest } from "./card-manifest";
-import { assertValidCardManifest } from "./card-manifest";
+import type { BeliefsManifest, CardManifest, MemoryFormat, MemoryManifest, PersonaManifest } from "./card-manifest";
+import { assertValidCardManifest, MEMORY_LAYER_NAMES } from "./card-manifest";
 import { writeAtomically } from "./fs";
 import { DrwnError } from "./errors";
 import * as git from "./git";
@@ -31,6 +31,9 @@ export interface CardLockEntry {
   manifest: CardManifest;
   skills: string[];
   hooks: string[];
+  persona?: PersonaManifest;
+  beliefs?: BeliefsManifest;
+  memory?: MemoryManifest;
   hookConsent?: {
     consentedAt: string;
     consentedRange: string;
@@ -47,6 +50,7 @@ export interface CardLockfile {
 }
 
 export const HOOKS_MIN_DRWN_VERSION = "0.3.0";
+export const MINDS_MIN_DRWN_VERSION = "0.7.0";
 
 export interface VersionFloorStatus {
   required: string | null;
@@ -84,7 +88,12 @@ export async function loadCardLock(projectRoot: string): Promise<CardLockfile | 
 
 export async function writeCardLock(projectRoot: string, cards: CardLockEntry[]) {
   const path = cardLockPath(projectRoot);
-  const normalizedCards = cards.map((card) => ({ ...card }));
+  const normalizedCards = cards.map((card) => ({
+    ...card,
+    ...(card.persona ?? card.manifest.persona ? { persona: card.persona ?? card.manifest.persona } : {}),
+    ...(card.beliefs ?? card.manifest.beliefs ? { beliefs: card.beliefs ?? card.manifest.beliefs } : {}),
+    ...(card.memory ?? card.manifest.memory ? { memory: card.memory ?? card.manifest.memory } : {}),
+  }));
   for (const card of normalizedCards) {
     if ((card.origin === "store" || card.origin === "git") && !card.treeSha) {
       throw new DrwnError(
@@ -93,10 +102,11 @@ export async function writeCardLock(projectRoot: string, cards: CardLockEntry[])
       );
     }
   }
+  const hasMindContent = normalizedCards.some((card) => card.persona || card.beliefs || card.memory);
   const lockfileVersion = 5;
   const lockfile = validateCardLockfile({
     lockfileVersion,
-    store: { minDrwnVersion: HOOKS_MIN_DRWN_VERSION },
+    store: { minDrwnVersion: hasMindContent ? MINDS_MIN_DRWN_VERSION : HOOKS_MIN_DRWN_VERSION },
     cards: normalizedCards,
   });
   await writeAtomically(path, `${JSON.stringify(lockfile, null, 2)}\n`);
@@ -173,6 +183,9 @@ function validateCardLockEntry(input: unknown, source: string, lockfileVersion: 
   if (lockfileVersion >= 3 && (!Array.isArray(input.hooks) || !input.hooks.every((hook) => typeof hook === "string"))) {
     throw new Error(`Invalid card lock entry ${source}: hooks must be string[]`);
   }
+  const persona = validateMindContentLockSection(input.persona, `${source}.persona`);
+  const beliefs = validateMindContentLockSection(input.beliefs, `${source}.beliefs`);
+  const memory = validateMemoryLock(input.memory, `${source}.memory`);
   const hookConsent = validateHookConsent(input.hookConsent, source);
   if (input.registry !== null) {
     throw new Error(`Invalid card lock entry ${source}: registry must be null`);
@@ -189,11 +202,88 @@ function validateCardLockEntry(input: unknown, source: string, lockfileVersion: 
     manifest: input.manifest,
     skills: [...input.skills],
     hooks: Array.isArray(input.hooks) ? [...input.hooks] : [],
+    ...(persona ? { persona } : {}),
+    ...(beliefs ? { beliefs } : {}),
+    ...(memory ? { memory } : {}),
     ...(hookConsent ? { hookConsent } : {}),
     registry: null,
     origin,
     ...(git ? { git } : {}),
   };
+}
+
+function validateMindContentLockSection(input: unknown, source: string): PersonaManifest | BeliefsManifest | undefined {
+  if (input === undefined) {
+    return undefined;
+  }
+  if (!isObject(input)) {
+    throw new Error(`Invalid card lock entry ${source}: expected object`);
+  }
+  const include = validateLockStringArray(input.include, `${source}.include`);
+  const visibility = validateLockVisibility(input.visibility, `${source}.visibility`);
+  if ((include?.length ?? 0) > 0 && visibility === undefined) {
+    throw new Error(`Invalid card lock entry ${source}: visibility is required when include is non-empty`);
+  }
+  return {
+    ...(include ? { include } : {}),
+    ...(visibility ? { visibility } : {}),
+  };
+}
+
+function validateMemoryLock(input: unknown, source: string): MemoryManifest | undefined {
+  if (input === undefined) {
+    return undefined;
+  }
+  if (!isObject(input)) {
+    throw new Error(`Invalid card lock entry ${source}: expected object`);
+  }
+  const memory: MemoryManifest = {};
+  for (const [layer, section] of Object.entries(input)) {
+    if (!(MEMORY_LAYER_NAMES as readonly string[]).includes(layer)) {
+      throw new Error(`Invalid card lock entry ${source}: unsupported memory layer ${layer}`);
+    }
+    if (!isObject(section)) {
+      throw new Error(`Invalid card lock entry ${source}.${layer}: expected object`);
+    }
+    if (section.include !== undefined) {
+      throw new Error(
+        `Invalid card lock entry ${source}.${layer}: include is not allowed; memory entries are DB-native (declare layers and formats only)`,
+      );
+    }
+    const format = validateLockMemoryFormat(section.format, `${source}.${layer}.format`);
+    memory[layer as keyof MemoryManifest] = { ...(format ? { format } : {}) };
+  }
+  return Object.keys(memory).length > 0 ? memory : undefined;
+}
+
+function validateLockStringArray(input: unknown, source: string): string[] | undefined {
+  if (input === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(input) || !input.every((entry) => typeof entry === "string")) {
+    throw new Error(`Invalid card lock entry ${source}: expected string[]`);
+  }
+  return [...input];
+}
+
+function validateLockVisibility(input: unknown, source: string): PersonaManifest["visibility"] | undefined {
+  if (input === undefined) {
+    return undefined;
+  }
+  if (input !== "private" && input !== "internal" && input !== "public") {
+    throw new Error(`Invalid card lock entry ${source}: must be private, internal, or public`);
+  }
+  return input;
+}
+
+function validateLockMemoryFormat(input: unknown, source: string): MemoryFormat | undefined {
+  if (input === undefined) {
+    return undefined;
+  }
+  if (input !== "md" && input !== "jsonl" && input !== "mixed") {
+    throw new Error(`Invalid card lock entry ${source}: must be md, jsonl, or mixed`);
+  }
+  return input;
 }
 
 function validateHookConsent(input: unknown, source: string): CardLockEntry["hookConsent"] | undefined {

@@ -355,6 +355,31 @@ function validatePublishedHookDirs(versionDir: string, manifest: CardManifest) {
   }
 }
 
+// Memory layers carry no published entries; memory content is DB-native and never validated here.
+function validatePublishedMindContentDirs(versionDir: string, manifest: CardManifest) {
+  for (const entry of manifest.persona?.include ?? []) {
+    const dir = join(versionDir, "persona", entry);
+    const file = join(dir, "PERSONA.md");
+    if (!existsSync(dir)) {
+      throw new Error(`Card ${manifest.name}@${manifest.version} is missing persona directory '${entry}'. Expected: ${dir}`);
+    }
+    if (!existsSync(file)) {
+      throw new Error(`Card ${manifest.name}@${manifest.version} is missing PERSONA.md for persona '${entry}'. Expected: ${file}`);
+    }
+  }
+
+  for (const entry of manifest.beliefs?.include ?? []) {
+    const dir = join(versionDir, "beliefs", entry);
+    const file = join(dir, "BELIEF.md");
+    if (!existsSync(dir)) {
+      throw new Error(`Card ${manifest.name}@${manifest.version} is missing belief directory '${entry}'. Expected: ${dir}`);
+    }
+    if (!existsSync(file)) {
+      throw new Error(`Card ${manifest.name}@${manifest.version} is missing BELIEF.md for belief '${entry}'. Expected: ${file}`);
+    }
+  }
+}
+
 export async function ensureExtracted(agentsDir: string, barePath: string, treeSha: string): Promise<string> {
   const extractedDir = resolveExtractedPath(agentsDir, treeSha);
   if (existsSync(extractedDir)) {
@@ -685,6 +710,7 @@ export async function publishCard(agentsDir: string, name: string, options: Publ
     }
   }
   validatePublishedHookDirs(sourceDir, manifest);
+  validatePublishedMindContentDirs(sourceDir, manifest);
   const packagePath = join(resolveCardSourceDir(agentsDir, manifest.name), "package.json");
   if (existsSync(packagePath)) {
     const packageJson = JSON.parse(await readFile(packagePath, "utf8")) as { name?: string; version?: string };
@@ -725,6 +751,7 @@ export async function publishCard(agentsDir: string, name: string, options: Publ
   const versionDir = await ensureExtracted(agentsDir, barePath, treeSha);
   validatePublishedSkillDirs(versionDir, manifest);
   validatePublishedHookDirs(versionDir, manifest);
+  validatePublishedMindContentDirs(versionDir, manifest);
   const integrity = await computeCardIntegrity(versionDir);
   const parent = await revParseOptional(barePath, "refs/heads/main");
   const commit = await git.commitTree(

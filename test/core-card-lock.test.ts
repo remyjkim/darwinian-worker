@@ -5,7 +5,15 @@ import { afterEach, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { cardLockPath, loadCardLock, writeCardLock, validateCardLockfile, persistCardLock } from "../cli/core/card-lock";
+import {
+  cardLockPath,
+  loadCardLock,
+  writeCardLock,
+  validateCardLockfile,
+  persistCardLock,
+  HOOKS_MIN_DRWN_VERSION,
+  MINDS_MIN_DRWN_VERSION,
+} from "../cli/core/card-lock";
 import { cleanupTempRoots, createTempRoot } from "./helpers";
 
 const tempRoots: string[] = [];
@@ -307,4 +315,115 @@ test("persistCardLock rejects when treeSha backfill is impossible", async () => 
       },
     ]),
   ).rejects.toThrow(/git\.commit|treeSha/i);
+});
+
+test("writeCardLock preserves mind content metadata and raises the version floor", async () => {
+  const root = await createTempRoot("card-lock-");
+  tempRoots.push(root);
+
+  await writeCardLock(root, [
+    {
+      name: "@me/mind",
+      requested: "@me/mind@^1.0.0",
+      version: "1.0.0",
+      path: "/cards/@me/mind/1.0.0",
+      integrity: "sha256-test",
+      treeSha: TREE_SHA,
+      manifest: {
+        name: "@me/mind",
+        version: "1.0.0",
+        persona: { include: ["voice"], visibility: "internal" },
+        beliefs: { include: ["engineering"], visibility: "public" },
+        memory: { l5: { format: "jsonl" } },
+      },
+      skills: [],
+      hooks: [],
+      registry: null,
+      origin: "store",
+      git: { commit: "f".repeat(40) },
+    },
+  ]);
+
+  const raw = JSON.parse(await readFile(cardLockPath(root), "utf8"));
+  const loaded = await loadCardLock(root);
+
+  expect(raw.lockfileVersion).toBe(5);
+  expect(raw.store.minDrwnVersion).toBe(MINDS_MIN_DRWN_VERSION);
+  expect(loaded?.cards[0]?.persona).toEqual({ include: ["voice"], visibility: "internal" });
+  expect(loaded?.cards[0]?.beliefs).toEqual({ include: ["engineering"], visibility: "public" });
+  expect(loaded?.cards[0]?.memory?.l5).toEqual({ format: "jsonl" });
+});
+
+test("writeCardLock keeps the hooks floor for cards without mind content", async () => {
+  const root = await createTempRoot("card-lock-");
+  tempRoots.push(root);
+
+  await writeCardLock(root, [
+    {
+      name: "@me/backend",
+      requested: "@me/backend@^1.0.0",
+      version: "1.0.0",
+      path: "/cards/@me/backend/1.0.0",
+      integrity: "sha256-test",
+      treeSha: TREE_SHA,
+      manifest: { name: "@me/backend", version: "1.0.0" },
+      skills: [],
+      hooks: [],
+      registry: null,
+      origin: "store",
+      git: { commit: "f".repeat(40) },
+    },
+  ]);
+
+  const raw = JSON.parse(await readFile(cardLockPath(root), "utf8"));
+  expect(raw.store.minDrwnVersion).toBe(HOOKS_MIN_DRWN_VERSION);
+});
+
+test("validateCardLockfile reads entries with absent mind content metadata", () => {
+  const lock = validateCardLockfile({
+    lockfileVersion: 3,
+    cards: [
+      {
+        name: "@me/backend",
+        requested: "@me/backend@^1.0.0",
+        version: "1.0.0",
+        path: "/cards/@me/backend/1.0.0",
+        integrity: "sha256-test",
+        manifest: { name: "@me/backend", version: "1.0.0" },
+        skills: [],
+        hooks: [],
+        registry: null,
+        origin: "store",
+        git: { commit: "a".repeat(40) },
+      },
+    ],
+  });
+
+  expect(lock.cards[0]?.persona).toBeUndefined();
+  expect(lock.cards[0]?.beliefs).toBeUndefined();
+  expect(lock.cards[0]?.memory).toBeUndefined();
+});
+
+test("validateCardLockfile rejects unsupported memory layers and memory include", () => {
+  const entry = {
+    name: "@me/mind",
+    requested: "@me/mind@^1.0.0",
+    version: "1.0.0",
+    path: "/cards/@me/mind/1.0.0",
+    integrity: "sha256-test",
+    treeSha: TREE_SHA,
+    manifest: { name: "@me/mind", version: "1.0.0" },
+    skills: [],
+    hooks: [],
+    registry: null,
+    origin: "store",
+    git: { commit: "a".repeat(40) },
+  };
+
+  expect(() =>
+    validateCardLockfile({ lockfileVersion: 5, cards: [{ ...entry, memory: { l3: { format: "md" } } }] }),
+  ).toThrow(/unsupported memory layer l3/);
+  expect(() =>
+    validateCardLockfile({ lockfileVersion: 5, cards: [{ ...entry, memory: { l5: { include: ["notes"] } } }] }),
+  ).toThrow(/memory entries are DB-native/);
 });

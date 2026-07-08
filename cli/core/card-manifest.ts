@@ -4,8 +4,32 @@
 import type { ProjectExtensionConfig, ServerOverride, TargetName } from "./types";
 import { isTargetName } from "./targets";
 import { isStrictSemver, validRange } from "./semver-utils";
+import { isSafePathPart } from "./store-paths";
 import { DrwnError } from "./errors";
 import { parseUpstreamRef } from "./git-ref";
+
+export type MindContentVisibility = "private" | "internal" | "public";
+export type MemoryLayerName = "l4" | "l5" | "l6";
+export type MemoryFormat = "md" | "jsonl" | "mixed";
+
+export interface MindContentManifest {
+  include?: string[];
+  visibility?: MindContentVisibility;
+  exclude?: string[];
+  shared?: string[];
+}
+
+export type PersonaManifest = MindContentManifest;
+export type BeliefsManifest = MindContentManifest;
+
+// Memory entries live in BeginningDB (DB-native); manifests declare layers and formats only.
+export interface MemoryLayerManifest {
+  format?: MemoryFormat;
+}
+
+export type MemoryManifest = Partial<Record<MemoryLayerName, MemoryLayerManifest>>;
+
+export const MEMORY_LAYER_NAMES: readonly MemoryLayerName[] = ["l4", "l5", "l6"];
 
 export interface CardManifest {
   $schema?: string;
@@ -26,6 +50,9 @@ export interface CardManifest {
   bundles?: Record<string, string>;
   skills?: { include?: string[]; exclude?: string[]; shared?: string[]; upstream?: Record<string, string> };
   hooks?: { include?: string[]; exclude?: string[]; shared?: string[] };
+  persona?: PersonaManifest;
+  beliefs?: BeliefsManifest;
+  memory?: MemoryManifest;
   servers?: Record<string, ServerOverride>;
   extensions?: Record<string, ProjectExtensionConfig>;
   targets?: Partial<Record<TargetName, { enabled: boolean }>>;
@@ -158,6 +185,77 @@ function isHttpUrl(value: string) {
   }
 }
 
+function validateMindContentSection(
+  label: string,
+  input: unknown,
+  errors: string[],
+  options: { allowFormat?: boolean; forbidInclude?: boolean } = {},
+) {
+  if (input === undefined) {
+    return;
+  }
+  if (!isObject(input)) {
+    errors.push(`${label} must be an object`);
+    return;
+  }
+  if (input.exclude !== undefined) {
+    errors.push(`${label}.exclude is not allowed in card manifests`);
+  }
+  if (input.shared !== undefined) {
+    errors.push(`${label}.shared is not allowed in card manifests`);
+  }
+  const include = input.include;
+  if (options.forbidInclude) {
+    if (include !== undefined) {
+      errors.push(`${label}.include is not allowed; memory entries are DB-native (declare layers and formats only)`);
+    }
+  } else {
+    if (include !== undefined && !Array.isArray(include)) {
+      errors.push(`${label}.include must be an array`);
+    }
+    if (Array.isArray(include)) {
+      for (const entry of include) {
+        if (typeof entry !== "string" || !isSafePathPart(entry)) {
+          errors.push(`${label}.include contains invalid entry: ${String(entry)}`);
+        }
+      }
+      if (include.length > 0 && input.visibility === undefined) {
+        errors.push(`${label}.visibility is required when include is non-empty`);
+      }
+    }
+  }
+  if (
+    input.visibility !== undefined &&
+    (typeof input.visibility !== "string" || !["private", "internal", "public"].includes(input.visibility))
+  ) {
+    errors.push(`${label}.visibility must be private, internal, or public`);
+  }
+  if (options.allowFormat) {
+    if (input.format !== undefined && (typeof input.format !== "string" || !["md", "jsonl", "mixed"].includes(input.format))) {
+      errors.push(`${label}.format must be md, jsonl, or mixed`);
+    }
+  } else if (input.format !== undefined) {
+    errors.push(`${label}.format is not allowed in card manifests`);
+  }
+}
+
+function validateMemorySection(input: unknown, errors: string[]) {
+  if (input === undefined) {
+    return;
+  }
+  if (!isObject(input)) {
+    errors.push("memory must be an object");
+    return;
+  }
+  for (const [layer, section] of Object.entries(input)) {
+    if (!(MEMORY_LAYER_NAMES as readonly string[]).includes(layer)) {
+      errors.push(`unsupported memory layer: ${layer}`);
+      continue;
+    }
+    validateMindContentSection(`memory.${layer}`, section, errors, { allowFormat: true, forbidInclude: true });
+  }
+}
+
 export function validateCardManifest(input: unknown): CardManifestValidationResult {
   const errors: string[] = [];
   if (!isObject(input)) {
@@ -246,13 +344,9 @@ export function validateCardManifest(input: unknown): CardManifestValidationResu
     errors.push("kind must be card or blueprint");
   }
   const record = input as Record<string, unknown>;
-  for (const field of ["persona", "beliefs", "memory"] as const) {
-    if (record[field] !== undefined) {
-      errors.push(
-        `${field} is no longer supported; advanced context management (persona/beliefs/memory) moved to a separate capability card`,
-      );
-    }
-  }
+  validateMindContentSection("persona", record.persona, errors);
+  validateMindContentSection("beliefs", record.beliefs, errors);
+  validateMemorySection(record.memory, errors);
   validateBlueprintFields(record, manifest.kind === "blueprint", errors);
   validateInstructionsField(record, errors);
   for (const [bundle, range] of Object.entries(manifest.bundles ?? {})) {

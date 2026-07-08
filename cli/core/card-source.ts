@@ -8,6 +8,7 @@ import {
   assertValidCardManifest,
   validateCardManifest,
   type CardManifest,
+  type MindContentVisibility,
 } from "./card-manifest";
 import { writeAtomically } from "./fs";
 import { findLibraryMcpServer, findLibrarySkill } from "./library";
@@ -49,6 +50,13 @@ export interface CardSourcePackageState {
   error?: string;
 }
 
+export interface CardSourceMindContentState {
+  name: string;
+  path: string;
+  hasContentFile: boolean;
+  files?: string[];
+}
+
 export interface CardSourceState {
   name: string;
   sourceDir: string;
@@ -57,14 +65,24 @@ export interface CardSourceState {
   manifestErrors: string[];
   manifestSkills: string[];
   manifestHooks: string[];
+  manifestPersona: string[];
+  manifestBeliefs: string[];
   bundledSkills: CardSourceSkillState[];
   bundledHooks: CardSourceHookState[];
+  bundledPersona: CardSourceMindContentState[];
+  bundledBeliefs: CardSourceMindContentState[];
   orphanedSkills: string[];
   orphanedHooks: string[];
+  orphanedPersona: string[];
+  orphanedBeliefs: string[];
   missingSkillDirs: string[];
   missingSkillFiles: string[];
   missingHookDirs: string[];
   missingHookFiles: string[];
+  missingPersonaDirs: string[];
+  missingPersonaFiles: string[];
+  missingBeliefDirs: string[];
+  missingBeliefFiles: string[];
   packageJson: CardSourcePackageState | null;
   mcpServers: CardSourceMcpServerState[];
   issues: CardSourceIssue[];
@@ -110,6 +128,14 @@ export interface CardSourceMcpMutationResult {
 export interface CardSourceHookMutationResult {
   card: string;
   hook: string;
+  dryRun: boolean;
+  changes: CardSourceMutationChange[];
+}
+
+export interface CardSourceMindContentMutationResult {
+  card: string;
+  entry: string;
+  section: "persona" | "beliefs";
   dryRun: boolean;
   changes: CardSourceMutationChange[];
 }
@@ -427,20 +453,38 @@ export async function readCardSourceState(agentsDir: string, name: string): Prom
 
   const manifestSkills = manifest?.skills?.include ?? [];
   const manifestHooks = manifest?.hooks?.include ?? [];
+  const manifestPersona = manifest?.persona?.include ?? [];
+  const manifestBeliefs = manifest?.beliefs?.include ?? [];
   const bundledSkills = await listBundledSkills(sourceDir);
   const bundledHooks = await listBundledHooks(sourceDir);
+  const bundledPersona = await listMindContentDirs(sourceDir, "persona", "PERSONA.md");
+  const bundledBeliefs = await listMindContentDirs(sourceDir, "beliefs", "BELIEF.md");
   const bundledNames = new Set(bundledSkills.map((skill) => skill.name));
   const bundledHookNames = new Set(bundledHooks.map((hook) => hook.name));
+  const bundledPersonaNames = new Set(bundledPersona.map((entry) => entry.name));
+  const bundledBeliefNames = new Set(bundledBeliefs.map((entry) => entry.name));
   const manifestSkillSet = new Set(manifestSkills);
   const manifestHookSet = new Set(manifestHooks);
+  const manifestPersonaSet = new Set(manifestPersona);
+  const manifestBeliefSet = new Set(manifestBeliefs);
   const orphanedSkills = bundledSkills.filter((skill) => !manifestSkillSet.has(skill.name)).map((skill) => skill.name);
   const orphanedHooks = bundledHooks.filter((hook) => !manifestHookSet.has(hook.name)).map((hook) => hook.name);
+  const orphanedPersona = bundledPersona.filter((entry) => !manifestPersonaSet.has(entry.name)).map((entry) => entry.name);
+  const orphanedBeliefs = bundledBeliefs.filter((entry) => !manifestBeliefSet.has(entry.name)).map((entry) => entry.name);
   const missingSkillDirs = manifestSkills.filter((skill) => !bundledNames.has(skill));
   const missingSkillFiles = bundledSkills.filter((skill) => !skill.hasSkillMd).map((skill) => skill.name);
   const missingHookDirs = manifestHooks.filter((hook) => !bundledHookNames.has(hook));
   const missingHookFiles = bundledHooks
     .filter((hook) => manifestHookSet.has(hook.name) && !hook.hasPolicyTs)
     .map((hook) => hook.name);
+  const missingPersonaDirs = manifestPersona.filter((entry) => !bundledPersonaNames.has(entry));
+  const missingPersonaFiles = bundledPersona
+    .filter((entry) => manifestPersonaSet.has(entry.name) && !entry.hasContentFile)
+    .map((entry) => entry.name);
+  const missingBeliefDirs = manifestBeliefs.filter((entry) => !bundledBeliefNames.has(entry));
+  const missingBeliefFiles = bundledBeliefs
+    .filter((entry) => manifestBeliefSet.has(entry.name) && !entry.hasContentFile)
+    .map((entry) => entry.name);
 
   for (const skill of orphanedSkills) {
     issues.push(issue("orphaned_skill_dir", `Bundled skill is not declared in card.json skills.include: ${skill}`, join(sourceDir, "skills", skill)));
@@ -465,6 +509,24 @@ export async function readCardSourceState(agentsDir: string, name: string): Prom
       await validatePolicyModule(join(hook.path, "policy.ts"), issues);
     }
   }
+  for (const entry of orphanedPersona) {
+    issues.push(issue("orphaned_persona_dir", `Bundled persona is not declared in card.json persona.include: ${entry}`, join(sourceDir, "persona", entry)));
+  }
+  for (const entry of missingPersonaDirs) {
+    issues.push(issue("missing_persona_dir", `card.json persona.include references a missing persona directory: ${entry}`, join(sourceDir, "persona", entry)));
+  }
+  for (const entry of missingPersonaFiles) {
+    issues.push(issue("missing_persona_md", `Bundled persona is missing PERSONA.md: ${entry}`, join(sourceDir, "persona", entry, "PERSONA.md")));
+  }
+  for (const entry of orphanedBeliefs) {
+    issues.push(issue("orphaned_belief_dir", `Bundled belief is not declared in card.json beliefs.include: ${entry}`, join(sourceDir, "beliefs", entry)));
+  }
+  for (const entry of missingBeliefDirs) {
+    issues.push(issue("missing_belief_dir", `card.json beliefs.include references a missing belief directory: ${entry}`, join(sourceDir, "beliefs", entry)));
+  }
+  for (const entry of missingBeliefFiles) {
+    issues.push(issue("missing_belief_md", `Bundled belief is missing BELIEF.md: ${entry}`, join(sourceDir, "beliefs", entry, "BELIEF.md")));
+  }
 
   const packageJson = await readPackageJson(sourceDir, manifest, issues);
   const mcpServers = await readMcpServers(sourceDir, manifest, issues);
@@ -477,14 +539,24 @@ export async function readCardSourceState(agentsDir: string, name: string): Prom
     manifestErrors,
     manifestSkills,
     manifestHooks,
+    manifestPersona,
+    manifestBeliefs,
     bundledSkills,
     bundledHooks,
+    bundledPersona,
+    bundledBeliefs,
     orphanedSkills,
     orphanedHooks,
+    orphanedPersona,
+    orphanedBeliefs,
     missingSkillDirs,
     missingSkillFiles,
     missingHookDirs,
     missingHookFiles,
+    missingPersonaDirs,
+    missingPersonaFiles,
+    missingBeliefDirs,
+    missingBeliefFiles,
     packageJson,
     mcpServers,
     issues,
@@ -510,6 +582,217 @@ export async function doctorCardSource(agentsDir: string, name?: string): Promis
   const sources = await Promise.all(names.map((sourceName) => readCardSourceState(agentsDir, sourceName)));
   const issues = sources.flatMap((source) => source.issues);
   return { ok: issues.length === 0, sources, issues };
+}
+
+async function listMindContentDirs(sourceDir: string, relDir: string, requiredFile?: string): Promise<CardSourceMindContentState[]> {
+  const dir = join(sourceDir, relDir);
+  if (!existsSync(dir)) {
+    return [];
+  }
+  const entries: CardSourceMindContentState[] = [];
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    if (entry.name.startsWith(".") || (!entry.isDirectory() && !entry.isSymbolicLink())) {
+      continue;
+    }
+    const entryPath = join(dir, entry.name);
+    const files = await listImmediateFiles(entryPath);
+    entries.push({
+      name: entry.name,
+      path: entryPath,
+      hasContentFile: requiredFile ? files.includes(requiredFile) : files.length > 0,
+      files,
+    });
+  }
+  return entries.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+async function listImmediateFiles(dir: string) {
+  if (!existsSync(dir)) {
+    return [];
+  }
+  const files: string[] = [];
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    if (entry.isFile()) {
+      files.push(entry.name);
+    }
+  }
+  return files.sort((a, b) => a.localeCompare(b));
+}
+
+function assertSafeMindContentName(name: string, label = "mind content entry") {
+  assertSafePathPart(name, label);
+}
+
+function assertMindContentVisibility(value: string): asserts value is MindContentVisibility {
+  if (value !== "private" && value !== "internal" && value !== "public") {
+    throw new Error(`Invalid visibility: ${value}. Expected private, internal, or public.`);
+  }
+}
+
+function personaTemplate(name: string) {
+  return `# ${name}\n\nCapture stable voice, operating style, and collaboration preferences here.\n`;
+}
+
+function beliefTemplate(name: string) {
+  return `# ${name}\n\nCapture durable beliefs, principles, and decision rules here.\n`;
+}
+
+export async function addCardSourcePersona(options: {
+  agentsDir: string;
+  cardName: string;
+  entryName: string;
+  visibility: string;
+  dryRun?: boolean;
+}): Promise<CardSourceMindContentMutationResult> {
+  assertSafeMindContentName(options.entryName, "persona");
+  assertMindContentVisibility(options.visibility);
+  const dryRun = options.dryRun === true;
+  const { state, manifest } = await readSourceManifestForMutation(options.agentsDir, options.cardName);
+  const destination = join(state.sourceDir, "persona", options.entryName);
+  const contentPath = join(destination, "PERSONA.md");
+  const include = [...(manifest.persona?.include ?? [])];
+  if (include.includes(options.entryName) || existsSync(destination)) {
+    throw new Error(`Persona already exists in card source: ${options.entryName}`);
+  }
+
+  const nextManifest: CardManifest = {
+    ...manifest,
+    persona: {
+      ...(manifest.persona ?? {}),
+      include: [...include, options.entryName],
+      visibility: options.visibility,
+    },
+  };
+  const changes: CardSourceMutationChange[] = [
+    { action: "add-persona", path: contentPath },
+    { action: "update-manifest", path: state.manifestPath },
+  ];
+
+  if (!dryRun) {
+    assertStoreWritable();
+    await writeAtomically(contentPath, personaTemplate(options.entryName));
+    await writeCardSourceManifest(state.manifestPath, nextManifest);
+  }
+
+  return { card: options.cardName, entry: options.entryName, section: "persona", dryRun, changes };
+}
+
+export async function removeCardSourcePersona(options: {
+  agentsDir: string;
+  cardName: string;
+  entryName: string;
+  keepFiles?: boolean;
+  dryRun?: boolean;
+}): Promise<CardSourceMindContentMutationResult> {
+  assertSafeMindContentName(options.entryName, "persona");
+  const dryRun = options.dryRun === true;
+  const { state, manifest } = await readSourceManifestForMutation(options.agentsDir, options.cardName);
+  const destination = join(state.sourceDir, "persona", options.entryName);
+  const include = manifest.persona?.include ?? [];
+  if (!include.includes(options.entryName)) {
+    throw new Error(`Persona is not declared in card source: ${options.entryName}`);
+  }
+
+  const nextManifest: CardManifest = {
+    ...manifest,
+    persona: {
+      ...(manifest.persona ?? {}),
+      include: include.filter((entry) => entry !== options.entryName),
+    },
+  };
+  const changes: CardSourceMutationChange[] = [
+    ...(options.keepFiles ? [] : [{ action: "remove-persona-files", path: destination }]),
+    { action: "update-manifest", path: state.manifestPath },
+  ];
+
+  if (!dryRun) {
+    assertStoreWritable();
+    if (!options.keepFiles) {
+      await rm(destination, { recursive: true, force: true });
+    }
+    await writeCardSourceManifest(state.manifestPath, nextManifest);
+  }
+
+  return { card: options.cardName, entry: options.entryName, section: "persona", dryRun, changes };
+}
+
+export async function addCardSourceBelief(options: {
+  agentsDir: string;
+  cardName: string;
+  entryName: string;
+  visibility: string;
+  dryRun?: boolean;
+}): Promise<CardSourceMindContentMutationResult> {
+  assertSafeMindContentName(options.entryName, "belief");
+  assertMindContentVisibility(options.visibility);
+  const dryRun = options.dryRun === true;
+  const { state, manifest } = await readSourceManifestForMutation(options.agentsDir, options.cardName);
+  const destination = join(state.sourceDir, "beliefs", options.entryName);
+  const contentPath = join(destination, "BELIEF.md");
+  const include = [...(manifest.beliefs?.include ?? [])];
+  if (include.includes(options.entryName) || existsSync(destination)) {
+    throw new Error(`Belief already exists in card source: ${options.entryName}`);
+  }
+
+  const nextManifest: CardManifest = {
+    ...manifest,
+    beliefs: {
+      ...(manifest.beliefs ?? {}),
+      include: [...include, options.entryName],
+      visibility: options.visibility,
+    },
+  };
+  const changes: CardSourceMutationChange[] = [
+    { action: "add-belief", path: contentPath },
+    { action: "update-manifest", path: state.manifestPath },
+  ];
+
+  if (!dryRun) {
+    assertStoreWritable();
+    await writeAtomically(contentPath, beliefTemplate(options.entryName));
+    await writeCardSourceManifest(state.manifestPath, nextManifest);
+  }
+
+  return { card: options.cardName, entry: options.entryName, section: "beliefs", dryRun, changes };
+}
+
+export async function removeCardSourceBelief(options: {
+  agentsDir: string;
+  cardName: string;
+  entryName: string;
+  keepFiles?: boolean;
+  dryRun?: boolean;
+}): Promise<CardSourceMindContentMutationResult> {
+  assertSafeMindContentName(options.entryName, "belief");
+  const dryRun = options.dryRun === true;
+  const { state, manifest } = await readSourceManifestForMutation(options.agentsDir, options.cardName);
+  const destination = join(state.sourceDir, "beliefs", options.entryName);
+  const include = manifest.beliefs?.include ?? [];
+  if (!include.includes(options.entryName)) {
+    throw new Error(`Belief is not declared in card source: ${options.entryName}`);
+  }
+
+  const nextManifest: CardManifest = {
+    ...manifest,
+    beliefs: {
+      ...(manifest.beliefs ?? {}),
+      include: include.filter((entry) => entry !== options.entryName),
+    },
+  };
+  const changes: CardSourceMutationChange[] = [
+    ...(options.keepFiles ? [] : [{ action: "remove-belief-files", path: destination }]),
+    { action: "update-manifest", path: state.manifestPath },
+  ];
+
+  if (!dryRun) {
+    assertStoreWritable();
+    if (!options.keepFiles) {
+      await rm(destination, { recursive: true, force: true });
+    }
+    await writeCardSourceManifest(state.manifestPath, nextManifest);
+  }
+
+  return { card: options.cardName, entry: options.entryName, section: "beliefs", dryRun, changes };
 }
 
 function hookPolicyTemplate(policyName: string) {
