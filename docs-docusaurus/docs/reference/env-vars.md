@@ -21,10 +21,10 @@ drwn status
 
 ### `AGENTS_REPO_ROOT`
 
-Points `drwn` at a local checkout of `darwinian-minds` as the harness source, instead of the bundled package defaults. Used when developing the CLI or maintaining a fork.
+Points `drwn` at a local checkout of `darwinian-worker` as the harness source, instead of the bundled package defaults. Used when developing the CLI or maintaining a fork.
 
 ```bash
-export AGENTS_REPO_ROOT=/path/to/darwinian-minds
+export AGENTS_REPO_ROOT=/path/to/darwinian-worker
 drwn status
 ```
 

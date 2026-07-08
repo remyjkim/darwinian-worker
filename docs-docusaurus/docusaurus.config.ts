@@ -40,7 +40,7 @@ const config: Config = {
         docs: {
           sidebarPath: './sidebars.ts',
           routeBasePath: '/',
-          editUrl: 'https://github.com/remyjkim/darwinian-minds/tree/main/docs-docusaurus/',
+          editUrl: 'https://github.com/remyjkim/darwinian-worker/tree/main/docs-docusaurus/',
         },
         blog: false,
         theme: {
@@ -70,7 +70,7 @@ const config: Config = {
           label: 'Docs',
         },
         {
-          href: 'https://github.com/remyjkim/darwinian-minds',
+          href: 'https://github.com/remyjkim/darwinian-worker',
           label: 'GitHub',
           position: 'right',
         },
@@ -93,11 +93,11 @@ const config: Config = {
           items: [
             {
               label: 'GitHub',
-              href: 'https://github.com/remyjkim/darwinian-minds',
+              href: 'https://github.com/remyjkim/darwinian-worker',
             },
             {
               label: 'Issues',
-              href: 'https://github.com/remyjkim/darwinian-minds/issues',
+              href: 'https://github.com/remyjkim/darwinian-worker/issues',
             },
           ],
         },

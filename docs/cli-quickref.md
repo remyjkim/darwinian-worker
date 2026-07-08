@@ -98,7 +98,7 @@ Keep using `drwn` as the primary command in examples and automation.
 Use a checkout when you want to own the source of truth:
 
 ```bash
-export AGENTS_REPO_ROOT=/path/to/darwinian-minds
+export AGENTS_REPO_ROOT=/path/to/darwinian-worker
 drwn status
 ```
 
