@@ -35,9 +35,15 @@ function lockEntry(sourceDir: string, integrity: string): CardLockEntry {
   const manifest = JSON.parse(readFileSync(join(sourceDir, "card.json"), "utf8")) as CardManifest;
   return {
     name: manifest.name!,
+    requested: `file:${sourceDir}`,
     version: manifest.version!,
+    path: sourceDir,
     integrity,
     manifest,
+    skills: [],
+    hooks: [],
+    registry: null,
+    origin: "file",
     ...(manifest.persona ? { persona: manifest.persona } : {}),
     ...(manifest.beliefs ? { beliefs: manifest.beliefs } : {}),
     ...(manifest.memory ? { memory: manifest.memory } : {}),
@@ -77,13 +83,19 @@ test("the real [mind-tools, content] stack composes a persona with ONLY the cont
 
   const figureEntry: CardLockEntry = {
     name: "@x/figure-mind",
+    requested: "file:@x/figure-mind",
     version: "1.0.0",
+    path: "@x/figure-mind",
     integrity: "sha256-figure",
     manifest: {
       name: "@x/figure-mind",
       version: "1.0.0",
       persona: { include: ["voice"], visibility: "internal" },
     } as CardManifest,
+    skills: [],
+    hooks: [],
+    registry: null,
+    origin: "file",
     persona: { include: ["voice"], visibility: "internal" },
   };
   // Point loadCardMindContent at a temp content root with the figure's persona.

@@ -46,8 +46,8 @@ test("a [mind-tools, content-card] stack composes a persona with only the conten
 
   // Only the content card contributed fences.
   expect(parsed.sections).toHaveLength(1);
-  expect(parsed.sections[0].card).toBe("@x/figure-mind");
-  expect(parsed.sections[0].entry).toBe("voice");
+  expect(parsed.sections[0]?.card).toBe("@x/figure-mind");
+  expect(parsed.sections[0]?.entry).toBe("voice");
   expect(parsed.outsideFences).toEqual([]);
 
   // No fence attributes a persona to the substrate.
@@ -79,6 +79,6 @@ test("seedMind writes only the content card's persona fence for a [tools, conten
   const parsed = parsePersona(persona);
 
   expect(parsed.sections).toHaveLength(1);
-  expect(parsed.sections[0].card).toBe("@x/figure-mind");
+  expect(parsed.sections[0]?.card).toBe("@x/figure-mind");
   expect(persona).not.toContain('card="@darwinian/mind-tools"');
 });
