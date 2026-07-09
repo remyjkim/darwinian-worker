@@ -21,11 +21,11 @@ describe("package readiness", () => {
     expect((pkg.bin as Record<string, string>)["drwn-hx"]).toBeUndefined();
     expect((pkg.scripts as Record<string, string>).drwn).toBe("bun run cli/index.ts");
     expect((pkg.scripts as Record<string, string>).sync).toBeUndefined();
-    expect(pkg.homepage).toBe("https://github.com/remyjkim/darwinian-minds");
-    expect(pkg.bugs).toEqual({ url: "https://github.com/remyjkim/darwinian-minds/issues" });
+    expect(pkg.homepage).toBe("https://github.com/remyjkim/darwinian-worker");
+    expect(pkg.bugs).toEqual({ url: "https://github.com/remyjkim/darwinian-worker/issues" });
     expect(pkg.repository).toEqual({
       type: "git",
-      url: "git+https://github.com/remyjkim/darwinian-minds.git",
+      url: "git+https://github.com/remyjkim/darwinian-worker.git",
     });
   });
 
@@ -133,7 +133,7 @@ describe("package readiness", () => {
     expect(paths).not.toContain("mcp-servers.json");
     expect(paths).toContain("registry/config.json");
     expect(paths).toContain("registry/mcp-servers.json");
-    expect(paths).toContain("docs/assets/darwinian-minds-logo.png");
+    expect(paths).toContain("docs/assets/darwinian-worker-logo.png");
     expect(paths).toContain("skills/shared/frontend-design/SKILL.md");
   });
 });

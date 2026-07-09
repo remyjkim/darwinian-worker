@@ -1,4 +1,4 @@
-[submodule "darwinian-minds-skills"]
-	path = darwinian-minds-skills
-	url = https://github.com/remyjkim/darwinian-minds-skills.git
+[submodule "darwinian-worker-skills"]
+	path = darwinian-worker-skills
+	url = https://github.com/remyjkim/darwinian-worker-skills.git
 	shallow = true

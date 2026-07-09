@@ -67,7 +67,7 @@ drwn write --dry-run
 ### Editable harness source
 
 ```bash
-export AGENTS_REPO_ROOT=/path/to/darwinian-minds
+export AGENTS_REPO_ROOT=/path/to/darwinian-worker
 drwn status
 ```
 

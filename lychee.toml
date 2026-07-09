@@ -31,7 +31,7 @@ exclude = [
 
   # GitHub edit-this-page and pull-request URLs that may 404 mid-flight
   '^https://github\.com/.*\/edit/',
-  '^https://github\.com/remyjkim/darwinian-minds/tree/main/docs-docusaurus/docs/',
+  '^https://github\.com/remyjkim/darwinian-worker/tree/main/docs-docusaurus/docs/',
   '^https://github\.com/.*\/issues\/new',
 
   # Social / sign-in walls
