@@ -68,16 +68,90 @@ test("validateCardManifest rejects non-array hooks.include", () => {
   expect(result.errors).toContain("hooks.include must be an array");
 });
 
-test("validateCardManifest rejects persona/beliefs/memory on any card kind", () => {
-  for (const field of ["persona", "beliefs", "memory"] as const) {
-    for (const kind of [undefined, "card", "blueprint"] as const) {
-      const result = validateCardManifest({ name: "@me/x", version: "1.0.0", kind, [field]: {} });
-      expect(result.ok).toBe(false);
-      expect(result.errors).toContain(
-        `${field} is no longer supported; advanced context management (persona/beliefs/memory) moved to a separate capability card`,
-      );
-    }
-  }
+test("validateCardManifest accepts persona/beliefs sections with visibility", () => {
+  const result = validateCardManifest({
+    name: "@me/mind",
+    version: "1.0.0",
+    persona: { include: ["voice"], visibility: "internal" },
+    beliefs: { include: ["quality"], visibility: "private" },
+  });
+
+  expect(result).toEqual({ ok: true, errors: [] });
+});
+
+test("validateCardManifest requires visibility when persona include is non-empty", () => {
+  const result = validateCardManifest({ name: "@me/mind", version: "1.0.0", persona: { include: ["voice"] } });
+
+  expect(result.ok).toBe(false);
+  expect(result.errors).toContain("persona.visibility is required when include is non-empty");
+});
+
+test("validateCardManifest rejects persona exclude/shared and invalid visibility", () => {
+  const result = validateCardManifest({
+    name: "@me/mind",
+    version: "1.0.0",
+    persona: { include: ["voice"], visibility: "secret", exclude: ["x"], shared: ["y"] },
+  });
+
+  expect(result.ok).toBe(false);
+  expect(result.errors).toContain("persona.exclude is not allowed in card manifests");
+  expect(result.errors).toContain("persona.shared is not allowed in card manifests");
+  expect(result.errors).toContain("persona.visibility must be private, internal, or public");
+});
+
+test("validateCardManifest rejects unsafe persona include entries", () => {
+  const result = validateCardManifest({
+    name: "@me/mind",
+    version: "1.0.0",
+    persona: { include: ["../escape"], visibility: "private" },
+  });
+
+  expect(result.ok).toBe(false);
+  expect(result.errors).toContain("persona.include contains invalid entry: ../escape");
+});
+
+test("validateCardManifest accepts memory layer declarations without include", () => {
+  const result = validateCardManifest({
+    name: "@me/mind",
+    version: "1.0.0",
+    memory: { l4: { format: "md" }, l5: { format: "jsonl" }, l6: { format: "mixed" } },
+  });
+
+  expect(result).toEqual({ ok: true, errors: [] });
+});
+
+test("validateCardManifest rejects memory include entries", () => {
+  const result = validateCardManifest({
+    name: "@me/mind",
+    version: "1.0.0",
+    memory: { l5: { include: ["notes"], visibility: "private", format: "jsonl" } },
+  });
+
+  expect(result.ok).toBe(false);
+  expect(result.errors).toContain("memory.l5.include is not allowed; memory entries are DB-native (declare layers and formats only)");
+});
+
+test("validateCardManifest rejects invalid memory layers and formats", () => {
+  const result = validateCardManifest({
+    name: "@me/mind",
+    version: "1.0.0",
+    memory: { l3: { format: "md" }, l5: { format: "yaml" } },
+  });
+
+  expect(result.ok).toBe(false);
+  expect(result.errors).toContain("unsupported memory layer: l3");
+  expect(result.errors).toContain("memory.l5.format must be md, jsonl, or mixed");
+});
+
+test("validateCardManifest rejects format on persona and beliefs", () => {
+  const result = validateCardManifest({
+    name: "@me/mind",
+    version: "1.0.0",
+    persona: { include: ["voice"], visibility: "public", format: "md" },
+  });
+
+  expect(result.ok).toBe(false);
+  expect(result.errors).toContain("persona.format is not allowed in card manifests");
 });
 
 test("validateCardManifest accepts a full blueprint manifest", () => {

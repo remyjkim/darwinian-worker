@@ -3,8 +3,15 @@
 
 import { Option, UsageError } from "clipanion";
 import { existsSync } from "node:fs";
+import { assertValidCardManifest, type CardManifest } from "../../core/card-manifest";
 import * as git from "../../core/git";
 import { resolveCardBareRepoPath } from "../../core/store-paths";
+import {
+  cardManifestStrictestVisibility,
+  classifyRemoteUrl,
+  evaluatePushGate,
+  parseRemoteVisibility,
+} from "../../core/mind-content/visibility";
 import { BaseCommand } from "../base";
 
 export class CardPushCommand extends BaseCommand {
@@ -26,6 +33,14 @@ export class CardPushCommand extends BaseCommand {
     description: "Remote name to push to.",
   });
 
+  remoteVisibility = Option.String("--remote-visibility", {
+    description: "Visibility of the remote: private, internal, public, or unknown.",
+  });
+
+  unsafePushPublic = Option.Boolean("--unsafe-push-public", false, {
+    description: "Allow pushing visibility-bearing mind content to a less restrictive remote.",
+  });
+
   async execute() {
     const barePath = resolveCardBareRepoPath(this.context.agentsDir, this.name);
     if (!existsSync(barePath)) {
@@ -36,8 +51,39 @@ export class CardPushCommand extends BaseCommand {
     if (!remoteUrl) {
       throw new UsageError(`Remote not found for ${this.name}: ${this.remote}`);
     }
+    const manifest = await readBareRepoManifest(barePath);
+    const cardVisibility = cardManifestStrictestVisibility(manifest);
+    let remoteVisibility;
+    try {
+      remoteVisibility = this.remoteVisibility ? parseRemoteVisibility(this.remoteVisibility) : classifyRemoteUrl(remoteUrl);
+    } catch (error) {
+      this.context.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
+    const gate = evaluatePushGate({
+      cardVisibility,
+      remoteVisibility,
+      unsafePushPublic: this.unsafePushPublic,
+    });
+    if (!gate.ok) {
+      this.context.stderr.write(`${gate.reason ?? "Card push blocked by visibility gate"}\n`);
+      return 1;
+    }
+    if (gate.warning) {
+      this.context.stderr.write(`${gate.warning}\n`);
+    }
     await git.push(barePath, this.remote, ["refs/heads/main", "refs/meta/*", "--tags"]);
     this.context.stdout.write(`Pushed ${this.name} to ${this.remote}\n`);
     return 0;
   }
+}
+
+async function readBareRepoManifest(barePath: string): Promise<CardManifest> {
+  const result = await git.runInRepo(barePath, ["show", "refs/heads/main:card.json"]);
+  if (result.exitCode !== 0) {
+    throw new UsageError(`Card repo is missing refs/heads/main:card.json`);
+  }
+  const manifest = JSON.parse(result.stdout) as CardManifest;
+  assertValidCardManifest(manifest);
+  return manifest;
 }

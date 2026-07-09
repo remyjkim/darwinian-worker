@@ -46,9 +46,9 @@ Full trial reconcile (worktree off `a80550f`, `merge origin/main`):
 3. **Version parity (M4-5):** `package.json` / `DRWN_VERSION` / `MINDS_MIN_DRWN_VERSION` all `0.7.0`.
 4. **Green after R75-0:** with the two test files fixed, `tsc` is clean and `bun test` passes (~1200 tests). The single expected non-fix "failure" — `core-session-discovery.test.ts > gitWorktreeRoots > returns at least the projectRoot itself` — is a **linked-worktree artifact** (`git worktree list` lists the main worktree first, so `result[0] !== repoRoot` only inside a linked worktree). `session-discovery.ts` is byte-identical to `9ba5e4d`; it passes in a normal checkout / CI.
 
-## Numbering collision to resolve
+## Numbering collision (resolved)
 
-`a80550f` adds `.ai/tasks/74_mind-substrate-split-implementation-plan.md`; `origin/main` already has `.ai/tasks/74_skills_identity_rename_darwinian_worker_skills_task_plan.md` (#39). Both are `74_` — no git conflict (they coexist after merge), but a duplicate sequence number. Resolve by renumbering the mind-substrate plan to the next free number (e.g. `76_`) during the reconcile, or as a follow-up doc commit.
+`a80550f` introduced `.ai/tasks/74_mind-substrate-split-implementation-plan.md`, colliding with `origin/main`'s existing `.ai/tasks/74_skills_identity_rename_darwinian_worker_skills_task_plan.md` (#39). Since the skills-rename doc was already established on `origin/main`, the incoming mind-substrate plan was renumbered to `76_mind-substrate-split-implementation-plan.md` on the reconcile branch, so `origin/main` never carries the duplicate.
 
 ## Strategy — fix, then merge (not squash/rebase), from an isolated worktree
 
