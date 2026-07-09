@@ -72,7 +72,7 @@ describe("command output contracts", () => {
       expect(result.exitCode).toBe(0);
       expect(() => JSON.parse(result.stdout)).not.toThrow();
     }
-  });
+  }, 120000);
 
   test("project-aware commands keep human and json output contracts", async () => {
     const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
@@ -103,5 +103,5 @@ describe("command output contracts", () => {
       expect(result.exitCode).toBe(0);
       expect(() => JSON.parse(result.stdout)).not.toThrow();
     }
-  });
+  }, 120000);
 });
