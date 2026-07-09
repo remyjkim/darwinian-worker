@@ -23,7 +23,7 @@ function start() {
 
 const cards: CardMindContent[] = [
   {
-    name: "@darwinian/mind-card",
+    name: "@team/seeded-mind",
     version: "0.1.0",
     integrity: "sha256-mind",
     persona: [{ entry: "voice", content: "# voice\n\nPlain speech.\n" }],
@@ -47,23 +47,23 @@ test("seedMind writes fenced persona, belief copies, and a ledger index", async 
 
   expect(result.alreadyProvisioned).toBe(false);
   expect(result.created).toContain("/minds/mind_1/persona.md");
-  expect(result.created).toContain("/minds/mind_1/beliefs/@darwinian/mind-card/collaboration/BELIEF.md");
+  expect(result.created).toContain("/minds/mind_1/beliefs/@team/seeded-mind/collaboration/BELIEF.md");
 
   const persona = server.readFile("/minds/mind_1/persona.md")!;
-  expect(persona).toContain('<!-- drwn:persona:start card="@darwinian/mind-card" entry="voice" -->');
+  expect(persona).toContain('<!-- drwn:persona:start card="@team/seeded-mind" entry="voice" -->');
   expect(persona.indexOf("Plain speech.")).toBeLessThan(persona.indexOf("Evidence first."));
 
   const index = await readMindIndex(client, "mind_1");
   expect(index?.mindId).toBe("mind_1");
-  expect(index?.activeWorkers).toEqual(["@darwinian/mind-card", "@team/overlay"]);
+  expect(index?.activeWorkers).toEqual(["@team/seeded-mind", "@team/overlay"]);
   expect(index?.memory).toEqual({ l4: { format: "md" }, l5: { format: "jsonl" } });
   expect(index?.ledger.map((row) => row.path)).toEqual([
     "/minds/mind_1/persona.md",
-    "/minds/mind_1/beliefs/@darwinian/mind-card/collaboration/BELIEF.md",
+    "/minds/mind_1/beliefs/@team/seeded-mind/collaboration/BELIEF.md",
   ]);
   expect(index?.ledger.every((row) => row.etag.startsWith('W/"'))).toBe(true);
   expect(index?.sources).toEqual([
-    { card: "@darwinian/mind-card", version: "0.1.0", integrity: "sha256-mind" },
+    { card: "@team/seeded-mind", version: "0.1.0", integrity: "sha256-mind" },
     { card: "@team/overlay", version: "1.2.0", integrity: "sha256-overlay" },
   ]);
 });
@@ -93,7 +93,7 @@ test("computeDrift distinguishes in-sync, db-edited, and card-updated files", as
   expect(edited.find((row) => row.path.endsWith("persona.md"))?.state).toBe("db-edited");
 
   const bumped = cards.map((card) =>
-    card.name === "@darwinian/mind-card" ? { ...card, version: "0.2.0" } : card,
+    card.name === "@team/seeded-mind" ? { ...card, version: "0.2.0" } : card,
   );
   const pending = await computeDrift(client, index, bumped);
   const beliefRow = pending.find((row) => row.path.includes("/beliefs/"));
