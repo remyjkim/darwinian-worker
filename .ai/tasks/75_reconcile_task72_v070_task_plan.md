@@ -1,21 +1,22 @@
-# ABOUTME: Execution-ready plan to land the coworker's committed-but-unpushed task-72 v0.7.0 line (5 commits on local `main`) onto `origin/main`, which has since advanced with the R-6/R-7 rename merges (#37–#40). Strategy: a merge (not squash/rebase) from the task-72 HEAD in an isolated worktree, so the coworker's live task-73 WIP is never touched and the 5 commits + release commit are preserved for a clean fast-forward handoff.
-# ABOUTME: Backed by a full trial reconcile (clean merge, correct package.json/submodule, 1198 tests pass with the single "failure" proven to be a linked-worktree test artifact, not a regression). Follow-ups (skills tag M0-6, CI M4-4, EXT asks) are explicitly out of scope for landing the code.
+# ABOUTME: Execution-ready plan to land the coworker's committed-but-unpushed task-72 v0.7.0 line (now 6 commits on local `main`) onto `origin/main`, which advanced with the R-6/R-7 rename merges (#37–#42). Strategy: fix the tip's typecheck errors, then merge (not squash/rebase) from the task-72 HEAD in an isolated worktree, so the coworker's live task-73 WIP is never touched and the commits + release commit are preserved for a clean fast-forward handoff.
+# ABOUTME: Re-validated 2026-07-08 against the current codebase. The merge is still clean and the result correct, BUT the new tip commit `a80550f` fails `tsc` (5 errors in its own two new test files) — that is a hard precondition (R75-0) before landing. Follow-ups (skills tag M0-6, CI M4-4, EXT asks) remain out of scope.
 
 # Task 75 — Reconcile & land task-72 (v0.7.0) onto origin/main
 
-**Date**: 2026-07-08
+**Date**: 2026-07-08 (re-validated same day against `a80550f`)
 **Author**: Claude + Remy
-**Status**: Execution-ready. No open blockers — the merge is clean and green.
-**Owns**: getting the 5 task-72 commits (the mind-card V1 / v0.7.0 line) onto `origin/main`. Does **not** touch the coworker's in-flight task-73 (`drwn-command-bridge`) WIP.
-**References**: local `main` HEAD `52f286b`; `origin/main` HEAD `93f4a8f`; divergence base `9ba5e4d`; task-72 plan `.ai/tasks/72_mind-card-implementation-plan.md`.
+**Status**: Strategy valid; **blocked on R75-0** (the task-72 tip fails typecheck). Execution-ready once R75-0 is done.
+**Owns**: getting the task-72 commits (mind-card V1 / v0.7.0 line) onto `origin/main`. Does **not** touch the coworker's in-flight task-73 (`drwn-command-bridge`) WIP.
+**References**: local `main` HEAD `a80550f`; `origin/main` HEAD `6b3c9ae`; divergence base `9ba5e4d`; task-72 plan `.ai/tasks/72_mind-card-implementation-plan.md`.
 
 ---
 
-## Situation
+## Situation (current)
 
-Local `main` is **5 ahead / 4 behind** `origin/main`. The 5 ahead are the coworker's committed-but-unpushed V1 line (diverged at `9ba5e4d`):
+Local `main` is **6 ahead / 6 behind** `origin/main`. The 6 ahead are the coworker's committed-but-unpushed V1 line (diverged at `9ba5e4d`):
 
 ```
+a80550f test(mind): retarget smoke + guard substrate pollution for the mind-tools/starter split   ← NEW since first draft
 52f286b chore(release): v0.7.0
 688a51d feat(worker): capture mind id and binding coordinates at deploy      (M4)
 4db0e21 feat(worker): add DB-backed minds with provision, drift sync, checkpoint (M2/M3)
@@ -23,77 +24,87 @@ Local `main` is **5 ahead / 4 behind** `origin/main`. The 5 ahead are the cowork
 026070f docs(mind): record mind-card design chain, target architecture, plan
 ```
 
-The 4 behind are the R-6/R-7 rename merges (#37 URLs, #38 logo, #39 task-74 plan, #40 skills submodule). They must be combined.
+The 6 behind are the R-6/R-7 rename merges + docs (#37 URLs, #38 logo, #39 skills-rename plan, #40 skills submodule, #41 task-70 doc, #42 this plan). They must be combined.
 
-Complicating context (do not disturb):
-- The coworker's **task-73 (`drwn-command-bridge`)** is live, **uncommitted** WIP in the main checkout's working tree (`drwn-command-bridge/` ~48 files, `registry/config.json`, `registry/mcp-servers.json`, `test/sync-mcp.test.ts`, `.ai/knowledges/10_...`, `.ai/tasks/73_...`). It must stay untouched.
-- The submodule checkout is mid-transition: on disk at the old `darwinian-minds-skills/` path but with HEAD `0c0a250` (new identity); local `main` records the stale `961b7b9`.
+Do not disturb: the coworker's **task-73 (`drwn-command-bridge`)** is live, uncommitted WIP in the main checkout's working tree.
 
-## Investigation findings (why this is safe)
+## R75-0 — PRECONDITION: make the task-72 tip green (typecheck)
 
-A full trial reconcile (worktree off `52f286b`, `merge origin/main`) established:
+Re-validation found `a80550f` **fails `tsc --noEmit`** (exit 2, 5 errors) — intrinsic to the commit (identical with or without the origin/main merge; origin/main never touches these files or `CardLockEntry`). CI's typecheck gate would fail. Fix before landing:
 
-1. **Zero merge conflicts.** `package.json` auto-merged (task-72's version/deps hunks and origin's URL/logo hunks are disjoint). Everything else applied cleanly.
-2. **Merged result is correct:** `package.json` → `version 0.7.0`, `homepage/bugs/repository` → `remyjkim/darwinian-worker`, logo → `darwinian-worker-logo.png`, `ulid` dep present. Submodule → `darwinian-worker-skills @ 0c0a250` (new path + pointer). No R-6/R-7 regression.
-3. **Version parity holds (M4-5):** `package.json`, `cli/core/version.ts` `DRWN_VERSION`, and `cli/core/card-lock.ts` `MINDS_MIN_DRWN_VERSION` are all `0.7.0`.
-4. **Green:** `npx tsc --noEmit` clean; `bun test` → **1198 pass, 0 real failures** (1204 total). The lone "fail" — `core-session-discovery.test.ts > gitWorktreeRoots > returns at least the projectRoot itself` — is a **test-environment artifact**: it asserts `gitWorktreeRoots(repoRoot)[0] === repoRoot`, but `git worktree list` always lists the *main* worktree first, so it fails only when the suite runs inside a *linked* worktree (the trial). `session-discovery.ts`/its test are **byte-identical** to the `9ba5e4d` baseline on both the task-72 and origin sides — not a regression. It passes in a normal checkout / CI (a main worktree).
+- `test/mind-substrate-e2e.test.ts` — two `CardLockEntry` fixtures (`lockEntry()` helper ~L34 and the inline `figureEntry` ~L78) omit required fields. Add `requested`, `path`, `skills: []`, `hooks: []`, `registry: null`, `origin: "file"` (pattern: `test/commands-store-gc.test.ts`). Behavior is unaffected — `loadCardMindContent` only reads `name`/`manifest`/`persona`/`beliefs`/`memory`.
+- `test/mind-substrate-pollution.test.ts` — L49/L50/L82 index `parsed.sections[0].card`/`.entry` under `noUncheckedIndexedAccess`. Use optional chaining `parsed.sections[0]?.card` (codebase idiom: `test/core-persona-composer.test.ts:50`); the preceding `toHaveLength(1)` guarantees presence, so the assertion is unchanged.
 
-## Strategy — merge, not squash/rebase, from an isolated worktree
+Land the fix as one commit on the reconcile branch **on top of `a80550f`, before the origin/main merge**, so the task-72 line is green in isolation.
 
-- **Merge** (not rebase): preserves the exact 5 commit SHAs (incl. the release commit) and keeps `52f286b` an **ancestor** of the new `origin/main`, so the coworker fast-forwards their local `main` afterward with zero history rewrite.
-- **Not squash**: squashing collapses the 5 commits (losing the release-commit structure) and breaks the ancestor relationship (divergence would persist for the coworker).
-- **Isolated worktree** off `52f286b`: the main checkout is dirty with task-73 WIP; a fresh worktree gives a clean tree so the reconcile never entangles that work.
+## Investigation findings (why the reconcile is otherwise safe)
+
+Full trial reconcile (worktree off `a80550f`, `merge origin/main`):
+
+1. **Zero merge conflicts.** `package.json` auto-merges (task-72's version/deps hunks and origin's URL/logo hunks are disjoint).
+2. **Merged result correct:** `package.json` → `0.7.0` + `remyjkim/darwinian-worker` URLs + `darwinian-worker-logo.png` + `ulid`; submodule → `darwinian-worker-skills @ 0c0a250`; no R-6/R-7 regression.
+3. **Version parity (M4-5):** `package.json` / `DRWN_VERSION` / `MINDS_MIN_DRWN_VERSION` all `0.7.0`.
+4. **Green after R75-0:** with the two test files fixed, `tsc` is clean and `bun test` passes (~1200 tests). The single expected non-fix "failure" — `core-session-discovery.test.ts > gitWorktreeRoots > returns at least the projectRoot itself` — is a **linked-worktree artifact** (`git worktree list` lists the main worktree first, so `result[0] !== repoRoot` only inside a linked worktree). `session-discovery.ts` is byte-identical to `9ba5e4d`; it passes in a normal checkout / CI.
+
+## Numbering collision to resolve
+
+`a80550f` adds `.ai/tasks/74_mind-substrate-split-implementation-plan.md`; `origin/main` already has `.ai/tasks/74_skills_identity_rename_darwinian_worker_skills_task_plan.md` (#39). Both are `74_` — no git conflict (they coexist after merge), but a duplicate sequence number. Resolve by renumbering the mind-substrate plan to the next free number (e.g. `76_`) during the reconcile, or as a follow-up doc commit.
+
+## Strategy — fix, then merge (not squash/rebase), from an isolated worktree
+
+- **Merge** (not rebase): preserves the exact commit SHAs (incl. the release commit) and keeps `a80550f` an **ancestor** of the new `origin/main`, so the coworker fast-forwards later with zero history rewrite.
+- **Not squash**: collapsing loses the release-commit structure and breaks the ancestor relation (divergence would persist for the coworker).
+- **Isolated worktree** off `a80550f`: the main checkout is dirty with task-73 WIP; a fresh worktree keeps that untouched.
 
 ## Execution
 
-### R75-1 — Reconcile branch in an isolated worktree
+### R75-1 — Reconcile branch + fix + merge (isolated worktree)
 ```
-cd <main repo>
 git fetch origin
-git worktree add <wt> -b reconcile/task-72-v0.7.0 52f286b   # clean checkout of the task-72 HEAD
+git worktree add <wt> -b reconcile/task-72-v0.7.0 a80550f    # clean checkout of the tip
 cd <wt>
-git merge origin/main --no-edit                             # clean; verified
-git submodule sync && git submodule update --init           # relocates to darwinian-worker-skills/ @ 0c0a250
+# R75-0 fix: edit the two test files, then:
+git commit -am "fix(test): complete CardLockEntry fixtures and guard optional section access in mind-substrate tests"
+git merge origin/main --no-edit                              # clean; verified
+git submodule sync && git submodule update --init            # -> darwinian-worker-skills/ @ 0c0a250
+# (optional) renumber the duplicate task-74 doc here
 ```
 
-### R75-2 — Verify green **in the worktree, but from a main-worktree perspective for the one caveat**
+### R75-2 — Verify green
 ```
 bun install
-npx tsc --noEmit                                            # expect clean
-bun test                                                    # expect 1198+ pass; the ONLY acceptable failure is
-                                                            # gitWorktreeRoots (linked-worktree artifact, documented above)
+npx tsc --noEmit                                             # MUST be clean (R75-0 makes it so)
+bun test                                                     # green; only acceptable failure is the documented
+                                                            # gitWorktreeRoots linked-worktree artifact
 ```
-Gate: green except the one documented `gitWorktreeRoots` artifact. If any *other* test fails, stop and investigate — the trial showed none. (CI, running in a normal checkout, will show it fully green.)
+Gate: `tsc` clean; tests green except the one documented artifact. Any other failure → stop.
 
 ### R75-3 — Land via a **merge-commit** PR
 ```
 git push -u origin reconcile/task-72-v0.7.0
 gh pr create --base main --head reconcile/task-72-v0.7.0 --title "..." --body "..."
-# Merge with a MERGE COMMIT (not squash) so the 5 commits + release land intact and 52f286b stays an ancestor.
-gh pr merge <n> --merge --delete-branch
+gh pr merge <n> --merge --delete-branch                      # MERGE COMMIT, not squash
 ```
-Because the branch already contains all of `origin/main`, the PR merges without conflict; `origin/main` advances to include the 5 task-72 commits.
 
 ### R75-4 — Clean up
 ```
-cd <main repo>; git worktree remove --force <wt>; git branch -D reconcile/task-72-v0.7.0; git fetch origin --prune
+git worktree remove --force <wt>; git branch -D reconcile/task-72-v0.7.0; git fetch origin --prune
 ```
 
 ## Coworker handoff (their main checkout)
 
-After R75-3, `origin/main` contains task-72 + R-6/R-7. The coworker's local `main` (`52f286b`) is now an **ancestor** of `origin/main`, and their task-73 WIP is untouched. To sync:
+After R75-3, `origin/main` contains task-72 + R-6/R-7, and `a80550f` is an ancestor of it. Their task-73 WIP is untouched. To sync:
 ```
 git fetch origin
-git merge --ff-only origin/main          # fast-forward; task-73 WIP preserved (no overlap with the delta)
-git submodule sync && git submodule update --init   # move working dir to darwinian-worker-skills/
-# remove the now-stale old submodule dir if git leaves it:
-rm -rf darwinian-minds-skills
+git merge --ff-only origin/main                    # fast-forward; task-73 WIP preserved
+git submodule sync && git submodule update --init  # relocate working dir to darwinian-worker-skills/
+rm -rf darwinian-minds-skills                       # remove the stale old submodule dir if left behind
 ```
-Their uncommitted edits to `.ai/knowledges/10_...` and the submodule pointer do not block the FF (the delta from `52f286b` to the new `origin/main` is only the R-6/R-7 changes, which don't touch those paths' contents).
+Note: the reconcile added one fix commit on top of `a80550f`, so their `a80550f` is still an ancestor (FF stays clean).
 
 ## Out of scope (follow-ups, NOT blockers for landing the code)
 
-- **M0-6** — tag + release the renamed skills repo (`darwinian-worker-skills`); the gitlink already resolves by commit SHA, so a tag isn't required to land. Outward/irreversible — confirm before cutting.
+- **M0-6** — tag/release the renamed skills repo (gitlink resolves by SHA; a tag isn't required to land). Outward — confirm before cutting.
 - **M4-4** — CI cached Rust build for the gated e2e BGDB job.
 - **EXT-1/2/3** — external `@beginningdb/client` + amended-107 coordination.
 - **npm 2FA re-enable**, **R-7 domain** — unrelated rename tails.
@@ -101,7 +112,8 @@ Their uncommitted edits to `.ai/knowledges/10_...` and the submodule pointer do 
 
 ## Risks / landmines
 
-1. **Do not squash** R75-3 — it breaks the ancestor relation and the coworker's clean FF, and loses the release commit.
-2. **Do not run the green gate's `gitWorktreeRoots` assertion as a blocker** — it's a linked-worktree artifact. Trust CI / a normal checkout for the definitive green.
-3. **Never `git add -A` while the submodule dir is uninitialized** in a worktree (it would stage the gitlink's deletion). Init the submodule first (R75-1).
-4. **Keep task-73 WIP out** — always reconcile from a clean worktree off `52f286b`, never from the dirty main checkout.
+1. **R75-0 is a hard gate** — the tip is red on `tsc`; landing without the fix red-lights CI.
+2. **Do not squash** R75-3 — breaks the ancestor relation and the coworker's clean FF, and loses the release commit.
+3. **Do not treat `gitWorktreeRoots` as a blocker** — linked-worktree artifact; trust CI / a normal checkout.
+4. **Never `git add -A` while the submodule dir is uninitialized** in a worktree (stages the gitlink's deletion). Init the submodule first.
+5. **Keep task-73 WIP out** — always reconcile from a clean worktree off `a80550f`, never the dirty main checkout.
