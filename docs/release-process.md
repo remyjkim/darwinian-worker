@@ -56,7 +56,14 @@ Before publishing a bridge version:
 3. Keep Linux and Windows native-validation gaps explicit in the package README.
 4. Confirm the intended version is absent with
    `npm view drwn-command-bridge@<version> version`.
-5. From `drwn-command-bridge/`, publish with the maintainer-owned npm credentials:
+5. Dispatch the `Command Bridge Release` workflow from `main`, enter the exact
+   version, and leave `dry_run` disabled. Approve the protected `npm-publish`
+   environment when prompted. The workflow re-runs package verification, refuses
+   an existing version, publishes from `drwn-command-bridge/`, and confirms the
+   version is visible on npm.
+
+If GitHub Actions is unavailable, publish from `drwn-command-bridge/` with the
+isolated maintainer credentials documented in `docs/maintainers/publishing.md`:
 
    ```bash
    npm publish --access public

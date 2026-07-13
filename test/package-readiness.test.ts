@@ -130,6 +130,23 @@ describe("package readiness", () => {
     expect(workflow).toContain("--generate-notes");
   });
 
+  test("command bridge release uses the protected npm publishing environment", () => {
+    const workflow = readFileSync(
+      join(process.cwd(), ".github", "workflows", "release-command-bridge.yml"),
+      "utf8",
+    );
+
+    expect(workflow).toContain("name: Command Bridge Release");
+    expect(workflow).toContain("workflow_dispatch:");
+    expect(workflow).toContain("working-directory: drwn-command-bridge");
+    expect(workflow).toContain("bun run verify");
+    expect(workflow).toContain("name: npm-publish");
+    expect(workflow).toContain("NPM_TOKEN: ${{ secrets.NPM_TOKEN }}");
+    expect(workflow).toContain("npm view \"drwn-command-bridge@${VERSION}\"");
+    expect(workflow).toContain("npm publish --access public");
+    expect(workflow).toContain("npm view \"drwn-command-bridge@${VERSION}\" version");
+  });
+
   test("npm pack excludes local secrets, planning docs, and tests", async () => {
     const proc = Bun.spawn(["npm", "pack", "--dry-run", "--json"], {
       stdout: "pipe",

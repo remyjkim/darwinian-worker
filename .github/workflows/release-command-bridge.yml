@@ -1,0 +1,146 @@
+name: Command Bridge Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (must match drwn-command-bridge/package.json).'
+        required: true
+        default: '0.1.0'
+        type: string
+      dry_run:
+        description: 'Run all checks but skip npm publish.'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: command-bridge-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  BUN_VERSION: '1.2.21'
+
+jobs:
+  validate:
+    name: Validate bridge release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.read_version.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Require main and matching package version
+        id: read_version
+        working-directory: drwn-command-bridge
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Bridge releases must run from main, not $GITHUB_REF" >&2
+            exit 1
+          fi
+          VERSION="$(node -p 'require("./package.json").version')"
+          if [ "${{ inputs.version }}" != "$VERSION" ]; then
+            echo "Input version ${{ inputs.version }} does not match package.json ($VERSION)" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Install bridge dependencies
+        working-directory: drwn-command-bridge
+        run: bun install --frozen-lockfile
+
+      - name: Verify bridge package
+        working-directory: drwn-command-bridge
+        run: bun run verify
+
+      - name: Verify package is unpublished
+        working-directory: drwn-command-bridge
+        run: |
+          VERSION="${{ steps.read_version.outputs.version }}"
+          if npm view "drwn-command-bridge@${VERSION}" version >/dev/null 2>&1; then
+            echo "drwn-command-bridge@${VERSION} already exists on npm" >&2
+            exit 1
+          fi
+
+  publish:
+    name: Publish bridge to npm
+    needs: [validate]
+    if: ${{ inputs.dry_run == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    environment:
+      name: npm-publish
+      url: https://www.npmjs.com/package/drwn-command-bridge
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install bridge dependencies
+        working-directory: drwn-command-bridge
+        run: bun install --frozen-lockfile
+
+      - name: Re-verify bridge package
+        working-directory: drwn-command-bridge
+        run: bun run verify
+
+      - name: Publish to npm
+        working-directory: drwn-command-bridge
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          if npm view "drwn-command-bridge@${VERSION}" version >/dev/null 2>&1; then
+            echo "drwn-command-bridge@${VERSION} already exists on npm" >&2
+            exit 1
+          fi
+          npm publish --access public
+
+      - name: Verify published version
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          for attempt in 1 2 3 4 5; do
+            PUBLISHED="$(npm view "drwn-command-bridge@${VERSION}" version 2>/dev/null || true)"
+            if [ "$PUBLISHED" = "$VERSION" ]; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "drwn-command-bridge@${VERSION} is not visible on npm" >&2
+          exit 1
+
+  dry_run_complete:
+    name: Dry run complete
+    needs: [validate]
+    if: ${{ inputs.dry_run == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - run: echo "drwn-command-bridge@${{ needs.validate.outputs.version }} is ready to publish"
