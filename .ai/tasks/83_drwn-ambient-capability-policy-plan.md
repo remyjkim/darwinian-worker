@@ -5,7 +5,11 @@
 
 > **For Codex:** REQUIRED SUB-SKILL: Use `executing-plans`, `test-driven-development`, `incremental-commits`, and `verification-before-completion`. Execute only after Task 77 has landed its effective-state and ambient-observation contracts.
 
-**Status**: D2 approved 2026-07-13; execution-ready after Task 77
+**Status**: Completed 2026-07-13
+
+**Implementation branch**: `feat/task-83-ambient-mcp-policy`
+
+**Completion evidence**: `.ai/tasks/83_completion_ambient-capability-policy.md`
 
 **Goal**: Classify user-home/project same-ID MCP definitions according to each downstream target's actual layering semantics, report every collision with provenance, and block only selected-target configurations that would be invalid.
 
@@ -94,7 +98,7 @@ type AmbientReasonCode =
 - An unselected target never blocks a target-specific write.
 - If any selected target reports `fatal`, the command performs zero mutations across all outputs, including git hygiene, Worker projection, vendor trees, skills, MCP files, generated files, and write records.
 - Dry-run executes the same preflight, reports the same fatal result, performs no writes, and exits non-zero.
-- Neither legacy `--force` nor the approved ownership-repair flag `--force-owned` may bypass a fatal collision. Ownership drift and target configuration validity are separate policies.
+- The supported `--force` ownership-repair flag may not bypass a fatal collision. Ownership drift and target configuration validity are separate policies. The clean-slate command surface has no `--force-owned` option.
 - Warnings require no confirmation or bypass flag.
 - In a multi-target write, all selected targets are planned before any mutation. One fatal target aborts the complete selected-target transaction.
 - This zero-mutation guarantee applies to the projection phase. A project mutation command such as `use` retains Task 77's transaction contract: valid project intent commits first, then a failed projection leaves that intent committed while changing no projection output.
@@ -238,7 +242,7 @@ Assert:
 - `--target claude` is not blocked by a fatal Codex collision;
 - `--target codex` is blocked by that collision;
 - an all-target write with fatal Codex performs zero mutations to every project and user-home path in the fixture;
-- `--force` and `--force-owned` do not bypass the fatal;
+- `--force` does not bypass the fatal, and the unsupported `--force-owned` option is not introduced;
 - warning-only Claude/Cursor writes proceed;
 - `--skills-only` is not blocked and does not touch MCP files;
 - MCP-only and standard dry-runs return the fatal result without mutation;
@@ -394,15 +398,15 @@ git commit -m "docs(mcp): publish ambient collision policy"
 
 ## Completion Gates
 
-- [ ] Task 77 effective-state and ambient-observation contracts are present.
-- [ ] Claude, Codex, and Cursor characterization fixtures cover identical, same-transport difference, and transport difference.
-- [ ] Only `CODEX_INCOMPATIBLE_TRANSPORTS` is collision-fatal.
-- [ ] Fatality is limited to selected targets and MCP-mutating write modes.
-- [ ] Multi-target fatal preflight proves zero mutation across the complete command.
-- [ ] Projection triggered after a committed project-intent mutation preserves Task 77 transaction semantics while changing no projection output on fatal preflight.
-- [ ] No force flag bypasses collision validity.
-- [ ] Human and JSON diagnostics expose provenance without secret-bearing fields.
-- [ ] Status, doctor, MCP list, and write consume one shared classification result.
-- [ ] Full typecheck, test suite, and release-readiness verification pass.
+- [x] Task 77 effective-state and ambient-observation contracts are present.
+- [x] Claude, Codex, and Cursor characterization fixtures cover identical, same-transport difference, and transport difference.
+- [x] Only `CODEX_INCOMPATIBLE_TRANSPORTS` is collision-fatal.
+- [x] Fatality is limited to selected targets and MCP-mutating write modes.
+- [x] Multi-target fatal preflight proves zero mutation across the complete command.
+- [x] Projection triggered after a committed project-intent mutation preserves Task 77 transaction semantics while changing no projection output on fatal preflight.
+- [x] No force flag bypasses collision validity.
+- [x] Human and JSON diagnostics expose provenance without secret-bearing fields.
+- [x] Status, doctor, MCP list, and write consume one shared classification result.
+- [x] Full typecheck, test suite, and release-readiness verification pass.
 
-Task 77's `diagnostic-only` behavior remains authoritative until every gate above is implemented. Approval of D2 authorizes Task 83 after Task 77; it does not authorize opportunistic implementation inside Task 77 or Task 79.
+Task 83 now supersedes Task 77's temporary `diagnostic-only` ambient behavior with the approved target-native policy. It does not alter Task 77 project declarations, Task 79 Store export security, or operator-owned MCP runtime readiness.
