@@ -2,10 +2,20 @@
 // ABOUTME: Separates mutable package/MCP records from immutable repository, registry, and Card inputs.
 
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { lstat, mkdir, readFile } from "node:fs/promises";
 import { loadMcpLibrary } from "./mcp-library";
+import { DrwnError } from "./errors";
+import { writeAtomically } from "./fs";
 import { hashSkillPackageDirectory, listInstalledSkillBundles } from "./skill-packages";
-import { resolveStoreMcpServerFile } from "./store-paths";
+import {
+  assertStoreWritable,
+  resolveStoreMcpServerFile,
+  resolveStoreMcpServersDir,
+  resolveStoreMetadataPath,
+  resolveStoreRoot,
+  resolveStoreSkillPackagesRoot,
+} from "./store-paths";
 import type { RegistryServer } from "./types";
 
 export interface StandaloneSkillPackageRecord {
@@ -67,4 +77,39 @@ export async function listStandaloneMcpRecords(agentsDir: string): Promise<Stand
 
 export async function findStandaloneMcpRecord(agentsDir: string, id: string) {
   return (await listStandaloneMcpRecords(agentsDir)).find((entry) => entry.id === id) ?? null;
+}
+
+async function assertConcreteDirectory(path: string): Promise<void> {
+  const stats = await lstat(path);
+  if (!stats.isDirectory() || stats.isSymbolicLink()) {
+    throw new DrwnError("INVENTORY_STORAGE_INVALID", `Inventory storage path is not a concrete directory: ${path}`);
+  }
+}
+
+export async function initializeInventoryStorage(agentsDir: string): Promise<{
+  createdStoreMetadata: boolean;
+  storeRoot: string;
+}> {
+  assertStoreWritable();
+  const storeRoot = resolveStoreRoot(agentsDir);
+  const skillsRoot = resolveStoreSkillPackagesRoot(agentsDir);
+  const mcpRoot = resolveStoreMcpServersDir(agentsDir);
+  const metadataPath = resolveStoreMetadataPath(agentsDir);
+  await mkdir(storeRoot, { recursive: true });
+  await assertConcreteDirectory(storeRoot);
+  for (const path of [skillsRoot, mcpRoot]) {
+    await mkdir(path, { recursive: true });
+    await assertConcreteDirectory(path);
+  }
+  let createdStoreMetadata = false;
+  if (!existsSync(metadataPath)) {
+    await writeAtomically(metadataPath, `${JSON.stringify({ schemaVersion: 1, initAt: new Date().toISOString() }, null, 2)}\n`);
+    createdStoreMetadata = true;
+  } else {
+    const stats = await lstat(metadataPath);
+    if (!stats.isFile() || stats.isSymbolicLink()) {
+      throw new DrwnError("INVENTORY_STORAGE_INVALID", `Store metadata is not a concrete file: ${metadataPath}`);
+    }
+  }
+  return { createdStoreMetadata, storeRoot };
 }

@@ -115,7 +115,13 @@ import {
   MachineMcpShowCommand,
   MachineMcpUpdateCommand,
 } from "./commands/machine/mcp";
-import { MachineInventoryGcCommand } from "./commands/machine/inventory";
+import {
+  MachineInventoryBundleCommand,
+  MachineInventoryExportCommand,
+  MachineInventoryGcCommand,
+  MachineInventorySyncCommand,
+  MachineInventoryVerifyCommand,
+} from "./commands/machine/inventory";
 import { WorkerMindCommand } from "./commands/worker/mind/mind";
 import { WorkerMindProvisionCommand } from "./commands/worker/mind/provision";
 import { WorkerMindStatusCommand } from "./commands/worker/mind/status";
@@ -158,6 +164,10 @@ cli.register(MachineMcpUpdateCommand);
 cli.register(MachineMcpRemoveCommand);
 cli.register(MachineMcpEnableCommand);
 cli.register(MachineMcpDisableCommand);
+cli.register(MachineInventoryExportCommand);
+cli.register(MachineInventoryVerifyCommand);
+cli.register(MachineInventoryBundleCommand);
+cli.register(MachineInventorySyncCommand);
 cli.register(MachineInventoryGcCommand);
 cli.register(AddSkillCommand);
 cli.register(AddMcpCommand);

@@ -37,6 +37,10 @@ const requiredPaths = [
   "drwn machine mcp remove",
   "drwn machine mcp enable",
   "drwn machine mcp disable",
+  "drwn machine inventory export",
+  "drwn machine inventory verify",
+  "drwn machine inventory bundle",
+  "drwn machine inventory sync",
   "drwn machine inventory gc",
   "drwn catalog list",
   "drwn catalog add",
@@ -114,6 +118,10 @@ describe("machine inventory command grammar", () => {
         AGENTS_HOME_DIR: fixture.homeDir,
         AGENTS_DIR: fixture.agentsDir,
       };
+      const transferForbidden = [
+        "--force", "--replace", "--delete", "--activate", "--enable", "--prune", "--project",
+        "--include", "--exclude", "--unsafe", "--stdin", "--stdout", "--url",
+      ];
       const expectations: Array<{ args: string[]; includes: string[]; excludes?: string[] }> = [
         { args: ["machine", "skill", "show", "--help"], includes: ["<skill-id>", "--package"] },
         { args: ["machine", "skill", "references", "--help"], includes: ["<skill-id>", "--package", "--project"] },
@@ -123,6 +131,10 @@ describe("machine inventory command grammar", () => {
         { args: ["machine", "mcp", "references", "--help"], includes: ["<server-id>", "--project"] },
         { args: ["machine", "mcp", "update", "--help"], includes: ["--from", "--project", "--dry-run"], excludes: ["--replace", "--force"] },
         { args: ["machine", "mcp", "remove", "--help"], includes: ["--project", "--dry-run"], excludes: ["--replace", "--force"] },
+        { args: ["machine", "inventory", "export", "--help"], includes: ["--output", "--json"], excludes: ["--from", ...transferForbidden] },
+        { args: ["machine", "inventory", "verify", "--help"], includes: ["--from", "--json"], excludes: ["--output", ...transferForbidden] },
+        { args: ["machine", "inventory", "bundle", "--help"], includes: ["--output", "--json"], excludes: ["--from", ...transferForbidden] },
+        { args: ["machine", "inventory", "sync", "--help"], includes: ["--from", "--dry-run", "--json"], excludes: ["--output", ...transferForbidden] },
         { args: ["machine", "inventory", "gc", "--help"], includes: ["--prune", "--json"], excludes: ["--project", "--force"] },
       ];
 

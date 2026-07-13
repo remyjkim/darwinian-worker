@@ -70,6 +70,34 @@ Reference-sensitive mutations follow the global lock order
 inventory lock; identity, digests, uniqueness, and references are revalidated
 under it.
 
+## Portable Transfer
+
+```bash
+drwn machine inventory export --output ./inventory.json --json
+drwn machine inventory bundle --output ./inventory.tar.gz --json
+drwn machine inventory verify --from ./inventory.tar.gz --json
+drwn machine inventory sync --from ./inventory.tar.gz --dry-run --json
+drwn machine inventory sync --from ./inventory.tar.gz --json
+```
+
+`export` writes a canonical V1 metadata manifest. `bundle` embeds those exact
+manifest bytes with only active standalone package and MCP payloads in a
+deterministic gzip tar. Neither command reads Cards, machine intent, project
+state, credentials, generated state, inactive versions, or other Store data.
+
+`verify` is read-only and exits zero only for an exact match. Missing,
+conflicting, and extra entries are reported as drift. `sync` accepts only a
+fully validated bundle, blocks all known conflicts, and installs only missing
+entries. Identical entries are no-ops, extras are preserved, and nothing is
+activated. `--dry-run` creates no managed state. A fresh real sync creates
+`store.json` and standalone inventory directories but no `machine.json`.
+
+This transfer is not a backup or restore. Deterministic SHA-256 values detect
+corruption, but a checksum is not authenticity. Skill-content screening for
+known sensitive environment values, private-key markers, and high-risk
+filenames is a source-content safeguard, not a general secret detector. Review
+an artifact before sharing or trusting it.
+
 ## Garbage Collection
 
 ```bash
@@ -83,5 +111,5 @@ and MCP records are never garbage merely because known references are zero.
 Interrupted explicit removal uses validated tombstone recovery.
 
 Whole-Store archive creation is unavailable. The remote deploy payload remains
-a separate allowlisted Card-closure format. Portable machine inventory transfer
-is a separate Task 82 contract and must not archive `~/.agents/drwn` wholesale.
+a separate allowlisted Card-closure format. Portable transfer is built from
+typed standalone records and must not archive `~/.agents/drwn` wholesale.

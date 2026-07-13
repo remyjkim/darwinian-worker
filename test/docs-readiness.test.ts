@@ -101,6 +101,7 @@ describe("documentation readiness", () => {
     expect(readme).toContain("concepts/disciplines");
     expect(readme).toContain("concepts/safety-model");
     expect(readme).toContain("Whole-Store export is unavailable");
+    expect(readme).toContain("drwn machine inventory bundle");
 
     // cli-quickref carries the usage-pattern content the slim README points to.
     expect(quickref).toContain("Usage modes");
@@ -113,6 +114,19 @@ describe("documentation readiness", () => {
     expect(quickref).toContain("drwn machine skill disable");
     expect(quickref).toContain("drwn machine mcp disable");
     expect(quickref).toContain("drwn machine inventory gc");
+    for (const command of ["inventory export", "inventory bundle", "inventory verify", "inventory sync"]) {
+      expect(quickref).toContain(command);
+      expect(docsDocusaurus).toContain(command);
+    }
+    for (const boundary of [
+      "not a backup or restore",
+      "checksum is not authenticity",
+      "source-content safeguard",
+      "extras are preserved",
+      "no `machine.json`",
+    ]) {
+      expect(quickref + docsDocusaurus).toContain(boundary);
+    }
     expect(quickref).toContain("--mode direct");
     expect(quickref).toContain("https://github.com/curation-labs/dm-cards-catalog-v1.git");
     expect(quickref).toContain("@community");

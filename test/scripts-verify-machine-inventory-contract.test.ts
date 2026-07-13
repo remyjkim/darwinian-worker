@@ -4,7 +4,10 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { verifyMachineInventoryContract } from "../scripts/verify-release-readiness";
+import {
+  verifyMachineInventoryContract,
+  verifyPortableInventoryTransferContract,
+} from "../scripts/verify-release-readiness";
 
 const root = join(import.meta.dir, "..");
 const source = (path: string) => readFileSync(join(root, path), "utf8");
@@ -101,3 +104,87 @@ describe("machine inventory release contract", () => {
     }, /Store root archive/i);
   });
 });
+
+describe("portable machine inventory transfer release contract", () => {
+  test("accepts the implemented strict additive transfer contract", () => {
+    expect(verifyPortableInventoryTransferContract(root)).toEqual({
+      name: "portable machine inventory transfer",
+      ok: true,
+      details: undefined,
+    });
+  });
+
+  test("requires every command registration and negative option coverage", () => {
+    expectRejectedPortable({
+      "cli/index.ts": source("cli/index.ts").replace("cli.register(MachineInventoryBundleCommand);", ""),
+    }, /bundle command is not registered/i);
+    expectRejectedPortable({
+      "cli/commands/machine/inventory.ts": `${source("cli/commands/machine/inventory.ts")}\nOption.Boolean("--replace");\n`,
+    }, /forbidden transfer option/i);
+    expectRejectedPortable({
+      "test/commands-machine-inventory-shape.test.ts": source("test/commands-machine-inventory-shape.test.ts")
+        .replaceAll('"--replace"', '"--retired-replace"'),
+    }, /negative transfer option coverage/i);
+  });
+
+  test("rejects broad Store sources and forbidden state dependencies", () => {
+    expectRejectedPortable({
+      "cli/core/inventory-bundle.ts": source("cli/core/inventory-bundle.ts").replace(
+        "const root = join(contentRoot, \"drwn-inventory\");",
+        "const storeSource = resolveStoreRoot(snapshot.agentsDir);\n  const root = join(contentRoot, \"drwn-inventory\");",
+      ),
+    }, /whole Store source/i);
+    expectRejectedPortable({
+      "cli/core/inventory-bundle.ts": `${source("cli/core/inventory-bundle.ts")}\nconst unsafeArchive = { entries: ["drwn"] };\n`,
+    }, /whole Store source/i);
+    expectRejectedPortable({
+      "cli/core/inventory-transfer.ts": `import { seedStore } from "./store-seed";\n${source("cli/core/inventory-transfer.ts")}`,
+    }, /forbidden managed-state dependency/i);
+  });
+
+  test("rejects weakened archive, integrity, secret, and limit enforcement", () => {
+    expectRejectedPortable({
+      "cli/core/inventory-bundle.ts": source("cli/core/inventory-bundle.ts")
+        .replace("if (!regular && !directory)", "if (false && !regular && !directory)"),
+    }, /concrete archive member enforcement/i);
+    expectRejectedPortable({
+      "cli/core/inventory-bundle.ts": source("cli/core/inventory-bundle.ts")
+        .replaceAll("PRIVATE_KEY_MARKERS", "IGNORED_PEM_MARKERS"),
+    }, /private-key secret detection/i);
+    expectRejectedPortable({
+      "cli/core/inventory-portable.ts": source("cli/core/inventory-portable.ts")
+        .replace("maxCompressedBundleBytes: 512 * 1024 * 1024", "maxCompressedBundleBytes: Number.MAX_SAFE_INTEGER"),
+    }, /compressed bundle limit/i);
+  });
+
+  test("requires locked revalidation and Task 81 commit helpers", () => {
+    expectRejectedPortable({
+      "cli/core/inventory-transfer.ts": source("cli/core/inventory-transfer.ts")
+        .replace("return await withInventoryLock(options.agentsDir", "return await withoutInventoryLock(options.agentsDir"),
+    }, /global inventory lock/i);
+    expectRejectedPortable({
+      "cli/core/inventory-transfer.ts": source("cli/core/inventory-transfer.ts")
+        .replaceAll("installSkillBundleRoot", "installPortableSkillDirectly"),
+    }, /Task 81 skill package helper/i);
+    expectRejectedPortable({
+      "cli/core/inventory-transfer.ts": source("cli/core/inventory-transfer.ts")
+        .replaceAll("createMcpLibraryRecord", "writePortableMcpDirectly"),
+    }, /Task 81 MCP record helper/i);
+  });
+
+  test("rejects stale or unsafe transfer documentation", () => {
+    expectRejectedPortable({
+      "README.md": `${source("README.md")}\nPortable inventory transfer is a full backup and restore carrying credentials.\n`,
+    }, /backup or credential-carrying transfer claim/i);
+    expectRejectedPortable({
+      "docs-docusaurus/docs/reference/cli/machine.md": source("docs-docusaurus/docs/reference/cli/machine.md")
+        .replace("checksum is not authenticity", "checksum proves authenticity"),
+    }, /checksum and authenticity boundary/i);
+  });
+});
+
+function expectRejectedPortable(overrides: Record<string, string>, detail: RegExp | string) {
+  const result = verifyPortableInventoryTransferContract(root, overrides);
+  expect(result.ok).toBe(false);
+  expect(result.details ?? "").toMatch(detail instanceof RegExp ? detail : new RegExp(detail));
+}

@@ -85,6 +85,23 @@ package-scoped skills and record-level MCP definitions with `drwn machine
 skill|mcp`; inspect references before removal and use `drwn machine inventory
 gc` for dry-run garbage collection.
 
+Transfer only active standalone inventory with the portable V1 surface:
+
+```bash
+drwn machine inventory export --output ./inventory.json
+drwn machine inventory bundle --output ./inventory.tar.gz
+drwn machine inventory verify --from ./inventory.tar.gz
+drwn machine inventory sync --from ./inventory.tar.gz --dry-run
+drwn machine inventory sync --from ./inventory.tar.gz
+```
+
+The manifest is deterministic metadata; the bundle adds allowlisted package and
+MCP bytes. Sync is additive, extras are preserved, and transferred entries stay
+inactive. On a fresh home it creates inventory infrastructure but no
+`machine.json`. These artifacts are not a backup or restore. A checksum is not
+authenticity, and the built-in secret scan is a source-content safeguard rather
+than a general secret detector; review bundles before sharing them.
+
 ## Whole-Store Safety
 
 Whole-Store export is unavailable because `~/.agents/drwn` can contain

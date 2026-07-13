@@ -452,6 +452,187 @@ export function verifyMachineInventoryContract(root = repoRoot, overrides: Sourc
   };
 }
 
+export function verifyPortableInventoryTransferContract(root = repoRoot, overrides: SourceOverrides = {}): CheckResult {
+  const issues: string[] = [];
+  const exists = (pathValue: string) => Object.hasOwn(overrides, pathValue)
+    ? overrides[pathValue]!.length > 0
+    : existsSync(join(root, pathValue));
+  const source = (pathValue: string) => {
+    if (Object.hasOwn(overrides, pathValue)) return overrides[pathValue]!;
+    const absolutePath = join(root, pathValue);
+    if (!existsSync(absolutePath)) {
+      issues.push(`missing portable inventory source ${pathValue}`);
+      return "";
+    }
+    return readFileSync(absolutePath, "utf8");
+  };
+  const requireTokens = (pathValue: string, tokens: Array<[string, string]>) => {
+    const content = source(pathValue);
+    for (const [token, label] of tokens) {
+      if (!content.includes(token)) issues.push(label);
+    }
+  };
+
+  const index = source("cli/index.ts");
+  for (const command of ["Export", "Bundle", "Verify", "Sync"] as const) {
+    if (!index.includes(`cli.register(MachineInventory${command}Command);`)) {
+      issues.push(`portable inventory ${command.toLowerCase()} command is not registered`);
+    }
+  }
+  if (/commands\/(?:store|library)|cli\.register\((?:Store|Library)[A-Za-z]*Command\)/.test(index)) {
+    issues.push("store or library public command namespace was reintroduced");
+  }
+
+  const commands = source("cli/commands/machine/inventory.ts");
+  for (const pathToken of [
+    '["machine", "inventory", "export"]',
+    '["machine", "inventory", "bundle"]',
+    '["machine", "inventory", "verify"]',
+    '["machine", "inventory", "sync"]',
+  ]) {
+    if (!commands.includes(pathToken)) issues.push(`portable inventory command path is missing: ${pathToken}`);
+  }
+  const transferCommands = sourceSlice(
+    commands,
+    "export class MachineInventoryExportCommand",
+    "export class MachineInventoryGcCommand",
+  );
+  if (/Option\.(?:Boolean|String)\(["']--(?:force|replace|delete|activate|enable|project|include|exclude|unsafe|stdin|stdout|url)/.test(commands)
+    || /Option\.(?:Boolean|String)\(["']--prune/.test(transferCommands)) {
+    issues.push("forbidden transfer option is exposed");
+  }
+
+  const shapeTests = source("test/commands-machine-inventory-shape.test.ts");
+  const negativeOptions = [
+    "--force", "--replace", "--delete", "--activate", "--enable", "--prune", "--project",
+    "--include", "--exclude", "--unsafe", "--stdin", "--stdout", "--url",
+  ];
+  if (!negativeOptions.every((token) => shapeTests.includes(token))) {
+    issues.push("negative transfer option coverage is incomplete");
+  }
+
+  requireTokens("cli/core/inventory-portable.ts", [
+    ['"drwn.portable-inventory"', "portable manifest schema identity is missing"],
+    ["PORTABLE_INVENTORY_SCHEMA_VERSION = 1", "portable manifest schema V1 is missing"],
+    [".strict()", "portable manifest objects are not strict"],
+    ["canonicalValue", "recursive canonical JSON serialization is missing"],
+    ["comparePortableStrings", "locale-independent portable ordering is missing"],
+    ["maxCompressedBundleBytes: 512 * 1024 * 1024", "compressed bundle limit is not pinned"],
+    ["maxPayloadBytes: 2 * 1024 * 1024 * 1024", "total payload limit is not pinned"],
+    ["maxRegularFileBytes: 256 * 1024 * 1024", "regular file limit is not pinned"],
+    ["maxManifestBytes: 4 * 1024 * 1024", "manifest limit is not pinned"],
+    ["maxArchiveMembers: 100_000", "archive member limit is not pinned"],
+    ["maxPathDepth: 64", "archive path-depth limit is not pinned"],
+    ["maxDecompressionRatio: 200", "archive decompression-ratio limit is not pinned"],
+  ]);
+
+  const bundle = source("cli/core/inventory-bundle.ts");
+  const stageSnapshot = sourceSlice(bundle, "async function stageSnapshot", "async function lexicalArchiveEntries");
+  if (/resolveStoreRoot|readdir\([^)]*storeRoot|entries\s*:\s*\[\s*["']drwn["']\s*\]/.test(stageSnapshot + bundle)) {
+    const allowedPresenceCheck = /const storeRoot = resolveStoreRoot\(options\.agentsDir\);[\s\S]*existsSync\(storeRoot\)/.test(bundle);
+    const broadSource = /readdir\([^)]*storeRoot|entries\s*:\s*\[\s*["']drwn["']\s*\]/.test(bundle)
+      || /resolveStoreRoot/.test(stageSnapshot);
+    if (broadSource || !allowedPresenceCheck) issues.push("portable bundle uses the whole Store source");
+  }
+  requireTokens("cli/core/inventory-bundle.ts", [
+    ["snapshot.payloads", "portable bundle is not built from the typed inventory allowlist"],
+    ["if (!regular && !directory)", "concrete archive member enforcement is missing"],
+    ['raw.includes("\\\\")', "archive backslash/traversal rejection is missing"],
+    ['part === ".."', "archive parent traversal rejection is missing"],
+    ["entry.isSymbolicLink()", "archive symbolic-link rejection is missing"],
+    ["preservePaths: false", "strict contained extraction is missing"],
+    ["assertCanonicalGzipHeader", "canonical gzip header validation is missing"],
+    ["validatePhysicalTarStructure", "physical tar metadata validation is missing"],
+    ["hashSkillPackageDirectory", "skill tree integrity validation is missing"],
+    ["canonicalMcpDefinitionBytes", "canonical MCP integrity validation is missing"],
+    ["PRIVATE_KEY_MARKERS", "private-key secret detection is missing"],
+    ["knownSensitiveValues", "sensitive environment-value detection is missing"],
+    ["highRiskBasename", "high-risk credential filename detection is missing"],
+    ["validateExtractedClosure", "manifest/payload closure validation is missing"],
+    ["maxDecompressionRatio", "archive decompression limit enforcement is missing"],
+  ]);
+
+  const transfer = source("cli/core/inventory-transfer.ts");
+  const portableSources = [source("cli/core/inventory-portable.ts"), bundle, transfer].join("\n");
+  if (/from\s+["']\.\/(?:store-seed|machine-config|user-config|project-writes|worker-project|sync|worker-deploy|card-store|defaults)["']/.test(portableSources)) {
+    issues.push("portable transfer imports a forbidden managed-state dependency");
+  }
+  for (const forbidden of ["--force", "--replace", "--activate", "--enable", "--project"]) {
+    if (transfer.includes(forbidden)) issues.push(`portable sync core contains forbidden operation ${forbidden}`);
+  }
+  for (const [token, label] of [
+    ["return await withInventoryLock(options.agentsDir", "portable sync does not use the global inventory lock"],
+    ["lockedTarget", "portable sync does not reconstruct target state under the lock"],
+    ["lockedReport", "portable sync does not revalidate conflicts under the lock"],
+    ["acceptedFingerprint", "portable sync does not compare the accepted and locked plans"],
+    ["acceptedSourceIntegrity", "portable sync does not revalidate source integrity"],
+    ["installSkillBundleRoot", "portable sync bypasses the Task 81 skill package helper"],
+    ["createMcpLibraryRecord", "portable sync bypasses the Task 81 MCP record helper"],
+  ] as const) {
+    if (!transfer.includes(token)) issues.push(label);
+  }
+
+  const initializer = sourceSlice(
+    source("cli/core/inventory.ts"),
+    "export async function initializeInventoryStorage",
+  );
+  for (const token of ["resolveStoreMetadataPath", "resolveStoreSkillPackagesRoot", "resolveStoreMcpServersDir"]) {
+    if (!initializer.includes(token)) issues.push(`inventory-only initialization is missing ${token}`);
+  }
+  if (/ensureStoreInitialized|seedStore|isStoreMissingOrEmpty|machine\.json/.test(initializer)) {
+    issues.push("inventory-only initialization can create or seed broader machine state");
+  }
+
+  for (const pathValue of [
+    "test/core-inventory-portable.test.ts",
+    "test/core-inventory-transfer.test.ts",
+    "test/core-inventory-bundle.test.ts",
+    "test/core-inventory-transfer-recovery.test.ts",
+    "test/commands-machine-inventory-transfer.test.ts",
+    "test/e2e-machine-inventory-transfer.test.ts",
+  ]) {
+    if (!exists(pathValue)) issues.push(`portable inventory coverage is missing: ${pathValue}`);
+  }
+
+  const docs = [
+    "README.md",
+    "docs/cli-quickref.md",
+    "docs-docusaurus/docs/reference/cli/machine.md",
+    "docs-docusaurus/docs/concepts/local-store.md",
+    ".ai/analyses/116_drwn-cli-card-worker-target-architecture.md",
+    ".ai/knowledges/10_drwn-cli-architecture.md",
+  ].map(source).join("\n");
+  for (const [token, label] of [
+    ["drwn machine inventory export", "export command documentation"],
+    ["drwn machine inventory bundle", "bundle command documentation"],
+    ["drwn machine inventory verify", "verify command documentation"],
+    ["drwn machine inventory sync", "sync command documentation"],
+    ["not a backup or restore", "backup/restore boundary"],
+    ["checksum is not authenticity", "checksum and authenticity boundary"],
+    ["source-content safeguard", "secret detector limitation"],
+    ["extras are preserved", "additive extras behavior"],
+    ["no `machine.json`", "fresh-home intent isolation"],
+    ["whole-Store", "whole-Store prohibition"],
+  ] as const) {
+    if (!docs.includes(token)) issues.push(`portable inventory docs are missing ${label}`);
+  }
+  if (!source("docs-docusaurus/docs/reference/cli/machine.md").includes("checksum is not authenticity")) {
+    issues.push("portable inventory docs are missing checksum and authenticity boundary");
+  }
+  if (/portable inventory(?: transfer| artifacts?)?(?: is| provides| serves as) (?!not )(?:a )?(?:full )?(?:backup|restore)|carrying credentials/i.test(docs)) {
+    issues.push("portable docs contain a backup or credential-carrying transfer claim");
+  }
+
+  const storeExportSecurity = verifyStoreExportSecurity(root, overrides);
+  if (!storeExportSecurity.ok) issues.push(storeExportSecurity.details ?? "whole-Store export security is not enforced");
+
+  return {
+    name: "portable machine inventory transfer",
+    ok: issues.length === 0,
+    details: issues.join("; ") || undefined,
+  };
+}
+
 export function verifyMachineContract(root = repoRoot, overrides: SourceOverrides = {}): CheckResult {
   const issues: string[] = [];
   const source = (pathValue: string) => {
@@ -988,6 +1169,7 @@ async function main() {
   checks.push(verifyWorkerContract());
   checks.push(verifyMachineContract());
   checks.push(verifyMachineInventoryContract());
+  checks.push(verifyPortableInventoryTransferContract());
   checks.push(verifyAmbientMcpPolicy());
   checks.push(verifyStoreExportSecurity());
   checks.push(await verifySchemaPackageReachable());

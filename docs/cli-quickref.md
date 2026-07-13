@@ -326,6 +326,10 @@ Machine inventory commands:
 - `drwn machine mcp add <jsonFile> --as <serverName>`
 - `drwn machine mcp update <serverName> --from <jsonFile>`
 - `drwn machine mcp remove <serverName>`
+- `drwn machine inventory export --output <manifest.json> [--json]`
+- `drwn machine inventory bundle --output <bundle.tar.gz> [--json]`
+- `drwn machine inventory verify --from <manifest.json|bundle.tar.gz> [--json]`
+- `drwn machine inventory sync --from <bundle.tar.gz> [--dry-run] [--json]`
 - `drwn machine inventory gc [--prune] [--json]`
 
 Auth commands:
@@ -338,13 +342,33 @@ Machine state inspection and inventory maintenance:
 
 - `drwn status --machine [--json]`
 - `drwn doctor [--json]`
+- `drwn machine inventory export --output <manifest.json> [--json]`
+- `drwn machine inventory bundle --output <bundle.tar.gz> [--json]`
+- `drwn machine inventory verify --from <manifest.json|bundle.tar.gz> [--json]`
+- `drwn machine inventory sync --from <bundle.tar.gz> [--dry-run] [--json]`
 - `drwn machine inventory gc [--prune] [--json]`
 
 No public command archives the whole `~/.agents/drwn` root. Such an archive can
 contain credentials, machine intent, project registrations, write history,
 generated state, and caches. Treat broad archives produced by prototype
 releases as sensitive. Remote deploy uses a separate allowlisted Card payload;
-portable inventory transfer is deferred to Task 82.
+portable inventory transfer uses a dedicated active-inventory allowlist.
+
+`inventory export` writes canonical metadata only. `inventory bundle` writes
+that byte-identical manifest plus active standalone skill-package and MCP
+payloads. `inventory verify` is read-only and succeeds only for an exact match.
+`inventory sync` accepts only a bundle, blocks all known conflicts before its
+first commit, installs only missing entries, and never activates them. Target
+extras are preserved and reported. A fresh sync creates standalone inventory
+infrastructure but no `machine.json`; `--dry-run` creates no managed state.
+
+Portable inventory artifacts are not a backup or restore. They exclude machine
+intent, profiles, projects, Cards, credentials, generated output, caches,
+inactive package versions, and tombstones. Repeated unchanged exports and
+bundles are byte-identical, but a checksum is not authenticity. The secret scan
+for known environment values, private-key markers, and credential filenames is
+a source-content safeguard, not a general secret detector. Review the source
+content and destination trust before sharing or syncing a bundle.
 
 Export commands:
 
@@ -601,6 +625,13 @@ drwn write --scope machine --skills-only
 
 The explicit selection resolves from repo-native or installed package-backed
 inventory. Ambient compatibility directories do not activate a skill.
+
+Portable transfer operates only on active drwn-managed standalone package and
+MCP records. Use `drwn machine inventory export` as a metadata requirements
+file, `drwn machine inventory bundle` for offline payload bytes, `drwn machine
+inventory verify` for exact drift detection, and `drwn machine inventory sync`
+for additive installation. Bundled repository capabilities and Card-owned
+content remain outside this lifecycle.
 
 ## Extension skill bundles
 

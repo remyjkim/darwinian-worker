@@ -64,6 +64,10 @@ const REQUIRED_SNIPPETS: Record<string, string[]> = {
   "mcp list": ["Project-aware"],
   "machine skill enable": ["explicit machine capability"],
   "machine mcp enable": ["explicit machine capability"],
+  "machine inventory export": ["canonical", "metadata", "inactive"],
+  "machine inventory verify": ["exact", "read-only", "manifest or bundle"],
+  "machine inventory bundle": ["deterministic", "offline", "inactive"],
+  "machine inventory sync": ["additive", "conflict", "never activates"],
   "machine inventory gc": ["dry-run", "current inventory"],
   worker: ["one selected project Worker", "drwn use", "Cards compose"],
 };
