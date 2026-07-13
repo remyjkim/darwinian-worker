@@ -43,3 +43,20 @@ test("projects list prints registered projects", async () => {
   expect(result.exitCode).toBe(0);
   expect(result.stdout).toContain(projectDir);
 });
+
+test("projects unregister repairs a stale registration and supports dry-run", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  const projectDir = join(fixture.root, "deleted-project");
+  await registerProject(fixture.agentsDir, projectDir);
+
+  const dryRun = await runAgentsCli(["projects", "unregister", projectDir, "--dry-run", "--json"], envFor(fixture));
+  expect(dryRun.exitCode).toBe(0);
+  expect(JSON.parse(dryRun.stdout)).toMatchObject({ removed: true, dryRun: true, projectRoot: projectDir });
+  expect(await listRegisteredProjects(fixture.agentsDir)).toEqual([projectDir]);
+
+  const result = await runAgentsCli(["projects", "unregister", projectDir, "--json"], envFor(fixture));
+  expect(result.exitCode).toBe(0);
+  expect(JSON.parse(result.stdout)).toMatchObject({ removed: true, dryRun: false, projectRoot: projectDir });
+  expect(await listRegisteredProjects(fixture.agentsDir)).toEqual([]);
+});

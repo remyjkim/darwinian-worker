@@ -2,7 +2,10 @@
 // ABOUTME: Supports listing registered projects and bulk update across them.
 
 import { Option } from "clipanion";
-import { listRegisteredProjects, updateAllRegisteredProjects } from "../core/project-registry";
+import { resolve } from "node:path";
+import { listRegisteredProjects, unregisterProject, updateAllRegisteredProjects } from "../core/project-registry";
+import { withInventoryLock } from "../core/inventory-lock";
+import { renderJson } from "../core/output";
 import { BaseCommand } from "./base";
 
 export class ProjectsListCommand extends BaseCommand {
@@ -65,6 +68,38 @@ export class ProjectsUpdateCommand extends BaseCommand {
     for (const entry of results) {
       this.context.stdout.write(`${entry.projectRoot}: ${entry.message}\n`);
     }
+    return 0;
+  }
+}
+
+export class ProjectsUnregisterCommand extends BaseCommand {
+  static override paths = [["projects", "unregister"]];
+  static override usage = BaseCommand.Usage({
+    category: "General",
+    description: "Remove one stale project root from the machine project registry.",
+    details: `
+      Removes exactly one normalized project root from projects.json. This is
+      the repair path for a missing or unreadable registration that blocks a
+      fail-closed machine inventory reference scan. It does not change files in
+      the project itself.
+    `,
+    examples: [["Unregister a deleted checkout", "drwn projects unregister /work/old-project"]],
+  });
+
+  projectRoot = Option.String({ required: true });
+  dryRun = Option.Boolean("--dry-run", false);
+  json = Option.Boolean("--json", false);
+
+  async execute() {
+    const registered = await listRegisteredProjects(this.context.agentsDir);
+    const normalized = resolve(this.projectRoot);
+    const wouldRemove = registered.some((project) => resolve(project) === normalized);
+    const result = this.dryRun
+      ? { removed: wouldRemove, projectRoot: normalized, dryRun: true }
+      : { ...(await withInventoryLock(this.context.agentsDir, () => unregisterProject(this.context.agentsDir, normalized))), dryRun: false };
+    this.context.stdout.write(this.json
+      ? renderJson(result)
+      : `${result.removed ? this.dryRun ? "Would unregister" : "Unregistered" : "Project was not registered"}: ${normalized}\n`);
     return 0;
   }
 }

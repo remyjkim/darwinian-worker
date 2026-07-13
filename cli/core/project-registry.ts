@@ -5,6 +5,8 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { writeAtomically } from "./fs";
+import { assertStoreWritable } from "./store-paths";
+import { DrwnError } from "./errors";
 
 export interface ProjectsIndex {
   schemaVersion: 1;
@@ -20,14 +22,30 @@ export async function loadProjectsIndex(agentsDir: string): Promise<ProjectsInde
   if (!existsSync(indexPath)) {
     return { schemaVersion: 1, projects: [] };
   }
-  const parsed = JSON.parse(await readFile(indexPath, "utf8")) as ProjectsIndex;
-  return {
-    schemaVersion: 1,
-    projects: [...(parsed.projects ?? [])],
-  };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await readFile(indexPath, "utf8"));
+  } catch (error) {
+    throw new DrwnError("PROJECT_REGISTRY_INVALID", `Invalid project registry JSON: ${indexPath}`, undefined, error);
+  }
+  const record = parsed && typeof parsed === "object" && !Array.isArray(parsed)
+    ? parsed as Record<string, unknown>
+    : null;
+  const projects = record?.projects;
+  if (
+    !record ||
+    Object.keys(record).some((key) => key !== "schemaVersion" && key !== "projects") ||
+    record.schemaVersion !== 1 ||
+    !Array.isArray(projects) ||
+    !projects.every((project) => typeof project === "string" && project.length > 0)
+  ) {
+    throw new DrwnError("PROJECT_REGISTRY_INVALID", `Invalid project registry contract: ${indexPath}`);
+  }
+  return { schemaVersion: 1, projects: [...projects] as string[] };
 }
 
 export async function writeProjectsIndex(agentsDir: string, index: ProjectsIndex) {
+  assertStoreWritable();
   const indexPath = resolveProjectsIndexPath(agentsDir);
   await mkdir(dirname(indexPath), { recursive: true });
   await writeAtomically(indexPath, `${JSON.stringify(index, null, 2)}\n`);
@@ -41,6 +59,15 @@ export async function registerProject(agentsDir: string, projectRoot: string) {
     index.projects.sort((a, b) => a.localeCompare(b));
     await writeProjectsIndex(agentsDir, index);
   }
+}
+
+export async function unregisterProject(agentsDir: string, projectRoot: string) {
+  const normalized = resolve(projectRoot);
+  const index = await loadProjectsIndex(agentsDir);
+  const next = index.projects.filter((project) => resolve(project) !== normalized);
+  if (next.length === index.projects.length) return { removed: false, projectRoot: normalized };
+  await writeProjectsIndex(agentsDir, { schemaVersion: 1, projects: next });
+  return { removed: true, projectRoot: normalized };
 }
 
 export async function listRegisteredProjects(agentsDir: string) {
