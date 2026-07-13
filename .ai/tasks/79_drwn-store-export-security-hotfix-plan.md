@@ -5,7 +5,9 @@
 
 > **For Codex:** REQUIRED SUB-SKILL: Use `executing-plans` task-by-task and `verification-before-completion` before release.
 
-**Status**: Execution-ready security remediation; independent of Task 77 implementation
+**Status**: Completed 2026-07-13
+
+**Completion evidence**: `.ai/tasks/79_completion_store-export-security.md`
 
 **Goal**: Prevent `drwn store export` from archiving credentials and operational machine state until a separately approved portable format exists.
 
@@ -151,9 +153,9 @@ git commit -m "docs(store): document fail-closed export"
 
 ## Completion
 
-- [ ] Ordinary Store export fails before any output side effect.
-- [ ] No bypass can archive the whole Store.
-- [ ] Deploy's scoped Card export remains compatible.
-- [ ] Seed behavior remains unchanged.
-- [ ] Existing broad archives are documented as sensitive.
-- [ ] Full verification passes.
+- [x] Ordinary Store export fails before any output side effect.
+- [x] No bypass can archive the whole Store.
+- [x] Deploy's scoped Card export remains compatible.
+- [x] Seed behavior remains unchanged.
+- [x] Existing broad archives are documented as sensitive.
+- [x] Full verification passes.
