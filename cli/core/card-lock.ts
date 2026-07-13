@@ -107,8 +107,7 @@ function normalizeCards(cards: CardLockEntry[]): CardLockEntry[] {
   }));
 }
 
-export async function writeCardLock(projectRoot: string, graph: ProjectLockGraph) {
-  const path = cardLockPath(projectRoot);
+export function createCardLockfile(graph: ProjectLockGraph): ProjectLockV1 {
   const cards = normalizeCards(graph.cards);
   for (const card of cards) {
     if ((card.origin === "store" || card.origin === "git") && !card.treeSha) {
@@ -119,14 +118,22 @@ export async function writeCardLock(projectRoot: string, graph: ProjectLockGraph
     }
   }
   const hasMindContent = cards.some((card) => card.persona || card.beliefs || card.memory);
-  const lockfile = validateCardLockfile({
+  return validateCardLockfile({
     schema: "drwn.project-lock",
     schemaVersion: 1,
     store: { minDrwnVersion: hasMindContent ? MINDS_MIN_DRWN_VERSION : HOOKS_MIN_DRWN_VERSION },
     workerRoots: graph.workerRoots,
     cards,
   });
-  await writeAtomically(path, `${JSON.stringify(lockfile, null, 2)}\n`);
+}
+
+export function serializeCardLock(graph: ProjectLockGraph): string {
+  return `${JSON.stringify(createCardLockfile(graph), null, 2)}\n`;
+}
+
+export async function writeCardLock(projectRoot: string, graph: ProjectLockGraph) {
+  const path = cardLockPath(projectRoot);
+  await writeAtomically(path, serializeCardLock(graph));
   return path;
 }
 

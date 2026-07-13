@@ -4,6 +4,7 @@
 import { UsageError } from "clipanion";
 import { resolveProjectRootFromConfigPath } from "../../core/project";
 import type { CardProjectMutation } from "../../core/card-project";
+import type { WorkerProjectMutation } from "../../core/worker-project";
 import { renderOptionalMcpReport, renderSyncResult } from "../../core/output";
 import { syncRepository } from "../../core/sync";
 import type { BaseCommand } from "../base";
@@ -26,6 +27,23 @@ export function renderCardMutation(result: CardProjectMutation) {
       ? [`Warnings:\n${result.warnings.map((warning) => `- ${warning}`).join("\n")}`]
       : []),
   ].join("\n") + "\n";
+}
+
+export function renderWorkerMutation(result: WorkerProjectMutation) {
+  return [
+    result.dryRun ? `Would update ${result.projectConfigPath}` : `Updated ${result.projectConfigPath}`,
+    result.dryRun ? `Would write ${result.lockPath}` : `Wrote ${result.lockPath}`,
+    result.roots.length === 0
+      ? "Worker roots: none"
+      : `Worker roots:\n${result.roots.map((root) => `- ${root.name} (${root.kind})`).join("\n")}`,
+    `Active Worker: ${result.activeWorker === undefined ? "implicit" : result.activeWorker === null ? "none" : result.activeWorker}`,
+    ...(result.warnings?.length ? [`Warnings:\n${result.warnings.map((warning) => `- ${warning}`).join("\n")}`] : []),
+  ].join("\n") + "\n";
+}
+
+export function commandMoved(command: BaseCommand, replacement: string) {
+  command.context.stderr.write(`COMMAND_MOVED: use ${replacement}\n`);
+  return 1;
 }
 
 export async function runChainedWrite(command: BaseCommand) {

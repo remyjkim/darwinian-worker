@@ -4,7 +4,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { updateProjectCardLock } from "../cli/core/card-project";
+import { applyProjectWorkerRoots, updateProjectWorkerGraph } from "../cli/core/worker-project";
 import { syncRepository } from "../cli/core/sync";
 import { cleanupTempRoots, publishCardWithSkills, scaffoldCliFixture, writeSupportedProjectConfig, writeTestCardLock } from "./helpers";
 
@@ -17,27 +17,13 @@ test("update lock refresh followed by write reconciles vendor trees", async () =
   await publishCardWithSkills(fixture, { name: "@me/revendor", skills: ["alpha"] });
   const projectDir = join(fixture.root, "project");
   await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeSupportedProjectConfig(projectDir, { workers: ["@me/revendor@1.0.0"], activeWorker: "@me/revendor" });
-  const { resolveCard } = await import("../cli/core/card-store");
-  const resolved = await resolveCard(fixture.agentsDir, "@me/revendor@1.0.0");
-  await writeTestCardLock(projectDir, [
-    {
-      name: resolved.name,
-      requested: "@me/revendor@1.0.0",
-      version: resolved.version,
-      path: resolved.dir,
-      integrity: resolved.integrity,
-      treeSha: resolved.treeSha!,
-      manifest: resolved.manifest,
-      skills: ["alpha"],
-      hooks: [],
-      registry: null,
-      origin: resolved.origin,
-      ...(resolved.git ? { git: resolved.git } : {}),
-    },
-  ]);
+  await writeSupportedProjectConfig(projectDir);
+  await applyProjectWorkerRoots(projectDir, fixture.agentsDir, ["@me/revendor@1.0.0"], {
+    repoRoot: fixture.repoRoot,
+    cwd: projectDir,
+  });
 
-  await updateProjectCardLock(projectDir, fixture.agentsDir, {
+  await updateProjectWorkerGraph(projectDir, fixture.agentsDir, undefined, {
     repoRoot: fixture.repoRoot,
     cwd: projectDir,
   });

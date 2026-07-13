@@ -2,9 +2,8 @@
 // ABOUTME: Leaves an empty lockfile so downstream tooling sees the project as detached.
 
 import { Option } from "clipanion";
-import { detachProjectCards } from "../../core/card-project";
 import { BaseCommand } from "../base";
-import { renderCardMutation, requireProjectRoot, runChainedWrite } from "./project-command";
+import { commandMoved } from "./project-command";
 
 export class CardDetachCommand extends BaseCommand {
   static override paths = [["card", "detach"]];
@@ -24,11 +23,6 @@ export class CardDetachCommand extends BaseCommand {
   });
 
   async execute() {
-    const result = await detachProjectCards(requireProjectRoot(this), this.context.agentsDir);
-    this.context.stdout.write(renderCardMutation(result));
-    if (this.write) {
-      return await runChainedWrite(this);
-    }
-    return 0;
+    return commandMoved(this, "drwn apply --none");
   }
 }
