@@ -216,8 +216,16 @@ package versions are immutable, MCP persistence is record-level, and stored
 definitions retain secret references. Reference-sensitive operations follow
 `inventory -> machine -> project`; stale registrations are repaired with
 `drwn projects unregister`. Removal uses tombstone recovery, and inventory GC
-is a dry-run by default. Cards own their bundled content. Portable inventory
-transfer remains separate Task 82 work.
+is a dry-run by default. Cards own their bundled content.
+
+Task 82 implements `drwn machine inventory export|bundle|verify|sync` over a
+strict `drwn.portable-inventory` V1 manifest. Export and bundle snapshot only
+active standalone records under the global inventory lock. Bundle staging uses
+typed record paths rather than a Store-root walk. Verify is exact and
+read-only. Sync validates and stages all bytes before target mutation,
+revalidates source and target state under the lock, blocks all conflicts, and
+installs only missing inactive records through Task 81 helpers. Extras are
+preserved. Fresh sync creates inventory infrastructure but no `machine.json`.
 
 ## MCP Runtime State
 
@@ -264,7 +272,12 @@ No public command archives the whole machine state root. Credentials, machine
 intent, registrations, write records, and caches therefore cannot be
 accidentally bundled by an inventory lifecycle command.
 
-Deploy's scoped export is a separate allowlist-built internal path. A future portable inventory format requires Task 82 approval and must not archive the Store root.
+Deploy's scoped export is a separate allowlist-built internal path. Task 82 now
+provides a deterministic manifest and additive bundle format without changing
+deploy. Portable artifacts are not a backup or restore and must not archive the
+Store root. Their checksums detect corruption; a checksum is not authenticity.
+Known-value, private-key, and risky-filename screening is a source-content
+safeguard, not a general secret detector.
 
 ## Testing Boundaries
 
