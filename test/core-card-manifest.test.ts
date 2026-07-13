@@ -110,37 +110,69 @@ test("validateCardManifest rejects unsafe persona include entries", () => {
   expect(result.errors).toContain("persona.include contains invalid entry: ../escape");
 });
 
-test("validateCardManifest accepts memory layer declarations without include", () => {
-  const result = validateCardManifest({
-    name: "@me/mind",
-    version: "1.0.0",
-    memory: { l4: { format: "md" }, l5: { format: "jsonl" }, l6: { format: "mixed" } },
-  });
-
-  expect(result).toEqual({ ok: true, errors: [] });
+test("validateCardManifest accepts fixed semantic memory declarations", () => {
+  for (const memory of [
+    {},
+    { observations: { format: "jsonl" } },
+    { insights: { format: "md" } },
+    { observations: { format: "jsonl" }, insights: { format: "md" } },
+  ]) {
+    expect(validateCardManifest({ name: "@me/mind", version: "1.0.0", memory })).toEqual({ ok: true, errors: [] });
+  }
 });
 
-test("validateCardManifest rejects memory include entries", () => {
+test("validateCardManifest requires the fixed format for each semantic memory kind", () => {
+  for (const [memory, error] of [
+    [{ observations: {} }, "memory.observations.format is required and must be jsonl"],
+    [{ observations: { format: "md" } }, "memory.observations.format is required and must be jsonl"],
+    [{ observations: { format: "mixed" } }, "memory.observations.format is required and must be jsonl"],
+    [{ insights: {} }, "memory.insights.format is required and must be md"],
+    [{ insights: { format: "jsonl" } }, "memory.insights.format is required and must be md"],
+    [{ insights: { format: "mixed" } }, "memory.insights.format is required and must be md"],
+  ] as const) {
+    const result = validateCardManifest({ name: "@me/mind", version: "1.0.0", memory });
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain(error);
+  }
+});
+
+test("validateCardManifest rejects numbered, reserved, and unknown memory kinds", () => {
   const result = validateCardManifest({
     name: "@me/mind",
     version: "1.0.0",
-    memory: { l5: { include: ["notes"], visibility: "private", format: "jsonl" } },
+    memory: {
+      l4: { format: "md" },
+      l5: { format: "jsonl" },
+      l6: { format: "mixed" },
+      raw_data: { format: "jsonl" },
+      summaries: { format: "md" },
+    },
   });
 
   expect(result.ok).toBe(false);
-  expect(result.errors).toContain("memory.l5.include is not allowed; memory entries are DB-native (declare layers and formats only)");
+  expect(result.errors).toContain("unsupported memory kind: l4");
+  expect(result.errors).toContain("unsupported memory kind: l5");
+  expect(result.errors).toContain("unsupported memory kind: l6");
+  expect(result.errors).toContain("memory kind raw_data is reserved but unsupported");
+  expect(result.errors).toContain("unsupported memory kind: summaries");
+  expect(result.errors.join("\n")).not.toContain("memory layer");
 });
 
-test("validateCardManifest rejects invalid memory layers and formats", () => {
+test("validateCardManifest rejects non-objects and unknown semantic memory fields", () => {
   const result = validateCardManifest({
     name: "@me/mind",
     version: "1.0.0",
-    memory: { l3: { format: "md" }, l5: { format: "yaml" } },
+    memory: {
+      observations: { format: "jsonl", include: ["capture"], visibility: "private", extra: true },
+      insights: "md",
+    },
   });
 
   expect(result.ok).toBe(false);
-  expect(result.errors).toContain("unsupported memory layer: l3");
-  expect(result.errors).toContain("memory.l5.format must be md, jsonl, or mixed");
+  expect(result.errors).toContain("memory.observations.include is not allowed");
+  expect(result.errors).toContain("memory.observations.visibility is not allowed");
+  expect(result.errors).toContain("memory.observations.extra is not allowed");
+  expect(result.errors).toContain("memory.insights must be an object");
 });
 
 test("validateCardManifest rejects format on persona and beliefs", () => {

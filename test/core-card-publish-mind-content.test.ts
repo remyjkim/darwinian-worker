@@ -27,7 +27,7 @@ async function scaffoldSource(options?: { complete?: boolean; missingBeliefMd?: 
         version: "1.0.0",
         persona: { include: ["voice"], visibility: "internal" },
         beliefs: { include: ["engineering"], visibility: "public" },
-        memory: { l5: { format: "jsonl" } },
+        memory: { observations: { format: "jsonl" } },
       },
       null,
       2,
@@ -69,6 +69,6 @@ test("publishCard succeeds for complete mind content and integrity covers new fi
 
   expect(resolved.manifest.persona?.include).toEqual(["voice"]);
   expect(resolved.manifest.beliefs?.include).toEqual(["engineering"]);
-  expect(resolved.manifest.memory?.l5?.format).toBe("jsonl");
+  expect(resolved.manifest.memory?.observations?.format).toBe("jsonl");
   expect(after).not.toBe(before);
 });

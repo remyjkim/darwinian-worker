@@ -9,8 +9,7 @@ import { DrwnError } from "./errors";
 import { parseUpstreamRef } from "./git-ref";
 
 export type MindContentVisibility = "private" | "internal" | "public";
-export type MemoryLayerName = "l4" | "l5" | "l6";
-export type MemoryFormat = "md" | "jsonl" | "mixed";
+export type MemoryKind = "observations" | "insights";
 
 export interface MindContentManifest {
   include?: string[];
@@ -22,14 +21,12 @@ export interface MindContentManifest {
 export type PersonaManifest = MindContentManifest;
 export type BeliefsManifest = MindContentManifest;
 
-// Memory entries live in BeginningDB (DB-native); manifests declare layers and formats only.
-export interface MemoryLayerManifest {
-  format?: MemoryFormat;
+export interface MemoryManifest {
+  observations?: { format: "jsonl" };
+  insights?: { format: "md" };
 }
 
-export type MemoryManifest = Partial<Record<MemoryLayerName, MemoryLayerManifest>>;
-
-export const MEMORY_LAYER_NAMES: readonly MemoryLayerName[] = ["l4", "l5", "l6"];
+export const MEMORY_KINDS: readonly MemoryKind[] = ["observations", "insights"];
 
 export interface CardManifest {
   $schema?: string;
@@ -189,7 +186,6 @@ function validateMindContentSection(
   label: string,
   input: unknown,
   errors: string[],
-  options: { allowFormat?: boolean; forbidInclude?: boolean } = {},
 ) {
   if (input === undefined) {
     return;
@@ -205,23 +201,17 @@ function validateMindContentSection(
     errors.push(`${label}.shared is not allowed in card manifests`);
   }
   const include = input.include;
-  if (options.forbidInclude) {
-    if (include !== undefined) {
-      errors.push(`${label}.include is not allowed; memory entries are DB-native (declare layers and formats only)`);
-    }
-  } else {
-    if (include !== undefined && !Array.isArray(include)) {
-      errors.push(`${label}.include must be an array`);
-    }
-    if (Array.isArray(include)) {
-      for (const entry of include) {
-        if (typeof entry !== "string" || !isSafePathPart(entry)) {
-          errors.push(`${label}.include contains invalid entry: ${String(entry)}`);
-        }
+  if (include !== undefined && !Array.isArray(include)) {
+    errors.push(`${label}.include must be an array`);
+  }
+  if (Array.isArray(include)) {
+    for (const entry of include) {
+      if (typeof entry !== "string" || !isSafePathPart(entry)) {
+        errors.push(`${label}.include contains invalid entry: ${String(entry)}`);
       }
-      if (include.length > 0 && input.visibility === undefined) {
-        errors.push(`${label}.visibility is required when include is non-empty`);
-      }
+    }
+    if (include.length > 0 && input.visibility === undefined) {
+      errors.push(`${label}.visibility is required when include is non-empty`);
     }
   }
   if (
@@ -230,11 +220,7 @@ function validateMindContentSection(
   ) {
     errors.push(`${label}.visibility must be private, internal, or public`);
   }
-  if (options.allowFormat) {
-    if (input.format !== undefined && (typeof input.format !== "string" || !["md", "jsonl", "mixed"].includes(input.format))) {
-      errors.push(`${label}.format must be md, jsonl, or mixed`);
-    }
-  } else if (input.format !== undefined) {
+  if (input.format !== undefined) {
     errors.push(`${label}.format is not allowed in card manifests`);
   }
 }
@@ -247,12 +233,28 @@ function validateMemorySection(input: unknown, errors: string[]) {
     errors.push("memory must be an object");
     return;
   }
-  for (const [layer, section] of Object.entries(input)) {
-    if (!(MEMORY_LAYER_NAMES as readonly string[]).includes(layer)) {
-      errors.push(`unsupported memory layer: ${layer}`);
+  for (const [kind, section] of Object.entries(input)) {
+    if (kind === "raw_data") {
+      errors.push("memory kind raw_data is reserved but unsupported");
       continue;
     }
-    validateMindContentSection(`memory.${layer}`, section, errors, { allowFormat: true, forbidInclude: true });
+    if (!(MEMORY_KINDS as readonly string[]).includes(kind)) {
+      errors.push(`unsupported memory kind: ${kind}`);
+      continue;
+    }
+    if (!isObject(section)) {
+      errors.push(`memory.${kind} must be an object`);
+      continue;
+    }
+    for (const field of Object.keys(section)) {
+      if (field !== "format") {
+        errors.push(`memory.${kind}.${field} is not allowed`);
+      }
+    }
+    const requiredFormat = kind === "observations" ? "jsonl" : "md";
+    if (section.format !== requiredFormat) {
+      errors.push(`memory.${kind}.format is required and must be ${requiredFormat}`);
+    }
   }
 }
 
