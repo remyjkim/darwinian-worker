@@ -4,12 +4,11 @@
 import { afterEach, expect, test } from "bun:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { writeCardLock } from "../cli/core/card-lock";
 import { writeCardLockLocal } from "../cli/core/config-local";
 import { buildEffectiveState } from "../cli/core/effective-state";
 import { resolveCard } from "../cli/core/card-store";
 import { buildDesiredVendorSet } from "../cli/core/vendor-reconcile";
-import { cleanupTempRoots, publishCardWithSkills, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, projectLockGraph, publishCardWithSkills, scaffoldCliFixture, writeTestCardLock } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -40,7 +39,7 @@ test("local-only card enters lockedCards as overlay and is absent from DESIRED_V
   const resolved = await resolveCard(fixture.agentsDir, "@me/personal@1.0.0");
   const projectDir = await scaffoldProject(fixture, { version: 1, skills: { include: ["solo"] } });
 
-  await writeCardLockLocal(projectDir, [
+  await writeCardLockLocal(projectDir, projectLockGraph([
     {
       name: resolved.name,
       requested: "@me/personal@1.0.0",
@@ -55,7 +54,7 @@ test("local-only card enters lockedCards as overlay and is absent from DESIRED_V
       origin: "store",
       git: resolved.git!,
     },
-  ]);
+  ]));
 
   const state = await buildEffectiveState({ ...envFor(fixture), cwd: projectDir });
   expect(state.lockedCards.map((card) => card.name)).toEqual(["@me/personal"]);
@@ -80,7 +79,7 @@ test("name collision: card.lock.local wins with warning", async () => {
     activeWorkers: ["@me/shared"],
   });
 
-  await writeCardLock(projectDir, [
+  await writeTestCardLock(projectDir, [
     {
       name: resolved.name,
       requested: "@me/shared@1.0.0",
@@ -98,7 +97,7 @@ test("name collision: card.lock.local wins with warning", async () => {
   ]);
 
   const localPath = join(fixture.agentsDir, "drwn", "extracted", "b".repeat(40));
-  await writeCardLockLocal(projectDir, [
+  await writeCardLockLocal(projectDir, projectLockGraph([
     {
       ...resolved,
       path: localPath,
@@ -110,7 +109,7 @@ test("name collision: card.lock.local wins with warning", async () => {
       origin: "store",
       git: resolved.git!,
     },
-  ]);
+  ]));
 
   const state = await buildEffectiveState({ ...envFor(fixture), cwd: projectDir });
   expect(state.lockedCards).toHaveLength(1);
@@ -133,7 +132,7 @@ test("config.local activate overrides committed active stack", async () => {
     activeWorkers: ["@me/one"],
   });
 
-  await writeCardLock(projectDir, [
+  await writeTestCardLock(projectDir, [
     {
       name: one.name,
       requested: "@me/one@1.0.0",

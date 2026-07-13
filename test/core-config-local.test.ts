@@ -36,7 +36,9 @@ test("ensureCardLockLocalEntryFromSource writes file-origin local lock entries",
   const { ensureCardLockLocalEntryFromSource, loadCardLockLocal } = await import("../cli/core/config-local");
   await ensureCardLockLocalEntryFromSource(root, agentsDir, "@me/local", sourceDir);
   const local = await loadCardLockLocal(root);
-  expect(local?.[0]?.origin).toBe("file");
-  expect(local?.[0]?.name).toBe("@me/local");
-  expect(local?.[0]?.treeSha).toBeUndefined();
+  expect(local?.schema).toBe("drwn.project-lock");
+  expect(local?.workerRoots[0]?.name).toBe("@me/local");
+  expect(local?.cards[0]?.origin).toBe("file");
+  expect(local?.cards[0]?.name).toBe("@me/local");
+  expect(local?.cards[0]?.treeSha).toBeUndefined();
 });

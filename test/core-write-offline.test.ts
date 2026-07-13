@@ -5,7 +5,6 @@ import { afterEach, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { writeCardLock } from "../cli/core/card-lock";
 import { computeContentManifest, manifestIntegrityDigest } from "../cli/core/content-manifest";
 import { publishCard, resolveCard } from "../cli/core/card-store";
 import * as git from "../cli/core/git";
@@ -24,6 +23,7 @@ import {
   createTempRoot,
   envFor,
   scaffoldCliFixture,
+  writeTestCardLock,
 } from "./helpers";
 
 const tempRoots: string[] = [];
@@ -96,7 +96,7 @@ test("drwn write materializes from committed vendor with an empty machine store"
     join(projectDir, ".agents", "drwn", "config.json"),
     JSON.stringify({ version: 1, cards: ["@me/tool@1.0.0"], activeWorkers: ["@me/tool"] }, null, 2),
   );
-  await writeCardLock(projectDir, [
+  await writeTestCardLock(projectDir, [
     {
       name: resolved.name,
       requested: "@me/tool@1.0.0",
@@ -133,7 +133,7 @@ test("missing vendor and missing store fails with a repair signpost", async () =
   const projectDir = join(fixture.root, "project");
   await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
   await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1, cards: ["@me/tool@1.0.0"] }, null, 2));
-  await writeCardLock(projectDir, [
+  await writeTestCardLock(projectDir, [
     {
       name: "@me/tool",
       requested: "@me/tool@1.0.0",

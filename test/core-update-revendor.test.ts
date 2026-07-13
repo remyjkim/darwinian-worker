@@ -4,10 +4,9 @@
 import { afterEach, expect, test } from "bun:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { writeCardLock } from "../cli/core/card-lock";
 import { updateProjectCardLock } from "../cli/core/card-project";
 import { syncRepository } from "../cli/core/sync";
-import { cleanupTempRoots, publishCardWithSkills, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, publishCardWithSkills, scaffoldCliFixture, writeTestCardLock } from "./helpers";
 
 const tempRoots: string[] = [];
 afterEach(async () => cleanupTempRoots(tempRoots));
@@ -24,7 +23,7 @@ test("update lock refresh followed by write reconciles vendor trees", async () =
   );
   const { resolveCard } = await import("../cli/core/card-store");
   const resolved = await resolveCard(fixture.agentsDir, "@me/revendor@1.0.0");
-  await writeCardLock(projectDir, [
+  await writeTestCardLock(projectDir, [
     {
       name: resolved.name,
       requested: "@me/revendor@1.0.0",

@@ -3,10 +3,9 @@
 
 import { afterEach, expect, test } from "bun:test";
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { backfillLockTreeShas, cardLockPath, loadCardLock, writeCardLock, validateCardLockfile, type CardLockEntry } from "../cli/core/card-lock";
+import { type CardLockEntry } from "../cli/core/card-lock";
 import { computeContentManifest } from "../cli/core/content-manifest";
 import { ensureExtracted, publishCard, resolveCard } from "../cli/core/card-store";
 import * as git from "../cli/core/git";
@@ -23,7 +22,7 @@ import {
   writeVendorManifestSidecar,
   resolveVendorManifestSidecarPathForVendorDir,
 } from "../cli/core/vendor-manifest";
-import { cleanupTempRoots, createTempRoot } from "./helpers";
+import { cleanupTempRoots, createTempRoot, writeTestCardLock } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -151,49 +150,7 @@ test("pruneVendorTrees removes stale clean trees and preserves drifted ones", as
   expect(result.warnings.some((entry) => entry.kind === "drifted")).toBe(true);
 });
 
-test("loadCardLock leaves v4 treeSha undefined and backfillLockTreeShas fills from git commit", async () => {
-  const { agentsDir, resolved } = await scaffoldPublishedCard();
-  const root = await createTempRoot("vendor-lock-");
-  tempRoots.push(root);
-
-  await mkdir(dirname(cardLockPath(root)), { recursive: true });
-  await writeFile(
-    cardLockPath(root),
-    `${JSON.stringify(
-      validateCardLockfile({
-        lockfileVersion: 4,
-        cards: [
-          {
-            name: resolved.name,
-            requested: "@me/tool@1.0.0",
-            version: resolved.version,
-            path: resolved.dir,
-            integrity: resolved.integrity,
-            manifest: resolved.manifest,
-            skills: [],
-            hooks: [],
-            registry: null,
-            origin: "store",
-            git: resolved.git!,
-          },
-        ],
-      }),
-      null,
-      2,
-    )}\n`,
-  );
-
-  const loaded = await loadCardLock(root);
-  expect(loaded?.lockfileVersion).toBe(4);
-  expect(loaded?.cards[0]?.treeSha).toBeUndefined();
-
-  const backfilled = await backfillLockTreeShas(agentsDir, loaded!.cards);
-  const barePath = resolveCardBareRepoPath(agentsDir, "@me/tool");
-  const expectedTree = await git.getCommitTree(barePath, resolved.git!.commit);
-  expect(backfilled[0]?.treeSha).toBe(expectedTree);
-});
-
-test("writeCardLock v5 requires treeSha for store cards", async () => {
+test("the supported project lock requires treeSha for store cards", async () => {
   const root = await createTempRoot("vendor-lock-write-");
   tempRoots.push(root);
   const entry: CardLockEntry = {
@@ -210,5 +167,5 @@ test("writeCardLock v5 requires treeSha for store cards", async () => {
     git: { commit: "a".repeat(40) },
   };
 
-  await expect(writeCardLock(root, [entry])).rejects.toThrow("treeSha");
+  await expect(writeTestCardLock(root, [entry])).rejects.toThrow("treeSha");
 });

@@ -5,9 +5,8 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdir, chmod, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { buildDiagnosticsSections } from "../cli/core/diagnostics";
-import { writeCardLock } from "../cli/core/card-lock";
 import { saveWriteRecord } from "../cli/core/write-record";
-import { cleanupTempRoots, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, scaffoldCliFixture, writeTestCardLock } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -22,7 +21,7 @@ test("diagnostics sections compose cards, store, and write-record state", async 
   const configPath = join(projectDir, ".agents", "drwn", "config.json");
   await mkdir(dirname(configPath), { recursive: true });
   await writeFile(configPath, JSON.stringify({ version: 1, cards: ["@me/backend@^1.0.0"] }, null, 2));
-  await writeCardLock(projectDir, [
+  await writeTestCardLock(projectDir, [
     {
       name: "@me/backend",
       requested: "@me/backend@^1.0.0",

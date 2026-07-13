@@ -4,13 +4,19 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { loadCardLock, validateCardLockfile, type CardLockEntry } from "./card-lock";
-import { resolveCard } from "./card-store";
+import {
+  HOOKS_MIN_DRWN_VERSION,
+  MINDS_MIN_DRWN_VERSION,
+  loadCardLock,
+  validateCardLockfile,
+  type ProjectLockGraph,
+  type ProjectLockV1,
+} from "./card-lock";
 import { DrwnError } from "./errors";
-import { resolveProjectCards } from "./card-project";
 import { writeAtomically } from "./fs";
 import { ensureGitignoreEntries } from "./git-hygiene";
 import type { ProjectConfig } from "./types";
+import { resolveWorkerGraph } from "./worker-graph";
 
 export interface ConfigLocal {
   schema: "drwn.project-local";
@@ -95,23 +101,49 @@ export async function writeConfigLocal(projectRoot: string, config: ConfigLocal)
   return path;
 }
 
-export async function loadCardLockLocal(projectRoot: string): Promise<CardLockEntry[] | null> {
+export async function loadCardLockLocal(projectRoot: string): Promise<ProjectLockV1 | null> {
   const path = cardLockLocalPath(projectRoot);
   if (!existsSync(path)) {
     return null;
   }
-  const lockfile = validateCardLockfile(JSON.parse(await readFile(path, "utf8")), path);
-  return lockfile.cards;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await readFile(path, "utf8"));
+  } catch (error) {
+    throw new DrwnError("PROJECT_LOCK_INVALID", `Invalid local project lock ${path}: malformed JSON`, undefined, error);
+  }
+  return validateCardLockfile(parsed, path);
 }
 
-export async function writeCardLockLocal(projectRoot: string, cards: CardLockEntry[]) {
+export async function writeCardLockLocal(projectRoot: string, graph: ProjectLockGraph) {
   await ensureGitignoreEntries(projectRoot);
   const path = cardLockLocalPath(projectRoot);
-  await writeAtomically(
-    path,
-    `${JSON.stringify({ lockfileVersion: 5, cards }, null, 2)}\n`,
-  );
+  const hasMindContent = graph.cards.some((card) => card.persona || card.beliefs || card.memory);
+  const lock = validateCardLockfile({
+    schema: "drwn.project-lock",
+    schemaVersion: 1,
+    store: { minDrwnVersion: hasMindContent ? MINDS_MIN_DRWN_VERSION : HOOKS_MIN_DRWN_VERSION },
+    workerRoots: graph.workerRoots,
+    cards: graph.cards,
+  }, path);
+  await writeAtomically(path, `${JSON.stringify(lock, null, 2)}\n`);
   return path;
+}
+
+function mergeLocalGraphs(existing: ProjectLockV1 | null, addition: ProjectLockGraph): ProjectLockGraph {
+  const workerRoots = [...(existing?.workerRoots ?? [])];
+  const cards = [...(existing?.cards ?? [])];
+  for (const root of addition.workerRoots) {
+    const index = workerRoots.findIndex((entry) => entry.name === root.name);
+    if (index >= 0) workerRoots[index] = root;
+    else workerRoots.push(root);
+  }
+  for (const card of addition.cards) {
+    const index = cards.findIndex((entry) => entry.name === card.name);
+    if (index >= 0) cards[index] = card;
+    else cards.push(card);
+  }
+  return { workerRoots, cards };
 }
 
 export async function ensureCardLockLocalEntry(projectRoot: string, agentsDir: string, cardName: string) {
@@ -119,15 +151,15 @@ export async function ensureCardLockLocalEntry(projectRoot: string, agentsDir: s
   if (committed?.cards?.some((card) => card.name === cardName)) {
     return;
   }
-  const existing = (await loadCardLockLocal(projectRoot)) ?? [];
-  if (existing.some((card) => card.name === cardName)) {
+  const existing = await loadCardLockLocal(projectRoot);
+  if (existing?.cards.some((card) => card.name === cardName)) {
     return;
   }
-  const [entry] = await resolveProjectCards(agentsDir, [cardName]);
-  if (!entry) {
+  const graph = await resolveWorkerGraph(agentsDir, [cardName]);
+  if (!graph.cards[0]) {
     return;
   }
-  await writeCardLockLocal(projectRoot, [...existing, entry]);
+  await writeCardLockLocal(projectRoot, mergeLocalGraphs(existing, { workerRoots: graph.roots, cards: graph.cards }));
 }
 
 export async function ensureCardLockLocalEntryFromSource(
@@ -141,30 +173,19 @@ export async function ensureCardLockLocalEntryFromSource(
     return;
   }
   const fileRef = sourceDir.startsWith("file:") ? sourceDir : `file:${sourceDir}`;
-  const resolved = await resolveCard(agentsDir, fileRef, { allowUntrustedSource: true });
-  if (resolved.name !== expectedName) {
+  const graph = await resolveWorkerGraph(agentsDir, [fileRef], { allowUntrustedSource: true });
+  const root = graph.roots[0];
+  if (!root || root.name !== expectedName) {
     throw new DrwnError(
       "LOCAL_LOCK_NAME_MISMATCH",
-      `local source manifest name ${resolved.name} does not match expected ${expectedName}`,
+      `local source manifest name ${root?.name ?? "<missing>"} does not match expected ${expectedName}`,
     );
   }
-  const entry: CardLockEntry = {
-    name: resolved.name,
-    requested: fileRef,
-    version: resolved.version,
-    path: resolved.dir,
-    integrity: resolved.integrity,
-    manifest: resolved.manifest,
-    skills: resolved.manifest.skills?.include ?? [],
-    hooks: resolved.manifest.hooks?.include ?? [],
-    registry: null,
-    origin: "file",
-  };
-  const existing = (await loadCardLockLocal(projectRoot)) ?? [];
-  const next = existing.some((card) => card.name === expectedName)
-    ? existing.map((card) => (card.name === expectedName ? entry : card))
-    : [...existing, entry];
-  await writeCardLockLocal(projectRoot, next);
+  const existing = await loadCardLockLocal(projectRoot);
+  await writeCardLockLocal(
+    projectRoot,
+    mergeLocalGraphs(existing, { workerRoots: graph.roots, cards: graph.cards }),
+  );
 }
 
 export function mergeProjectWithLocal(project: ProjectConfig, local: ConfigLocal | null): ProjectConfig {

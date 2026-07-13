@@ -103,7 +103,7 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
         : projectConfig.workers.length > 0
           ? await resolveProjectCards(normalized.agentsDir, projectConfig.workers)
           : [];
-    const localLockCards = projectRoot ? (await loadCardLockLocal(projectRoot)) ?? [] : [];
+    const localLockCards = projectRoot ? (await loadCardLockLocal(projectRoot))?.cards ?? [] : [];
     const byName = new Map<string, CardLockEntry>();
     for (const card of committedCards) {
       byName.set(card.name, card);

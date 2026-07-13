@@ -71,7 +71,7 @@ export class InstallCommand extends BaseCommand {
     }
 
     if (changed) {
-      await persistCardLock(projectRoot, this.context.agentsDir, lock.cards);
+      await persistCardLock(projectRoot, this.context.agentsDir, lock);
     }
 
     if (this.noApply) {

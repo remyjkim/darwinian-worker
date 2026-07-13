@@ -9,7 +9,7 @@ import { cardLockPath, loadCardLock, writeCardLock } from "../cli/core/card-lock
 import { computeCardIntegrity } from "../cli/core/card-store";
 import { resolveCardBareRepoPath } from "../cli/core/store-paths";
 import { resolveProjectVendorTree } from "../cli/core/vendor";
-import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture, writeTestCardLock } from "./helpers";
 import { createLocalCardRepo } from "./fixtures/git-helpers";
 
 const tempRoots: string[] = [];
@@ -108,7 +108,7 @@ test("install detects integrity mismatches", async () => {
   const { fixture, projectDir } = await scaffoldLockedGitProject();
   const lock = await loadCardLock(projectDir);
   lock!.cards[0]!.integrity = "sha256-" + "0".repeat(64);
-  await writeCardLock(projectDir, lock!.cards);
+  await writeCardLock(projectDir, lock!);
 
   const result = await runAgentsCli(["install", "--no-apply"], envFor(fixture), projectDir);
 
@@ -126,7 +126,7 @@ test("install validates file-origin entries without fetching", async () => {
   await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1 }, null, 2));
   await writeFile(join(cardDir, "card.json"), JSON.stringify({ name: "@file/backend", version: "1.0.0" }, null, 2));
   const integrity = await computeCardIntegrity(cardDir);
-  await writeCardLock(projectDir, [
+  await writeTestCardLock(projectDir, [
     {
       name: "@file/backend",
       requested: "file:../file-card",

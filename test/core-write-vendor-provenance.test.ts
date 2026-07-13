@@ -5,7 +5,6 @@ import { afterEach, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { cp, mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { writeCardLock } from "../cli/core/card-lock";
 import { resolveCardContentRoot } from "../cli/core/card-content-root";
 import { buildEffectiveState, recomputeContentRootsByCard } from "../cli/core/effective-state";
 import { publishCard, resolveCard } from "../cli/core/card-store";
@@ -14,7 +13,7 @@ import { syncRepository } from "../cli/core/sync";
 import { resolveExtractedPath, resolveCardBareRepoPath } from "../cli/core/store-paths";
 import { resolveProjectVendorTree } from "../cli/core/vendor";
 import { reconcileVendorTrees } from "../cli/core/vendor-reconcile";
-import { cleanupTempRoots, createFixtureConfig, createFixtureRegistry, createTempRoot } from "./helpers";
+import { cleanupTempRoots, createFixtureConfig, createFixtureRegistry, createTempRoot, writeTestCardLock } from "./helpers";
 
 const tempRoots: string[] = [];
 afterEach(async () => cleanupTempRoots(tempRoots));
@@ -58,7 +57,7 @@ async function scaffoldVendoredProject() {
     join(projectDir, ".agents", "drwn", "config.json"),
     JSON.stringify({ version: 1, cards: ["@me/prov@1.0.0"], activeWorkers: ["@me/prov"] }, null, 2),
   );
-  await writeCardLock(projectDir, [
+  await writeTestCardLock(projectDir, [
     {
       name: resolved.name,
       requested: "@me/prov@1.0.0",

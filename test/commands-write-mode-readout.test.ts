@@ -4,12 +4,11 @@
 import { afterEach, expect, test } from "bun:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { writeCardLock } from "../cli/core/card-lock";
 import { writeConfigLocal } from "../cli/core/config-local";
 import { buildEffectiveState } from "../cli/core/effective-state";
 import { syncRepository } from "../cli/core/sync";
 import { renderSyncResult } from "../cli/core/output";
-import { cleanupTempRoots, publishCardWithSkills, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, publishCardWithSkills, scaffoldCliFixture, writeTestCardLock } from "./helpers";
 
 const tempRoots: string[] = [];
 afterEach(async () => cleanupTempRoots(tempRoots));
@@ -26,7 +25,7 @@ test("syncRepository exposes linked/overlay cardModes and keeps absent-source wa
   );
   const { resolveCard } = await import("../cli/core/card-store");
   const resolved = await resolveCard(fixture.agentsDir, "@me/modes@1.0.0");
-  await writeCardLock(projectDir, [
+  await writeTestCardLock(projectDir, [
     {
       name: resolved.name,
       requested: "@me/modes@1.0.0",
@@ -77,7 +76,7 @@ test("syncRepository exposes linked/overlay cardModes and keeps absent-source wa
     join(absentProject, ".agents", "drwn", "config.json"),
     `${JSON.stringify({ version: 1, materialization: "linked", cards: ["@me/modes@1.0.0"] }, null, 2)}\n`,
   );
-  await writeCardLock(absentProject, [
+  await writeTestCardLock(absentProject, [
     {
       name: resolved.name,
       requested: "@me/modes@1.0.0",

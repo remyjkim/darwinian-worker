@@ -5,7 +5,7 @@ import { afterEach, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { writeCardLock, type CardLockEntry } from "../cli/core/card-lock";
+import { type CardLockEntry } from "../cli/core/card-lock";
 import { computeContentManifest } from "../cli/core/content-manifest";
 import { publishCard, resolveCard, ensureExtracted } from "../cli/core/card-store";
 import * as git from "../cli/core/git";
@@ -18,7 +18,7 @@ import {
   writeVendorManifestSidecar,
 } from "../cli/core/vendor-manifest";
 import { ensureVendorTree, resolveProjectVendorTree } from "../cli/core/vendor";
-import { cleanupTempRoots, createFixtureConfig, createFixtureRegistry, createTempRoot } from "./helpers";
+import { cleanupTempRoots, createFixtureConfig, createFixtureRegistry, createTempRoot, writeTestCardLock } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -90,7 +90,7 @@ async function scaffoldVendoredProject() {
     join(projectDir, ".agents", "drwn", "config.json"),
     JSON.stringify({ version: 1, cards: ["@me/tool@1.0.0"], activeWorkers: ["@me/tool"] }, null, 2),
   );
-  await writeCardLock(projectDir, [
+  await writeTestCardLock(projectDir, [
     {
       name: resolved.name,
       requested: "@me/tool@1.0.0",

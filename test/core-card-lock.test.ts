@@ -1,270 +1,205 @@
-// ABOUTME: Verifies Card lockfile v2 read/write helpers.
-// ABOUTME: Protects origin metadata and Git commit persistence for project cards.
+// ABOUTME: Verifies the first supported project lock schema and graph invariants.
+// ABOUTME: Rejects prototype locks and malformed Worker graphs without migration.
 
 import { afterEach, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
-  cardLockPath,
-  loadCardLock,
-  writeCardLock,
-  validateCardLockfile,
-  persistCardLock,
   HOOKS_MIN_DRWN_VERSION,
   MINDS_MIN_DRWN_VERSION,
+  cardLockPath,
+  loadCardLock,
+  persistCardLock,
+  validateCardLockfile,
+  writeCardLock,
+  type CardLockEntry,
+  type ProjectLockV1,
 } from "../cli/core/card-lock";
 import { cleanupTempRoots, createTempRoot } from "./helpers";
 
 const tempRoots: string[] = [];
+const TREE_SHA = "a".repeat(40);
 
 afterEach(async () => {
   await cleanupTempRoots(tempRoots);
 });
 
-const TREE_SHA = "a".repeat(40);
+function card(
+  name = "@me/backend",
+  overrides: Partial<CardLockEntry> = {},
+): CardLockEntry {
+  const version = overrides.version ?? "1.0.0";
+  return {
+    name,
+    requested: `${name}@^${version}`,
+    version,
+    path: `/cards/${name}/${version}`,
+    integrity: `sha256-${name}-${version}`,
+    treeSha: TREE_SHA,
+    manifest: { name, version },
+    skills: [],
+    hooks: [],
+    registry: null,
+    origin: "store",
+    git: { commit: "b".repeat(40) },
+    ...overrides,
+  };
+}
 
-test("writeCardLock creates a v5 project lockfile and loadCardLock reads it", async () => {
+function lock(overrides: Partial<ProjectLockV1> = {}): ProjectLockV1 {
+  const entry = card();
+  return {
+    schema: "drwn.project-lock",
+    schemaVersion: 1,
+    store: { minDrwnVersion: HOOKS_MIN_DRWN_VERSION },
+    workerRoots: [
+      { name: entry.name, requested: entry.requested, kind: "card", members: [] },
+    ],
+    cards: [entry],
+    ...overrides,
+  };
+}
+
+test("writeCardLock writes and reads the namespaced V1 Worker graph", async () => {
   const root = await createTempRoot("card-lock-");
   tempRoots.push(root);
+  const graph = lock();
 
-  const path = await writeCardLock(root, [
-    {
-      name: "@me/backend",
-      requested: "@me/backend@^1.0.0",
-      version: "1.0.0",
-      path: "/cards/@me/backend/1.0.0",
-      integrity: "sha256-test",
-      treeSha: TREE_SHA,
-      manifest: { name: "@me/backend", version: "1.0.0" },
-      skills: [],
-      hooks: [],
-      registry: null,
-      origin: "store",
-      git: { commit: "a".repeat(40) },
-    },
-  ]);
+  const path = await writeCardLock(root, graph);
 
   expect(path).toBe(cardLockPath(root));
   expect(existsSync(path)).toBe(true);
-  const loaded = await loadCardLock(root);
-  expect(loaded?.lockfileVersion).toBe(5);
-  expect(loaded?.store?.minDrwnVersion).toBeDefined();
-  expect(loaded?.cards[0]?.name).toBe("@me/backend");
-  expect(loaded?.cards[0]?.origin).toBe("store");
-  expect(loaded?.cards[0]?.git?.commit).toBe("a".repeat(40));
-  expect(loaded?.cards[0]?.treeSha).toBe(TREE_SHA);
+  const raw = JSON.parse(await readFile(path, "utf8"));
+  expect(raw.schema).toBe("drwn.project-lock");
+  expect(raw.schemaVersion).toBe(1);
+  expect(raw.lockfileVersion).toBeUndefined();
+  expect(await loadCardLock(root)).toEqual(graph);
 });
 
-test("writeCardLock persists the skills[] attribution field per card entry", async () => {
+test("prototype and unknown project lock schemas are rejected without rewriting bytes", async () => {
   const root = await createTempRoot("card-lock-");
   tempRoots.push(root);
+  const path = cardLockPath(root);
+  const prototype = `${JSON.stringify({ lockfileVersion: 5, cards: [] }, null, 2)}\n`;
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, prototype);
 
-  await writeCardLock(root, [
-    {
-      name: "@me/backend",
-      requested: "@me/backend@^1.0.0",
+  await expect(loadCardLock(root)).rejects.toMatchObject({ code: "PROJECT_LOCK_INVALID" });
+  expect(await readFile(path, "utf8")).toBe(prototype);
+  expect(() => validateCardLockfile({ ...lock(), schema: "other.project-lock" })).toThrow();
+  expect(() => validateCardLockfile({ ...lock(), schemaVersion: 2 })).toThrow();
+  expect(() => validateCardLockfile({ ...lock(), unexpected: true })).toThrow();
+});
+
+test("project lock rejects duplicate roots, Cards, and Blueprint members", () => {
+  const entry = card();
+  const blueprint = card("@me/worker", {
+    manifest: {
+      name: "@me/worker",
       version: "1.0.0",
-      path: "/cards/@me/backend/1.0.0",
-      integrity: "sha256-test",
-      treeSha: TREE_SHA,
-      manifest: { name: "@me/backend", version: "1.0.0", skills: { include: ["alpha", "beta"] } },
-      skills: ["alpha", "beta"],
-      hooks: [],
-      registry: null,
-      origin: "git",
-      git: { url: "file:///tmp/backend.git", ref: "v1.0.0", commit: "b".repeat(40) },
+      kind: "blueprint",
+      composedFrom: [entry.requested],
     },
-  ]);
-
-  const loaded = await loadCardLock(root);
-  expect(loaded?.cards[0]?.skills).toEqual(["alpha", "beta"]);
-  expect(loaded?.cards[0]?.registry).toBeNull();
-  expect(loaded?.cards[0]?.origin).toBe("git");
-  expect(loaded?.cards[0]?.git?.url).toBe("file:///tmp/backend.git");
-});
-
-test("validateCardLockfile reads v2 entries with empty hooks", () => {
-  const lock = validateCardLockfile({
-    lockfileVersion: 2,
-    cards: [
-      {
-        name: "@me/backend",
-        requested: "@me/backend@^1.0.0",
-        version: "1.0.0",
-        path: "/cards/@me/backend/1.0.0",
-        integrity: "sha256-test",
-        manifest: { name: "@me/backend", version: "1.0.0" },
-        skills: ["alpha"],
-        registry: null,
-        origin: "store",
-        git: { commit: "a".repeat(40) },
-      },
-    ],
   });
-
-  expect(lock.lockfileVersion).toBe(2);
-  expect(lock.cards[0]?.hooks).toEqual([]);
-  expect(lock.cards[0]?.hookConsent).toBeUndefined();
-});
-
-test("writeCardLock preserves hooks and consent in v3", async () => {
-  const root = await createTempRoot("card-lock-");
-  tempRoots.push(root);
-
-  await writeCardLock(root, [
-    {
-      name: "@me/backend",
-      requested: "@me/backend@^1.0.0",
-      version: "1.0.0",
-      path: "/cards/@me/backend/1.0.0",
-      integrity: "sha256-test",
-      treeSha: TREE_SHA,
-      manifest: { name: "@me/backend", version: "1.0.0", hooks: { include: ["audit"] } },
-      skills: [],
-      hooks: ["audit"],
-      hookConsent: { consentedAt: "2026-06-12T00:00:00.000Z", consentedRange: "^1.0.0" },
-      registry: null,
-      origin: "store",
-      git: { commit: "d".repeat(40) },
-    },
-  ]);
-
-  const raw = JSON.parse(await readFile(cardLockPath(root), "utf8"));
-  const loaded = await loadCardLock(root);
-
-  expect(raw.lockfileVersion).toBe(5);
-  expect(loaded?.cards[0]?.hooks).toEqual(["audit"]);
-  expect(loaded?.cards[0]?.hookConsent?.consentedRange).toBe("^1.0.0");
-});
-
-test("validateCardLockfile reads v3 entries with absent card content metadata", () => {
-  const lock = validateCardLockfile({
-    lockfileVersion: 3,
-    cards: [
-      {
-        name: "@me/backend",
-        requested: "@me/backend@^1.0.0",
-        version: "1.0.0",
-        path: "/cards/@me/backend/1.0.0",
-        integrity: "sha256-test",
-        manifest: { name: "@me/backend", version: "1.0.0" },
-        skills: [],
-        hooks: [],
-        registry: null,
-        origin: "store",
-        git: { commit: "a".repeat(40) },
-      },
-    ],
-  });
-
-  expect(lock.lockfileVersion).toBe(3);
-  expect(lock.cards[0]?.skills).toEqual([]);
-  expect(lock.cards[0]?.hooks).toEqual([]);
-});
-
-test("validateCardLockfile rejects invalid hookConsent", () => {
-  expect(() =>
-    validateCardLockfile({
-      lockfileVersion: 3,
-      cards: [
-        {
-          name: "@me/backend",
-          requested: "@me/backend@^1.0.0",
-          version: "1.0.0",
-          path: "/cards/@me/backend/1.0.0",
-          integrity: "sha256-test",
-          manifest: { name: "@me/backend", version: "1.0.0" },
-          skills: [],
-          hooks: ["audit"],
-          hookConsent: { consentedAt: "not-a-date", consentedRange: "^1.0.0" },
-          registry: null,
-          origin: "store",
-          git: { commit: "e".repeat(40) },
-        },
-      ],
-    }),
-  ).toThrow("hookConsent.consentedAt must be an ISO timestamp");
-});
-
-test("validateCardLockfile rejects git origin entries without git metadata", () => {
-  expect(() =>
-    validateCardLockfile({
-      lockfileVersion: 2,
-      cards: [
-        {
-          name: "@me/backend",
-          requested: "git+file:///tmp/backend.git#v1.0.0",
-          version: "1.0.0",
-          path: "/cards/@me/backend",
-          integrity: "sha256-test",
-          manifest: { name: "@me/backend", version: "1.0.0" },
-          skills: [],
-          hooks: [],
-          registry: null,
-          origin: "git",
-        },
-      ],
-    }),
-  ).toThrow("git metadata");
-});
-
-test("validateCardLockfile rejects file origin entries with git metadata", () => {
-  expect(() =>
-    validateCardLockfile({
-      lockfileVersion: 2,
-      cards: [
-        {
-          name: "@me/backend",
-          requested: "file:../backend",
-          version: "1.0.0",
-          path: "/cards/@me/backend",
-          integrity: "sha256-test",
-          manifest: { name: "@me/backend", version: "1.0.0" },
-          skills: [],
-          hooks: [],
-          registry: null,
-          origin: "file",
-          git: { commit: "c".repeat(40) },
-        },
-      ],
-    }),
-  ).toThrow("git metadata");
-});
-
-test("loadCardLock rejects v1 lockfiles", async () => {
-  const root = await createTempRoot("card-lock-");
-  tempRoots.push(root);
-  const v1Payload = {
-    lockfileVersion: 1,
-    cards: [
-      {
-        name: "@me/backend",
-        requested: "@me/backend@^1.0.0",
-        version: "1.0.0",
-        path: "/cards/@me/backend/1.0.0",
-        integrity: "sha256-test",
-        manifest: { name: "@me/backend", version: "1.0.0", skills: { include: ["alpha"] } },
-      },
-    ],
+  const root = {
+    name: blueprint.name,
+    requested: blueprint.requested,
+    kind: "blueprint" as const,
+    members: [entry.name],
   };
-  await mkdir(dirname(cardLockPath(root)), { recursive: true });
-  await writeFile(cardLockPath(root), JSON.stringify(v1Payload, null, 2));
-
-  await expect(loadCardLock(root)).rejects.toThrow("lockfileVersion: 2, 3, 4, or 5");
+  expect(() => validateCardLockfile(lock({ workerRoots: [root, root], cards: [blueprint, entry] }))).toThrow(
+    /root.*more than once/i,
+  );
+  expect(() => validateCardLockfile(lock({ workerRoots: [root], cards: [blueprint, entry, entry] }))).toThrow(
+    /card.*more than once/i,
+  );
+  expect(() =>
+    validateCardLockfile(lock({ workerRoots: [{ ...root, members: [entry.name, entry.name] }], cards: [blueprint, entry] })),
+  ).toThrow(/member.*more than once/i);
 });
 
-test("loadCardLock returns null when no lockfile exists", async () => {
+test("project lock rejects missing root and member Card references", () => {
+  const entry = card();
+  expect(() => validateCardLockfile(lock({ cards: [] }))).toThrow(/root.*missing/i);
+
+  const blueprint = card("@me/worker", {
+    manifest: {
+      name: "@me/worker",
+      version: "1.0.0",
+      kind: "blueprint",
+      composedFrom: [entry.requested],
+    },
+  });
+  expect(() =>
+    validateCardLockfile(lock({
+      workerRoots: [{ name: blueprint.name, requested: blueprint.requested, kind: "blueprint", members: [entry.name] }],
+      cards: [blueprint],
+    })),
+  ).toThrow(/member.*missing/i);
+});
+
+test("project lock rejects root kind/request mismatches and member roots", () => {
+  const entry = card();
+  expect(() =>
+    validateCardLockfile(lock({ workerRoots: [{ name: entry.name, requested: "@me/backend@2", kind: "card", members: [] }] })),
+  ).toThrow(/requested/i);
+  expect(() =>
+    validateCardLockfile(lock({ workerRoots: [{ name: entry.name, requested: entry.requested, kind: "blueprint", members: [] }] })),
+  ).toThrow(/kind/i);
+
+  const blueprint = card("@me/worker", {
+    manifest: {
+      name: "@me/worker",
+      version: "1.0.0",
+      kind: "blueprint",
+      composedFrom: [entry.requested],
+    },
+  });
+  expect(() =>
+    validateCardLockfile(lock({
+      workerRoots: [
+        { name: blueprint.name, requested: blueprint.requested, kind: "blueprint", members: [entry.name] },
+        { name: entry.name, requested: entry.requested, kind: "card", members: [] },
+      ],
+      cards: [blueprint, entry],
+    })),
+  ).toThrow(/member.*root/i);
+});
+
+test("project lock rejects plain roots with members, Blueprint members, and orphan Cards", () => {
+  const entry = card();
+  expect(() =>
+    validateCardLockfile(lock({ workerRoots: [{ name: entry.name, requested: entry.requested, kind: "card", members: [entry.name] }] })),
+  ).toThrow(/plain card root.*members/i);
+
+  const child = card("@me/child", {
+    manifest: { name: "@me/child", version: "1.0.0", kind: "blueprint", composedFrom: [] },
+  });
+  const parent = card("@me/parent", {
+    manifest: { name: "@me/parent", version: "1.0.0", kind: "blueprint", composedFrom: [child.requested] },
+  });
+  expect(() => validateCardLockfile(lock({
+    workerRoots: [{ name: parent.name, requested: parent.requested, kind: "blueprint", members: [child.name] }],
+    cards: [parent, child],
+  }))).toThrow(/member.*plain card/i);
+
+  expect(() => validateCardLockfile(lock({ cards: [entry, card("@me/orphan")] }))).toThrow(/orphan/i);
+});
+
+test("Store and Git Cards require a tree SHA when a lock is written", async () => {
   const root = await createTempRoot("card-lock-");
   tempRoots.push(root);
+  const entry = card("@me/backend", { treeSha: undefined });
 
-  expect(await loadCardLock(root)).toBeNull();
+  await expect(writeCardLock(root, lock({ cards: [entry] }))).rejects.toMatchObject({
+    code: "LOCK_TREE_SHA_REQUIRED",
+  });
 });
 
-test("persistCardLock backfills treeSha before writing v5 lock", async () => {
-  const { scaffoldCliFixture, cleanupTempRoots: _cleanup } = await import("./helpers");
+test("persistCardLock backfills tree SHA while preserving root edges", async () => {
+  const { scaffoldCliFixture } = await import("./helpers");
   const { createLocalCardRepo } = await import("./fixtures/git-helpers");
-  const { persistCardLock, loadCardLock } = await import("../cli/core/card-lock");
   const { resolveCardBareRepoPath } = await import("../cli/core/store-paths");
   const git = await import("../cli/core/git");
   const fixture = await scaffoldCliFixture();
@@ -277,153 +212,59 @@ test("persistCardLock backfills treeSha before writing v5 lock", async () => {
   await git.cloneBare(remote.url, barePath);
   const commit = await git.revParse(barePath, "refs/tags/v1.0.0");
   const treeSha = await git.getCommitTree(barePath, commit);
-  await persistCardLock(root, fixture.agentsDir, [
-    {
-      name: "@team/persist",
-      requested: `git+${remote.url}#v1.0.0`,
-      version: "1.0.0",
-      path: join(fixture.agentsDir, "drwn", "extracted", treeSha),
-      integrity: "sha256-test",
-      manifest: { name: "@team/persist", version: "1.0.0" },
-      skills: ["alpha"],
-      hooks: [],
-      registry: null,
-      origin: "git",
-      git: { url: remote.url, ref: "v1.0.0", commit },
-    },
-  ]);
+  const entry = card("@team/persist", {
+    requested: `git+${remote.url}#v1.0.0`,
+    path: join(fixture.agentsDir, "drwn", "extracted", treeSha),
+    treeSha: undefined,
+    origin: "git",
+    git: { url: remote.url, ref: "v1.0.0", commit },
+  });
+  const graph = lock({
+    workerRoots: [{ name: entry.name, requested: entry.requested, kind: "card", members: [] }],
+    cards: [entry],
+  });
+
+  await persistCardLock(root, fixture.agentsDir, graph);
+
   const loaded = await loadCardLock(root);
   expect(loaded?.cards[0]?.treeSha).toBe(treeSha);
+  expect(loaded?.workerRoots).toEqual(graph.workerRoots);
 });
 
-test("persistCardLock rejects when treeSha backfill is impossible", async () => {
-  const root = await createTempRoot("card-lock-persist-fail-");
-  tempRoots.push(root);
-  await expect(
-    persistCardLock(root, join(root, "agents"), [
-      {
-        name: "@me/backend",
-        requested: "@me/backend@^1.0.0",
-        version: "1.0.0",
-        path: "/cards/@me/backend/1.0.0",
-        integrity: "sha256-test",
-        manifest: { name: "@me/backend", version: "1.0.0" },
-        skills: [],
-        hooks: [],
-        registry: null,
-        origin: "store",
-      },
-    ]),
-  ).rejects.toThrow(/git\.commit|treeSha/i);
-});
-
-test("writeCardLock preserves mind content metadata and raises the version floor", async () => {
+test("lock metadata preserves skills, hooks, consent, and mind sections", async () => {
   const root = await createTempRoot("card-lock-");
   tempRoots.push(root);
-
-  await writeCardLock(root, [
-    {
+  const entry = card("@me/mind", {
+    manifest: {
       name: "@me/mind",
-      requested: "@me/mind@^1.0.0",
       version: "1.0.0",
-      path: "/cards/@me/mind/1.0.0",
-      integrity: "sha256-test",
-      treeSha: TREE_SHA,
-      manifest: {
-        name: "@me/mind",
-        version: "1.0.0",
-        persona: { include: ["voice"], visibility: "internal" },
-        beliefs: { include: ["engineering"], visibility: "public" },
-        memory: { l5: { format: "jsonl" } },
-      },
-      skills: [],
-      hooks: [],
-      registry: null,
-      origin: "store",
-      git: { commit: "f".repeat(40) },
+      skills: { include: ["alpha"] },
+      hooks: { include: ["audit"] },
+      persona: { include: ["voice"], visibility: "internal" },
+      beliefs: { include: ["engineering"], visibility: "public" },
+      memory: { l5: { format: "jsonl" } },
     },
-  ]);
+    skills: ["alpha"],
+    hooks: ["audit"],
+    hookConsent: { consentedAt: "2026-06-12T00:00:00.000Z", consentedRange: "^1.0.0" },
+  });
+  const graph = lock({
+    workerRoots: [{ name: entry.name, requested: entry.requested, kind: "card", members: [] }],
+    cards: [entry],
+  });
 
-  const raw = JSON.parse(await readFile(cardLockPath(root), "utf8"));
+  await writeCardLock(root, graph);
+
   const loaded = await loadCardLock(root);
-
-  expect(raw.lockfileVersion).toBe(5);
-  expect(raw.store.minDrwnVersion).toBe(MINDS_MIN_DRWN_VERSION);
-  expect(loaded?.cards[0]?.persona).toEqual({ include: ["voice"], visibility: "internal" });
-  expect(loaded?.cards[0]?.beliefs).toEqual({ include: ["engineering"], visibility: "public" });
+  expect(loaded?.store.minDrwnVersion).toBe(MINDS_MIN_DRWN_VERSION);
+  expect(loaded?.cards[0]?.skills).toEqual(["alpha"]);
+  expect(loaded?.cards[0]?.hooks).toEqual(["audit"]);
+  expect(loaded?.cards[0]?.hookConsent?.consentedRange).toBe("^1.0.0");
   expect(loaded?.cards[0]?.memory?.l5).toEqual({ format: "jsonl" });
 });
 
-test("writeCardLock keeps the hooks floor for cards without mind content", async () => {
+test("loadCardLock returns null when no lockfile exists", async () => {
   const root = await createTempRoot("card-lock-");
   tempRoots.push(root);
-
-  await writeCardLock(root, [
-    {
-      name: "@me/backend",
-      requested: "@me/backend@^1.0.0",
-      version: "1.0.0",
-      path: "/cards/@me/backend/1.0.0",
-      integrity: "sha256-test",
-      treeSha: TREE_SHA,
-      manifest: { name: "@me/backend", version: "1.0.0" },
-      skills: [],
-      hooks: [],
-      registry: null,
-      origin: "store",
-      git: { commit: "f".repeat(40) },
-    },
-  ]);
-
-  const raw = JSON.parse(await readFile(cardLockPath(root), "utf8"));
-  expect(raw.store.minDrwnVersion).toBe(HOOKS_MIN_DRWN_VERSION);
-});
-
-test("validateCardLockfile reads entries with absent mind content metadata", () => {
-  const lock = validateCardLockfile({
-    lockfileVersion: 3,
-    cards: [
-      {
-        name: "@me/backend",
-        requested: "@me/backend@^1.0.0",
-        version: "1.0.0",
-        path: "/cards/@me/backend/1.0.0",
-        integrity: "sha256-test",
-        manifest: { name: "@me/backend", version: "1.0.0" },
-        skills: [],
-        hooks: [],
-        registry: null,
-        origin: "store",
-        git: { commit: "a".repeat(40) },
-      },
-    ],
-  });
-
-  expect(lock.cards[0]?.persona).toBeUndefined();
-  expect(lock.cards[0]?.beliefs).toBeUndefined();
-  expect(lock.cards[0]?.memory).toBeUndefined();
-});
-
-test("validateCardLockfile rejects unsupported memory layers and memory include", () => {
-  const entry = {
-    name: "@me/mind",
-    requested: "@me/mind@^1.0.0",
-    version: "1.0.0",
-    path: "/cards/@me/mind/1.0.0",
-    integrity: "sha256-test",
-    treeSha: TREE_SHA,
-    manifest: { name: "@me/mind", version: "1.0.0" },
-    skills: [],
-    hooks: [],
-    registry: null,
-    origin: "store",
-    git: { commit: "a".repeat(40) },
-  };
-
-  expect(() =>
-    validateCardLockfile({ lockfileVersion: 5, cards: [{ ...entry, memory: { l3: { format: "md" } } }] }),
-  ).toThrow(/unsupported memory layer l3/);
-  expect(() =>
-    validateCardLockfile({ lockfileVersion: 5, cards: [{ ...entry, memory: { l5: { include: ["notes"] } } }] }),
-  ).toThrow(/memory entries are DB-native/);
+  expect(await loadCardLock(root)).toBeNull();
 });

@@ -9,6 +9,23 @@ import { chmod } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { CanonicalConfig, CanonicalRegistry } from "../cli/core/types";
+import { writeCardLock, type CardLockEntry, type ProjectLockGraph } from "../cli/core/card-lock";
+
+export function projectLockGraph(cards: CardLockEntry[]): ProjectLockGraph {
+  return {
+    workerRoots: cards.map((card) => ({
+      name: card.name,
+      requested: card.requested,
+      kind: card.manifest.kind === "blueprint" ? "blueprint" : "card",
+      members: [],
+    })),
+    cards,
+  };
+}
+
+export async function writeTestCardLock(projectRoot: string, cards: CardLockEntry[]) {
+  return writeCardLock(projectRoot, projectLockGraph(cards));
+}
 
 export async function createTempRoot(prefix: string) {
   return await mkdtemp(join(tmpdir(), prefix));

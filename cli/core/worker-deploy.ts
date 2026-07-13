@@ -10,7 +10,6 @@ import { create as createArchive } from "./archive";
 import {
   HOOKS_MIN_DRWN_VERSION,
   type CardLockEntry,
-  type CardLockfile,
   type GitLockInfo,
 } from "./card-lock";
 import { resolveProjectCards } from "./card-project";
@@ -52,7 +51,11 @@ export interface WorkerDeployPayload {
     name: string;
     kind: "card" | "blueprint";
   };
-  lockfile: CardLockfile;
+  lockfile: {
+    lockfileVersion: 5;
+    store: { minDrwnVersion: string };
+    cards: CardLockEntry[];
+  };
   config: ProjectConfig;
   governance: WorkerDeployGovernance | null;
   storeExport: WorkerDeployStoreExport;

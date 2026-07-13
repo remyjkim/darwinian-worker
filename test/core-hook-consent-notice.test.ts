@@ -4,7 +4,6 @@
 import { afterEach, expect, test } from "bun:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { writeCardLock } from "../cli/core/card-lock";
 import {
   buildHookConsentAckKey,
   computeHookPolicyDigest,
@@ -12,7 +11,7 @@ import {
   recordHookConsentAck,
   resolveHookConsentAckPath,
 } from "../cli/core/hook-consent-ack";
-import { cleanupTempRoots, publishCardWithSkills, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, publishCardWithSkills, runAgentsCli, scaffoldCliFixture, writeTestCardLock } from "./helpers";
 
 const tempRoots: string[] = [];
 afterEach(async () => cleanupTempRoots(tempRoots));
@@ -27,7 +26,7 @@ async function scaffoldHookProject(fixture: Awaited<ReturnType<typeof scaffoldCl
   await writeFile(join(policyDir, "policy.ts"), "export default { name: 'guard' };\n");
   const { resolveCard } = await import("../cli/core/card-store");
   const resolved = await resolveCard(fixture.agentsDir, "@me/hooks@1.0.0");
-  await writeCardLock(projectDir, [
+  await writeTestCardLock(projectDir, [
     {
       name: resolved.name,
       requested: "@me/hooks@1.0.0",
