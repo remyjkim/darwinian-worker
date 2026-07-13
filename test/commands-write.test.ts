@@ -385,4 +385,67 @@ describe("drwn write", () => {
     expect(lines[0]).toContain("← card @me/backend@1.0.0");
     expect(lines[0]).toContain("(also available: user-default)");
   });
+
+  test("all write modes preserve project requirement and lock bytes", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    await publishCardWithSkills(fixture, { name: "@me/backend", skills: ["alpha"] });
+    const projectDir = join(fixture.root, "pure-write-project");
+    const drwnDir = join(projectDir, ".agents", "drwn");
+    await mkdir(drwnDir, { recursive: true });
+    await writeFile(join(drwnDir, "config.json"), '{\n  "version": 2\n}\n');
+    expect((await runAgentsCli(["card", "apply", "@me/backend@1.0.0"], envFor(fixture), projectDir)).exitCode).toBe(0);
+    const configPath = join(drwnDir, "config.json");
+    const lockPath = join(drwnDir, "card.lock");
+    const configBytes = await readFile(configPath, "utf8");
+    const lockBytes = await readFile(lockPath, "utf8");
+
+    for (const args of [
+      ["write"],
+      ["write", "--dry-run"],
+      ["write", "--target", "claude"],
+      ["write", "--skills-only"],
+      ["write", "--mcp-only"],
+    ]) {
+      const result = await runAgentsCli(args, envFor(fixture), projectDir);
+      expect(result.exitCode, `${args.join(" ")}: ${result.stderr}`).toBe(0);
+      expect(await readFile(configPath, "utf8")).toBe(configBytes);
+      expect(await readFile(lockPath, "utf8")).toBe(lockBytes);
+    }
+  });
+
+  test("selection preflight fails before project or downstream side effects", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    await publishCardWithSkills(fixture, { name: "@me/one", skills: ["alpha"] });
+    await publishCardWithSkills(fixture, { name: "@me/two", skills: ["beta"] });
+    const projectDir = join(fixture.root, "preflight-project");
+    const drwnDir = join(projectDir, ".agents", "drwn");
+    await mkdir(drwnDir, { recursive: true });
+    await writeFile(join(drwnDir, "config.json"), '{\n  "version": 2\n}\n');
+    expect((await runAgentsCli(
+      ["card", "apply", "@me/one@1.0.0", "@me/two@1.0.0"],
+      envFor(fixture),
+      projectDir,
+    )).exitCode).toBe(0);
+    const configPath = join(drwnDir, "config.json");
+    const lockPath = join(drwnDir, "card.lock");
+    const sentinelPaths = [
+      [configPath, await readFile(configPath, "utf8")],
+      [lockPath, await readFile(lockPath, "utf8")],
+      [join(projectDir, ".gitignore"), "user-ignore\n"],
+      [join(projectDir, ".mcp.json"), "downstream-sentinel\n"],
+    ] as const;
+    await writeFile(sentinelPaths[2][0], sentinelPaths[2][1]);
+    await writeFile(sentinelPaths[3][0], sentinelPaths[3][1]);
+
+    const result = await runAgentsCli(["write"], envFor(fixture), projectDir);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("select one");
+    for (const [path, bytes] of sentinelPaths) {
+      expect(await readFile(path, "utf8")).toBe(bytes);
+    }
+    expect(existsSync(join(drwnDir, "generated"))).toBe(false);
+  });
 });
