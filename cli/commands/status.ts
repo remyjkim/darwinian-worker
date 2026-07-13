@@ -27,11 +27,16 @@ export class StatusCommand extends BaseCommand {
     examples: [
       ["Quick status snapshot", "drwn status"],
       ["JSON for tooling", "drwn status --json"],
+      ["Inspect machine state from inside a project", "drwn status --machine --json"],
     ],
   });
 
   json = Option.Boolean("--json", false, {
     description: "Emit machine-readable JSON output.",
+  });
+
+  machine = Option.Boolean("--machine", false, {
+    description: "Ignore project config and report machine state.",
   });
 
   explain = Option.Boolean("--explain", false, {
@@ -57,12 +62,13 @@ export class StatusCommand extends BaseCommand {
   }
 
   private async executeStatus() {
+    const projectConfigPath = this.machine ? undefined : this.context.projectConfigPath;
     if (this.why) {
       const answer = await answerWhy(
         this.context.repoRoot,
         this.context.agentsDir,
         this.context.homeDir,
-        this.context.projectConfigPath,
+        projectConfigPath,
         this.why,
       );
       if (!answer.ok) {
@@ -79,7 +85,7 @@ export class StatusCommand extends BaseCommand {
           this.context.repoRoot,
           this.context.agentsDir,
           this.context.homeDir,
-          this.context.projectConfigPath,
+          projectConfigPath,
         ),
       );
       return 0;
@@ -89,7 +95,7 @@ export class StatusCommand extends BaseCommand {
       this.context.repoRoot,
       this.context.agentsDir,
       this.context.homeDir,
-      this.context.projectConfigPath,
+      projectConfigPath,
     );
 
     if (this.json) {
@@ -97,7 +103,7 @@ export class StatusCommand extends BaseCommand {
         repoRoot: this.context.repoRoot,
         agentsDir: this.context.agentsDir,
         homeDir: this.context.homeDir,
-        projectConfigPath: this.context.projectConfigPath,
+        projectConfigPath,
       });
       if (!projectStatus) {
         this.context.stdout.write(renderJson(status));
@@ -107,7 +113,7 @@ export class StatusCommand extends BaseCommand {
         this.context.repoRoot,
         this.context.agentsDir,
         this.context.homeDir,
-        this.context.projectConfigPath,
+        projectConfigPath,
       );
       let cardModes: Record<string, { mode: string; reason: string; lane: string; sourcePath?: string }> | undefined;
       if (status.project) {

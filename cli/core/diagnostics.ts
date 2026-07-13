@@ -494,8 +494,26 @@ function readWriteRecordStatus(path: string): DiagnosticsSections["writeRecord"]
 
 function currentStateStatus(agentsDir: string): DiagnosticsSections["store"] {
   const metadataPath = resolveStoreMetadataPath(agentsDir);
-  const countEntries = (path: string) => existsSync(path)
-    ? readdirSync(path, { withFileTypes: true }).filter((entry) => !entry.name.startsWith(".")).length
+  const countMarkedDirectories = (root: string, marker: string) => {
+    if (!existsSync(root)) return 0;
+    let count = 0;
+    const walk = (dir: string) => {
+      const entries = readdirSync(dir, { withFileTypes: true });
+      if (entries.some((entry) => entry.name === marker && (entry.isFile() || entry.isSymbolicLink()))) {
+        count += 1;
+        return;
+      }
+      for (const entry of entries) {
+        if (entry.isDirectory()) walk(join(dir, entry.name));
+      }
+    };
+    walk(root);
+    return count;
+  };
+  const countJsonRecords = (root: string) => existsSync(root)
+    ? readdirSync(root, { withFileTypes: true })
+        .filter((entry) => entry.isFile() && entry.name.endsWith(".json") && !entry.name.startsWith("."))
+        .length
     : 0;
   let schemaVersion: number | null = null;
   if (existsSync(metadataPath)) {
@@ -506,10 +524,10 @@ function currentStateStatus(agentsDir: string): DiagnosticsSections["store"] {
     path: resolveStoreRoot(agentsDir),
     initialized: existsSync(metadataPath),
     schemaVersion,
-    cardCount: countEntries(resolveCardsRoot(agentsDir)),
-    sourceCount: countEntries(resolveSourcesRoot(agentsDir)),
-    skillBundleCount: countEntries(resolveStoreSkillsRoot(agentsDir)),
-    mcpServerCount: countEntries(resolveStoreMcpServersDir(agentsDir)),
+    cardCount: countMarkedDirectories(resolveCardsRoot(agentsDir), "HEAD"),
+    sourceCount: countMarkedDirectories(resolveSourcesRoot(agentsDir), "card.json"),
+    skillBundleCount: countMarkedDirectories(resolveStoreSkillsRoot(agentsDir), "current"),
+    mcpServerCount: countJsonRecords(resolveStoreMcpServersDir(agentsDir)),
   };
 }
 

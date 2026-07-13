@@ -393,6 +393,9 @@ export function verifyMachineInventoryContract(root = repoRoot, overrides: Sourc
     ['["machine", "inventory", "gc"]', "machine inventory GC command is missing"],
     ["Option.Boolean(\"--prune\"", "machine inventory GC is not dry-run by default with explicit prune"],
   ]);
+  requireTokens("cli/commands/status.ts", [
+    ["Option.Boolean(\"--machine\"", "machine-scoped status command is missing"],
+  ]);
 
   const shapeTests = source("test/commands-machine-inventory-shape.test.ts");
   if (!["drwn library ", "drwn store ", "drwn skills "].every((token) => shapeTests.includes(token))) {

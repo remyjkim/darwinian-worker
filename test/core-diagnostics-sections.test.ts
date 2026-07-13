@@ -15,6 +15,25 @@ afterEach(async () => {
   await cleanupTempRoots(tempRoots);
 });
 
+async function seedScopedSkillPackage(
+  agentsDir: string,
+  packageName: string,
+  skillName: string,
+) {
+  const packageRoot = join(agentsDir, "drwn", "skills", ...packageName.split("/"));
+  const versionRoot = join(packageRoot, "1.0.0");
+  const skillRoot = join(versionRoot, "skills", skillName);
+  await mkdir(skillRoot, { recursive: true });
+  await writeFile(join(packageRoot, "current"), "1.0.0\n");
+  await writeFile(join(skillRoot, "SKILL.md"), `---\nname: ${skillName}\ndescription: fixture\n---\n`);
+  await writeFile(join(versionRoot, "bundle.json"), JSON.stringify({
+    schemaVersion: 1,
+    bundleName: packageName,
+    version: "1.0.0",
+    skills: [{ name: skillName, scope: "shared", path: `skills/${skillName}` }],
+  }));
+}
+
 test("diagnostics sections compose cards, store, and write-record state", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
@@ -54,4 +73,24 @@ test("diagnostics sections compose cards, store, and write-record state", async 
   expect(sections.versionFloor.satisfied).toBe(true);
   expect(sections.writeRecord.present).toBe(true);
   expect(sections.writeRecord.managedPathCount).toBe(1);
+});
+
+test("diagnostics count scoped Card, source, and package records instead of scope directories", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  for (const name of ["one", "two"]) {
+    const cardRoot = join(fixture.agentsDir, "drwn", "cards", "@me", `${name}.git`);
+    const sourceRoot = join(fixture.agentsDir, "drwn", "sources", "@me", name);
+    await mkdir(cardRoot, { recursive: true });
+    await mkdir(sourceRoot, { recursive: true });
+    await writeFile(join(cardRoot, "HEAD"), "ref: refs/heads/main\n");
+    await writeFile(join(sourceRoot, "card.json"), "{}\n");
+    await seedScopedSkillPackage(fixture.agentsDir, `@local/${name}`, `scoped-${name}`);
+  }
+
+  const sections = await buildDiagnosticsSections(fixture.repoRoot, fixture.agentsDir, fixture.homeDir);
+
+  expect(sections.store.cardCount).toBe(2);
+  expect(sections.store.sourceCount).toBe(2);
+  expect(sections.store.skillBundleCount).toBe(2);
 });

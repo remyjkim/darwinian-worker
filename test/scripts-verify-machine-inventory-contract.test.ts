@@ -87,6 +87,9 @@ describe("machine inventory release contract", () => {
     expectRejected({
       "test/commands-machine-inventory-shape.test.ts": source("test/commands-machine-inventory-shape.test.ts").replace('"drwn library "', '"drwn retired-library "'),
     }, /old-path negative tests/i);
+    expectRejected({
+      "cli/commands/status.ts": source("cli/commands/status.ts").replace('Option.Boolean("--machine"', 'Option.Boolean("--retired-machine"'),
+    }, /machine-scoped status/i);
   });
 
   test("rejects broad Store archive creation", () => {

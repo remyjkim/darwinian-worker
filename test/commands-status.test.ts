@@ -181,6 +181,25 @@ describe("drwn status", () => {
     });
   });
 
+  test("--machine returns machine status while a project config is in scope", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const projectDir = join(fixture.root, "project-machine-status");
+    await writeSupportedProjectConfig(projectDir, { skills: { include: ["alpha"] } });
+
+    const result = await runAgentsCli(["status", "--machine", "--json"], envFor(fixture), projectDir);
+
+    expect(result.exitCode, result.stderr).toBe(0);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed).toMatchObject({
+      schema: "drwn.machine-status",
+      schemaVersion: 1,
+      config: { schema: "drwn.machine", schemaVersion: 1 },
+    });
+    expect(parsed.project).toBeUndefined();
+    expect(parsed.activeWorker).toBeUndefined();
+  });
+
   test("machine JSON reports profile and explicit provenance without secret-bearing definitions", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
