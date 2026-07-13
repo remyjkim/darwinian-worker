@@ -1,288 +1,331 @@
 <!DOCTYPE html>
-<!-- ABOUTME: Shareable engineering guide to the current architecture of the darwinian worker CLI (drwn 0.7.0): object model, storage topology, composition engine, materialization, command surface, deploy contract, and how the mind subsystem plugs in. -->
-<!-- ABOUTME: Companion to 113_mind-card-engineering-guide.html; facts verified in-session against the 0.7.0 codebase; supersedes the pre-rename as-built reference (knowledges/10) and HTML mental models (95/96/98) for current-state questions. -->
+<!-- ABOUTME: Current architecture map for the first supported Darwinian Worker CLI contract. -->
+<!-- ABOUTME: Covers Cards, Worker roots, machine inventory, projection ownership, deployment, and optional Mind state. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>The Darwinian Worker CLI — Architecture</title>
+<title>Darwinian Worker CLI Architecture</title>
 <style>
   :root {
-    --ink: #1e2126; --muted: #5c6470; --faint: #8a93a0;
-    --paper: #fbfaf7; --panel: #ffffff; --line: #e3e0d8;
-    --accent: #245a8d; --accent-soft: #eaf1f8;
-    --warn-bg: #fdf3e4; --warn-line: #e8c78a;
-    --code-bg: #f3f1ec; --pre-bg: #23272e; --pre-ink: #e6e1d6;
+    --ink:#20242a;
+    --muted:#5c6570;
+    --paper:#fbfaf7;
+    --line:#dedbd3;
+    --accent:#245a8d;
+    --warn:#8a4f13;
+    --code:#f1efe9;
   }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.65 "Charter", "Georgia", serif; }
-  header { background: var(--pre-bg); color: var(--pre-ink); padding: 48px 24px 40px; }
-  header .inner, main { max-width: 880px; margin: 0 auto; }
-  header h1 { font-size: 34px; margin: 0 0 10px; font-weight: 700; letter-spacing: -0.5px; }
-  header p.sub { margin: 0; color: #b9c0cc; font-size: 17px; max-width: 660px; }
-  header .meta { margin-top: 18px; font: 13px/1.5 "SF Mono", "Menlo", monospace; color: #7f8898; }
-  main { padding: 40px 24px 96px; }
-  h2 { font-size: 24px; margin: 56px 0 12px; padding-top: 18px; border-top: 1px solid var(--line); letter-spacing: -0.3px; }
-  h2 .no { color: var(--faint); font-weight: 400; margin-right: 10px; }
-  h3 { font-size: 18px; margin: 30px 0 8px; }
-  p { margin: 10px 0; }
-  a { color: var(--accent); }
-  code { font: 13.5px/1.5 "SF Mono", "Menlo", monospace; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
-  pre { background: var(--pre-bg); color: var(--pre-ink); padding: 16px 18px; border-radius: 8px; overflow-x: auto; font: 13px/1.55 "SF Mono", "Menlo", monospace; }
-  pre code { background: none; padding: 0; color: inherit; font-size: inherit; }
-  pre .c { color: #8d97a8; } pre .k { color: #8fd0ff; } pre .s { color: #c8e39b; }
-  table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 14.5px; }
-  th, td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; vertical-align: top; }
-  th { background: var(--code-bg); font-family: "Helvetica Neue", sans-serif; font-size: 13px; }
-  .mental-model { background: var(--accent-soft); border-left: 4px solid var(--accent); padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 18px 0; font-size: 17px; }
-  .callout { background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 8px; padding: 12px 16px; margin: 16px 0; font-size: 15px; }
-  .callout b:first-child { color: #8a5a12; }
-  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 16px 0; }
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 18px; }
-  .panel h4 { margin: 0 0 8px; font-size: 15px; font-family: "Helvetica Neue", sans-serif; }
-  nav.toc { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 18px 22px; margin: 0 0 8px; columns: 2; column-gap: 32px; font-family: "Helvetica Neue", sans-serif; font-size: 14px; }
-  nav.toc a { display: block; padding: 3px 0; text-decoration: none; break-inside: avoid; }
-  .verb { font-family: "SF Mono", "Menlo", monospace; font-size: 13px; color: var(--accent); }
-  @media (max-width: 720px) { .cols { grid-template-columns: 1fr; } nav.toc { columns: 1; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--paper); color:var(--ink); font:16px/1.6 Georgia,serif; }
+  header { background:#242930; color:#f4f1e8; padding:42px 24px; }
+  header div, main { max-width:980px; margin:auto; }
+  header p { color:#bec5ce; margin-bottom:8px; }
+  main { padding:32px 24px 80px; }
+  h2 { margin-top:42px; padding-top:16px; border-top:1px solid var(--line); }
+  h3 { margin-top:26px; }
+  code { background:var(--code); padding:1px 5px; border-radius:3px; font:13px/1.5 Menlo,monospace; }
+  pre { overflow:auto; background:#242930; color:#f4f1e8; padding:16px; border-radius:6px; }
+  pre code { background:none; padding:0; color:inherit; }
+  table { width:100%; border-collapse:collapse; margin:14px 0; }
+  th,td { border:1px solid var(--line); padding:8px 10px; text-align:left; vertical-align:top; }
+  th { background:var(--code); }
+  .callout { border-left:4px solid var(--accent); background:#eaf1f8; padding:12px 16px; }
+  .warning { border-left-color:var(--warn); background:#f8eee2; }
+  .muted { color:var(--muted); }
 </style>
 </head>
 <body>
-
-<header>
-  <div class="inner">
-    <h1>The Darwinian Worker CLI</h1>
-    <p class="sub">How <code>drwn</code> is put together at 0.7.0: capability cards, worker blueprints,
-    stacks, materialization, deployment — and where minds plug in. The map an engineer needs
-    before touching any of it.</p>
-    <div class="meta">drwn 0.7.0 &nbsp;·&nbsp; companion: 113 (mind cards) &nbsp;·&nbsp; supersedes knowledges/10 and analyses/95·96·98 for current state &nbsp;·&nbsp; 2026-07-09</div>
-  </div>
-</header>
-
+<header><div>
+  <h1>The Darwinian Worker CLI</h1>
+  <p>Cards compose into a Blueprint, a project selects at most one Worker, and write projects declared intent.</p>
+  <small>first supported local contract | drwn 0.9.0 candidate | reviewed 2026-07-13</small>
+</div></header>
 <main>
+<div class="callout"><b>Public mental model:</b> Cards are independently versioned capability
+packages. A Blueprint is a Card that composes plain Cards and governance. Each installed root is
+a possible Worker; exactly one root or none is selected. The selected root and its closure provide
+project behavior. Machine capabilities are separately declared ambient tooling, never implicit
+members of the project Worker.</div>
 
-<nav class="toc">
-  <a href="#model">1 · The object model</a>
-  <a href="#process">2 · Process model</a>
-  <a href="#storage">3 · Storage topology</a>
-  <a href="#cards">4 · Card lifecycle</a>
-  <a href="#compose">5 · Composition &amp; the effective state</a>
-  <a href="#write">6 · Materialization (write)</a>
-  <a href="#commands">7 · Command surface map</a>
-  <a href="#deploy">8 · Deployment</a>
-  <a href="#minds">9 · The mind subsystem</a>
-  <a href="#trust">10 · Trust, gates, governance</a>
-  <a href="#versioning">11 · Versioning &amp; compatibility</a>
-  <a href="#refs">12 · References</a>
-</nav>
-
-<h2 id="model"><span class="no">1</span>The object model</h2>
-
-<div class="mental-model">
-<b>Capability cards</b> carry content (skills · hooks · MCP servers · mind seeds).
-<b>Blueprints</b> compose cards and carry governance. A <b>worker</b> is a deployed (or
-locally activated) blueprint instance — <b>stateless by default</b>. A <b>mind</b> is
-optional per-worker state: the live persona/beliefs/memory a worker <i>gains</i> when its
-stack composes mind-bearing cards and is provisioned. One composition engine, one
-lockfile, one materialization pipeline serve all of it.
-</div>
-
-<div class="callout"><b>The unit of mind, precisely:</b> a worker <i>is not</i> a mind and
-a card <i>is not</i> a mind — a mind is state a worker <b>has</b>. Cardinality:
-<code>worker (1) ──has── (0..1) mind</code> ·
-<code>mind (1) ──seeded from── (1..n) cards</code> ·
-<code>card (1) ──can seed── (0..n) minds</code>.
-A worker has <b>no persona, beliefs, or memory by default</b>; it acquires a mind only when
-(1) at least one composed card carries <code>persona</code>/<code>beliefs</code>/<code>memory</code>
-sections <i>and</i> (2) <span class="verb">worker mind provision</span> has run.
-<b>Naming fossil to know:</b> the deploy API predates the Workers rename — its
-<code>minds</code> table and the <code>mindId</code> it returns are the worker's
-<b>stable identity</b>, minted for <i>every</i> deployed worker, mind or not. Identity
-always exists; the mind (the DB subtree) exists only once provisioned. And "mind card"
-means any mind-bearing card; the substrate is <code>@darwinian/mind-tools</code> (the mind-operating skills + conventions, no seeds) and the solo quickstart is <code>@darwinian/mind-starter</code> (voice + collaboration + the synced skills). The substrate is composed, never forked — minds are always defined by their own content card.</div>
-
+<h2>1. Canonical Object Model</h2>
 <table>
-<tr><th>Object</th><th>What it is</th><th>Where it lives</th></tr>
-<tr><td><b>Capability card</b> <code>kind: "card"</code> (default)</td><td>Named, semver-versioned bundle of capability content: <code>skills.include</code>, <code>hooks.include</code>, <code>servers</code>, and (0.7.0) <code>persona</code>/<code>beliefs</code>/<code>memory</code> mind sections</td><td>Authored in <i>sources</i>, published immutably into the <i>store</i>, pinned in project <i>locks</i></td></tr>
-<tr><td><b>Worker blueprint</b> <code>kind: "blueprint"</code></td><td>A card whose content is composition + governance: <code>composedFrom</code> (member card refs) plus forward-declared <code>tools</code>/<code>permissions</code>/<code>evals</code>/<code>escalation</code>/<code>contextMounts</code>/<code>identity</code> — shape-validated by the CLI, <i>enforced by the deploy runtime</i></td><td>Same pipeline as any card (card-as-substrate: no parallel distribution stack)</td></tr>
-<tr><td><b>Worker</b></td><td>The running instance: locally, an active stack materialized into agent-tool configs; deployed, a slug on the deploy API with a container runtime. <b>Stateless by default</b> — no persona, beliefs, or memory unless its stack says so</td><td><code>generated/workers/&lt;name&gt;/</code> locally; a deployment server-side</td></tr>
-<tr><td><b>Mind</b> <i>(optional, 0..1 per worker)</i></td><td>Per-worker state a worker <i>gains</i> when its composed cards carry mind sections and it is provisioned: the live persona/beliefs/memory, seeded from those cards. Not a worker, not a card — the accrued instance (cards are the genotype; the mind is the phenotype)</td><td>BeginningDB <code>minds/&lt;workerId&gt;/</code> — exists only after <span class="verb">provision</span> (see §9 and doc 113)</td></tr>
-<tr><td><b>Scopes</b></td><td>Two write scopes: <b>machine</b> (<code>~/.claude</code>, <code>~/.codex</code>, …) and <b>project</b> (<code>.agents/drwn/</code> in a repo)</td><td>Presence of <code>.agents/drwn/config.json</code> selects project scope</td></tr>
+<tr><th>Object</th><th>Responsibility</th><th>Authority</th></tr>
+<tr><td>Capability Card</td><td>Skills, MCP definitions, hooks, instructions, optional persona/beliefs, and optional semantic memory declarations</td><td>Immutable published Card version</td></tr>
+<tr><td>Worker Blueprint</td><td><code>kind:"blueprint"</code>, ordered <code>composedFrom</code> plain-Card refs, identity, and governance</td><td>Immutable published Blueprint version</td></tr>
+<tr><td>Worker root</td><td>A top-level project requirement: either one plain Card or one Blueprint</td><td>Project <code>workers</code> requirements and lock graph</td></tr>
+<tr><td>Active Worker</td><td>The one selected root whose closure contributes project behavior</td><td><code>activeWorker</code>, one installed root name or <code>null</code></td></tr>
+<tr><td>Generated Worker</td><td>Disposable aggregate bundle for one installed root and its closure</td><td>Projection output only; never project intent</td></tr>
+<tr><td>Machine inventory</td><td>Inactive standalone skill packages and MCP records available for explicit use</td><td>Typed records under <code>~/.agents/drwn</code></td></tr>
+<tr><td>Machine intent</td><td>One pinned profile plus explicit machine skill/MCP selections and policy</td><td><code>drwn.machine</code> schema V1</td></tr>
+<tr><td>Deployed Worker</td><td>Remote runtime resolved from one immutable root closure</td><td>Existing deploy API contract</td></tr>
+<tr><td>Worker Mind</td><td>Optional BeginningDB-backed persona, beliefs, observations, and insights</td><td>Selected closure capability plus explicit provision</td></tr>
 </table>
+<p>Workers are alternatives, not a stack. Capability composition happens once, inside a
+Blueprint. A plain Card root is a valid one-Card Worker. Nested Blueprints are rejected.</p>
 
-<h2 id="process"><span class="no">2</span>Process model</h2>
-<p>Single-process, Bun-executed, Clipanion-based CLI. No daemon, no IPC, no cache outside
-the filesystem. Every invocation: read the on-disk surfaces → compute an <b>effective
-state</b> → report it (<span class="verb">status</span>, <span class="verb">doctor</span>)
-or materialize it (<span class="verb">write</span>). Network appears in exactly three
-places: git operations against card remotes, the deploy API
-(DAH-authenticated), and BeginningDB (mind operations). Everything else is local and
-deterministic — run <span class="verb">write</span> twice and the second run reports zero
-changes.</p>
+<h2>2. Authority And Data Flow</h2>
+<pre><code>Card sources / catalogs
+  -> immutable Card store and standalone machine inventory
+  -> project requirements + explicit machine intent
+  -> immutable project lock
+  -> effective selected Worker state
+  -> generated Worker aggregates
+  -> downstream project or user-home projections</code></pre>
+<p>The flow is one-way. Generated Worker directories, downstream tool files, user-home skill
+folders, and machine profiles never become project requirements. <code>drwn write</code> does not
+select a Worker, install a missing root, or repair declaration state.</p>
 
-<h2 id="storage"><span class="no">3</span>Storage topology</h2>
-<pre><code><span class="c"># Machine-wide (the "store")</span>
-~/.agents/drwn/
-├── sources/&lt;scope&gt;/&lt;name&gt;/        <span class="c">editable card sources (authoring home; publish reads here)</span>
-├── cards/&lt;scope&gt;/&lt;name&gt;.git       <span class="c">published cards: bare git repos, one tag per version (v1.2.0)</span>
-├── extracted/&lt;treeSha&gt;/           <span class="c">immutable checkouts of published trees (lock entries point here)</span>
-├── credentials.json               <span class="c">DAH tokens (keychain-encrypted)</span>
-├── mind-bindings.json             <span class="c">per-slug mind coordinates — never tokens (0.7.0)</span>
-├── machine.json · catalogs/ · generated/   <span class="c">machine config, fetched catalogs, machine-scope output</span>
+<h2>3. First Supported Schemas</h2>
+<p>The prelaunch hard cut treats namespaced schema V1 records as the first public contract.
+Prototype readers, migration adapters, warning aliases, reconstruction heuristics, and dual writes
+are intentionally absent.</p>
 
-<span class="c"># Per project</span>
-&lt;repo&gt;/.agents/drwn/
-├── config.json                    <span class="c">project config: cards[], activeWorkers[], servers/skills/targets</span>
-├── card.lock                      <span class="c">lockfileVersion 5: pinned versions + integrity + embedded manifests</span>
-└── generated/                     <span class="c">materialized worker bundles + workers.json (write output)</span></code></pre>
-<p>Two invariants: published versions are <b>immutable</b> (re-publishing an existing
-version throws — bump instead), and everything a card ships is <b>integrity-hashed</b>
-(whole-tree snapshot at publish; the lock records <code>integrity</code> +
-<code>treeSha</code>, verified on install).</p>
+<h3>Project Config</h3>
+<pre><code>{
+  "schema": "drwn.project-config",
+  "schemaVersion": 1,
+  "workers": [
+    "@team/reviewer-worker@^1.0.0",
+    "@team/interviewer-worker@^1.0.0"
+  ],
+  "activeWorker": "@team/reviewer-worker"
+}</code></pre>
+<p><code>workers</code> contains ordered root requirements, not closure members.
+<code>activeWorker</code> is required and explicit. Project overlays for skills, MCP servers,
+hooks, extensions, targets, trust, and materialization are separate fields and do not alter the
+root graph.</p>
 
-<h2 id="cards"><span class="no">4</span>Card lifecycle</h2>
-<pre><code><span class="k">author</span>    drwn card new @me/x --no-git · card source add-skill/add-hook/add-mcp/add-persona/add-belief
-          <span class="c">card source doctor — structural issues (orphaned dirs, missing SKILL.md/PERSONA.md, …)</span>
-<span class="k">publish</span>   drwn card publish @me/x
-          <span class="c">validates declared content dirs → snapshots the WHOLE tree → semver-vs-diff classification</span>
-          <span class="c">(member-set / capability changes must match the bump) → tag v&lt;version&gt; in the bare repo</span>
-<span class="k">share</span>     drwn card push @me/x [--remote-visibility …]     <span class="c">visibility gate: §10</span>
-          <span class="c">consumers fetch via store refs, git+https/github:/gitlab: refs, or file: (dev)</span>
-<span class="k">consume</span>   drwn card apply &lt;ref&gt; [&lt;ref&gt;…]   <span class="c">multi-spec · resolves + locks + vendors</span>
-          drwn card add &lt;ref&gt;              <span class="c">exactly ONE spec</span>
-          <span class="c">card update / outdated / pin / diff / show / trust manage the pinned set</span>
-<span class="k">activate</span>  drwn worker stack use &lt;names…&gt;   <span class="c">orders activeWorkers (§5)</span>
-<span class="k">emit</span>      drwn write                        <span class="c">materialization (§6)</span></code></pre>
-<p>The lock (<code>card.lock</code>) is the project's ground truth: each entry pins
-<code>name / requested / version / path / integrity / treeSha</code>, embeds the full
-manifest, and lists resolved <code>skills</code>/<code>hooks</code> (+ mind sections at
-0.7.0). Origins: <code>store | git | file | npm</code>.</p>
+<h3>Project Lock</h3>
+<pre><code>{
+  "schema": "drwn.project-lock",
+  "schemaVersion": 1,
+  "store": { "minDrwnVersion": "0.8.0" },
+  "workerRoots": [
+    {
+      "name": "@team/reviewer-worker",
+      "requested": "@team/reviewer-worker@^1.0.0",
+      "kind": "blueprint",
+      "members": ["@team/operator", "@team/notion"]
+    }
+  ],
+  "cards": ["complete immutable Card entries omitted here"]
+}</code></pre>
+<p>The lock stores every root and reachable Card exactly once, with explicit root-to-member edges.
+Root and Card order is deterministic; incompatible same-name resolutions and nested Blueprint
+members fail. Store/Git entries carry commit tree identity and integrity. A Mind-bearing graph
+raises the lock-wide floor to <code>0.9.0</code>.</p>
 
-<h2 id="compose"><span class="no">5</span>Composition &amp; the effective state</h2>
-<p>One engine, three steps, all in-process:</p>
+<h3>Local Development Overlay</h3>
+<pre><code>{
+  "schema": "drwn.project-local",
+  "schemaVersion": 1,
+  "activeWorker": "@team/reviewer-worker",
+  "cardReplacements": {},
+  "localOnlyRoots": [],
+  "sourceOverrides": {}
+}</code></pre>
+<p><code>config.local.json</code> and <code>card.lock.local</code> are root-aware,
+machine-local development state. <code>drwn dev</code> manages Card source replacement and
+watch-write behavior here. It is distinct from machine capability management.</p>
+
+<h3>Generated Worker State</h3>
+<pre><code>.agents/drwn/generated/
+  workers.json                    # drwn.generated-workers V1
+  active-worker.json              # drwn.generated-active-worker V1, when selected
+  instructions.md                 # active aggregate instructions
+  workers/&lt;scope&gt;/&lt;name&gt;/
+    worker.json                   # drwn.generated-worker V1
+    instructions.md
+    skills/
+    mcp/servers.json
+    hooks/</code></pre>
+<p>The CLI creates one aggregate directory per installed Worker root, not one directory per
+member Card. Multiple directories therefore represent alternative roots. Only the selected root's
+closure contributes active downstream project behavior. Member Cards remain independently pinned,
+vendored, verified, and attributed.</p>
+
+<h3>Machine Intent</h3>
+<pre><code>{
+  "schema": "drwn.machine",
+  "schemaVersion": 1,
+  "policy": {},
+  "capabilities": {
+    "profile": null,
+    "skills": [],
+    "mcpServers": []
+  }
+}</code></pre>
+<p>Fresh non-interactive setup creates explicit empty intent. Guided setup may offer an opt-out,
+immutable Recommended Darwinian Operator profile. A profile may project only approved machine-safe
+skills and MCP definitions. It cannot project Worker identity, instructions, hooks, permissions,
+governance, or Mind content.</p>
+
+<h3>Projection Ownership</h3>
+<pre><code>{
+  "schema": "drwn.write-record",
+  "schemaVersion": 1,
+  "scope": "project",
+  "lastWriteAt": "2026-07-13T00:00:00.000Z",
+  "lastWriteHarnessVersion": "0.9.0",
+  "managedPaths": [
+    {
+      "path": ".claude/skills/example",
+      "kind": "managed-directory",
+      "contentHash": "sha256-...",
+      "surface": "skill",
+      "target": "claude"
+    }
+  ]
+}</code></pre>
+<p>Every managed path has an explicit capability surface and, when required, target owner.
+Project and machine records are scope-checked. Paths are contained relative paths; duplicate paths,
+unsupported ownership combinations, prototype records, and malformed hashes fail closed.</p>
+
+<h2>4. Project Resolution And Selection</h2>
 <ol>
-<li><b>Resolve</b>: each ref in <code>config.cards[]</code> resolves to a lock entry
-(store/git/file).</li>
-<li><b>Expand blueprints</b>: for each <code>kind: "blueprint"</code> entry, its
-<code>composedFrom</code> members are resolved and spliced into the list <i>after</i> the
-blueprint (which remains, carrying governance). Members dedupe by name — <b>first
-occurrence wins</b>, including the pinned version. Blueprints may not compose blueprints
-(<code>BLUEPRINT_RECURSION</code>).</li>
-<li><b>Select</b>: <code>activeWorkers</code> filters and orders the locked cards. If
-unset, all cards are active.</li>
+<li><b>Declare:</b> <code>drwn add</code> appends one root; <code>drwn apply</code> replaces roots.</li>
+<li><b>Resolve:</b> recursively resolve each root, pin immutable Cards, and reject Blueprint recursion or version conflict.</li>
+<li><b>Select:</b> <code>drwn use &lt;root&gt;</code> selects one installed root; <code>drwn use --none</code> selects none.</li>
+<li><b>Aggregate:</b> compose the selected root followed by ordered members, then committed and local project overlays.</li>
+<li><b>Project:</b> <code>drwn write</code> reconciles only declared output through the shared planner.</li>
 </ol>
+<p>Adding the first root may explicitly select it. Several alternatives may remain installed and
+locked, but they contribute no active project capability. Selecting a Blueprint member directly is
+invalid because members are not roots.</p>
 
-<div class="callout"><b>The no-expansion rule (the #1 operational surprise):</b>
-selection is a <i>plain name filter</i> — neither <span class="verb">worker stack use</span>
-nor <span class="verb">worker mind provision</span> expands blueprints. A blueprint entry
-itself contributes zero skills and zero persona. <b>Always list members explicitly</b>:<br>
-<code>drwn worker stack use @me/chief-worker @darwinian/mind-tools @me/chief</code></div>
-
-<p>The resulting <b>effective state</b> (ordered active cards, their content roots, merged
-skills/servers/hooks, config overlays) is the single input to everything downstream:
-<span class="verb">write</span>, <span class="verb">status --why</span>,
-<span class="verb">doctor</span>, and mind seeding. Order matters twice: skill apply
-precedence and composed-persona ordering.</p>
-
-<h2 id="write"><span class="no">6</span>Materialization (<span class="verb">drwn write</span>)</h2>
-<pre><code>effective state
-  ├── generated/workers/&lt;card&gt;/          <span class="c">per-worker bundle</span>
-  │     ├── skills/&lt;name&gt;               <span class="c">symlinks into the extracted content root</span>
-  │     ├── mcp/servers.json             <span class="c">the card's MCP server definitions</span>
-  │     ├── hooks/{claude,codex}/composer.mjs   <span class="c">bundled hook policies (consent-gated)</span>
-  │     └── worker.json                  <span class="c">index: name/version/integrity/skills/hooks/servers</span>
-  ├── generated/workers.json             <span class="c">global index</span>
-  └── downstream projection              <span class="c">.claude/ · .codex/ · .cursor/ (skills links, MCP config)</span></code></pre>
-<p>Write is <b>managed and drift-aware</b>: every emitted path is recorded with a content
-hash; if a user replaced a managed path with their own content, write <i>refuses</i>
-(exit non-zero, "drift") unless <code>--force</code> — and even forced, user content is
-preserved, not clobbered. <code>--dry-run --json</code> reports the full change plan;
-<code>DRWN_STORE_READONLY=1</code> blocks all store mutations (honored by every mutating
-command).</p>
-
-<h2 id="commands"><span class="no">7</span>Command surface map</h2>
+<h2>5. Supported Command Grammar</h2>
 <table>
-<tr><th>Group</th><th>Verbs</th><th>Purpose</th></tr>
-<tr><td><span class="verb">drwn card</span></td><td>new · publish · push · apply/add/remove · update/outdated/pin · show/list/meta/diff/status · clone/fork/fetch/remote · trust/untrust · release · catalog-publish · validate · deprecate</td><td>Card authoring, distribution, consumption</td></tr>
-<tr><td><span class="verb">drwn card source</span></td><td>add/remove-skill · add/remove-hook · add/remove-mcp · add/remove-persona · add/remove-belief · set · doctor · list/show/sync</td><td>Editable-source mutations (all support <code>--dry-run --json</code>)</td></tr>
-<tr><td><span class="verb">drwn worker</span></td><td>deploy · list · status · deployments · rollback · delete · chat · new/compose/publish</td><td>Deployed-worker lifecycle against the deploy API</td></tr>
-<tr><td><span class="verb">drwn worker stack</span></td><td>(list) · use · clear</td><td>The ordered active stack (<code>activeWorkers</code>)</td></tr>
-<tr><td><span class="verb">drwn worker mind</span></td><td>provision · status · sync · diff · checkpoint · doctor · pool retire</td><td>The mind subsystem (§9; full treatment in doc 113)</td></tr>
-<tr><td><span class="verb">drwn</span> top-level</td><td>init · install · write · status · doctor · use · login/auth · skills · mcp · library · store · extensions</td><td>Project bootstrap, materialization, diagnostics, machine defaults</td></tr>
+<tr><th>Namespace</th><th>Responsibility</th></tr>
+<tr><td><code>drwn init</code></td><td>Create namespaced project state and explicit machine intent; guided setup may offer the Recommended profile</td></tr>
+<tr><td><code>drwn add | apply | pin | remove | update | use</code></td><td>Project Worker requirements, immutable lock graph, and singular selection</td></tr>
+<tr><td><code>drwn install | write | up | status | doctor</code></td><td>Hydration, pure projection, locked updates, explanation, and diagnostics</td></tr>
+<tr><td><code>drwn add skill | add mcp | extensions</code></td><td>Explicit project capability overlays outside the Worker closure</td></tr>
+<tr><td><code>drwn card</code></td><td>Card source authoring, validation, publication, catalogs, remotes, trust, and inspection</td></tr>
+<tr><td><code>drwn worker</code></td><td>Blueprint authoring and deployed Worker lifecycle</td></tr>
+<tr><td><code>drwn worker mind</code></td><td>Optional selected-Worker Mind provision, drift, sync, checkpoint, diagnosis, and retirement</td></tr>
+<tr><td><code>drwn machine skill | mcp | inventory</code></td><td>Standalone machine inventory, explicit activation, references, portable transfer, and garbage collection</td></tr>
+<tr><td><code>drwn dev</code></td><td>Project-local Card source linking and watch-write iteration</td></tr>
 </table>
-<p>Conventions every command follows: <code>--json</code> for machine output;
-<code>--dry-run</code> plans without writing; destructive verbs are confirmation-gated;
-<span class="verb">doctor</span> is report-only (repair belongs to
-<span class="verb">write</span>/explicit verbs).</p>
+<p>There is no <code>library</code> or broad <code>store</code> namespace. Standalone lifecycle and
+portable inventory live under <code>machine</code>; Card store behavior lives under
+<code>card</code>. Removed project mutations under <code>drwn card</code>, Worker stacking, and
+<code>install --no-apply</code> are ordinary unknown syntax, not aliases.</p>
 
-<h2 id="deploy"><span class="no">8</span>Deployment</h2>
-<pre><code>drwn worker deploy &lt;blueprint-ref&gt; --name chief [--secrets-file .drwn.secrets]
-  <span class="c">1. CLI resolves the blueprint + members LOCALLY → pinned member set (version/integrity/treeSha)</span>
-  <span class="c">2. POST /api/deployments { cardRef, name, secrets?, blueprint: { members, governance } }</span>
-  <span class="c">3. ← { deploymentId, mindId }   — mindId = the STABLE worker id (legacy field name;</span>
-  <span class="c">     minted for every worker, mind or not; survives redeploys/rollbacks).</span>
-  <span class="c">     The slug is the client-supplied --name, not a returned field.</span>
-  <span class="c">4. poll → ready; cache mind binding coordinates (never tokens) in mind-bindings.json</span></code></pre>
-<p>Design decision worth knowing: <b>the CLI resolves, the server materializes.</b> The
-server receives an immutable pinned member set — no server-side <code>composedFrom</code>
-resolution, reproducible by construction. Auth is DAH bearer tokens with automatic refresh;
-MCP secrets upload at deploy and reach containers as <code>MCP_TOKEN_*</code> env.
-Rollback flips the serving alias between deployments of the same worker; the worker's
-identity (and mind) persists across all of it.</p>
-
-<h2 id="minds"><span class="no">9</span>The mind subsystem</h2>
-<p>0.7.0's addition, in one paragraph (doc 113 is the full guide): cards may carry
-<b>persona/beliefs seeds</b> and <b>memory layer declarations</b>; at provision, the active
-stack's mind content is composed (stack-ordered, provenance-fenced) and seeded into
-BeginningDB at <code>minds/&lt;mindId&gt;/</code>, where it becomes the live, DB-first-edited
-state; memory (L4 reflections, L5 observations) is DB-native via a shared placement pool;
-<span class="verb">sync</span>/<span class="verb">diff</span>/<span class="verb">checkpoint</span>
-run the card↔DB loop with DB-edits-win semantics.</p>
-<p>Architecturally it lives behind two module seams, deliberately split:</p>
-<div class="cols">
-<div class="panel"><h4><code>cli/core/mind-content/</code> — pure, offline</h4>
-Manifest section validation, persona composition/fence parsing, visibility + push gate,
-authoring, publish validation. No network. This is the restored (pre-descope) machinery,
-re-homed behind narrow seams in manifest/lock/publish.</div>
-<div class="panel"><h4><code>cli/core/mind-store/</code> — everything network</h4>
-The BeginningDB client (fetch-only, ETag CAS, offset-write append), path conventions
-(ULID pool entries), the seed/rebase/checkpoint engines, the seed ledger
-(<code>mind.json</code>), doctor probes, binding cache. Swappable for the future
-<code>@beginningdb/client</code> package.</div>
-</div>
-<p>Locks that carry mind content raise the project's version floor to
-<code>MINDS_MIN_DRWN_VERSION = 0.7.0</code>.</p>
-
-<h2 id="trust"><span class="no">10</span>Trust, gates, governance</h2>
+<h2>6. Pure Projection And Partial Writes</h2>
+<p>One shared projection planner drives real write, dry run, status, and doctor. It accepts resolved
+state and returns desired ownership, drift, collisions, and cleanup. Adapters render their target
+formats; they do not independently infer project intent.</p>
 <table>
-<tr><th>Mechanism</th><th>Protects</th><th>How</th></tr>
-<tr><td><b>Integrity + immutable versions</b></td><td>Supply chain</td><td>Whole-tree hash at publish, verified at install; versions never mutate</td></tr>
-<tr><td><b>Hook consent</b></td><td>Arbitrary code in hook policies</td><td>Card hooks don't compose until <code>drwn card trust &lt;card&gt; --hooks</code>; consent recorded in the lock with the consented range</td></tr>
-<tr><td><b>Visibility push gate</b></td><td>Private mind content leaking to public remotes</td><td>Strictest visibility across persona/beliefs sections gates <span class="verb">card push</span>; unknown remotes block until <code>--remote-visibility</code> is stated</td></tr>
-<tr><td><b>Blueprint governance</b></td><td>Deployed worker behavior</td><td><code>tools.allow/deny</code>, <code>permissions</code>, <code>escalation</code>, <code>contextMounts</code>, <code>evals</code>, <code>identity</code> — CLI validates shape, lock carries them verbatim, the deploy runtime enforces</td></tr>
-<tr><td><b>Semver-vs-diff classification</b></td><td>Honest version numbers</td><td>Publish computes the change class (capability/member-set changes ≠ patch) and rejects mismatched bumps</td></tr>
-<tr><td><b>Managed-path drift refusal</b></td><td>User edits in materialized output</td><td>Write refuses to overwrite content that diverged from its managed hash</td></tr>
-<tr><td><b><code>DRWN_STORE_READONLY</code></b></td><td>CI / inspection contexts</td><td>All store mutations blocked; dry-runs still plan</td></tr>
+<tr><th>Invocation</th><th>Reconciles</th><th>Retains</th></tr>
+<tr><td><code>drwn write</code></td><td>All selected project surfaces and enabled targets</td><td>No stale selected ownership</td></tr>
+<tr><td><code>drwn write --mcp-only</code></td><td>MCP output for enabled targets</td><td>Skill, hook, and unselected-target ownership</td></tr>
+<tr><td><code>drwn write --skills-only</code></td><td>Claude/Codex skill output</td><td>MCP, hook, and unselected-target ownership</td></tr>
+<tr><td><code>drwn write --target=&lt;target&gt;</code></td><td>Selected target plus common generated Worker output</td><td>Other target ownership and bytes</td></tr>
+<tr><td><code>drwn write --scope machine</code></td><td>Explicit machine capabilities into user-home targets</td><td>Project state and project-owned output</td></tr>
 </table>
+<p>Cleanup removes only previously owned, unchanged, now-stale output. User replacements and foreign
+content are preserved or block unsafe claims. A still-desired path changing representation is an
+ownership handoff, not permission to delete the desired result. <code>--force</code> cannot claim
+foreign paths or bypass target-native fatal MCP collisions.</p>
 
-<h2 id="versioning"><span class="no">11</span>Versioning &amp; compatibility</h2>
-<p><code>DRWN_VERSION</code> (0.7.0) is kept in lockstep with <code>package.json</code>
-(parity-tested). Locks carry a <code>minDrwnVersion</code> floor: <code>0.3.0</code> when
-any card has hooks, <code>0.7.0</code> when any card has mind content — older CLIs warn
-loudly instead of mis-materializing. Card-level compatibility rides
-<code>harness.minVersion</code> per manifest. Earlier vocabulary you may meet in old docs:
-"mind card" once meant harness cards generally (pre-rename, ≤ analysis 98), and
-<code>bgng</code> was this CLI's former name — everywhere current, <code>bgng</code> is the
-BeginningDB CLI.</p>
+<h2>7. Machine Inventory And Portability</h2>
+<pre><code>~/.agents/drwn/
+  sources/                 editable Card sources
+  cards/                   bare Git repositories for immutable Card versions
+  extracted/               verified immutable content trees
+  skills/                  standalone immutable skill package versions
+  mcp-servers/             standalone MCP inventory records
+  machine.json             explicit profile, capability selections, and policy
+  projects.json            registered project roots for reference safety
+  credentials.json         authentication secrets; never portable inventory</code></pre>
+<p>Repository skills and bundled registry MCP definitions are discovery-only. Card-owned capability
+copies remain under Card lifecycle. Standalone installation is inactive until machine or explicit
+project intent references it. Package update/removal is package-scoped, reports affected IDs, and
+fails while referenced. Inventory mutation uses one global lock followed by machine and sorted
+project locks; ambiguous owners fail closed.</p>
+<p><code>machine inventory export</code> is the requirements-style canonical manifest.
+<code>bundle</code> adds verified payload bytes, <code>verify</code> compares source and target,
+and <code>sync</code> installs only missing inventory additively and inactive. Transfer excludes
+activation intent, credentials, Cards, project state, target output, history, and runtime state.
+Garbage collection is a dry-run plan by default and never removes current inventory merely because
+it has zero references.</p>
 
-<h2 id="refs"><span class="no">12</span>References</h2>
+<h2>8. Ambient Target Policy</h2>
+<p>Project evaluation does not inherit machine capabilities, but downstream tools may still expose
+user-home capabilities in project sessions. Status and doctor report that ambient visibility with
+provenance. Collision behavior is adapter-specific:</p>
 <ul>
-<li><b>Mind cards in depth</b>: <code>.ai/analyses/113_mind-card-engineering-guide.html</code> (companion to this doc).</li>
-<li><b>Decision record</b>: <code>.ai/analyses/100_workers-cli-target-architecture-and-decisions.md</code> (workers model, D1–D5 + D-A…D-F) and <code>110_mind-card-target-architecture.md</code> §12 (mind decisions).</li>
-<li><b>Operator guides</b>: <code>.ai/knowledges/12_mind-card-lifecycle-guide.md</code>; <code>knowledges/10_drwn-cli-architecture.md</code> is the pre-rename as-built reference — historical only.</li>
-<li><b>Worked integrations</b>: <code>believer-interview/</code> (two workers, one repo) and <code>l6-mind-collections/</code> (figure-mind migration, in flight).</li>
-<li><b>Tests as documentation</b>: <code>test/core-write-idempotent.test.ts</code> (materialization contract), <code>test/scenarios-mind-lifecycle.test.ts</code> (the mind loop), <code>test/commands-worker.test.ts</code> (deploy contract).</li>
+<li>Claude whole-entry scope shadowing and transport replacement are reported without a universal block.</li>
+<li>Codex table inheritance blocks incompatible effective transport combinations before mutation.</li>
+<li>Cursor inheritance and project transport selection are warning-only under its native semantics.</li>
 </ul>
+<p>Ambient definitions never become project declarations, and diagnostics never expose secret-bearing
+definition values.</p>
 
+<h2>9. Optional Worker Mind</h2>
+<pre><code>Mind-capable selected closure =
+  persona OR beliefs OR memory.observations OR memory.insights
+
+/pool/observations/&lt;date&gt;/&lt;HHmm&gt;-&lt;ulid&gt;.jsonl
+/pool/insights/&lt;date&gt;/&lt;HHmm&gt;-&lt;ulid&gt;.md</code></pre>
+<p>Mind operations validate the selected closure before network access. Persona-only and
+beliefs-only Workers are valid Minds; an empty memory object is not. BeginningDB stores a strict
+<code>drwn.mind-index</code> V1, semantic pool entries, and inode-backed views. The CLI provides no
+numbered-memory alias or migration path. <code>raw_data</code> is reserved and unsupported.</p>
+<p>Forget uses explicit <code>?action=unplace</code>; human-confirmed pool retirement alone uses
+<code>delete_everywhere</code>. See Analysis 113 for the complete engineering contract.</p>
+
+<h2>10. Deployment Boundary</h2>
+<pre><code>drwn worker deploy &lt;root-ref&gt; --name reviewer
+  1. Resolve one root and its complete closure.
+  2. Verify Card identities, versions, integrity, and compatibility floor.
+  3. Preserve the existing remote deployment payload contract.
+  4. Poll readiness and cache only non-secret Worker/Mind coordinates.</code></pre>
+<p>The CLI resolves; the remote service materializes. Local V1 schema names do not leak into the
+existing deploy payload. Rollback changes the serving deployment while preserving remote Worker
+identity.</p>
+
+<h2>11. Trust And Failure Policy</h2>
+<table>
+<tr><th>Boundary</th><th>Policy</th></tr>
+<tr><td>Card integrity</td><td>Published trees and extracted content are immutable and hash-verified</td></tr>
+<tr><td>Hooks</td><td>Project projection requires explicit version-range consent</td></tr>
+<tr><td>Persona and beliefs</td><td>Strictest declared visibility gates public remote push</td></tr>
+<tr><td>Runtime memory</td><td>DB-native state is outside Card publication, machine transfer, and visibility labels</td></tr>
+<tr><td>Projection drift</td><td>Writes preserve foreign or changed paths and fail before unsafe replacement</td></tr>
+<tr><td>Inventory references</td><td>Unreadable registered roots block reference-sensitive mutation until repaired or unregistered</td></tr>
+<tr><td>Portable inventory</td><td>Strict canonical records, integrity verification, archive limits, and secret scanning fail closed</td></tr>
+<tr><td>Prototype state</td><td>Unsupported local records are reset or deliberately rewritten; no compatibility layer</td></tr>
+</table>
+
+<h2>12. Implementation And Release State</h2>
+<div class="callout warning"><b>Review finding:</b> Tasks 77-83 have completion records and their
+CLI gates pass. The current worktree also contains the semantic Mind implementation and projection
+ownership work, but the release chain is not complete. Task 84 still lacks Believer conversion,
+real BeginningDB evidence, publication/reset evidence, and a completion record. Task 85 has no
+completion record, and canonical <code>@darwinian/operator@2.0.0</code> exposes the approved eight
+skills while the CLI and packaged profile still pin Operator <code>1.0.2</code> with the retired
+17-skill vocabulary.</div>
+<p>The target Operator V2 skill set is exactly:
+<code>bootstrap-project</code>, <code>manage-project-worker</code>,
+<code>inspect-worker</code>, <code>repair-worker</code>, <code>author-card</code>,
+<code>share-card</code>, <code>manage-machine-inventory</code>, and
+<code>manage-machine-capabilities</code>. Until the central profile contract, packaged registry,
+runtime schemas, tests, release verifier, public immutable coordinates, and controlled consumer
+rollout agree, the 0.9.0 release must remain blocked.</p>
+
+<h2>13. References</h2>
+<ul>
+<li><code>.ai/analyses/116_drwn-cli-card-worker-target-architecture.md</code></li>
+<li><code>.ai/analyses/117_worker-mind-semantic-memory-target-architecture.md</code></li>
+<li><code>.ai/analyses/113_mind-card-engineering-guide.html</code></li>
+<li><code>docs/contracts/project-worker-v1.md</code></li>
+<li><code>.ai/tasks/84_worker-mind-semantic-memory-implementation-plan.md</code></li>
+<li><code>.ai/tasks/85_projection_ownership_and_operator_contract_remediation_plan.md</code></li>
+</ul>
+<p class="muted">This document replaces the prototype mental model previously carried by Analysis
+114. Historical analyses remain evidence, not supported CLI contracts.</p>
 </main>
 </body>
 </html>

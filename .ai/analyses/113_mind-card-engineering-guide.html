@@ -1,423 +1,218 @@
 <!DOCTYPE html>
-<!-- ABOUTME: Shareable engineering guide to mind cards: what they are, what they're composed of, and how to set up and use them with the drwn CLI and BeginningDB. -->
-<!-- ABOUTME: Self-contained HTML for the engineering team; facts verified against drwn 0.7.0, BeginningDB, and the believer-interview integration (including its erratum corrections). -->
+<!-- ABOUTME: Engineering guide for the first supported optional Worker Mind and semantic memory contract. -->
+<!-- ABOUTME: Separates normative drwn 0.9.0 architecture from Task 84 rollout and release completion. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mind Cards — Engineering Guide</title>
+<title>Worker Mind Engineering Guide</title>
 <style>
   :root {
-    --ink: #1e2126; --muted: #5c6470; --faint: #8a93a0;
-    --paper: #fbfaf7; --panel: #ffffff; --line: #e3e0d8;
-    --accent: #245a8d; --accent-soft: #eaf1f8;
-    --warn-bg: #fdf3e4; --warn-line: #e8c78a;
-    --code-bg: #f3f1ec; --pre-bg: #23272e; --pre-ink: #e6e1d6;
-    --good: #2e7d4f;
+    --ink:#20242a;
+    --muted:#5c6570;
+    --paper:#fbfaf7;
+    --line:#dedbd3;
+    --accent:#245a8d;
+    --warn:#8a4f13;
+    --code:#f1efe9;
   }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--paper); color: var(--ink);
-    font: 16px/1.65 "Charter", "Georgia", serif;
-  }
-  header {
-    background: var(--pre-bg); color: var(--pre-ink);
-    padding: 48px 24px 40px;
-  }
-  header .inner, main { max-width: 880px; margin: 0 auto; }
-  header h1 { font-size: 34px; margin: 0 0 10px; font-weight: 700; letter-spacing: -0.5px; }
-  header p.sub { margin: 0; color: #b9c0cc; font-size: 17px; max-width: 640px; }
-  header .meta { margin-top: 18px; font: 13px/1.5 "SF Mono", "Menlo", monospace; color: #7f8898; }
-  main { padding: 40px 24px 96px; }
-  h2 {
-    font-size: 24px; margin: 56px 0 12px; padding-top: 18px;
-    border-top: 1px solid var(--line); letter-spacing: -0.3px;
-  }
-  h2 .no { color: var(--faint); font-weight: 400; margin-right: 10px; }
-  h3 { font-size: 18px; margin: 30px 0 8px; }
-  p { margin: 10px 0; }
-  a { color: var(--accent); }
-  code {
-    font: 13.5px/1.5 "SF Mono", "Menlo", monospace;
-    background: var(--code-bg); padding: 1px 5px; border-radius: 4px;
-  }
-  pre {
-    background: var(--pre-bg); color: var(--pre-ink);
-    padding: 16px 18px; border-radius: 8px; overflow-x: auto;
-    font: 13px/1.55 "SF Mono", "Menlo", monospace;
-  }
-  pre code { background: none; padding: 0; color: inherit; font-size: inherit; }
-  pre .c { color: #8d97a8; }        /* comment */
-  pre .k { color: #8fd0ff; }        /* key/command */
-  pre .s { color: #c8e39b; }        /* string/value */
-  table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 14.5px; }
-  th, td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; vertical-align: top; }
-  th { background: var(--code-bg); font-family: "Helvetica Neue", sans-serif; font-size: 13px; }
-  td code { white-space: nowrap; }
-  .mental-model {
-    background: var(--accent-soft); border-left: 4px solid var(--accent);
-    padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 18px 0;
-    font-size: 17px;
-  }
-  .callout {
-    background: var(--warn-bg); border: 1px solid var(--warn-line);
-    border-radius: 8px; padding: 12px 16px; margin: 16px 0; font-size: 15px;
-  }
-  .callout b:first-child { color: #8a5a12; }
-  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 16px 0; }
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 18px; }
-  .panel h4 { margin: 0 0 8px; font-size: 15px; font-family: "Helvetica Neue", sans-serif; }
-  nav.toc {
-    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
-    padding: 18px 22px; margin: 0 0 8px; columns: 2; column-gap: 32px;
-    font-family: "Helvetica Neue", sans-serif; font-size: 14px;
-  }
-  nav.toc a { display: block; padding: 3px 0; text-decoration: none; break-inside: avoid; }
-  .verb { font-family: "SF Mono", "Menlo", monospace; font-size: 13px; color: var(--accent); }
-  .tag {
-    display: inline-block; font: 11px/1 "Helvetica Neue", sans-serif; letter-spacing: 0.5px;
-    background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px;
-    padding: 3px 8px; margin-left: 6px; vertical-align: middle; color: var(--muted);
-  }
-  @media (max-width: 720px) { .cols { grid-template-columns: 1fr; } nav.toc { columns: 1; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--paper); color:var(--ink); font:16px/1.6 Georgia,serif; }
+  header { background:#242930; color:#f4f1e8; padding:42px 24px; }
+  header div, main { max-width:940px; margin:auto; }
+  header p { color:#bec5ce; margin-bottom:8px; }
+  main { padding:32px 24px 80px; }
+  h2 { margin-top:42px; padding-top:16px; border-top:1px solid var(--line); }
+  h3 { margin-top:26px; }
+  code { background:var(--code); padding:1px 5px; border-radius:3px; font:13px/1.5 Menlo,monospace; }
+  pre { overflow:auto; background:#242930; color:#f4f1e8; padding:16px; border-radius:6px; }
+  pre code { background:none; padding:0; color:inherit; }
+  table { width:100%; border-collapse:collapse; margin:14px 0; }
+  th,td { border:1px solid var(--line); padding:8px 10px; text-align:left; vertical-align:top; }
+  th { background:var(--code); }
+  .callout { border-left:4px solid var(--accent); background:#eaf1f8; padding:12px 16px; }
+  .warning { border-left-color:var(--warn); background:#f8eee2; }
+  .muted { color:var(--muted); }
 </style>
 </head>
 <body>
-
-<header>
-  <div class="inner">
-    <h1>Mind Cards</h1>
-    <p class="sub">What they are, what they're made of, and how to set one up and use it —
-    the engineering guide to giving a Darwinian worker a durable, DB-backed mind.</p>
-    <div class="meta">drwn &ge; 0.7.0 &nbsp;·&nbsp; BeginningDB &nbsp;·&nbsp; verified against the believer-interview integration &nbsp;·&nbsp; 2026-07-09</div>
-  </div>
-</header>
-
+<header><div>
+  <h1>Worker Mind Engineering Guide</h1>
+  <p>The optional BeginningDB-backed state contract for one selected Darwinian Worker.</p>
+  <small>first supported contract | drwn 0.9.0 | reviewed 2026-07-13</small>
+</div></header>
 <main>
+<div class="callout"><b>Core model:</b> a project selects at most one Worker. That Worker's
+locked Blueprint closure may contribute persona, beliefs, observations, or insights. If it
+contributes any of those, the Worker is Mind-capable; explicit provisioning creates its one
+optional Mind. A memory declaration is not the only way to enable a Mind.</div>
 
-<nav class="toc">
-  <a href="#what">1 · What a mind card is</a>
-  <a href="#why">2 · Why it exists</a>
-  <a href="#anatomy">3 · Anatomy of the card</a>
-  <a href="#db">4 · The DB side: the living mind</a>
-  <a href="#lifecycle">5 · The lifecycle verbs</a>
-  <a href="#compose">6 · Composition: blueprints &amp; stacks</a>
-  <a href="#setup">7 · Setup: from zero to a provisioned mind</a>
-  <a href="#runtime">8 · Using the mind at runtime</a>
-  <a href="#deploy">9 · Deployed workers</a>
-  <a href="#safety">10 · Visibility, isolation, deletion</a>
-  <a href="#gotchas">11 · Gotchas (read before your first sync)</a>
-  <a href="#refs">12 · References</a>
-</nav>
-
-<h2 id="what"><span class="no">1</span>What a mind card is</h2>
-<p>A <b>mind card</b> is an ordinary Darwinian capability card that carries the <i>seeds</i>
-of a worker's <b>mind</b>: <i>persona</i> entries (voice and operating style),
-<i>belief</i> entries (durable principles and decision rules), and the declaration of its
-<i>memory</i> layers. It is authored, versioned, published, and composed exactly like any
-other card — same manifest, same store, same lockfile — but its content has a second life:
-at provision time it is <b>seeded into BeginningDB</b>, where it becomes live, editable
-state that the worker's agents read and extend at runtime.</p>
-
-<div class="mental-model">
-<b>The one-sentence mental model:</b> cards are the <b>reviewed checkpoint lineage</b>;
-BeginningDB is the <b>living mind</b>; the deploy API binds them per worker.
-</div>
-
-<div class="callout"><b>The unit of mind (get this straight first):</b> a worker is
-<i>not</i> a mind, and a card is <i>not</i> a mind. A <b>mind is optional state a worker
-has</b> — workers are stateless by default and acquire a mind only when their composed
-stack includes at least one mind-bearing card <i>and</i>
-<span class="verb">worker mind provision</span> has run. Cardinality: a worker has
-<b>at most one</b> mind; a mind is seeded from <b>one or more</b> cards (stack-ordered);
-one card can seed <b>many</b> minds — the card is the genotype, each mind a phenotype that
-diverges through lived memory. The deploy API's <code>mindId</code> is a legacy field
-name for the worker's <b>stable identity</b> — minted for every worker, mind or not; the
-<code>minds/&lt;mindId&gt;/</code> subtree exists only once provisioned. "Mind card" =
-any mind-bearing card; the substrate is <code>@darwinian/mind-tools</code> (skills + conventions, no seeds) and the solo quickstart is <code>@darwinian/mind-starter</code> (voice + collaboration + the synced skills).</div>
-
-<p>Concretely, three things cooperate:</p>
+<h2>1. Boundary And Ownership</h2>
 <table>
-<tr><th>Piece</th><th>Owns</th><th>Mutability</th></tr>
-<tr><td><b>The card</b> (git + drwn store)</td><td>Persona/beliefs <i>seeds</i>, memory layer declarations, agent skills, conventions</td><td>Immutable per version; changes are new semver versions, reviewed in git</td></tr>
-<tr><td><b>The mind</b> (BeginningDB, <code>minds/&lt;mindId&gt;/</code>)</td><td>The live persona/beliefs the worker actually runs on, plus <i>all</i> memory</td><td>Mutable, edited DB-first by humans and appended by agents</td></tr>
-<tr><td><b>drwn CLI</b> (<code>worker mind …</code>)</td><td>The loop between them: seed, drift report, rebase, checkpoint</td><td>—</td></tr>
+<tr><th>Surface</th><th>Authority</th><th>Mutability</th></tr>
+<tr><td>Card manifest and content</td><td>Reviewed persona and belief seeds, optional semantic memory declaration, and Mind operating skills</td><td>Immutable by published Card version</td></tr>
+<tr><td>Worker Blueprint</td><td>Ordered Card composition and Worker governance</td><td>Immutable by published Blueprint version</td></tr>
+<tr><td>Selected Worker closure</td><td>The only project closure allowed to provision or operate a Mind</td><td>Changed explicitly through project Worker commands</td></tr>
+<tr><td>BeginningDB Mind</td><td>Live persona, beliefs, observations, insights, index, and placement views</td><td>DB-first runtime state</td></tr>
+<tr><td>drwn CLI</td><td>Capability enforcement, seed/rebase/checkpoint, diagnostics, and guarded retirement</td><td>Explicit commands only</td></tr>
 </table>
+<p>A platform-assigned <code>mindId</code> is an identity and binding coordinate. It does not prove
+that a BeginningDB subtree has been provisioned. Runtime memory is not Card content and is not
+published, exported, or visibility-classified with persona and beliefs.</p>
 
-<h2 id="why"><span class="no">2</span>Why it exists</h2>
-<p>Two facts are in permanent tension. Cards are <b>immutable, versioned artifacts</b> —
-which is exactly right for a worker's <i>definition</i>: you want fleet reproducibility
-("deploy 20 reviewers from <code>@team/reviewer-mind@1.4.0</code>"), diffable history,
-review-before-ship, and a known-good baseline to restore. But <b>memory is mutable runtime
-state</b> — a worker's observations and insights accrue every session and belong nowhere
-near an immutable artifact.</p>
-<p>The mind card resolves the tension by splitting along it:</p>
-<ul>
-<li><b>Persona and beliefs</b> live in the card as reviewed seeds, and in the DB as live
-copies. The DB is the <i>primary editing surface</i> (product services edit files
-directly); the card is the checkpoint. Divergence is <b>drift</b> — reported, never
-auto-reverted. Edits worth keeping flow back into the card via <b>checkpoint</b>, get
-reviewed like any code change, and become the next baseline.</li>
-<li><b>Memory</b> never enters the card at all. The manifest only <i>declares</i> the layers;
-the content is DB-native from birth.</li>
-</ul>
-<div class="callout"><b>Why the checkpoint lineage matters:</b> BeginningDB keeps
-<b>no version history</b>. Card versions are the <i>only</i> versioning the system has.
-A mind that never checkpoints has no recoverable past.</div>
+<h2>2. Capability Predicate</h2>
+<pre><code>cardDeclaresMind(card) =
+  card.persona.include is non-empty
+  OR card.beliefs.include is non-empty
+  OR card.memory.observations is present
+  OR card.memory.insights is present
 
-<h2 id="anatomy"><span class="no">3</span>Anatomy of the card</h2>
+selectedWorkerDeclaresMind =
+  any Card in the selected Worker closure satisfies cardDeclaresMind</code></pre>
+<p>Mind commands evaluate the selected closure and fail with
+<code>MIND_CAPABILITY_NOT_DECLARED</code> before contacting BeginningDB when the predicate is
+false. Installed but inactive Worker roots do not enable Mind operations.</p>
 
-<h3>3.1 The manifest</h3>
+<h3>Closed Memory Declaration</h3>
 <pre><code>{
-  <span class="k">"name"</span>: <span class="s">"@team/reviewer-mind"</span>,
-  <span class="k">"version"</span>: <span class="s">"1.2.0"</span>,
-  <span class="k">"skills"</span>:  { <span class="k">"include"</span>: [<span class="s">"mind-read"</span>, <span class="s">"mind-remember"</span>, <span class="s">"mind-search"</span>] },
-  <span class="k">"persona"</span>: { <span class="k">"include"</span>: [<span class="s">"voice"</span>],          <span class="k">"visibility"</span>: <span class="s">"internal"</span> },
-  <span class="k">"beliefs"</span>: { <span class="k">"include"</span>: [<span class="s">"code-quality"</span>],   <span class="k">"visibility"</span>: <span class="s">"internal"</span> },
-  <span class="k">"memory"</span>: {
-    <span class="k">"l4"</span>: { <span class="k">"format"</span>: <span class="s">"md"</span>    },   <span class="c">// reflections / insights</span>
-    <span class="k">"l5"</span>: { <span class="k">"format"</span>: <span class="s">"jsonl"</span> }    <span class="c">// observations   (l6 = raw data, reserved for V2)</span>
-  }
+  "memory": {
+    "observations": { "format": "jsonl" },
+    "insights": { "format": "md" }
+  },
+  "harness": { "minVersion": "0.9.0" },
+  "lastValidatedWith": "0.9.0"
 }</code></pre>
+<p>A Card may declare observations only, insights only, both, or neither. Each present key has
+one fixed format. The object rejects unknown fields, generic formats, visibility, include/exclude
+lists, numbered kinds, and <code>raw_data</code>. An empty <code>memory</code> object contributes
+no capability. Persona-only and beliefs-only Workers remain valid Minds.</p>
+
+<h3>Version Floor</h3>
+<p>The command capability gate is selection-scoped, but the project lock floor is intentionally
+lock-wide. If any Card in any installed Worker closure is Mind-bearing,
+<code>card.lock.store.minDrwnVersion</code> must be <code>0.9.0</code>; otherwise the base Worker
+floor is <code>0.8.0</code>. This prevents selecting a locked alternative with an older CLI.
+Direct Worker deployment computes the same floor from the complete resolved closure.</p>
+
+<h2>3. Card Composition</h2>
 <table>
-<tr><th>Section</th><th>Rules</th></tr>
-<tr><td><code>persona</code> / <code>beliefs</code></td><td><code>include</code> lists entry names (safe path parts). <code>visibility</code> ∈ <code>private | internal | public</code> and is <b>required when include is non-empty</b>. <code>exclude</code>/<code>shared</code> are rejected on cards.</td></tr>
-<tr><td><code>memory</code></td><td>Layers restricted to <code>l4 | l5 | l6</code>; <code>format</code> ∈ <code>md | jsonl | mixed</code>. <b>Declaration-only: <code>include</code> is rejected</b> — memory entries are DB-native and never ship in a card.</td></tr>
-<tr><td><code>skills</code> / <code>servers</code></td><td>Ordinary capability content. Skills are how agents <i>operate</i> the mind (they wrap the <code>bgdb</code> CLI); MCP servers (e.g. Notion) ride along for ingestion tooling. <b>Skills are card content — they are never uploaded to the DB.</b></td></tr>
+<tr><th>Card</th><th>Role</th></tr>
+<tr><td><code>@darwinian/mind-tools</code></td><td>Canonical observations/insights declaration, five runtime Mind skills, semantic paths, placement rules, and deletion discipline; no persona or beliefs</td></tr>
+<tr><td><code>@darwinian/mind-starter</code></td><td>Standalone quickstart with the same memory declaration, generic persona, collaboration belief, and synced mind-tools content</td></tr>
+<tr><td>Domain content Card</td><td>Persona, beliefs, and domain skills; normally omits memory when composed with mind-tools</td></tr>
+<tr><td>Worker Blueprint</td><td>Composes mind-tools and domain Cards once into one deployable Worker</td></tr>
+</table>
+<p>Persona entries compose in deterministic locked-closure order with Card and entry provenance
+fences. Beliefs remain separate attributed files. Their
+<code>private | internal | public</code> visibility controls Card publication and remote push.
+Memory is never seeded from Card-owned files; runtime skills and applications create it in
+BeginningDB.</p>
+
+<h2>4. Storage Grammar</h2>
+<pre><code>/minds/&lt;mindId&gt;/
+  persona.md
+  beliefs/&lt;card&gt;/&lt;entry&gt;/BELIEF.md
+  mind.json
+  memory/
+    observations/by-date/&lt;yyyy-mm-dd&gt;/&lt;HHmm&gt;-&lt;ulid&gt;.jsonl
+    insights/by-date/&lt;yyyy-mm-dd&gt;/&lt;HHmm&gt;-&lt;ulid&gt;.md
+    insights/by-topic/&lt;topic&gt;/&lt;view&gt;.md       # optional application view
+
+/pool/
+  observations/&lt;yyyy-mm-dd&gt;/&lt;HHmm&gt;-&lt;ulid&gt;.jsonl
+  insights/&lt;yyyy-mm-dd&gt;/&lt;HHmm&gt;-&lt;ulid&gt;.md</code></pre>
+<p>Pool paths are canonical identity placements. Mind paths are views of the same BeginningDB
+inode, not byte copies. Every newly created entry uses an immutable, date-sharded pool path and
+a default <code>by-date</code> view. Applications may add semantic views under the correct kind,
+such as <code>insights/by-topic</code>, but may not introduce a new top-level memory kind.</p>
+<p>One observations file represents one capture context and contains one JSON object per line.
+Because BeginningDB PATCH uses a previously observed offset, concurrent writers must not append
+to the same capture-context file. Each insight is one Markdown document with application-owned
+front matter carrying timestamp and observation provenance.</p>
+
+<h2>5. Strict Mind Index</h2>
+<pre><code>{
+  "schema": "drwn.mind-index",
+  "schemaVersion": 1,
+  "mindId": "mind_reviewer",
+  "worker": {
+    "card": "@team/reviewer-worker",
+    "version": "1.0.0",
+    "integrity": "sha256-..."
+  },
+  "cards": [
+    {
+      "card": "@team/reviewer-worker",
+      "version": "1.0.0",
+      "integrity": "sha256-..."
+    }
+  ],
+  "persona": { "path": null, "entries": [] },
+  "beliefs": { "entries": [] },
+  "memory": {
+    "observations": { "format": "jsonl" },
+    "insights": { "format": "md" }
+  },
+  "ledger": [],
+  "drwnVersion": "0.9.0"
+}</code></pre>
+<p>The reader validates schema identity, version, provenance rows, persona/belief entries, ledger
+rows, and the closed memory object. Malformed supported state raises
+<code>MIND_INDEX_INVALID</code>; a missing/different identity or unsupported version raises
+<code>MIND_INDEX_UNSUPPORTED</code>. Both fail closed and direct the operator to a controlled
+reset and reprovision. There is no prototype reader, numbered alias, automatic translation, or
+dual write.</p>
+
+<h2>6. Operational Lifecycle</h2>
+<table>
+<tr><th>Command</th><th>Contract</th></tr>
+<tr><td><code>drwn worker mind provision</code></td><td>Validates the selected closure, then idempotently creates seed content and the strict index</td></tr>
+<tr><td><code>drwn worker mind status</code></td><td>Reports seed provenance and drift without mutation</td></tr>
+<tr><td><code>drwn worker mind sync</code></td><td>Rebases Card seeds; DB edits win unless the operator explicitly uses force</td></tr>
+<tr><td><code>drwn worker mind diff</code></td><td>Shows DB versus Card seed differences and unattributed persona content</td></tr>
+<tr><td><code>drwn worker mind checkpoint</code></td><td>Writes attributable live seed edits to editable Card sources for review; unattributed content blocks checkpoint</td></tr>
+<tr><td><code>drwn worker mind doctor</code></td><td>Diagnoses binding, index, ledger, pool, placement, and unsupported-residue health</td></tr>
+<tr><td><code>drwn worker mind pool retire</code></td><td>Human-confirmed <code>delete_everywhere</code> for one strictly parsed canonical pool entry</td></tr>
 </table>
 
-<h3>3.2 The source layout</h3>
-<pre><code>sources/@team/reviewer-mind/
-  card.json
-  persona/&lt;entry&gt;/PERSONA.md      <span class="c">← drwn card source add-persona / remove-persona</span>
-  beliefs/&lt;entry&gt;/BELIEF.md       <span class="c">← drwn card source add-belief  / remove-belief</span>
-  skills/&lt;skill&gt;/SKILL.md         <span class="c">← standard skills authoring</span></code></pre>
-<p>Publish validation enforces that every declared entry has its
-<code>PERSONA.md</code>/<code>BELIEF.md</code>; <code>card source doctor</code> flags orphaned
-directories (bundled but undeclared) and missing files before you get that far. Locks that
-carry mind content raise the project's version floor: <b>drwn &ge; 0.7.0 is required</b> to
-read them.</p>
+<h3>Memory Entry Lifecycle</h3>
+<ol>
+<li><b>Remember:</b> create a canonical pool entry with <code>If-None-Match: *</code>, then place its default Mind view.</li>
+<li><b>Share:</b> place the same inode into another Mind view in the same owner filesystem.</li>
+<li><b>Forget:</b> call <code>DELETE ...?action=unplace</code> for only the requesting Mind view. Missing views are idempotent no-ops; final-placement refusal is an error.</li>
+<li><b>Retire:</b> a human explicitly invokes delete-everywhere through the guarded CLI command.</li>
+</ol>
+<p>Bare <code>DELETE</code> is not an acceptable implementation of forget: BeginningDB can fall
+through to inode deletion when the path is the final placement. Agent-facing skills never receive
+delete-everywhere authority.</p>
 
-<h2 id="db"><span class="no">4</span>The DB side: the living mind</h2>
-<p>Every worker's mind is a subtree of its owner's BeginningDB filesystem. One filesystem
-per user hosts <i>all</i> of that user's minds plus one shared memory <b>pool</b>:</p>
-<pre><code>&lt;owner filesystem&gt;
-├── minds/
-│   └── &lt;mindId&gt;/                          <span class="c">mindId = the worker's stable id</span>
-│       ├── persona.md                     <span class="c">seeded: stack-ordered, provenance-fenced</span>
-│       ├── beliefs/&lt;card&gt;/&lt;entry&gt;/BELIEF.md
-│       ├── memory/
-│       │   ├── l4/…                       <span class="c">placement views of pool L4 entries</span>
-│       │   └── l5/by-date/…               <span class="c">placement views of pool L5 entries</span>
-│       └── mind.json                      <span class="c">seed ledger + index (drwn-managed)</span>
-└── pool/
-    ├── l4/&lt;yyyy-mm-dd&gt;/&lt;HHmm&gt;-&lt;ulid&gt;.md    <span class="c">canonical reflection entries</span>
-    └── l5/&lt;yyyy-mm-dd&gt;/&lt;HHmm&gt;-&lt;ulid&gt;.jsonl <span class="c">canonical observation files</span></code></pre>
+<h2>7. Reserved Raw Data</h2>
+<p><code>raw_data</code> is a vocabulary reservation, not a feature. The first contract creates
+no raw-data directory and defines no format, ingestion, extraction, retention, sharing, or
+authorization behavior. Supporting it later requires a separately approved schema and complete
+lifecycle design.</p>
 
-<div class="cols">
-<div class="panel"><h4>Memory = pool entries + placements</h4>
-Entries are <b>born in <code>pool/</code></b> and appear in mind trees only as
-<b>placements</b> (BeginningDB's multiple-paths-to-one-file). Identity is the file, paths
-are views: the same observation can sit in <code>by-date/</code> and a topic view, and can
-be <i>shared</i> into another mind's tree without copying — edit once, visible everywhere.</div>
-<div class="panel"><h4>Layer semantics</h4>
-<b>L5 — observations</b>: high-volume facts/events; one append-only <code>.jsonl</code>
-file per capture context (typically a session); line schema
-<code>{ts, type, content, refs?, source?}</code>.<br>
-<b>L4 — reflections</b>: distilled insights; one <code>.md</code> per reflection with
-front-matter <code>ts / derivedFrom / topics</code>.<br>
-<b>L6 — raw data</b>: reserved, don't create it yet.</div>
-</div>
+<h2>8. Release State</h2>
+<div class="callout warning"><b>Review finding:</b> the local drwn 0.9.0 candidate implements the
+core semantic CLI contract, but Task 84 is not complete. Believer still exposes numbered memory
+types, paths, and API fields; the real BeginningDB journey was skipped; canonical Cards and the CLI
+are not published in the required dependency order; controlled reset/reprovision evidence and the
+Task 84 completion record are absent. Analysis 117 correctly remains
+<i>implementation pending</i>.</div>
+<p>The release claim requires the complete fake and real BeginningDB journeys, canonical Card
+sync/publication, consumer conversion, controlled reset, exact residue scans, and recorded
+cross-repository commit/tag evidence. Passing local CLI unit tests is necessary but insufficient.</p>
 
-<h3>Provenance fences (the checkpoint mechanism)</h3>
-<p>The seeded <code>persona.md</code> is a stack-ordered concatenation of every composed
-card's persona entries, each wrapped in fences:</p>
-<pre><code>&lt;!-- drwn:persona:start card="@team/reviewer-mind" entry="voice" --&gt;
-… entry content — edit freely INSIDE the fence …
-&lt;!-- drwn:persona:end card="@team/reviewer-mind" entry="voice" --&gt;</code></pre>
-<p>The fences are how <span class="verb">checkpoint</span> attributes a DB edit back to the
-owning card and entry. <b>Content outside any fence cannot be attributed and blocks
-checkpoint</b> — keep edits inside a fence, or move them into one.</p>
-
-<h3>mind.json — the seed ledger</h3>
-<p>Written at provision, updated by sync: which card versions were seeded, at which ETags,
-in which stack order. It drives the three drift states you'll see in
-<span class="verb">status</span>: <code>in-sync</code>, <code>db-edited</code> (live edits —
-preserved, informational), <code>card-updated</code> (a rebase is available).</p>
-
-<h2 id="lifecycle"><span class="no">5</span>The lifecycle verbs</h2>
-<table>
-<tr><th>Verb</th><th>Direction</th><th>What it does</th></tr>
-<tr><td class="verb">card source add-persona / add-belief</td><td>author → card</td><td>Scaffold entries with required <code>--visibility</code>; <code>--dry-run --json</code> previews.</td></tr>
-<tr><td class="verb">card publish</td><td>card → store</td><td>Validates content dirs, snapshots the whole tree, semver-checks the bump. <b>Throws if the version already exists</b> — bump first.</td></tr>
-<tr><td class="verb">card push</td><td>store → remote</td><td>Gated by the strictest visibility of the mind content (§10).</td></tr>
-<tr><td class="verb">worker mind provision</td><td>card → DB</td><td>One-time seed of <code>minds/&lt;id&gt;/</code> from the <b>active stack</b>: fenced persona, belief copies, memory scaffolding, ledger. Idempotent — a provisioned mind is a no-op, never re-seeded.</td></tr>
-<tr><td class="verb">worker mind status</td><td>—</td><td>Per-file drift table (ledger vs live ETags vs pinned versions).</td></tr>
-<tr><td class="verb">worker mind sync</td><td>card → DB</td><td><b>Rebase</b> seeds onto the current card versions via compare-and-swap. Files edited in the DB are <b>skipped and reported</b> (DB wins); <code>--force</code> makes the card win; <code>--dry-run</code> plans. Memory is never touched.</td></tr>
-<tr><td class="verb">worker mind diff</td><td>—</td><td>Per-entry DB-vs-card diff (fence-aware); shows outside-fence content.</td></tr>
-<tr><td class="verb">worker mind checkpoint</td><td>DB → card</td><td>Writes live edits back into the local card <i>source</i> — you review the git diff and publish the next version. Fails closed on outside-fence content.</td></tr>
-<tr><td class="verb">worker mind doctor</td><td>—</td><td>Binding reachability (unreachable = warning), ledger integrity, unplaced pool entries. Report-only.</td></tr>
-<tr><td class="verb">worker mind pool retire</td><td>destroy</td><td><code>delete_everywhere</code> for a pool entry — <b>human-only, confirmation-gated</b>; agents get <i>forget</i> (unplace) instead.</td></tr>
-</table>
-<p>The intended rhythm: <b>seed once → live DB-first editing → occasional
-checkpoint → review → publish → sync</b>. Drift is the steady state, not an error.</p>
-
-<h2 id="compose"><span class="no">6</span>Composition: blueprints and stacks</h2>
-<p>A worker is normally a <b>blueprint</b> — a card with
-<code>"kind": "blueprint"</code> — composing the mind substrate with content cards and carrying
-governance:</p>
-<pre><code>{ <span class="k">"name"</span>: <span class="s">"@remyjkim/chief-worker"</span>, <span class="k">"version"</span>: <span class="s">"0.1.0"</span>, <span class="k">"kind"</span>: <span class="s">"blueprint"</span>,
-  <span class="k">"composedFrom"</span>: [<span class="s">"@darwinian/mind-tools@^0.1.0"</span>, <span class="s">"@remyjkim/chief@^0.1.0"</span>],
-  <span class="k">"permissions"</span>: { <span class="k">"requiresHumanApprovalFor"</span>: [<span class="s">"external_send"</span>, <span class="s">"file_write"</span>] },
-  <span class="k">"escalation"</span>:  { <span class="k">"humanOwner"</span>: <span class="s">"remy@curationlabs.ai"</span> } }</code></pre>
-<p>Blueprints contribute <b>zero skills and zero persona</b> themselves — they are
-composition + governance specs. Members land in the lockfile beside the blueprint; two
-blueprints sharing <code>@darwinian/mind-tools</code> dedupe by name (first wins).</p>
-
-<div class="callout"><b>The substrate doctrine:</b>
-the substrate is composed, never forked. Minds are always defined by their own content card.
-Worker blueprints compose <code>[@darwinian/mind-tools, &lt;content-card&gt;, …]</code>.
-<code>@darwinian/mind-starter</code> is the solo quickstart — apply it alone; composing it under
-a content card re-introduces the generic voice it exists to contain.</div>
-
-<div class="callout"><b>The no-expansion rule (the #1 operational surprise):</b>
-neither <code>worker stack use</code> nor <code>worker mind provision</code> expands
-blueprints. <code>activeWorkers</code> is a plain name filter over the lock. If you activate
-only the blueprint, you activate <i>nothing useful</i>. <b>Always list the members
-explicitly:</b><br>
-<code>drwn worker stack use @remyjkim/chief-worker @darwinian/mind-tools @remyjkim/chief</code></div>
-
-<p>Stack order matters twice: it is the <b>persona composition order</b> (which fenced
-section comes first in <code>persona.md</code>) and the skill materialization order.
-Switching workers locally = switching the stack <i>and</i> the target mind together (§7).</p>
-
-<h2 id="setup"><span class="no">7</span>Setup: from zero to a provisioned mind</h2>
-
-<h3>7.1 Prerequisites</h3>
+<h2>9. References</h2>
 <ul>
-<li><b>drwn &ge; 0.7.0</b> (earlier versions hard-reject persona/beliefs sections).</li>
-<li>A reachable <b>BeginningDB</b>. For local dev, run the server binary:
-<pre><code><span class="k">BGDB_PROFILE</span>=development <span class="k">BGDB_DATA_DIR</span>=/tmp/bgdb <span class="k">BGDB_STORAGE</span>=fs \
-<span class="k">BGDB_BEARER_TOKEN</span>=dev-token <span class="k">BGDB_BIND</span>=127.0.0.1:8080  ./beginningdb</code></pre></li>
+<li><code>.ai/analyses/117_worker-mind-semantic-memory-target-architecture.md</code></li>
+<li><code>.ai/tasks/84_worker-mind-semantic-memory-implementation-plan.md</code></li>
+<li><code>.ai/knowledges/12_mind-card-lifecycle-guide.md</code></li>
+<li><code>/Users/pureicis/dev/darwinian-cards/mind-tools/CONVENTIONS.md</code></li>
+<li><code>/Users/pureicis/dev/believer-interview/.ai/analyses/11_worker-mind-semantic-memory-consumer-remediation.md</code></li>
 </ul>
-
-<h3>7.2 Publish the cards</h3>
-<p><code>drwn card publish</code> reads sources from
-<code>~/.agents/drwn/sources/&lt;scope&gt;/&lt;name&gt;</code> — copy your checkout there (or
-script it), then publish. Publishing an existing version <b>throws</b>; that's your cue to
-bump.</p>
-<pre><code><span class="c"># one-time per card version</span>
-cp -r /path/to/mind-tools ~/.agents/drwn/sources/@darwinian/mind-tools
-drwn card publish @darwinian/mind-tools
-<span class="c"># … repeat for content cards and blueprints (members before blueprints is tidy)</span></code></pre>
-
-<h3>7.3 Lock them into a project</h3>
-<pre><code><span class="c"># card apply accepts MANY specs; card add accepts exactly ONE</span>
-drwn card apply @remyjkim/chief-worker@^0.1.0 @darwinian/mind-tools@^0.1.0 @remyjkim/chief@^0.1.0</code></pre>
-
-<h3>7.4 Connect and provision</h3>
-<p>The mind connection is environment-driven. <b>Required:</b> <code>BGDB_BASE_URL</code>
-and <code>BGDB_TOKEN</code> (+ <code>BGDB_TENANT_ID</code> in direct mode). The mind id
-comes from <code>--mind-id</code> or, as shorthand,
-<code>BGDB_PATH_PREFIX=minds/&lt;mindId&gt;</code> (optional — and <i>not</i> a security
-boundary, see §10).</p>
-<pre><code><span class="c"># .env.chief — one file per worker keeps stack + mind switching atomic</span>
-export BGDB_BASE_URL=http://127.0.0.1:8080
-export BGDB_TOKEN=dev-token
-export BGDB_TENANT_ID=1
-export BGDB_PATH_PREFIX=minds/mind_chief_local
-
-<span class="c"># provision (seed) — idempotent</span>
-drwn worker stack use @remyjkim/chief-worker @darwinian/mind-tools @remyjkim/chief
-source .env.chief
-drwn worker mind provision
-drwn write            <span class="c"># materialize skills/MCP for your coding agents</span>
-drwn worker mind status --json   <span class="c"># everything in-sync</span></code></pre>
-<div class="callout"><b>The seeding footgun:</b> provision reads content from the
-<i>currently active stack</i>. Run it with the wrong stack active and you seed the wrong
-persona into the mind. The per-worker env file + stack command pair above is the
-discipline that prevents it — always switch both together.</div>
-
-<h3>7.5 Multiple workers, one machine</h3>
-<p>Repeat 7.4 per worker with its own env file and mind id. Each worker gets its own
-<code>minds/&lt;id&gt;/</code> subtree; the shared <code>pool/</code> lets them share memory
-entries deliberately (placements), never accidentally.</p>
-
-<h2 id="runtime"><span class="no">8</span>Using the mind at runtime</h2>
-<p>Agents operate their mind through the card's skills, which wrap the
-<code>bgdb</code> CLI (env-configured by the same <code>BGDB_*</code> variables):</p>
-<table>
-<tr><th>Skill</th><th>Does</th><th>Under the hood</th></tr>
-<tr><td class="verb">mind-read</td><td>Load persona + beliefs at session start</td><td><code>bgdb fs cat</code> (fences are provenance markers — ignore, don't delete)</td></tr>
-<tr><td class="verb">mind-remember</td><td>Record an observation (L5) or reflection (L4)</td><td>Create the pool entry, then <i>place</i> it into the mind's memory view</td></tr>
-<tr><td class="verb">mind-share</td><td>Share an entry with another mind</td><td>Place the same entry into the other mind's view — no copies, ever</td></tr>
-<tr><td class="verb">mind-forget</td><td>Remove an entry from <i>this</i> mind's view</td><td>Unplace only. Refuses if it would be the last placement (that's retirement — human-only)</td></tr>
-<tr><td class="verb">mind-search</td><td>"What do I remember about…"</td><td><code>bgdb search</code>, one path-prefix per request</td></tr>
-</table>
-<p><b>Server-side integrations</b> (a backend accruing memory on a worker's behalf, as in
-believer-interview's chief) speak the same small BeginningDB HTTP surface directly:
-<code>PUT /v1/fs</code> with <code>If-None-Match: *</code> for atomic creates, ETag
-compare-and-swap for edits, and append as <i>stat → PATCH with
-<code>Content-Range: bytes &lt;size&gt;-</code></i>. Append is <b>not atomic</b> — the
-convention that keeps it safe is <b>one writer per entry file</b> (a session appends only
-to the file it created). The client is ~150 lines of pure <code>fetch</code>, Workers-safe.</p>
-
-<h2 id="deploy"><span class="no">9</span>Deployed workers</h2>
-<p><code>drwn worker deploy &lt;blueprint-ref&gt; --name chief</code> gives each deployed
-worker a <b>stable mind id</b> from the deploy API (it outlives redeploys and rollbacks —
-memory persists across versions). The CLI caches the non-secret binding coordinates in
-<code>~/.agents/drwn/mind-bindings.json</code>; <b>tokens are never persisted</b>. The
-container receives the same <code>BGDB_*</code> environment, so the skills work unchanged
-in deployed workers. (Full server-side rollout is tracked in darwinian analysis 107; until
-your deploy API implements it, the CLI degrades gracefully and tells you to set
-<code>BGDB_*</code> yourself.)</p>
-
-<h2 id="safety"><span class="no">10</span>Visibility, isolation, deletion</h2>
-<div class="cols">
-<div class="panel"><h4>Visibility &amp; the push gate</h4>
-Persona/beliefs sections carry <code>visibility</code>; the card's effective visibility is
-the <b>strictest</b> across sections. <code>drwn card push</code> refuses to push
-visibility-bearing content to a remote whose visibility is unknown or less restrictive —
-for a normal https remote you must state it:
-<code>drwn card push @x/mind --remote-visibility public</code>. Overriding
-(<code>--unsafe-push-public</code>) is loud and audited.</div>
-<div class="panel"><h4>Isolation (V1, be honest with yourself)</h4>
-Tokens are <b>filesystem-scoped</b>: a worker's token technically reaches its sibling
-minds and the whole pool. <code>BGDB_PATH_PREFIX</code> is ergonomic addressing, <b>not a
-security boundary</b>. Per-mind separation is skill/CLI convention until BeginningDB's
-ReBAC-on-VFS enforcement lands. Acceptable because all colocated workers belong to one
-user; org-shared pools are explicitly gated on real enforcement.</div>
-</div>
-<div class="callout"><b>Deletion policy (no history = no undo):</b> agents may only
-<i>unplace</i> from their own views. Destroying a pool entry
-(<code>worker mind pool retire</code>) removes it from <b>every</b> mind permanently and is
-a confirmation-gated human verb. Never wire <code>delete_everywhere</code> into an agent.</div>
-
-<h2 id="gotchas"><span class="no">11</span>Gotchas — read before your first sync</h2>
-<table>
-<tr><th>#</th><th>Gotcha</th><th>Do this instead</th></tr>
-<tr><td>1</td><td>Activated only the blueprint; skills/persona didn't materialize</td><td>List members explicitly in <code>worker stack use</code> — nothing expands blueprints (§6)</td></tr>
-<tr><td>2</td><td>Provisioned with the wrong stack active → wrong persona seeded</td><td>Per-worker env files; switch stack + mind together (§7.4)</td></tr>
-<tr><td>3</td><td><code>card add</code> with several refs errors</td><td><code>card add</code> takes ONE spec; use <code>card apply a b c</code> for many</td></tr>
-<tr><td>4</td><td><code>mind provision</code> fails with <code>MIND_BINDING_NOT_FOUND</code></td><td>Set <code>BGDB_BASE_URL</code> + <code>BGDB_TOKEN</code> (+ <code>BGDB_TENANT_ID</code>); <code>BGDB_PATH_PREFIX</code> alone is not a connection</td></tr>
-<tr><td>5</td><td>Publish script fails re-running: "Card version already exists"</td><td>That's by design (immutable versions) — bump the version, or catch the error in idempotent scripts</td></tr>
-<tr><td>6</td><td><code>sync</code> "skipped" files and you expected updates</td><td>Those files were edited in the DB — DB wins by default. Inspect with <code>diff</code>; <code>--force</code> only when the card should win</td></tr>
-<tr><td>7</td><td><code>checkpoint</code> fails: content outside fences</td><td>Move the prose inside the owning entry's fence (or delete it), rerun. Unattributable content can't be checkpointed</td></tr>
-<tr><td>8</td><td>Concurrent appends clobbered an L5 file</td><td>Append is stat→PATCH, not atomic — one writer per entry file; each session creates its own</td></tr>
-<tr><td>9</td><td>Old drwn can't read the project</td><td>Locks with mind content set a 0.7.0 floor; upgrade drwn</td></tr>
-<tr><td>10</td><td>Searching mind + pool in one query returns half</td><td>Search takes a single path prefix per request — issue two</td></tr>
-</table>
-
-<h2 id="refs"><span class="no">12</span>References</h2>
-<ul>
-<li><b>Substrate</b>: <code>@darwinian/mind-tools</code> — <code>darwinian-cards/mind-tools/</code> (manifest, five skills, <code>CONVENTIONS.md</code> incl. the substrate doctrine — the normative layout/schema/deletion rules). Composed by every worker blueprint that wants a mind.</li>
-<li><b>Solo quickstart</b>: <code>@darwinian/mind-starter</code> — <code>darwinian-cards/mind-starter/</code> (generic voice + collaboration belief + the synced skills). Apply alone for a first working mind; never composed under a content card.</li>
-<li><b>Architecture</b>: <code>darwinian-worker/.ai/analyses/110_mind-card-target-architecture.md</code> (the ratified design; §12 maps every rule to its decision record).</li>
-<li><b>Operator guide</b>: <code>darwinian-worker/.ai/knowledges/12_mind-card-lifecycle-guide.md</code>.</li>
-<li><b>Worked example (two workers, one repo)</b>: <code>believer-interview/</code> — <code>.ai/analyses/02</code> (chief architecture), <code>.ai/tasks/01</code> (implementation plan incl. the erratum that hardened several recipes in this guide), <code>README.md</code> (the corrected provisioning recipe).</li>
-<li><b>Tests as documentation</b>: <code>darwinian-worker/test/scenarios-mind-lifecycle.test.ts</code> (the full loop) and <code>test/e2e-mind-journey.test.ts</code> (the same loop against a real BeginningDB).</li>
-</ul>
-
+<p class="muted">Historical six-layer analyses remain evidence of the prototype. They are not
+runtime compatibility contracts.</p>
 </main>
 </body>
 </html>

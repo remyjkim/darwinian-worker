@@ -14,6 +14,39 @@ async function readDocsTree(relativeRoot: string) {
 }
 
 describe("documentation readiness", () => {
+  test("active non-Docusaurus Mind docs publish the semantic Worker-bound contract", async () => {
+    const docs = (await Promise.all([
+      readFile(new URL("../.ai/knowledges/12_mind-card-lifecycle-guide.md", import.meta.url), "utf8"),
+      readFile(new URL("../.ai/analyses/113_mind-card-engineering-guide.html", import.meta.url), "utf8"),
+      readFile(new URL("../.ai/analyses/114_drwn-worker-cli-architecture.html", import.meta.url), "utf8"),
+    ])).join("\n");
+
+    for (const token of [
+      '"observations"',
+      '"insights"',
+      "/pool/observations/",
+      "/pool/insights/",
+      "drwn.mind-index",
+      "drwn worker mind provision",
+      "selected Worker",
+      "0.9.0",
+    ]) {
+      expect(docs).toContain(token);
+    }
+    for (const stale of [
+      /\b[Ll][456]\b/,
+      /\/pool\/l[456](?:\/|\b)/,
+      /memory layer/i,
+      /active (?:card |mind )?stack/i,
+      /stack-ordered/i,
+      /drwn (?:mind|worker stack) (?:list|use|clear)/,
+      /activeWorkers|activeMinds/,
+      /MINDS_MIN_DRWN_VERSION\s*=\s*0\.7\.0/,
+    ]) {
+      expect(docs).not.toMatch(stale);
+    }
+  });
+
   test("README, usage guide, and Homebrew checklist cover key scenarios", async () => {
     const [
       readme,
