@@ -50,7 +50,7 @@ jobs:
         if: runner.os == 'Linux'
         # A per-test timeout converts any CI-only spawn hang into a fast failure so the
         # suite always completes (and reports the culprit) instead of burning the job timeout.
-        run: bun test --timeout 30000 test
+        run: bun test --timeout 30000 ./test/
 
       - name: Windows smoke tests
         if: runner.os == 'Windows'

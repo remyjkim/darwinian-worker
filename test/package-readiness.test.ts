@@ -102,7 +102,7 @@ describe("package readiness", () => {
     const ciWorkflow = readFileSync(join(process.cwd(), ".github", "workflows", "ci.yml"), "utf8");
     const releaseWorkflow = readFileSync(join(process.cwd(), ".github", "workflows", "release.yml"), "utf8");
 
-    expect(pkg.scripts.test).toBe("bun test test");
+    expect(pkg.scripts.test).toBe("bun test ./test/");
     expect(pkg.scripts["verify:bridge"]).toBe("bun run --cwd drwn-command-bridge verify");
     expect(ciWorkflow).toContain("name: Command bridge (${{ matrix.os }})");
     expect(ciWorkflow).toContain("working-directory: drwn-command-bridge");
