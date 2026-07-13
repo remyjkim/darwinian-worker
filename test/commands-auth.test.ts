@@ -3,7 +3,7 @@
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { Cli } from "clipanion";
-import { Writable } from "node:stream";
+import { PassThrough, Writable } from "node:stream";
 import { mkdir, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { LoginCommand } from "../cli/commands/auth/login";
@@ -67,13 +67,15 @@ async function runAuthCommand(
 
   const stdout = new CaptureStream();
   const stderr = new CaptureStream();
+  const stdin = new PassThrough() as PassThrough & { isTTY?: boolean };
+  stdin.isTTY = false;
   const context: AgentsContext = {
     repoRoot: fixture.repoRoot,
     agentsDir: fixture.agentsDir,
     homeDir: fixture.homeDir,
     cwd: options?.cwd ?? fixture.repoRoot,
     projectConfigPath: null,
-    stdin: process.stdin,
+    stdin,
     stdout,
     stderr,
     env: {},
