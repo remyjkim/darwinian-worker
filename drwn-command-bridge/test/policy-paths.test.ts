@@ -25,7 +25,7 @@ describe("resolveCwdWithinRoots", () => {
     const root = await tempRoot();
     const project = join(root, "project");
     await mkdir(project);
-    const policy = parsePolicyText(`version: 1\ndefault: deny\nallow:\n  - program: git\n    risk: low\nroots_allow: ["${project}"]\n`, {
+    const policy = parsePolicyText(`version: 1\ndefault: deny\nallow:\n  - program: git\n    risk: low\nroots_allow: [${JSON.stringify(project)}]\n`, {
       homeDir: root,
     });
 
@@ -38,7 +38,7 @@ describe("resolveCwdWithinRoots", () => {
     const outside = join(root, "outside");
     await mkdir(project);
     await mkdir(outside);
-    const policy = parsePolicyText(`version: 1\ndefault: deny\nallow:\n  - program: git\n    risk: low\nroots_allow: ["${project}"]\n`, {
+    const policy = parsePolicyText(`version: 1\ndefault: deny\nallow:\n  - program: git\n    risk: low\nroots_allow: [${JSON.stringify(project)}]\n`, {
       homeDir: root,
     });
 
@@ -53,7 +53,7 @@ describe("resolveCwdWithinRoots", () => {
     await mkdir(project);
     await mkdir(outside);
     await symlink(outside, link);
-    const policy = parsePolicyText(`version: 1\ndefault: deny\nallow:\n  - program: git\n    risk: low\nroots_allow: ["${project}"]\n`, {
+    const policy = parsePolicyText(`version: 1\ndefault: deny\nallow:\n  - program: git\n    risk: low\nroots_allow: [${JSON.stringify(project)}]\n`, {
       homeDir: root,
     });
 
@@ -64,7 +64,7 @@ describe("resolveCwdWithinRoots", () => {
 describe("validatePathArgsWithinRoots", () => {
   test("denies Cowork VM-internal paths", async () => {
     const root = await tempRoot();
-    const policy = parsePolicyText(`version: 1\ndefault: deny\nallow:\n  - program: git\n    risk: low\nroots_allow: ["${root}"]\n`, {
+    const policy = parsePolicyText(`version: 1\ndefault: deny\nallow:\n  - program: git\n    risk: low\nroots_allow: [${JSON.stringify(root)}]\n`, {
       homeDir: root,
     });
 
@@ -81,7 +81,7 @@ describe("validatePathArgsWithinRoots", () => {
     await mkdir(outside);
     await writeFile(join(outside, "secret.txt"), "secret");
     await symlink(join(outside, "secret.txt"), join(project, "secret-link"));
-    const policy = parsePolicyText(`version: 1\ndefault: deny\nallow:\n  - program: git\n    risk: low\nroots_allow: ["${project}"]\n`, {
+    const policy = parsePolicyText(`version: 1\ndefault: deny\nallow:\n  - program: git\n    risk: low\nroots_allow: [${JSON.stringify(project)}]\n`, {
       homeDir: root,
     });
 

@@ -2,6 +2,7 @@
 // ABOUTME: Keeps machine-local policy paths configurable without shell wrappers.
 
 import { describe, expect, test } from "bun:test";
+import { join } from "node:path";
 import { resolvePathArg } from "../src/index";
 
 describe("resolvePathArg", () => {
@@ -16,6 +17,8 @@ describe("resolvePathArg", () => {
   });
 
   test("expands home-relative paths", () => {
-    expect(resolvePathArg("~/.drwn-command-bridge/policy.yaml", {}, "/Users/example")).toBe("/Users/example/.drwn-command-bridge/policy.yaml");
+    expect(resolvePathArg("~/.drwn-command-bridge/policy.yaml", {}, "/Users/example")).toBe(
+      join("/Users/example", ".drwn-command-bridge", "policy.yaml"),
+    );
   });
 });

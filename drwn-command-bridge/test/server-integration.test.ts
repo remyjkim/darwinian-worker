@@ -88,7 +88,7 @@ allow:
 deny_always:
   - pattern: "\\bsudo\\b"
 consent_required_above: low
-roots_allow: ["${root}"]
+roots_allow: [${JSON.stringify(root)}]
 sandbox:
   required: false
 `,

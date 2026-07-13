@@ -35,7 +35,9 @@ describe("AuditLog", () => {
     });
 
     const info = await stat(path);
-    expect(info.mode & 0o777).toBe(0o600);
+    if (process.platform !== "win32") {
+      expect(info.mode & 0o777).toBe(0o600);
+    }
     const records = (await readFile(path, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
     expect(auditId).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
     expect(records).toHaveLength(1);

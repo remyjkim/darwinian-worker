@@ -3,6 +3,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { loadPolicyFile, parsePolicyText } from "../src/policy/load";
 
 const fixtureUrl = (name: string) => new URL(`./fixtures/policies/${name}`, import.meta.url);
@@ -16,7 +17,7 @@ describe("parsePolicyText", () => {
     expect(policy.allow[0]?.program).toBe("git");
     expect(policy.allow[0]?.argsAllow).toEqual(["status", "log"]);
     expect(policy.denyAlways[0]?.regex).toBeInstanceOf(RegExp);
-    expect(policy.rootsAllow).toEqual(["/Users/operator/projects"]);
+    expect(policy.rootsAllow).toEqual([resolve("/Users/operator", "projects")]);
     expect(policy.consentCacheTtlMs).toBe(0);
     expect(policy.sandbox.required).toBe(true);
   });

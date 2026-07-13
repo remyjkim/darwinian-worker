@@ -4,10 +4,12 @@
 import { describe, expect, test } from "bun:test";
 import { runCommand } from "../src/exec/executor";
 
+const runtimeBin = Bun.which("bun") ?? process.execPath;
+
 describe("runCommand", () => {
   test("passes shell metacharacters as inert argv text", async () => {
     const result = await runCommand({
-      argv: [process.execPath, "-e", "console.log(process.argv.slice(1).join('|'))", "hi;", "rm", "x"],
+      argv: [runtimeBin, "-e", "console.log(process.argv.slice(1).join('|'))", "hi;", "rm", "x"],
       env: {},
     });
 
@@ -17,7 +19,7 @@ describe("runCommand", () => {
 
   test("kills timed-out commands", async () => {
     const result = await runCommand({
-      argv: [process.execPath, "-e", "setTimeout(() => {}, 1000)"],
+      argv: [runtimeBin, "-e", "setTimeout(() => {}, 1000)"],
       env: {},
       timeoutMs: 25,
     });
@@ -28,7 +30,7 @@ describe("runCommand", () => {
 
   test("truncates stdout and marks it visibly", async () => {
     const result = await runCommand({
-      argv: [process.execPath, "-e", "process.stdout.write('x'.repeat(64))"],
+      argv: [runtimeBin, "-e", "process.stdout.write('x'.repeat(64))"],
       env: {},
       outputLimitBytes: 16,
     });
@@ -39,7 +41,7 @@ describe("runCommand", () => {
 
   test("truncates stderr and marks it visibly", async () => {
     const result = await runCommand({
-      argv: [process.execPath, "-e", "process.stderr.write('x'.repeat(64))"],
+      argv: [runtimeBin, "-e", "process.stderr.write('x'.repeat(64))"],
       env: {},
       outputLimitBytes: 16,
     });

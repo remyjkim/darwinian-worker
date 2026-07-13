@@ -71,7 +71,7 @@ allow:
     args_allow: ["status"]
     risk: low
 consent_required_above: low
-roots_allow: ["${root}"]
+roots_allow: [${JSON.stringify(root)}]
 sandbox:
   required: ${sandboxRequired}
 `,
@@ -95,12 +95,12 @@ describe("FilePolicyStore", () => {
   test("reload swaps valid policies and keeps prior policy on parse error", async () => {
     const root = await tempRoot();
     const path = join(root, "policy.yaml");
-    await writeFile(path, `version: 1\ndefault: deny\nallow:\n  - program: git\n    risk: low\nroots_allow: ["${root}"]\n`);
+    await writeFile(path, `version: 1\ndefault: deny\nallow:\n  - program: git\n    risk: low\nroots_allow: [${JSON.stringify(root)}]\n`);
     const logs: string[] = [];
     const store = await FilePolicyStore.load(path, { logger: (message) => logs.push(message) });
     expect(store.current().allow[0]?.program).toBe("git");
 
-    await writeFile(path, `version: 1\ndefault: deny\nallow:\n  - program: node\n    risk: low\nroots_allow: ["${root}"]\n`);
+    await writeFile(path, `version: 1\ndefault: deny\nallow:\n  - program: node\n    risk: low\nroots_allow: [${JSON.stringify(root)}]\n`);
     await expect(store.reload()).resolves.toBe(true);
     expect(store.current().allow[0]?.program).toBe("node");
 
@@ -140,7 +140,7 @@ describe("server fail-closed controls", () => {
     const audit = new MemoryAudit();
     let spawns = 0;
     const highRiskPolicy = parsePolicyText(
-      `version: 1\ndefault: deny\nallow:\n  - program: git\n    args_allow: ["status"]\n    risk: medium\nconsent_required_above: low\nroots_allow: ["${root}"]\nsandbox:\n  required: false\n`,
+      `version: 1\ndefault: deny\nallow:\n  - program: git\n    args_allow: ["status"]\n    risk: medium\nconsent_required_above: low\nroots_allow: [${JSON.stringify(root)}]\nsandbox:\n  required: false\n`,
       { homeDir: root },
     );
     const { client, server } = await connect({
