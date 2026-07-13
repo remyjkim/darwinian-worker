@@ -6,6 +6,8 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createMindDbClient, type MindDbClient } from "../cli/core/mind-store/client";
+import { readMindIndex } from "../cli/core/mind-store/mind-index";
+import { memoryViewPath, poolEntryPath } from "../cli/core/mind-store/paths";
 import { cleanupTempRoots, createTempRoot, envFor, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
 const enabled = process.env.DRWN_E2E_BGDB === "1";
@@ -106,6 +108,28 @@ test("contract: append and placement lifecycle match the fake", async () => {
   expect(await db.get(pool)).toBeNull();
 });
 
+test("contract: semantic observations and insights preserve inode identity across views", async () => {
+  const db = client();
+  const mindId = unique("mind_semantic");
+  const now = new Date("2026-07-07T14:03:00.000Z");
+  const observation = poolEntryPath({ kind: "observations", now, entryId: "01ARZ3NDEKTSV4RRFFQ69G5FAV" });
+  const insight = poolEntryPath({ kind: "insights", now, entryId: "01ARZ3NDEKTSV4RRFFQ69G5FAW" });
+  const observationView = memoryViewPath(mindId, "observations", observation);
+  const insightView = memoryViewPath(mindId, "insights", insight);
+  const topicView = `/minds/${mindId}/memory/insights/by-topic/quality/current.md`;
+
+  await db.put(observation, '{"ts":"2026-07-07T14:03:00Z","content":"fact"}\n', { ifNoneMatch: "*" });
+  await db.put(insight, "---\nts: 2026-07-07T14:03:00Z\nderivedFrom: [fact]\n---\n\nInsight.\n", { ifNoneMatch: "*" });
+  await db.place(observation, observationView);
+  await db.place(insight, insightView);
+  await db.place(insight, topicView);
+
+  const observationStat = await db.stat(observation);
+  expect(new Set(await db.placements(observationStat!.inodeId))).toEqual(new Set([observationView, observation]));
+  const insightStat = await db.stat(insight);
+  expect(new Set(await db.placements(insightStat!.inodeId))).toEqual(new Set([insightView, topicView, insight]));
+});
+
 test("journey: provision, DB-first edit, drift-preserving sync, checkpoint against the real server", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
@@ -132,6 +156,7 @@ test("journey: provision, DB-first edit, drift-preserving sync, checkpoint again
   expect((await runAgentsCli(["worker", "mind", "provision"], env, projectDir)).exitCode).toBe(0);
 
   const db = client();
+  expect((await readMindIndex(db, mindId))?.schema).toBe("drwn.mind-index");
   const personaPath = `/minds/${mindId}/persona.md`;
   const seeded = await db.get(personaPath);
   expect(seeded?.content).toContain("drwn:persona:start");
