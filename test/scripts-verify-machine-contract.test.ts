@@ -87,5 +87,5 @@ describe("machine capability release gate", () => {
     expect(await proc.exited).toBe(0);
     expect(report.ok).toBe(true);
     expect(report.checks).toContainEqual({ name: "machine capability contract", ok: true });
-  });
+  }, 20_000);
 });

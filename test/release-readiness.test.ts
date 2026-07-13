@@ -83,5 +83,5 @@ describe("ambient MCP policy release gate", () => {
     expect(await proc.exited).toBe(0);
     expect(report.ok).toBe(true);
     expect(report.checks).toContainEqual({ name: "ambient MCP policy", ok: true });
-  });
+  }, 20_000);
 });

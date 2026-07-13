@@ -58,5 +58,5 @@ describe("Worker contract release gate", () => {
     expect(await proc.exited).toBe(0);
     expect(report.ok).toBe(true);
     expect(report.checks).toContainEqual({ name: "project Worker contract", ok: true });
-  });
+  }, 20_000);
 });

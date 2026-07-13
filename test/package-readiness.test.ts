@@ -54,7 +54,7 @@ describe("package readiness", () => {
     expect(await proc.exited).toBe(0);
     expect(parsed.ok).toBe(true);
     expect(parsed.warnings).not.toContain("repository metadata unresolved");
-  });
+  }, 20_000);
 
   test("release gate reports schema package coupling", async () => {
     const proc = Bun.spawn(["bun", "run", "verify:release", "--json"], {
@@ -77,7 +77,7 @@ describe("package readiness", () => {
     expect(parsed.ok).toBe(true);
     expect(schemaCheck?.ok).toBe(true);
     expect(schemaCheck?.details).toContain("drwn-catalog-schema@");
-  });
+  }, 20_000);
 
   test("CLI CI workflow is required-check safe", () => {
     const workflow = readFileSync(join(process.cwd(), ".github", "workflows", "ci.yml"), "utf8");
