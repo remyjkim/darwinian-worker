@@ -567,6 +567,17 @@ describe("detectCodexLayerConflicts", () => {
     expect(detectCodexLayerConflicts(globalText, { notion: stdioNotion })).toEqual(["notion"]);
   });
 
+  test("flags an opposite-direction transport collision", () => {
+    const globalText = ["[mcp_servers.notion]", 'command = "user-notion"'].join("\n");
+    const projectHttp = {
+      description: "Project Notion",
+      transport: "http" as const,
+      url: "https://project.example.test/mcp",
+      optional: false,
+    };
+    expect(detectCodexLayerConflicts(globalText, { notion: projectHttp })).toEqual(["notion"]);
+  });
+
   test("does not flag when the global entry uses the same transport", () => {
     const globalText = ["[mcp_servers.notion]", 'command = "npx"'].join("\n");
     expect(detectCodexLayerConflicts(globalText, { notion: stdioNotion })).toEqual([]);

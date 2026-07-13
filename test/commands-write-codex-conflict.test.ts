@@ -1,9 +1,11 @@
-// ABOUTME: Verifies drwn write avoids Codex global/project transport collisions.
-// ABOUTME: A project stdio server is skipped (with a warning) when the global codex layer defines it as http.
+// ABOUTME: Characterizes Codex user/project MCP table merging and transport validation.
+// ABOUTME: Pins Codex CLI 0.144.1 behavior with isolated project and user-home fixtures.
 
 import { afterEach, expect, test } from "bun:test";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { existsSync } from "node:fs";
+import { readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { parse as parseToml } from "smol-toml";
 import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
 const tempRoots: string[] = [];
@@ -12,92 +14,107 @@ afterEach(async () => {
   await cleanupTempRoots(tempRoots);
 });
 
-async function setupConflictFixture() {
+async function setupProject(
+  projectServer: Record<string, unknown>,
+  userEntry: string[],
+) {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
-
-  // Global codex layer defines notion as a hosted HTTP server.
   await writeFile(
     fixture.codexConfig,
-    ['personality = "pragmatic"', "", "[mcp_servers.notion]", 'url = "https://mcp.notion.com/mcp"', "enabled = true", ""].join("\n"),
+    ['personality = "pragmatic"', "", "[mcp_servers.notion]", ...userEntry, ""].join("\n"),
   );
-
-  // Project overlay defines notion as a token-authenticated stdio server.
   const projectDir = join(fixture.root, "project");
   await writeSupportedProjectConfig(projectDir, {
-    mcpServers: {
-      context7: { enabled: true },
-      notion: {
-        description: "Notion via token",
-        transport: "stdio",
-        command: "npx",
-        args: ["-y", "@notionhq/notion-mcp-server"],
-        env: { NOTION_TOKEN: "${NOTION_TOKEN}" },
-        optional: false,
-      },
-    },
+    mcpServers: { notion: projectServer as never },
   });
-
-  return { fixture, projectDir };
+  return { fixture, projectDir, projectCodexPath: join(projectDir, ".codex", "config.toml") };
 }
 
-test("write skips a project stdio server that collides with a global http codex entry", async () => {
-  const { fixture, projectDir } = await setupConflictFixture();
+const projectStdio = {
+  description: "Project Notion",
+  transport: "stdio",
+  command: "npx",
+  args: ["-y", "@notionhq/notion-mcp-server"],
+  env: { NOTION_TOKEN: "${NOTION_TOKEN}" },
+  optional: false,
+};
 
-  const result = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);
-  expect(result.exitCode).toBe(0);
+const projectHttp = {
+  description: "Project Notion",
+  transport: "http",
+  url: "https://project.example.test/mcp",
+  headers: { Authorization: "Bearer ${NOTION_TOKEN}" },
+  optional: false,
+};
 
-  const projectCodex = await readFile(join(projectDir, ".codex", "config.toml"), "utf8");
-  expect(projectCodex).toContain("[mcp_servers.context7]");
-  expect(projectCodex).not.toContain("[mcp_servers.notion]");
-
-  const warnings = (JSON.parse(result.stdout) as { warnings: string[] }).warnings;
-  expect(warnings.some((w) => w.includes("notion") && w.toLowerCase().includes("transport"))).toBe(true);
-
-  // Global codex config is untouched by a project-scope write.
-  expect(await readFile(fixture.codexConfig, "utf8")).toContain('url = "https://mcp.notion.com/mcp"');
-});
-
-test("write heals a stale project notion block left by a pre-guard write", async () => {
-  const { fixture, projectDir } = await setupConflictFixture();
-
-  // Simulate a project codex config written before the collision guard existed:
-  // the colliding stdio notion block is already on disk, untracked by any write-record.
-  const projectCodexPath = join(projectDir, ".codex", "config.toml");
-  await mkdir(dirname(projectCodexPath), { recursive: true });
-  await writeFile(
-    projectCodexPath,
-    [
-      "[mcp_servers.notion]",
-      'command = "npx"',
-      'args = [ "-y", "@notionhq/notion-mcp-server" ]',
-      "startup_timeout_sec = 30",
-      "",
-      "[mcp_servers.context7]",
-      'command = "npx"',
-      'args = [ "-y", "@upstash/context7-mcp" ]',
-      "",
-    ].join("\n"),
+// Evidence: https://learn.chatgpt.com/docs/config-file/config-basic#configuration-precedence
+test("Codex same-transport project fields augment the user table with a warning", async () => {
+  const { fixture, projectDir, projectCodexPath } = await setupProject(
+    projectStdio,
+    ['command = "npx"', "tool_timeout_sec = 75"],
   );
 
-  const result = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);
+  const result = await runAgentsCli(["write", "--target=codex", "--json"], envFor(fixture), projectDir);
   expect(result.exitCode).toBe(0);
 
-  const projectCodex = await readFile(projectCodexPath, "utf8");
-  expect(projectCodex).toContain("[mcp_servers.context7]");
-  expect(projectCodex).not.toContain("[mcp_servers.notion]");
+  const output = JSON.parse(result.stdout) as {
+    ambientCollisions: Array<{ disposition: string; reasonCode: string }>;
+  };
+  expect(output.ambientCollisions).toContainEqual(expect.objectContaining({
+    disposition: "warning",
+    reasonCode: "CODEX_PROJECT_AUGMENTS_USER",
+  }));
 
-  const warnings = (JSON.parse(result.stdout) as { warnings: string[] }).warnings;
-  expect(warnings.some((w) => w.includes("notion") && w.toLowerCase().includes("transport"))).toBe(true);
+  const projectConfig = parseToml(await readFile(projectCodexPath, "utf8")) as {
+    mcp_servers: Record<string, Record<string, unknown>>;
+  };
+  expect(projectConfig.mcp_servers.notion?.command).toBe("npx");
+  expect(projectConfig.mcp_servers.notion?.tool_timeout_sec).toBeUndefined();
 });
 
-test("write --force emits the project stdio server despite the global collision", async () => {
-  const { fixture, projectDir } = await setupConflictFixture();
+test("Codex user HTTP plus project stdio is fatal before project output mutates", async () => {
+  const { fixture, projectDir, projectCodexPath } = await setupProject(
+    projectStdio,
+    [
+      'url = "https://mcp.notion.com/mcp"',
+      'bearer_token_env_var = "USER_NOTION_TOKEN"',
+      "enabled = true",
+    ],
+  );
 
-  const result = await runAgentsCli(["write", "--force", "--json"], envFor(fixture), projectDir);
-  expect(result.exitCode).toBe(0);
+  const result = await runAgentsCli(["write", "--target=codex", "--json"], envFor(fixture), projectDir);
 
-  const projectCodex = await readFile(join(projectDir, ".codex", "config.toml"), "utf8");
-  expect(projectCodex).toContain("[mcp_servers.notion]");
-  expect(projectCodex).toContain('env_vars = [ "NOTION_TOKEN" ]');
+  expect(result.exitCode).toBe(1);
+  expect(result.stderr).toContain("CODEX_INCOMPATIBLE_TRANSPORTS");
+  expect(result.stderr).not.toContain("USER_NOTION_TOKEN");
+  expect(result.stderr).not.toContain("NOTION_TOKEN");
+  expect(existsSync(projectCodexPath)).toBe(false);
+});
+
+test("Codex user stdio plus project HTTP is fatal in the opposite merge direction", async () => {
+  const { fixture, projectDir, projectCodexPath } = await setupProject(
+    projectHttp,
+    ['command = "user-notion"', 'env = { SECRET = "user-secret-sentinel" }'],
+  );
+
+  const result = await runAgentsCli(["write", "--target=codex", "--json"], envFor(fixture), projectDir);
+
+  expect(result.exitCode).toBe(1);
+  expect(result.stderr).toContain("CODEX_INCOMPATIBLE_TRANSPORTS");
+  expect(result.stderr).not.toContain("user-secret-sentinel");
+  expect(existsSync(projectCodexPath)).toBe(false);
+});
+
+test("Codex fatal transport collisions cannot be bypassed with force", async () => {
+  const { fixture, projectDir, projectCodexPath } = await setupProject(
+    projectStdio,
+    ['url = "https://mcp.notion.com/mcp"', "enabled = true"],
+  );
+
+  const result = await runAgentsCli(["write", "--target=codex", "--force", "--json"], envFor(fixture), projectDir);
+
+  expect(result.exitCode).toBe(1);
+  expect(result.stderr).toContain("CODEX_INCOMPATIBLE_TRANSPORTS");
+  expect(existsSync(projectCodexPath)).toBe(false);
 });
