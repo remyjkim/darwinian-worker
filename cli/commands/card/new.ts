@@ -21,8 +21,8 @@ export class CardNewCommand extends BaseCommand {
       Creates a source directory with card.json, skills/, and mcp-servers/.
       Unscoped names require --scope or a saved authoring.scope in machine.json.
       By default the source directory is initialized as a git repository.
-      Use --from-project to snapshot the current project's effective harness as
-      a self-contained card source.
+      Use --from-project to snapshot the current project's selected Worker
+      closure and explicit overlays as a self-contained card source.
     `,
     examples: [
       ["Create a scoped card source", "drwn card new backend --scope @your-handle"],
@@ -129,6 +129,7 @@ export class CardNewCommand extends BaseCommand {
       }
       this.context.stdout.write(`Captured card source ${captured.name}: ${captured.sourceDir}\n`);
       this.context.stdout.write(`Skills captured: ${captured.skillCount}\n`);
+      this.context.stdout.write(`Hooks captured: ${captured.hookCount}\n`);
       this.context.stdout.write(`MCP servers captured: ${captured.serverCount}\n`);
       this.context.stdout.write(`Extensions captured: ${captured.extensionCount}\n`);
       this.context.stdout.write(`Targets captured: ${captured.targetCount}\n`);

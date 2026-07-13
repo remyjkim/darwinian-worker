@@ -3,9 +3,17 @@
 
 import { afterEach, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { mkdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
+import {
+  cleanupTempRoots,
+  envFor,
+  installProjectWorkers,
+  publishCardWithSkills,
+  runAgentsCli,
+  scaffoldCliFixture,
+  writeSupportedProjectConfig,
+} from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -18,12 +26,9 @@ test("card new --from-project captures a project and the captured source can be 
   tempRoots.push(fixture.root);
   await publishCardWithSkills(fixture, { name: "@me/base", skills: ["card-alpha"] });
   const projectDir = join(fixture.root, "project");
-  const configPath = join(projectDir, ".agents", "drwn", "config.json");
-  await mkdir(dirname(configPath), { recursive: true });
-  await writeFile(
-    configPath,
-    JSON.stringify({ version: 1, cards: ["@me/base@1.0.0"], activeWorkers: ["@me/base"], skills: { include: ["beta"] } }, null, 2),
-  );
+  await installProjectWorkers(projectDir, fixture.agentsDir, ["@me/base@1.0.0"], "@me/base", {
+    skills: { include: ["beta"] },
+  });
 
   const capture = await runAgentsCli(["card", "new", "@me/captured", "--from-project", projectDir, "--no-git"], envFor(fixture));
 
@@ -44,10 +49,11 @@ test("card new --from-project captures a project and the captured source can be 
 test("card new --from-project without a path captures the current project", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
+  await publishCardWithSkills(fixture, { name: "@me/base", skills: [] });
   const projectDir = join(fixture.root, "project");
-  const configPath = join(projectDir, ".agents", "drwn", "config.json");
-  await mkdir(dirname(configPath), { recursive: true });
-  await writeFile(configPath, JSON.stringify({ version: 1, skills: { include: ["alpha"] } }, null, 2));
+  await installProjectWorkers(projectDir, fixture.agentsDir, ["@me/base@1.0.0"], "@me/base", {
+    skills: { include: ["alpha"] },
+  });
 
   const capture = await runAgentsCli(["card", "new", "@me/cwd-capture", "--from-project", "--no-git"], envFor(fixture), projectDir);
 
@@ -65,6 +71,23 @@ test("card new --from-project fails clearly outside a drwn project", async () =>
 
   expect(capture.exitCode).toBe(1);
   expect(capture.stderr).toContain("Not a drwn project");
+});
+
+test("card new --from-project fails without an active Worker and creates no source", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  const projectDir = join(fixture.root, "project");
+  await writeSupportedProjectConfig(projectDir);
+
+  const capture = await runAgentsCli(
+    ["card", "new", "@me/no-worker", "--from-project", "--no-git"],
+    envFor(fixture),
+    projectDir,
+  );
+
+  expect(capture.exitCode).toBe(1);
+  expect(capture.stderr).toContain("active Worker");
+  expect(existsSync(join(fixture.agentsDir, "drwn", "sources", "@me", "no-worker"))).toBe(false);
 });
 
 test("card new rejects a project path positional without --from-project", async () => {
