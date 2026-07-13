@@ -7,6 +7,7 @@
 **Author**: Claude + Remy
 **Status**: Implemented (2026-07-09) — ratified and executed per task 74
 **Supersedes in part**: the single-card `@darwinian/mind-card@0.1.0` design (task 72 M0)
+**Amended by**: `.ai/analyses/117_worker-mind-semantic-memory-target-architecture.md`. The `mind-tools`/`mind-starter` ownership split and sync doctrine remain authoritative; the `{l4, l5}` memory declarations and numbered terminology in this implementation record are historical and are replaced by observations and insights.
 **References**: [.ai/analyses/113_mind-card-engineering-guide.html, 114_drwn-worker-cli-architecture.html, darwinian-cards/mind-card/]
 
 ---

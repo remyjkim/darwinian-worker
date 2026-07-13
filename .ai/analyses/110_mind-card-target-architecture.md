@@ -5,8 +5,9 @@
 
 **Date**: 2026-07-07
 **Author**: Claude + Remy
-**Status**: Target architecture — ratified design, pre-implementation
+**Status**: Implemented historical baseline; Worker Mind memory terminology, schema, and paths are superseded by Analysis 117
 **Supersedes for implementation**: the design threads of 103, 112, 105, 106, 108, 109 (those remain the investigation record; this doc is the buildable statement)
+**Superseded in part by**: `.ai/analyses/117_worker-mind-semantic-memory-target-architecture.md` for observations, insights, the reserved `raw_data` name, semantic paths, strict `mind.json`, and clean-reset policy. This document remains authoritative for the underlying Card-seeded hybrid, BeginningDB placement pool, lifecycle, identity, auth, and deletion decisions unless Analysis 117 says otherwise.
 **External requests in flight**: 107 (studio-deployment), beginning-db asks (109 §7, to be sent)
 
 ---

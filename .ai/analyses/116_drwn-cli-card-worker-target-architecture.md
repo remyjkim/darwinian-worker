@@ -3,7 +3,9 @@
 
 # Analysis 116: drwn CLI Card and Worker Target Architecture
 
-**Status**: Implemented through Task 81 on 2026-07-13
+**Status**: Implemented through Task 83, including Task 82 portable inventory transfer
+
+**Worker Mind boundary**: `.ai/analyses/117_worker-mind-semantic-memory-target-architecture.md` governs the optional DB-backed Mind, observations, insights, the reserved `raw_data` name, and its clean-reset rollout. This document continues to govern Card, Blueprint, Worker, project, machine, and deploy boundaries.
 
 **Date**: 2026-07-13
 
@@ -16,7 +18,7 @@
 - Task 79 Store export security remediation is complete.
 - Task 80 machine schema/profile implementation is complete.
 - Task 81 standalone machine inventory lifecycle is complete.
-- Task 82 portable transfer remains separate.
+- Task 82 portable standalone inventory transfer is complete.
 - Task 83 target-native ambient policy is complete.
 
 **Supersedes**: Prototype project config, lockfile, generated-state, Worker-stack, and project-mutation contracts described in analyses 68/100/101/114 and Task 69. Those artifacts were development scaffolding, not a supported public contract.
@@ -506,10 +508,29 @@ temporaries, completed tombstones, and sufficiently old inactive package
 versions; zero known references never make current inventory garbage.
 
 No public command creates a whole-Store archive because machine state contains
-credentials and operational records. A portable format remains Task 82 and
-must allowlist inventory content rather than archive the Store directory.
+credentials and operational records. Task 82 implements a deterministic
+canonical manifest and gzip bundle built from typed active standalone records,
+never by walking or subtractively filtering the Store directory.
 
-Secrets remain operator state. Lockfiles, generated Workers, status JSON, deployment fixtures, and export artifacts contain secret references only.
+The public surface is `drwn machine inventory export|bundle|verify|sync`.
+Export is metadata-only; bundle adds the exact manifest and allowlisted active
+payload bytes. Verify is read-only and exact. Sync is additive: every known
+conflict blocks before commit, identical entries are no-ops, extras are
+preserved, and missing records are installed inactive through Task 81 commit
+helpers. Dry-run creates no managed state; fresh real sync creates inventory
+infrastructure but no `machine.json`.
+
+The format is not a backup or restore. It excludes credentials, machine and
+project intent, profiles, Cards, generated state, inactive versions, caches,
+locks, and tombstones. Deterministic digests detect corruption, but a checksum
+is not authenticity. Content screening is a source-content safeguard rather
+than a complete secret detector.
+
+Secrets remain operator state. Structured MCP/auth fields in lockfiles,
+generated Workers, status JSON, deployment fixtures, and transfer metadata keep
+secret references symbolic and never resolve credentials. User-authored Card or
+skill source content can itself be sensitive and still requires review before
+an artifact is shared.
 
 ---
 
@@ -615,7 +636,6 @@ Task 77 does not implement:
 
 - compatibility with any prototype project or lock format;
 - an automated project migration or adoption command;
-- portable machine inventory transfer from Task 82;
 - universal ambient collision enforcement;
 - nested Blueprints;
 - a new remote deploy payload contract;
@@ -628,7 +648,7 @@ Task allocation:
 | 79 | Remove credential-bearing whole-Store export | complete |
 | 80 | Clean machine schema V1, empty non-interactive setup, guided Operator profile, explicit selections, curation removal | complete |
 | 81 | Standalone machine inventory lifecycle and persistence | complete |
-| 82 | Portable allowlisted inventory transfer | proposed |
+| 82 | Portable allowlisted inventory transfer | complete |
 | 83 | Per-target ambient collision policy | complete |
 
 ---
