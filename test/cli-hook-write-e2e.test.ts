@@ -3,9 +3,10 @@
 
 import { afterEach, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
+import { mkdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { cleanupTempRoots, envFor, installProjectWorkers, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
+import { loadWriteRecord, resolveProjectWriteRecordPath } from "../cli/core/write-record";
 
 const tempRoots: string[] = [];
 
@@ -137,18 +138,37 @@ test("drwn write skips untrusted hooks and --strict-hooks fails", async () => {
   expect(strict.stderr).toContain("drwn card trust @me/policy --hooks");
 });
 
-test("drwn write --mcp-only preserves existing Claude hook entries", async () => {
+test("partial writes preserve unselected hook adapters, composers, and ownership", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   const projectDir = await createProjectWithTrustedHookCard(fixture);
   expect((await runAgentsCli(["write", "--json"], envFor(fixture), projectDir)).exitCode).toBe(0);
-  const before = JSON.parse(await readFile(join(projectDir, ".claude", "settings.json"), "utf8"));
+  const paths = [
+    join(projectDir, ".claude", "settings.json"),
+    join(projectDir, ".codex", "hooks.json"),
+    join(projectDir, ".agents", "drwn", "generated", "hooks", "claude", "composer.mjs"),
+    join(projectDir, ".agents", "drwn", "generated", "hooks", "codex", "composer.mjs"),
+  ];
+  const before = await Promise.all(paths.map(async (path) => ({
+    path,
+    bytes: await readFile(path),
+    mtimeMs: (await stat(path)).mtimeMs,
+  })));
+  const recordPath = resolveProjectWriteRecordPath(projectDir);
+  const hookOwnership = loadWriteRecord(recordPath, "project")!.managedPaths
+    .filter((entry) => entry.surface === "hook");
+  expect(hookOwnership.length).toBeGreaterThan(0);
 
-  const mcpOnly = await runAgentsCli(["write", "--mcp-only", "--json"], envFor(fixture), projectDir);
-
-  expect(mcpOnly.exitCode).toBe(0);
-  const after = JSON.parse(await readFile(join(projectDir, ".claude", "settings.json"), "utf8"));
-  expect(after.hooks).toEqual(before.hooks);
+  for (const args of [["--mcp-only"], ["--skills-only"], ["--target=cursor"]]) {
+    const partial = await runAgentsCli(["write", ...args, "--json"], envFor(fixture), projectDir);
+    expect(partial.exitCode, `${args.join(" ")}: ${partial.stderr}`).toBe(0);
+    for (const prior of before) {
+      expect(await readFile(prior.path)).toEqual(prior.bytes);
+      expect((await stat(prior.path)).mtimeMs).toBe(prior.mtimeMs);
+    }
+    expect(loadWriteRecord(recordPath, "project")!.managedPaths)
+      .toEqual(expect.arrayContaining(hookOwnership));
+  }
 });
 
 test("drwn write cleans only owned Claude hooks when policies become inactive", async () => {
