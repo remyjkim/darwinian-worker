@@ -175,7 +175,10 @@ losing one another's updates.
 
 Referenced inventory cannot be removed. V1 has no force option that knowingly
 leaves unresolved intent. `INVENTORY_ITEM_IN_USE` reports the package/record,
-all affected IDs, and redacted reference provenance without changing bytes.
+all affected IDs, and deterministic reference provenance without changing
+bytes. Provenance is limited to capability kind/ID, machine or project surface,
+normalized project root/config path, and relation; it never includes MCP
+definition bytes, environment values, headers, credentials, or target output.
 
 ### 0.4 Locking and concurrency
 
