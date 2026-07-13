@@ -1,4 +1,4 @@
-// ABOUTME: Seeds a mind's subtree from the composed card stack: fenced persona, belief copies, memory scaffolding.
+// ABOUTME: Seeds a mind's subtree from one Worker closure: fenced persona, belief copies, memory scaffolding.
 // ABOUTME: Seeding happens once per mind (atomic creates); later card updates flow through sync, never re-seed.
 
 import { existsSync } from "node:fs";
@@ -9,7 +9,7 @@ import type { CardLockEntry } from "../card-lock";
 import { DRWN_VERSION } from "../version";
 import { composePersona } from "../mind-content/persona-composer";
 import type { MindDbClient } from "./client";
-import { readMindIndex, writeMindIndex, type LedgerRow, type MindIndex } from "./ledger";
+import { mindCardProvenance, readMindIndex, writeMindIndex, type LedgerRow, type MindIndex } from "./ledger";
 import { beliefSeedPath, memoryLayerRoot, personaSeedPath } from "./paths";
 
 export interface CardMindContent {
@@ -52,6 +52,7 @@ export interface SeedResult {
 }
 
 export async function seedMind(client: MindDbClient, mindId: string, cards: CardMindContent[]): Promise<SeedResult> {
+  const provenance = mindCardProvenance(cards);
   const existing = await readMindIndex(client, mindId);
   if (existing) {
     return { alreadyProvisioned: true, created: [] };
@@ -66,7 +67,7 @@ export async function seedMind(client: MindDbClient, mindId: string, cards: Card
     personaPath = personaSeedPath(mindId);
     const { etag } = await client.put(personaPath, personaDocument, { ifNoneMatch: "*" });
     created.push(personaPath);
-    // The composed persona spans cards; drift attribution uses index.sources, so card/version are wildcards here.
+    // The composed persona spans Cards; drift attribution uses index.cards, so Card/version are wildcards here.
     ledger.push({ path: personaPath, card: "*", cardVersion: "*", section: "persona", entry: "*", etag });
   }
 
@@ -92,7 +93,7 @@ export async function seedMind(client: MindDbClient, mindId: string, cards: Card
   const index: MindIndex = {
     schemaVersion: 1,
     mindId,
-    activeWorkers: cards.map((card) => card.name),
+    ...provenance,
     persona: {
       path: personaPath ? "persona.md" : null,
       entries: cards.flatMap((card) => card.persona.map(({ entry }) => ({ card: card.name, entry }))),
@@ -100,7 +101,6 @@ export async function seedMind(client: MindDbClient, mindId: string, cards: Card
     beliefs: { entries: beliefEntries },
     memory,
     ledger,
-    sources: cards.map((card) => ({ card: card.name, version: card.version, integrity: card.integrity })),
     drwnVersion: DRWN_VERSION,
   };
   await writeMindIndex(client, index);

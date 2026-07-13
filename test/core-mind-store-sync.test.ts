@@ -56,7 +56,8 @@ test("syncMind rebases clean seeds onto a new card version and refreshes the led
   expect(result.skippedDrifted).toEqual([]);
   expect(server.readFile("/minds/m1/persona.md")).toContain("Plain and warm.");
   const index = await readMindIndex(client, "m1");
-  expect(index?.sources).toEqual([{ card: "@me/mind", version: "2.0.0", integrity: "sha256-2.0.0" }]);
+  expect(index?.worker).toEqual({ card: "@me/mind", version: "2.0.0", integrity: "sha256-2.0.0" });
+  expect(index?.cards).toEqual([{ card: "@me/mind", version: "2.0.0", integrity: "sha256-2.0.0" }]);
 });
 
 test("syncMind preserves DB edits (skips with drift) unless forced", async () => {

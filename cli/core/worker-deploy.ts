@@ -9,15 +9,16 @@ import { tmpdir } from "node:os";
 import { create as createArchive } from "./archive";
 import {
   HOOKS_MIN_DRWN_VERSION,
+  loadCardLock,
   type CardLockEntry,
   type GitLockInfo,
+  type WorkerRootLockEntry,
 } from "./card-lock";
-import { resolveProjectCards } from "./card-project";
 import { parseCardRef, type ResolveCardOptions } from "./card-store";
 import { DrwnError } from "./errors";
 import { readProjectConfigForWrite } from "./project-writes";
 import { resolveCardBareRepoPath, resolveExtractedPath } from "./store-paths";
-import type { ProjectConfig } from "./types";
+import { resolveWorkerGraph } from "./worker-graph";
 
 export const WORKER_DEPLOY_CONTRACT_VERSION = 1;
 export const DEFAULT_STORE_EXPORT_LIMIT_BYTES = 25 * 1024 * 1024;
@@ -43,6 +44,11 @@ export interface WorkerDeployGovernance {
   identity?: unknown;
 }
 
+export interface WorkerDeployRemoteConfig {
+  version: 1;
+  cards: string[];
+}
+
 export interface WorkerDeployPayload {
   contractVersion: typeof WORKER_DEPLOY_CONTRACT_VERSION;
   materialization: WorkerDeployMaterialization;
@@ -56,7 +62,7 @@ export interface WorkerDeployPayload {
     store: { minDrwnVersion: string };
     cards: CardLockEntry[];
   };
-  config: ProjectConfig;
+  config: WorkerDeployRemoteConfig;
   governance: WorkerDeployGovernance | null;
   storeExport: WorkerDeployStoreExport;
 }
@@ -131,29 +137,86 @@ function governanceFromEntry(card: CardLockEntry): WorkerDeployGovernance | null
   };
 }
 
-function deployProjectConfig(cardRef: string, projectRoot?: string | null): ProjectConfig {
-  if (!projectRoot) {
+function deployRemoteConfig(cardRef: string): WorkerDeployRemoteConfig {
+  return { version: 1, cards: [cardRef] };
+}
+
+interface DeployClosure {
+  cards: CardLockEntry[];
+  requested: string;
+  minDrwnVersion: string;
+}
+
+function orderedClosure(root: WorkerRootLockEntry, cards: CardLockEntry[]): CardLockEntry[] {
+  const byName = new Map(cards.map((card) => [card.name, card]));
+  return [root.name, ...root.members].map((name) => {
+    const card = byName.get(name);
+    if (!card) {
+      throw new DrwnError(
+        "WORKER_DEPLOY_CLOSURE_INCOMPLETE",
+        `Worker deploy closure for ${root.name} is missing locked Card ${name}`,
+      );
+    }
+    return card;
+  });
+}
+
+async function resolveDeployClosure(options: BuildWorkerDeployPayloadOptions): Promise<DeployClosure> {
+  if (!options.projectRoot) {
+    const graph = await resolveWorkerGraph(options.agentsDir, [options.cardRef], options.resolveOptions);
+    const root = graph.roots[0];
+    if (!root) {
+      throw new DrwnError("WORKER_DEPLOY_CARD_NOT_FOUND", `could not resolve deploy card ${options.cardRef}`);
+    }
     return {
-      schema: "drwn.project-config",
-      schemaVersion: 1,
-      workers: [cardRef],
-      activeWorker: parseCardRef(cardRef).name,
+      cards: orderedClosure(root, graph.cards),
+      requested: options.cardRef,
+      minDrwnVersion: HOOKS_MIN_DRWN_VERSION,
     };
   }
-  try {
-    const config = readProjectConfigForWrite(projectRoot);
-    if (config.workers.includes(cardRef)) {
-      return config;
-    }
-  } catch {
-    // Fall through to the minimal deploy config. Deploy must not depend on a local
-    // project unless it clearly selected the exact deploy ref.
+
+  const config = readProjectConfigForWrite(options.projectRoot);
+  const lock = await loadCardLock(options.projectRoot);
+  if (!lock) {
+    throw new DrwnError("WORKER_DEPLOY_PROJECT_LOCK_REQUIRED", "Worker deploy requires a valid project card.lock");
+  }
+  if (config.activeWorker === null) {
+    throw new DrwnError("WORKER_DEPLOY_ACTIVE_ROOT_REQUIRED", "Worker deploy requires one selected project Worker");
+  }
+
+  const requestedName = parseCardRef(options.cardRef).name;
+  const memberOf = lock.workerRoots.find((root) => root.members.includes(requestedName));
+  if (memberOf) {
+    throw new DrwnError(
+      "WORKER_DEPLOY_MEMBER_NOT_ROOT",
+      `${requestedName} is a member of Worker ${memberOf.name}; deploy the selected Worker root instead`,
+    );
+  }
+  const requestedRoot = lock.workerRoots.find((root) => root.name === requestedName);
+  if (!requestedRoot) {
+    throw new DrwnError(
+      "WORKER_DEPLOY_ROOT_NOT_INSTALLED",
+      `${requestedName} is not an installed Worker root in this project`,
+    );
+  }
+  if (requestedRoot.name !== config.activeWorker) {
+    throw new DrwnError(
+      "WORKER_DEPLOY_ROOT_NOT_ACTIVE",
+      `${requestedRoot.name} is not the selected Worker; select it with drwn use before deploying`,
+    );
+  }
+
+  const selectedRoot = lock.workerRoots.find((root) => root.name === config.activeWorker);
+  if (!selectedRoot) {
+    throw new DrwnError(
+      "WORKER_DEPLOY_ACTIVE_ROOT_NOT_LOCKED",
+      `Selected Worker ${config.activeWorker} is missing from the project lock`,
+    );
   }
   return {
-    schema: "drwn.project-config",
-    schemaVersion: 1,
-    workers: [cardRef],
-    activeWorker: parseCardRef(cardRef).name,
+    cards: orderedClosure(selectedRoot, lock.cards),
+    requested: selectedRoot.requested,
+    minDrwnVersion: lock.store.minDrwnVersion,
   };
 }
 
@@ -216,31 +279,28 @@ async function buildStoreExport(agentsDir: string, cards: CardLockEntry[], maxBy
 }
 
 export async function buildWorkerDeployPayload(options: BuildWorkerDeployPayloadOptions): Promise<WorkerDeployPayload> {
-  const locked = await resolveProjectCards(options.agentsDir, [options.cardRef], options.resolveOptions);
-  const top = locked[0];
-  if (!top) {
-    throw new DrwnError("WORKER_DEPLOY_CARD_NOT_FOUND", `could not resolve deploy card ${options.cardRef}`);
-  }
+  const closure = await resolveDeployClosure(options);
+  const top = closure.cards[0]!;
 
-  const portableCards = locked.map(portableCardEntry);
+  const portableCards = closure.cards.map(portableCardEntry);
   return {
     contractVersion: WORKER_DEPLOY_CONTRACT_VERSION,
     materialization: "lockfile-store-export",
     entrypoint: {
-      requested: options.cardRef,
+      requested: closure.requested,
       name: top.name,
       kind: top.manifest.kind === "blueprint" ? "blueprint" : "card",
     },
     lockfile: {
       lockfileVersion: 5,
-      store: { minDrwnVersion: HOOKS_MIN_DRWN_VERSION },
+      store: { minDrwnVersion: closure.minDrwnVersion },
       cards: portableCards,
     },
-    config: deployProjectConfig(options.cardRef, options.projectRoot),
+    config: deployRemoteConfig(closure.requested),
     governance: governanceFromEntry(top),
     storeExport: await buildStoreExport(
       options.agentsDir,
-      locked,
+      closure.cards,
       options.maxStoreExportBytes ?? DEFAULT_STORE_EXPORT_LIMIT_BYTES,
     ),
   };

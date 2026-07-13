@@ -9,6 +9,7 @@ import { resolveWorkerConfig } from "../../core/worker-config";
 import { fetchJsonWithWorkerAuth } from "../../core/worker-http";
 import { defaultSecretsFileCandidates, DRWN_SECRETS_FILE, parseSecretsFile } from "../../core/worker-secrets";
 import { buildWorkerDeployPayload } from "../../core/worker-deploy";
+import { DrwnError } from "../../core/errors";
 import { writeMindBinding } from "../../core/mind-store/bindings";
 import { resolveProjectRootFromConfigPath } from "../../core/project";
 
@@ -116,7 +117,8 @@ export class WorkerDeployCommand extends BaseCommand {
       body.blueprint = blueprint;
       this.context.stdout.write(`Resolved ${this.cardRef} with ${blueprint.lockfile.cards.length} locked card(s).\n`);
     } catch (error) {
-      this.context.stderr.write(`Cannot build deploy payload for ${this.cardRef}: ${(error as Error).message}\n`);
+      const detail = error instanceof DrwnError ? `${error.code}: ${error.message}` : (error as Error).message;
+      this.context.stderr.write(`Cannot build deploy payload for ${this.cardRef}: ${detail}\n`);
       return 1;
     }
 

@@ -2,6 +2,7 @@
 // ABOUTME: The ledger records what was seeded from which card version under which ETag; drift compares it to live state.
 
 import type { MemoryManifest } from "../card-manifest";
+import { DrwnError } from "../errors";
 import { mindIndexPath } from "./paths";
 import type { MindDbClient } from "./client";
 
@@ -14,16 +15,33 @@ export interface LedgerRow {
   etag: string;
 }
 
+export interface MindCardProvenance {
+  card: string;
+  version: string;
+  integrity: string;
+}
+
 export interface MindIndex {
   schemaVersion: 1;
   mindId: string;
-  activeWorkers: string[];
+  worker: MindCardProvenance;
+  cards: MindCardProvenance[];
   persona: { path: string | null; entries: Array<{ card: string; entry: string }> };
   beliefs: { entries: Array<{ card: string; entry: string; path: string }> };
   memory: MemoryManifest;
   ledger: LedgerRow[];
-  sources: Array<{ card: string; version: string; integrity: string }>;
   drwnVersion: string;
+}
+
+export function mindCardProvenance(
+  cards: Array<{ name: string; version: string; integrity: string }>,
+): { worker: MindCardProvenance; cards: MindCardProvenance[] } {
+  const ordered = cards.map((card) => ({ card: card.name, version: card.version, integrity: card.integrity }));
+  const worker = ordered[0];
+  if (!worker) {
+    throw new DrwnError("MIND_WORKER_REQUIRED", "Mind operations require one selected Worker closure");
+  }
+  return { worker, cards: ordered };
 }
 
 export type DriftState = "in-sync" | "db-edited" | "card-updated" | "missing";
@@ -54,7 +72,7 @@ export async function computeDrift(
   currentCards: Array<{ name: string; version: string }>,
 ): Promise<DriftRow[]> {
   const versions = new Map(currentCards.map((card) => [card.name, card.version]));
-  const anySourceChanged = index.sources.some(
+  const anySourceChanged = index.cards.some(
     (source) => versions.get(source.card) !== undefined && versions.get(source.card) !== source.version,
   );
   const rows: DriftRow[] = [];

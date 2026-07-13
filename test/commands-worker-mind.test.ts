@@ -67,7 +67,15 @@ test("provision seeds the mind, is idempotent, and status reports drift states",
 
   const clean = await runAgentsCli(["worker", "mind", "status", "--json"], env, projectDir);
   expect(clean.exitCode).toBe(0);
-  const cleanStatus = JSON.parse(clean.stdout) as { drift: Array<{ path: string; state: string }> };
+  const cleanStatus = JSON.parse(clean.stdout) as {
+    worker?: { card: string };
+    cards?: Array<{ card: string }>;
+    sources?: unknown;
+    drift: Array<{ path: string; state: string }>;
+  };
+  expect(cleanStatus.worker).toEqual(expect.objectContaining({ card: "@me/mind" }));
+  expect(cleanStatus.cards?.map((card) => card.card)).toEqual(["@me/mind"]);
+  expect(cleanStatus).not.toHaveProperty("sources");
   expect(cleanStatus.drift.every((row) => row.state === "in-sync")).toBe(true);
 
   const persona = server.readFile("/minds/mind_t1/persona.md")!;

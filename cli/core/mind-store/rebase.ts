@@ -6,7 +6,7 @@ import { dirname, join } from "node:path";
 import { DrwnError } from "../errors";
 import { composePersona, parsePersona } from "../mind-content/persona-composer";
 import type { MindDbClient } from "./client";
-import { readMindIndex, writeMindIndex, type LedgerRow, type MindIndex } from "./ledger";
+import { mindCardProvenance, readMindIndex, writeMindIndex, type LedgerRow, type MindIndex } from "./ledger";
 import { beliefSeedPath, personaSeedPath } from "./paths";
 import type { CardMindContent } from "./seed";
 
@@ -54,6 +54,7 @@ export async function syncMind(
   cards: CardMindContent[],
   options: { force?: boolean; dryRun?: boolean },
 ): Promise<SyncResultMind> {
+  const provenance = mindCardProvenance(cards);
   const index = requireIndex(await readMindIndex(client, mindId), mindId);
   const ledgerByPath = new Map(index.ledger.map((row) => [row.path, row]));
   const result: SyncResultMind = { updated: [], created: [], skippedDrifted: [], unchanged: [] };
@@ -97,7 +98,7 @@ export async function syncMind(
   if (!options.dryRun) {
     await writeMindIndex(client, {
       ...index,
-      activeWorkers: cards.map((card) => card.name),
+      ...provenance,
       persona: {
         path: desiredFiles(mindId, cards).some((file) => file.section === "persona") ? "persona.md" : index.persona.path,
         entries: cards.flatMap((card) => card.persona.map(({ entry }) => ({ card: card.name, entry }))),
@@ -106,7 +107,6 @@ export async function syncMind(
         entries: cards.flatMap((card) => card.beliefs.map(({ entry }) => ({ card: card.name, entry, path: beliefSeedPath(mindId, card.name, entry) }))),
       },
       ledger: nextLedger,
-      sources: cards.map((card) => ({ card: card.name, version: card.version, integrity: card.integrity })),
     });
   }
   return result;

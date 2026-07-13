@@ -3,12 +3,19 @@
 
 import { afterEach, expect, test } from "bun:test";
 import { join } from "node:path";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
 import { seedStore } from "../cli/core/store-seed";
 import { buildWorkerDeployPayload, type WorkerDeployPayload } from "../cli/core/worker-deploy";
-import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import {
+  cleanupTempRoots,
+  envFor,
+  installProjectWorkers,
+  publishCardWithSkills,
+  runAgentsCli,
+  scaffoldCliFixture,
+} from "./helpers";
 import fixturePayload from "./contract/deploy-payload.v1.json";
 
 const tempRoots: string[] = [];
@@ -108,4 +115,72 @@ test("buildWorkerDeployPayload storeExport decodes and seeds a store", async () 
   for (const card of payload.lockfile.cards) {
     expect(await Bun.file(join(agentsDir, card.path, "card.json")).exists()).toBe(true);
   }
+});
+
+test("buildWorkerDeployPayload translates the selected pinned project closure without leaking local schemas", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  await publishBlueprintFixture(fixture);
+  await publishCardWithSkills(fixture, { name: "@me/independent", skills: ["plain"] });
+  const projectRoot = join(fixture.root, "project");
+  await installProjectWorkers(
+    projectRoot,
+    fixture.agentsDir,
+    ["@me/frontend-eng@^1.0.0", "@me/independent@^1.0.0"],
+    "@me/frontend-eng",
+  );
+  const localLock = JSON.parse(await readFile(join(projectRoot, ".agents", "drwn", "card.lock"), "utf8"));
+
+  const payload = await buildWorkerDeployPayload({
+    agentsDir: fixture.agentsDir,
+    cardRef: "@me/frontend-eng@^1.0.0",
+    projectRoot,
+  });
+
+  expect(payload.entrypoint).toEqual({
+    requested: "@me/frontend-eng@^1.0.0",
+    name: "@me/frontend-eng",
+    kind: "blueprint",
+  });
+  expect(payload.config).toEqual({ version: 1, cards: ["@me/frontend-eng@^1.0.0"] });
+  expect(payload.lockfile.cards.map((card) => card.name)).toEqual(["@me/frontend-eng", "@me/react-builder"]);
+  for (const card of payload.lockfile.cards) {
+    const pinned = localLock.cards.find((entry: { name: string }) => entry.name === card.name);
+    expect(card).toMatchObject({
+      requested: pinned.requested,
+      version: pinned.version,
+      integrity: pinned.integrity,
+      treeSha: pinned.treeSha,
+    });
+  }
+  const serialized = JSON.stringify(payload);
+  expect(serialized).not.toContain("drwn.project-config");
+  expect(serialized).not.toContain("drwn.project-lock");
+  expect(serialized).not.toContain("activeWorker");
+  expect(serialized).not.toContain("workerRoots");
+});
+
+test("buildWorkerDeployPayload rejects a member or inactive independent root in a project", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  await publishBlueprintFixture(fixture);
+  await publishCardWithSkills(fixture, { name: "@me/independent", skills: ["plain"] });
+  const projectRoot = join(fixture.root, "project");
+  await installProjectWorkers(
+    projectRoot,
+    fixture.agentsDir,
+    ["@me/frontend-eng@^1.0.0", "@me/independent@^1.0.0"],
+    "@me/frontend-eng",
+  );
+
+  await expect(buildWorkerDeployPayload({
+    agentsDir: fixture.agentsDir,
+    cardRef: "@me/react-builder@^1.0.0",
+    projectRoot,
+  })).rejects.toMatchObject({ code: "WORKER_DEPLOY_MEMBER_NOT_ROOT" });
+  await expect(buildWorkerDeployPayload({
+    agentsDir: fixture.agentsDir,
+    cardRef: "@me/independent@^1.0.0",
+    projectRoot,
+  })).rejects.toMatchObject({ code: "WORKER_DEPLOY_ROOT_NOT_ACTIVE" });
 });

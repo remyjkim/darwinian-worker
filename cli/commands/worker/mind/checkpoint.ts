@@ -40,10 +40,10 @@ export class WorkerMindCheckpointCommand extends BaseCommand {
       const cards = await loadProjectMindCards(projectRoot);
       const index = await readMindIndex(client, mindId);
       const sourceDirs: Record<string, string> = {};
-      for (const source of index?.sources ?? []) {
-        const dir = resolveCardSourceDir(this.context.agentsDir, source.card);
+      for (const card of index?.cards ?? []) {
+        const dir = resolveCardSourceDir(this.context.agentsDir, card.card);
         if (existsSync(dir)) {
-          sourceDirs[source.card] = dir;
+          sourceDirs[card.card] = dir;
         }
       }
       const result = await checkpointMind(client, mindId, cards, { sourceDirs });

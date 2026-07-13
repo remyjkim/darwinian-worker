@@ -1,5 +1,5 @@
 // ABOUTME: Resolves a project's ordered mind-content cards and the target mind id for worker mind commands.
-// ABOUTME: Card order follows the active worker stack; content roots are the locked card paths.
+// ABOUTME: Card order follows the selected Worker root and its locked member closure.
 
 import { DrwnError } from "../errors";
 import { loadCardLock } from "../card-lock";
@@ -9,12 +9,27 @@ import { loadCardMindContent, type CardMindContent } from "./seed";
 export async function loadProjectMindCards(projectRoot: string): Promise<CardMindContent[]> {
   const lock = await loadCardLock(projectRoot);
   if (!lock || lock.cards.length === 0) {
-    throw new DrwnError("MIND_NO_CARDS", "No cards are locked in this project; run `drwn card add <ref>` first.");
+    throw new DrwnError("MIND_NO_CARDS", "No Cards are locked in this project; run `drwn project add <ref>` first.");
   }
   const config = readProjectConfigForWrite(projectRoot);
+  if (config.activeWorker === null) {
+    throw new DrwnError("MIND_WORKER_REQUIRED", "Mind operations require one selected project Worker; run `drwn use <worker>`.");
+  }
+  const root = lock.workerRoots.find((candidate) => candidate.name === config.activeWorker);
+  if (!root) {
+    throw new DrwnError(
+      "MIND_ACTIVE_WORKER_NOT_LOCKED",
+      `Selected Worker ${config.activeWorker} is missing from the project lock`,
+    );
+  }
   const byName = new Map(lock.cards.map((card) => [card.name, card]));
-  const names = config.activeWorker === null ? [] : [config.activeWorker];
-  const ordered = names.flatMap((name) => (byName.has(name) ? [byName.get(name)!] : []));
+  const ordered = [root.name, ...root.members].map((name) => {
+    const card = byName.get(name);
+    if (!card) {
+      throw new DrwnError("MIND_WORKER_CLOSURE_INCOMPLETE", `Selected Worker ${root.name} is missing locked Card ${name}`);
+    }
+    return card;
+  });
   return Promise.all(ordered.map((card) => loadCardMindContent(card, card.path)));
 }
 

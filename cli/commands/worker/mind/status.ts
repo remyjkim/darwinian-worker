@@ -46,7 +46,7 @@ export class WorkerMindStatusCommand extends BaseCommand {
       const cards = await loadProjectMindCards(projectRoot);
       const drift = await computeDrift(client, index, cards);
       if (this.json) {
-        this.context.stdout.write(renderJson({ mindId, provisioned: true, sources: index.sources, drift }));
+        this.context.stdout.write(renderJson({ mindId, provisioned: true, worker: index.worker, cards: index.cards, drift }));
         return 0;
       }
       this.context.stdout.write(renderTable(["path", "card", "state"], drift.map((row) => [row.path, row.card, row.state])));
