@@ -2,6 +2,7 @@
 // ABOUTME: Shared by drwn commands and the legacy sync-mcp compatibility wrapper.
 
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
+import { classifyAmbientMcpCollision } from "./ambient-policy";
 import { hasExplicitMcpDefaults } from "./defaults";
 import {
   buildDrwnMetaBlock,
@@ -12,7 +13,7 @@ import {
   readDrwnMetaBlock,
   type OwnedHookEntries,
 } from "./managed-fields";
-import type { CanonicalConfig, CanonicalRegistry, RegistryServer } from "./types";
+import type { CanonicalConfig, CanonicalRegistry, RegistryServer, TargetName } from "./types";
 
 export interface ClaudeCommandHook {
   type: "command";
@@ -191,6 +192,12 @@ function toCodexServerConfig(server: RegistryServer) {
     ...(bearerTokenEnvVar ? { bearer_token_env_var: bearerTokenEnvVar } : {}),
     ...(httpHeaders ? { http_headers: httpHeaders } : {}),
   };
+}
+
+export function renderMcpServerForTarget(target: TargetName, server: RegistryServer): Record<string, unknown> {
+  if (target === "codex") return toCodexServerConfig(server);
+  if (target === "cursor") return toCursorServerConfig(server);
+  return toJsonServerConfig(server);
 }
 
 export function renderJsonMcpConfig(servers: Record<string, RegistryServer>) {
@@ -504,10 +511,8 @@ export function hashCodexManagedServers(mergedText: string, names: string[]): Re
   );
 }
 
-// Codex deep-merges same-named [mcp_servers.X] tables across the global (~/.codex) and
-// project (.codex) layers. If the global layer defines a managed server with a different
-// transport, the merged table ends up with both `command` and `url`, which Codex rejects.
-// Returns the names of managed servers that collide with a different transport in globalText.
+// Compatibility helper retained for callers that need only fatal Codex IDs. The target-native
+// classifier remains the sole authority for field-merge and transport semantics.
 export function detectCodexLayerConflicts(
   globalText: string,
   servers: Record<string, RegistryServer>,
@@ -523,17 +528,30 @@ export function detectCodexLayerConflicts(
     return [];
   }
 
-  const globalServers = (parsed.mcp_servers ?? {}) as Record<string, { command?: unknown; url?: unknown }>;
+  const globalServers = (parsed.mcp_servers ?? {}) as Record<string, unknown>;
   const conflicts: string[] = [];
   for (const [name, server] of Object.entries(servers)) {
     const globalEntry = globalServers[name];
     if (!globalEntry) {
       continue;
     }
-    const globalIsStdio = typeof globalEntry.command === "string";
-    const globalIsHttp = typeof globalEntry.url === "string";
-    const localIsStdio = server.transport === "stdio";
-    if ((localIsStdio && globalIsHttp) || (!localIsStdio && globalIsStdio)) {
+    const classified = classifyAmbientMcpCollision({
+      declared: {
+        target: "codex",
+        id: name,
+        source: "project",
+        path: ".codex/config.toml",
+        value: toCodexServerConfig(server),
+      },
+      ambient: {
+        target: "codex",
+        id: name,
+        source: "user",
+        path: "~/.codex/config.toml",
+        value: globalEntry,
+      },
+    });
+    if (classified?.reasonCode === "CODEX_INCOMPATIBLE_TRANSPORTS") {
       conflicts.push(name);
     }
   }
