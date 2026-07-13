@@ -10,7 +10,6 @@ import { bumpOverrideConfigKey, assertSemverBumpMatchesClassification } from "./
 import { diffCards } from "./card-diff";
 import { computeIntegrityFromDir } from "./content-manifest";
 import type { CardOrigin, GitLockInfo } from "./card-lock";
-import { detectLegacyLayout } from "./migration";
 import { compareVersions, gt, isStrictSemver, maxSatisfying, validRange } from "./semver-utils";
 import { writeAtomically } from "./fs";
 import { createEmptyMachineConfig, initializeMachineConfig, readMachineConfigFile, writeMachineConfigFile } from "./machine-config";
@@ -92,12 +91,6 @@ function nowIso() {
 
 async function writeJson(pathValue: string, value: unknown) {
   await writeAtomically(pathValue, `${JSON.stringify(value, null, 2)}\n`);
-}
-
-function assertNoLegacyLayout(agentsDir: string) {
-  if (detectLegacyLayout(agentsDir)) {
-    throw new Error("Legacy prototype drwn state is unsupported. Reset the legacy machine state before authoring or applying cards.");
-  }
 }
 
 export async function ensureStoreInitialized(agentsDir: string) {
@@ -257,7 +250,6 @@ export async function createCardSource(options: {
   kind?: "card" | "blueprint";
 }) {
   assertStoreWritable();
-  assertNoLegacyLayout(options.agentsDir);
   if (isCardUnscopedName(options.name) && !options.scope) {
     throw new Error("Unscoped card names require --scope or machine authoring.scope");
   }
@@ -678,7 +670,6 @@ async function listBareRepos(agentsDir: string): Promise<Array<{ name: string; p
 
 export async function publishCard(agentsDir: string, name: string, options: PublishCardOptions = {}) {
   assertStoreWritable();
-  assertNoLegacyLayout(agentsDir);
   await ensureStoreInitialized(agentsDir);
   const manifest = await readCardSourceManifest(agentsDir, name);
   const sourceDir = resolveCardSourceDir(agentsDir, manifest.name);
@@ -772,7 +763,6 @@ async function listPublishedVersions(agentsDir: string, name: string) {
 }
 
 export async function resolveCard(agentsDir: string, ref: string, options: ResolveCardOptions = {}): Promise<ResolvedCard> {
-  assertNoLegacyLayout(agentsDir);
   await ensureStoreInitialized(agentsDir);
   const parsed = parseCardRef(ref);
   if (!options.allowUntrustedSource) {

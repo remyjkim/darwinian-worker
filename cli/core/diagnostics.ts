@@ -25,8 +25,16 @@ import { lstatSafe } from "./fs";
 import { resolveProjectRootFromConfigPath, summarizeProjectConfig, isServerToggle } from "./project";
 import { loadEffectiveConfig } from "./user-config";
 import { getExtension } from "./extensions/registry";
-import { getStoreStatus } from "./migration";
-import { resolveGlobalWriteRecordPath, resolveStoreGeneratedDir } from "./store-paths";
+import {
+  resolveCardsRoot,
+  resolveGlobalWriteRecordPath,
+  resolveSourcesRoot,
+  resolveStoreGeneratedDir,
+  resolveStoreMcpServersDir,
+  resolveStoreMetadataPath,
+  resolveStoreRoot,
+  resolveStoreSkillsRoot,
+} from "./store-paths";
 import { diffWriteRecord, loadWriteRecord, resolveProjectWriteRecordPath } from "./write-record";
 import { isHookConsentValid } from "./hook-consent";
 import { DRWN_VERSION } from "./version";
@@ -78,7 +86,6 @@ export interface DiagnosticsSections {
     sourceCount: number;
     skillBundleCount: number;
     mcpServerCount: number;
-    legacyLayoutDetected: boolean;
   };
   writeRecord: {
     path: string;
@@ -485,6 +492,27 @@ function readWriteRecordStatus(path: string): DiagnosticsSections["writeRecord"]
   };
 }
 
+function currentStateStatus(agentsDir: string): DiagnosticsSections["store"] {
+  const metadataPath = resolveStoreMetadataPath(agentsDir);
+  const countEntries = (path: string) => existsSync(path)
+    ? readdirSync(path, { withFileTypes: true }).filter((entry) => !entry.name.startsWith(".")).length
+    : 0;
+  let schemaVersion: number | null = null;
+  if (existsSync(metadataPath)) {
+    const metadata = JSON.parse(readFileSync(metadataPath, "utf8")) as { schemaVersion?: unknown };
+    schemaVersion = typeof metadata.schemaVersion === "number" ? metadata.schemaVersion : null;
+  }
+  return {
+    path: resolveStoreRoot(agentsDir),
+    initialized: existsSync(metadataPath),
+    schemaVersion,
+    cardCount: countEntries(resolveCardsRoot(agentsDir)),
+    sourceCount: countEntries(resolveSourcesRoot(agentsDir)),
+    skillBundleCount: countEntries(resolveStoreSkillsRoot(agentsDir)),
+    mcpServerCount: countEntries(resolveStoreMcpServersDir(agentsDir)),
+  };
+}
+
 export async function buildDiagnosticsSections(
   repoRoot: string,
   agentsDir: string,
@@ -494,7 +522,7 @@ export async function buildDiagnosticsSections(
   const [repoConfig, repoSkills, store, machineStatus] = await Promise.all([
     loadConfig(repoRoot),
     listRepoSkills(repoRoot),
-    getStoreStatus(agentsDir),
+    currentStateStatus(agentsDir),
     buildMachineStatusV1(repoRoot, agentsDir, homeDir),
   ]);
   const loadedConfig = await loadEffectiveConfig(repoConfig, agentsDir);
