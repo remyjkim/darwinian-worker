@@ -123,3 +123,20 @@ rm -f "$TMP_NPMRC"
 - Publish from committed repo state, not from a half-edited worktree.
 - Earlier published names (`beginning-agents`, `beginning-harness`) are deprecated; mark them as such on npm now that `darwinian` is installable.
 - If future CI publishing is added, prefer trusted publishing over long-lived tokens.
+
+## Publishing `drwn-command-bridge`
+
+Prefer the manually dispatched `Command Bridge Release` workflow. It uses the
+protected `npm-publish` environment, validates the requested version against
+`drwn-command-bridge/package.json`, re-runs the bridge verification suite, and
+confirms the published version is visible in the registry.
+
+For the local fallback, follow the same temporary-config procedure above from
+`drwn-command-bridge/` after running `bun run verify`. Replace the package-name
+preflight with:
+
+```bash
+npm view drwn-command-bridge@<version> version
+```
+
+An `E404` is required before publishing a new version.
