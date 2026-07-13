@@ -3,7 +3,7 @@
 
 import { randomBytes } from "node:crypto";
 import { lstatSync, mkdirSync, realpathSync } from "node:fs";
-import { mkdir, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, open, rename, rm } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 export function lstatSafe(pathValue: string) {
@@ -29,11 +29,28 @@ export function ensureParentDir(pathValue: string, dryRun: boolean) {
 }
 
 export async function writeAtomically(targetPath: string, content: string | Uint8Array): Promise<void> {
-  await mkdir(dirname(targetPath), { recursive: true });
+  const parent = dirname(targetPath);
+  await mkdir(parent, { recursive: true });
   const tempPath = `${targetPath}.tmp.${randomBytes(8).toString("hex")}`;
   try {
-    await writeFile(tempPath, content);
+    const handle = await open(tempPath, "wx");
+    try {
+      await handle.writeFile(content);
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
     await rename(tempPath, targetPath);
+    try {
+      const parentHandle = await open(parent, "r");
+      try {
+        await parentHandle.sync();
+      } finally {
+        await parentHandle.close();
+      }
+    } catch {
+      // Some platforms do not permit directory fsync. Atomic rename still provides correctness.
+    }
   } catch (error) {
     try {
       await rm(tempPath, { force: true });

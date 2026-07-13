@@ -163,7 +163,7 @@ describe("core skill packages", () => {
   test("listInstalledSkillBundles discovers installed bundles from the filesystem layout", async () => {
     const root = await createTempRoot();
     const agentsDir = join(root, "home", ".agents");
-    const versionRoot = join(agentsDir, "packages", "skills", "@acme", "skills-sample", "1.0.0");
+    const versionRoot = join(agentsDir, "drwn", "skills", "@acme", "skills-sample", "1.0.0");
     await mkdir(versionRoot, { recursive: true });
     await writeFile(
       join(versionRoot, "bundle.json"),
@@ -174,7 +174,7 @@ describe("core skill packages", () => {
         skills: [],
       }),
     );
-    await writeFile(join(agentsDir, "packages", "skills", "@acme", "skills-sample", "current"), "1.0.0\n");
+    await writeFile(join(agentsDir, "drwn", "skills", "@acme", "skills-sample", "current"), "1.0.0\n");
 
     const { listInstalledSkillBundles } = await import("../cli/core/skill-packages");
     const bundles = await listInstalledSkillBundles(agentsDir);
@@ -187,7 +187,7 @@ describe("core skill packages", () => {
   test("listInstalledSkillBundles tolerates a legacy symlink current pointer", async () => {
     const root = await createTempRoot();
     const agentsDir = join(root, "home", ".agents");
-    const packageRoot = join(agentsDir, "packages", "skills", "@acme", "skills-sample");
+    const packageRoot = join(agentsDir, "drwn", "skills", "@acme", "skills-sample");
     const versionRoot = join(packageRoot, "1.0.0");
     await mkdir(versionRoot, { recursive: true });
     await writeFile(
@@ -207,18 +207,18 @@ describe("core skill packages", () => {
   test("listInstalledSkillBundles skips a malformed bundle instead of crashing", async () => {
     const root = await createTempRoot();
     const agentsDir = join(root, "home", ".agents");
-    const packageRoot = join(agentsDir, "packages", "skills", "@acme", "broken");
+    const packageRoot = join(agentsDir, "drwn", "skills", "@acme", "broken");
     await mkdir(packageRoot, { recursive: true });
     // current points to a version whose directory / bundle.json does not exist.
     await writeFile(join(packageRoot, "current"), "9.9.9\n");
 
-    const goodRoot = join(agentsDir, "packages", "skills", "@acme", "good", "1.0.0");
+    const goodRoot = join(agentsDir, "drwn", "skills", "@acme", "good", "1.0.0");
     await mkdir(goodRoot, { recursive: true });
     await writeFile(
       join(goodRoot, "bundle.json"),
       JSON.stringify({ schemaVersion: 1, bundleName: "@acme/good", version: "1.0.0", skills: [] }),
     );
-    await writeFile(join(agentsDir, "packages", "skills", "@acme", "good", "current"), "1.0.0\n");
+    await writeFile(join(agentsDir, "drwn", "skills", "@acme", "good", "current"), "1.0.0\n");
 
     const { listInstalledSkillBundles } = await import("../cli/core/skill-packages");
     const bundles = await listInstalledSkillBundles(agentsDir);
@@ -240,10 +240,10 @@ describe("core skill packages", () => {
 
     expect(installed.packageName).toBe(packageName);
     expect(installed.activeVersion).toBe(version);
-    expect((await readFile(join(agentsDir, "packages", "skills", "@acme", "skills-sample", "current"), "utf8")).trim()).toBe(version);
-    await access(join(agentsDir, "packages", "skills", "@acme", "skills-sample", version));
+    expect((await readFile(join(agentsDir, "drwn", "skills", "@acme", "skills-sample", "current"), "utf8")).trim()).toBe(version);
+    await access(join(agentsDir, "drwn", "skills", "@acme", "skills-sample", version));
     expect(
-      await realpath(join(agentsDir, "packages", "skills", "@acme", "skills-sample", version, "skills", "shared", skillName, "SKILL.md")),
+      await realpath(join(agentsDir, "drwn", "skills", "@acme", "skills-sample", version, "skills", "shared", skillName, "SKILL.md")),
     ).toContain(`/@acme/skills-sample/${version}/skills/shared/${skillName}/SKILL.md`);
   });
 
@@ -277,15 +277,15 @@ describe("core skill packages", () => {
     });
 
     expect(installed.packageName).toBe(packageName);
-    expect((await readFile(join(agentsDir, "packages", "skills", "@acme", "skills-sample", "current"), "utf8")).trim()).toBe(version);
+    expect((await readFile(join(agentsDir, "drwn", "skills", "@acme", "skills-sample", "current"), "utf8")).trim()).toBe(version);
     expect(await readFile(join(installed.versionRoot, "skills", "shared", skillName, "SKILL.md"), "utf8")).toContain(`name: ${skillName}`);
   });
 
-  test("installSkillBundleRoot --replace allows same package and rejects other collisions", async () => {
+  test("installSkillBundleRoot updates through a new immutable version and rejects other collisions", async () => {
     const root = await createTempRoot();
     const agentsDir = join(root, "home", ".agents");
     const first = await createBundleFixture(join(root, "first"), { skillName: "replace-me" });
-    const second = await createBundleFixture(join(root, "second"), { skillName: "replace-me" });
+    const second = await createBundleFixture(join(root, "second"), { version: "1.1.0", skillName: "replace-me" });
     await writeFile(join(second.bundleRoot, "skills", "shared", "replace-me", "SKILL.md"), "---\nname: replace-me\ndescription: replaced\n---\n");
 
     const { installSkillBundleRoot } = await import("../cli/core/skill-packages");
@@ -308,6 +308,20 @@ describe("core skill packages", () => {
       replace: true,
     });
     expect(await readFile(join(replaced.versionRoot, "skills", "shared", "replace-me", "SKILL.md"), "utf8")).toContain("replaced");
+    expect(await readFile(join(initial.versionRoot, "skills", "shared", "replace-me", "SKILL.md"), "utf8")).toContain("fixture");
+    expect(await readFile(join(replaced.packageRoot, "current"), "utf8")).toBe("1.1.0\n");
+
+    const immutableConflict = await createBundleFixture(join(root, "immutable-conflict"), { version: "1.1.0", skillName: "replace-me" });
+    await writeFile(join(immutableConflict.bundleRoot, "README.md"), "different immutable bytes\n");
+    await expect(installSkillBundleRoot({
+      agentsDir,
+      bundleRoot: immutableConflict.bundleRoot,
+      packageName: immutableConflict.packageName,
+      version: immutableConflict.version,
+      existingSkillNames: new Set(["replace-me"]),
+      existingSkills: [{ name: "replace-me", sourceType: "npm", sourceId: immutableConflict.packageName }],
+      replace: true,
+    })).rejects.toMatchObject({ code: "INVENTORY_IMMUTABLE_VERSION_CONFLICT" });
 
     const repoCollision = await createBundleFixture(join(root, "repo-collision"), { skillName: "alpha" });
     await expect(installSkillBundleRoot({

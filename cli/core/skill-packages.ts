@@ -1,22 +1,19 @@
 // ABOUTME: Loads, validates, discovers, and ingests package-backed skill bundles into ~/.agents state.
 // ABOUTME: Uses npm pack plus tar extraction so extension bundles stay content-oriented and source-inspectable.
 
+import { createHash } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { lstat, mkdir, mkdtemp, readdir, readFile, readlink, rename, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { extract as extractArchive } from "./archive";
-import { writePointerFile } from "./materialize";
-import {
-  resolveSkillPackageCurrentLink,
-  resolveSkillPackageRoot,
-  resolveSkillPackagesRoot,
-  resolveSkillPackageVersionRoot,
-} from "./paths";
+import { DrwnError } from "./errors";
+import { writeAtomically } from "./fs";
+import { withInventoryLock } from "./inventory-lock";
+import { tombstoneInventoryPath } from "./inventory-tombstones";
 import {
   assertSafePathPart,
   assertStoreWritable,
-  resolveStoreMetadataPath,
   resolveStoreSkillPackageCurrentLink,
   resolveStoreSkillPackageRoot,
   resolveStoreSkillPackagesRoot,
@@ -42,32 +39,20 @@ export async function loadBundleManifest(bundleRoot: string): Promise<BundleMani
   return JSON.parse(readFileSync(manifestPath, "utf8")) as BundleManifest;
 }
 
-function useStoreSkillLayout(agentsDir: string) {
-  return existsSync(resolveStoreMetadataPath(agentsDir));
-}
-
 function activeSkillPackagesRoot(agentsDir: string) {
-  return useStoreSkillLayout(agentsDir)
-    ? resolveStoreSkillPackagesRoot(agentsDir)
-    : resolveSkillPackagesRoot(agentsDir);
+  return resolveStoreSkillPackagesRoot(agentsDir);
 }
 
 function activeSkillPackageRoot(agentsDir: string, packageName: string) {
-  return useStoreSkillLayout(agentsDir)
-    ? resolveStoreSkillPackageRoot(agentsDir, packageName)
-    : resolveSkillPackageRoot(agentsDir, packageName);
+  return resolveStoreSkillPackageRoot(agentsDir, packageName);
 }
 
 function activeSkillPackageVersionRoot(agentsDir: string, packageName: string, version: string) {
-  return useStoreSkillLayout(agentsDir)
-    ? resolveStoreSkillPackageVersionRoot(agentsDir, packageName, version)
-    : resolveSkillPackageVersionRoot(agentsDir, packageName, version);
+  return resolveStoreSkillPackageVersionRoot(agentsDir, packageName, version);
 }
 
 function activeSkillPackageCurrentLink(agentsDir: string, packageName: string) {
-  return useStoreSkillLayout(agentsDir)
-    ? resolveStoreSkillPackageCurrentLink(agentsDir, packageName)
-    : resolveSkillPackageCurrentLink(agentsDir, packageName);
+  return resolveStoreSkillPackageCurrentLink(agentsDir, packageName);
 }
 
 function isWithinRoot(root: string, candidatePath: string) {
@@ -217,7 +202,7 @@ export async function getInstalledSkillBundle(agentsDir: string, packageName: st
     return null;
   }
 
-  const activeVersion = (await readFile(currentPath, "utf8")).trim();
+  const activeVersion = await resolveActiveVersion(currentPath);
   const versionRoot = activeSkillPackageVersionRoot(agentsDir, packageName, activeVersion);
   const manifest = await loadBundleManifest(versionRoot);
   return {
@@ -227,6 +212,24 @@ export async function getInstalledSkillBundle(agentsDir: string, packageName: st
     versionRoot,
     manifest,
   } satisfies InstalledSkillBundle;
+}
+
+export async function hashSkillPackageDirectory(root: string): Promise<`sha256-${string}`> {
+  const hash = createHash("sha256");
+  async function walk(current: string) {
+    for (const entry of await readdir(current, { withFileTypes: true }).then((entries) => entries.sort((a, b) => a.name.localeCompare(b.name)))) {
+      const path = join(current, entry.name);
+      const rel = relative(root, path).replaceAll("\\", "/");
+      if (entry.isSymbolicLink()) throw new DrwnError("INVENTORY_PACKAGE_INVALID", `Skill package contains a symlink: ${rel}`);
+      hash.update(`${entry.isDirectory() ? "d" : "f"}:${rel}\0`);
+      if (entry.isDirectory()) await walk(path);
+      else if (entry.isFile()) hash.update(await readFile(path));
+      else throw new DrwnError("INVENTORY_PACKAGE_INVALID", `Skill package contains an unsupported entry: ${rel}`);
+      hash.update("\0");
+    }
+  }
+  await walk(root);
+  return `sha256-${hash.digest("hex")}`;
 }
 
 function allowedReplacementCollisions(options: {
@@ -283,27 +286,76 @@ export async function installSkillBundleRoot(options: {
     { allowedSkillNameCollisions },
   );
 
-  if (useStoreSkillLayout(options.agentsDir)) {
+  const stagedIntegrity = await hashSkillPackageDirectory(options.bundleRoot);
+  return withInventoryLock(options.agentsDir, async () => {
     assertStoreWritable();
-  }
+    const lockedManifest = await loadBundleManifest(options.bundleRoot);
+    const liveBundles = await listInstalledSkillBundles(options.agentsDir);
+    const liveSkills: ExistingSkillRecord[] = liveBundles.flatMap((bundle) =>
+      bundle.manifest.skills.map((skill) => ({ name: skill.name, sourceType: "npm" as const, sourceId: bundle.packageName }))
+    );
+    const lockedNames = new Set([...options.existingSkillNames, ...liveSkills.map((skill) => skill.name)]);
+    const allowedLockedCollisions = allowedReplacementCollisions({
+      packageName: options.packageName,
+      manifest: lockedManifest,
+      existingSkillNames: lockedNames,
+      existingSkills: [...(options.existingSkills ?? []), ...liveSkills],
+      replace: options.replace,
+    });
+    await validateBundleManifest(
+      options.bundleRoot,
+      lockedManifest,
+      lockedNames,
+      options.packageName,
+      options.version,
+      { allowedSkillNameCollisions: allowedLockedCollisions },
+    );
+    if (await hashSkillPackageDirectory(options.bundleRoot) !== stagedIntegrity) {
+      throw new DrwnError("INVENTORY_STAGING_CHANGED", `Staged skill package changed before commit: ${options.packageName}`);
+    }
 
-  const packageRoot = activeSkillPackageRoot(options.agentsDir, options.packageName);
-  const versionRoot = activeSkillPackageVersionRoot(options.agentsDir, options.packageName, options.version);
-  const currentPath = activeSkillPackageCurrentLink(options.agentsDir, options.packageName);
+    const packageRoot = activeSkillPackageRoot(options.agentsDir, options.packageName);
+    const versionRoot = activeSkillPackageVersionRoot(options.agentsDir, options.packageName, options.version);
+    const currentPath = activeSkillPackageCurrentLink(options.agentsDir, options.packageName);
+    mkdirSync(dirname(packageRoot), { recursive: true });
+    mkdirSync(packageRoot, { recursive: true });
+    if (existsSync(versionRoot)) {
+      const existingIntegrity = await hashSkillPackageDirectory(versionRoot);
+      if (existingIntegrity !== stagedIntegrity) {
+        throw new DrwnError(
+          "INVENTORY_IMMUTABLE_VERSION_CONFLICT",
+          `Skill package ${options.packageName}@${options.version} already exists with different immutable bytes`,
+        );
+      }
+    } else {
+      await rename(options.bundleRoot, versionRoot);
+    }
+    await writeAtomically(currentPath, `${options.version}\n`);
 
-  mkdirSync(dirname(packageRoot), { recursive: true });
-  mkdirSync(packageRoot, { recursive: true });
-  rmSync(versionRoot, { recursive: true, force: true });
-  await rename(options.bundleRoot, versionRoot);
-  writePointerFile(currentPath, options.version);
+    return {
+      packageName: options.packageName,
+      activeVersion: options.version,
+      packageRoot,
+      versionRoot,
+      manifest: lockedManifest,
+    } satisfies InstalledSkillBundle;
+  });
+}
 
-  return {
-    packageName: options.packageName,
-    activeVersion: options.version,
-    packageRoot,
-    versionRoot,
-    manifest,
-  } satisfies InstalledSkillBundle;
+export async function uninstallSkillPackage(agentsDir: string, packageName: string) {
+  assertSafePackageNameForStorage(packageName);
+  return withInventoryLock(agentsDir, async () => {
+    assertStoreWritable();
+    const installed = await getInstalledSkillBundle(agentsDir, packageName);
+    if (!installed) throw new DrwnError("INVENTORY_ITEM_NOT_FOUND", `Skill package is not installed: ${packageName}`);
+    const removed = await tombstoneInventoryPath({ agentsDir, kind: "skill-package", sourcePath: installed.packageRoot });
+    return {
+      packageName,
+      activeVersion: installed.activeVersion,
+      exportedSkillIds: installed.manifest.skills.map((skill) => skill.name).sort(),
+      ...removed,
+    };
+  });
 }
 
 export async function ingestSkillPackage(options: {

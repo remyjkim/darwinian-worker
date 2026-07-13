@@ -170,6 +170,10 @@ export function resolveStoreMcpServerFile(agentsDir: string, serverId: string) {
   return join(resolveStoreMcpServersDir(agentsDir), `${serverId}.json`);
 }
 
+export function resolveInventoryTombstonesRoot(agentsDir: string) {
+  return join(resolveStoreRoot(agentsDir), ".inventory-tombstones");
+}
+
 export function resolveStoreGeneratedDir(agentsDir: string) {
   return join(resolveStoreRoot(agentsDir), "generated");
 }

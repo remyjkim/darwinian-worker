@@ -1,19 +1,18 @@
 // ABOUTME: Stores user-registered reusable MCP server definitions.
 // ABOUTME: Keeps MCP inventory separate from global defaults and project activation.
 
-import { existsSync, mkdirSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { isStringRecord } from "./card-manifest";
 import { resolveMcpLibraryPath } from "./paths";
-import { resolveStoreMcpServerFile, resolveStoreMcpServersDir, resolveStoreMetadataPath } from "./store-paths";
+import { writeAtomically } from "./fs";
+import { withInventoryLock } from "./inventory-lock";
+import { tombstoneInventoryPath } from "./inventory-tombstones";
+import { assertStoreWritable, resolveStoreMcpServerFile, resolveStoreMcpServersDir } from "./store-paths";
 import type { RegistryServer, UserMcpLibrary } from "./types";
 
 export { resolveMcpLibraryPath };
-
-function useStoreLayout(agentsDir: string) {
-  return existsSync(resolveStoreMetadataPath(agentsDir));
-}
 
 export function validateMcpLibraryServer(id: string, server: unknown): asserts server is RegistryServer {
   const candidate = server as Partial<RegistryServer> | undefined;
@@ -50,53 +49,65 @@ export function validateMcpLibrary(library: UserMcpLibrary) {
 }
 
 export async function loadMcpLibrary(agentsDir: string): Promise<UserMcpLibrary> {
-  if (useStoreLayout(agentsDir)) {
-    const dir = resolveStoreMcpServersDir(agentsDir);
-    if (!existsSync(dir)) {
-      return { version: 1, servers: {} };
-    }
-    const servers: UserMcpLibrary["servers"] = {};
-    const entries = await import("node:fs/promises").then(({ readdir }) => readdir(dir, { withFileTypes: true }));
-    for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
-      const id = entry.name.slice(0, -".json".length);
-      const server = JSON.parse(await readFile(join(dir, entry.name), "utf8")) as unknown;
-      validateMcpLibraryServer(id, server);
-      servers[id] = server;
-    }
-    return { version: 1, servers };
-  }
-  const path = resolveMcpLibraryPath(agentsDir);
-  if (!existsSync(path)) {
+  const dir = resolveStoreMcpServersDir(agentsDir);
+  if (!existsSync(dir)) {
     return { version: 1, servers: {} };
   }
-  const parsed = JSON.parse(await readFile(path, "utf8")) as UserMcpLibrary;
-  validateMcpLibrary(parsed);
-  return parsed;
+  const servers: UserMcpLibrary["servers"] = {};
+  const entries = await import("node:fs/promises").then(({ readdir }) => readdir(dir, { withFileTypes: true }));
+  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+    if (!entry.isFile() || !entry.name.endsWith(".json") || entry.name.startsWith(".")) continue;
+    const id = entry.name.slice(0, -".json".length);
+    const server = JSON.parse(await readFile(join(dir, entry.name), "utf8")) as unknown;
+    validateMcpLibraryServer(id, server);
+    servers[id] = server;
+  }
+  return { version: 1, servers };
 }
 
 export async function saveMcpLibrary(agentsDir: string, library: UserMcpLibrary) {
   validateMcpLibrary(library);
-  if (useStoreLayout(agentsDir)) {
-    const dir = resolveStoreMcpServersDir(agentsDir);
-    mkdirSync(dir, { recursive: true });
-    const { rm } = await import("node:fs/promises");
-    if (existsSync(dir)) {
-      for (const entry of await import("node:fs/promises").then(({ readdir }) => readdir(dir, { withFileTypes: true }))) {
-        if (entry.isFile() && entry.name.endsWith(".json")) {
-          await rm(join(dir, entry.name), { force: true });
-        }
-      }
-    }
+  return withInventoryLock(agentsDir, async () => {
+    assertStoreWritable();
     for (const [id, server] of Object.entries(library.servers)) {
-      const path = resolveStoreMcpServerFile(agentsDir, id);
-      mkdirSync(dirname(path), { recursive: true });
-      await writeFile(path, `${JSON.stringify(server, null, 2)}\n`);
+      await writeMcpRecordUnlocked(agentsDir, id, server);
     }
-    return dir;
-  }
-  const path = resolveMcpLibraryPath(agentsDir);
-  mkdirSync(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(library, null, 2)}\n`);
+    return resolveStoreMcpServersDir(agentsDir);
+  });
+}
+
+async function writeMcpRecordUnlocked(agentsDir: string, id: string, server: RegistryServer) {
+  validateMcpLibraryServer(id, server);
+  const path = resolveStoreMcpServerFile(agentsDir, id);
+  await writeAtomically(path, `${JSON.stringify(server, null, 2)}\n`);
   return path;
+}
+
+export async function createMcpLibraryRecord(agentsDir: string, id: string, server: RegistryServer) {
+  validateMcpLibraryServer(id, server);
+  return withInventoryLock(agentsDir, async () => {
+    assertStoreWritable();
+    const path = resolveStoreMcpServerFile(agentsDir, id);
+    if (existsSync(path)) throw new Error(`MCP server "${id}" already exists in standalone inventory.`);
+    return { id, path: await writeMcpRecordUnlocked(agentsDir, id, server), action: "added" as const };
+  });
+}
+
+export async function updateMcpLibraryRecord(agentsDir: string, id: string, server: RegistryServer) {
+  validateMcpLibraryServer(id, server);
+  return withInventoryLock(agentsDir, async () => {
+    assertStoreWritable();
+    const path = resolveStoreMcpServerFile(agentsDir, id);
+    if (!existsSync(path)) throw new Error(`MCP server "${id}" is not installed in standalone inventory.`);
+    return { id, path: await writeMcpRecordUnlocked(agentsDir, id, server), action: "updated" as const };
+  });
+}
+
+export async function removeMcpLibraryRecord(agentsDir: string, id: string) {
+  return withInventoryLock(agentsDir, async () => {
+    assertStoreWritable();
+    const path = resolveStoreMcpServerFile(agentsDir, id);
+    if (!existsSync(path)) throw new Error(`MCP server "${id}" is not installed in standalone inventory.`);
+    return { id, ...(await tombstoneInventoryPath({ agentsDir, kind: "mcp", sourcePath: path })) };
+  });
 }

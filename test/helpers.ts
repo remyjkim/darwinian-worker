@@ -226,7 +226,7 @@ export async function createInstalledSkillBundle(
   const version = options?.version ?? "1.0.0";
   const skillName = options?.skillName ?? "hello-skill";
   const scope = options?.scope ?? "shared";
-  const packageRoot = join(agentsDir, "packages", "skills", ...packageName.split("/"), version);
+  const packageRoot = join(agentsDir, "drwn", "skills", ...packageName.split("/"), version);
   const skillDir = join(packageRoot, "skills", scope, skillName);
 
   await mkdir(skillDir, { recursive: true });
