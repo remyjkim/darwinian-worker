@@ -51,7 +51,10 @@ export async function gitWorktreeRoots(projectRoot: string): Promise<string[]> {
       }
     }
 
-    return paths.length > 0 ? paths : [projectRoot];
+    if (paths.length === 0) {
+      return [projectRoot];
+    }
+    return [projectRoot, ...paths.filter((path) => path !== projectRoot)];
   } catch {
     return [projectRoot];
   }
