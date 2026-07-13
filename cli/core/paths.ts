@@ -34,10 +34,6 @@ export function resolveLibraryDir(agentsDir: string) {
   return join(agentsDir, "library");
 }
 
-export function resolveMcpLibraryPath(agentsDir: string) {
-  return join(resolveLibraryDir(agentsDir), "mcp-servers.json");
-}
-
 export function resolvePackagedRegistryDir(repoRoot: string) {
   return join(repoRoot, "registry");
 }

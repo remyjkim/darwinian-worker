@@ -223,7 +223,7 @@ describe("card catalog publish core", () => {
     await runAgentsCli(["card", "remote", "add", "@team/backend", cardRemote.url], envFor(fixture));
     await runAgentsCli(["card", "push", "@team/backend"], envFor(fixture));
     const catalog = await createCatalogRemote({ scope: "@team" });
-    expect((await runAgentsCli(["library", "catalog", "add", catalog.url], envFor(fixture))).exitCode).toBe(0);
+    expect((await runAgentsCli(["catalog", "add", catalog.url], envFor(fixture))).exitCode).toBe(0);
 
     const result = await publishCardToCatalog({
       agentsDir: fixture.agentsDir,

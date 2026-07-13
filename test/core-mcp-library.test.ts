@@ -24,9 +24,9 @@ describe("core MCP library", () => {
   test("saves and loads MCP library entries", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
-    const { loadMcpLibrary, saveMcpLibrary } = await import("../cli/core/mcp-library");
+    const { loadMcpLibrary, seedMcpInventory } = await import("./mcp-inventory-fixture");
 
-    await saveMcpLibrary(fixture.agentsDir, {
+    await seedMcpInventory(fixture.agentsDir, {
       version: 1,
       servers: {
         github: {

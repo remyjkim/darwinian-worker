@@ -1,5 +1,5 @@
-// ABOUTME: Implements card catalog management under drwn library catalog.
-// ABOUTME: Registers Git-backed catalogs used by drwn search card.
+// ABOUTME: Implements card catalog registration and refresh under drwn catalog.
+// ABOUTME: Manages Git-backed catalogs used by card discovery.
 
 import { Option } from "clipanion";
 import {
@@ -11,18 +11,18 @@ import {
 import { renderJson, renderTable } from "../../core/output";
 import { BaseCommand } from "../base";
 
-export class LibraryCatalogListCommand extends BaseCommand {
-  static override paths = [["library", "catalog", "list"]];
+export class CatalogListCommand extends BaseCommand {
+  static override paths = [["catalog", "list"]];
 
   static override usage = BaseCommand.Usage({
-    category: "Library",
+    category: "Cards",
     description: "List registered card catalogs.",
     details: `
       Lists Git-backed card catalogs registered for card discovery. Each entry
-      shows the catalog scope (e.g. @team), the source Git URL, the cached
-      card count, and the last time the local clone was refreshed.
+      shows the catalog scope, source Git URL, cached card count, and last
+      refresh time.
     `,
-    examples: [["List card catalogs", "drwn library catalog list --json"]],
+    examples: [["List card catalogs", "drwn catalog list --json"]],
   });
 
   json = Option.Boolean("--json", false, {
@@ -50,24 +50,18 @@ export class LibraryCatalogListCommand extends BaseCommand {
   }
 }
 
-export class LibraryCatalogAddCommand extends BaseCommand {
-  static override paths = [["library", "catalog", "add"]];
+export class CatalogAddCommand extends BaseCommand {
+  static override paths = [["catalog", "add"]];
 
   static override usage = BaseCommand.Usage({
-    category: "Library",
+    category: "Cards",
     description: "Register and clone a card catalog by URL.",
     details: `
       Clones a Git catalog repo locally, reads its catalog.json to discover the
       catalog scope, and records the registration in ~/.agents/drwn/catalogs.json.
-      The scope is taken from the catalog manifest; collisions across scopes are
-      refused.
+      Scope collisions are refused.
     `,
-    examples: [
-      [
-        "Add a card catalog",
-        "drwn library catalog add file:///tmp/cards-catalog.git",
-      ],
-    ],
+    examples: [["Add a card catalog", "drwn catalog add file:///tmp/cards-catalog.git"]],
   });
 
   url = Option.String({ required: true });
@@ -92,19 +86,19 @@ export class LibraryCatalogAddCommand extends BaseCommand {
   }
 }
 
-export class LibraryCatalogRemoveCommand extends BaseCommand {
-  static override paths = [["library", "catalog", "remove"]];
+export class CatalogRemoveCommand extends BaseCommand {
+  static override paths = [["catalog", "remove"]];
 
   static override usage = BaseCommand.Usage({
-    category: "Library",
+    category: "Cards",
     description: "Remove a registered card catalog by scope or URL.",
     details: `
       Removes a catalog registration and its local clone. Accepts either the
-      scope (e.g. @team) or the URL that was used to register the catalog.
+      scope or the URL used to register the catalog.
     `,
     examples: [
-      ["Remove by scope", "drwn library catalog remove @team"],
-      ["Remove by URL", "drwn library catalog remove https://example.com/catalog.git"],
+      ["Remove by scope", "drwn catalog remove @team"],
+      ["Remove by URL", "drwn catalog remove https://example.com/catalog.git"],
     ],
   });
 
@@ -117,20 +111,19 @@ export class LibraryCatalogRemoveCommand extends BaseCommand {
   }
 }
 
-export class LibraryCatalogRefreshCommand extends BaseCommand {
-  static override paths = [["library", "catalog", "refresh"]];
+export class CatalogRefreshCommand extends BaseCommand {
+  static override paths = [["catalog", "refresh"]];
 
   static override usage = BaseCommand.Usage({
-    category: "Library",
+    category: "Cards",
     description: "Refresh registered card catalogs from their remotes.",
     details: `
-      Runs git fetch against every registered catalog clone (or just the one
-      matching the optional scope filter) and refreshes the cached card count
-      and lastFetched timestamp in catalogs.json.
+      Runs git fetch against every registered catalog clone, or the optional
+      scope, and refreshes the cached card count and lastFetched timestamp.
     `,
     examples: [
-      ["Refresh every catalog", "drwn library catalog refresh"],
-      ["Refresh one scope", "drwn library catalog refresh @team"],
+      ["Refresh every catalog", "drwn catalog refresh"],
+      ["Refresh one scope", "drwn catalog refresh @team"],
     ],
   });
 

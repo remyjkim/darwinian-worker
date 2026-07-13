@@ -515,7 +515,7 @@ export async function syncMcp(
 
   if (options.writeScope === "machine" && serverCount === 0 && !hasPriorMcpOwnership) {
     result.warnings.push(
-      "drwn write --root: no machine-default MCP servers configured. Add servers with `drwn library defaults add mcp <name>` first.",
+      "drwn write --root: no explicit machine MCP servers configured. Enable one with `drwn machine mcp enable <server-id>` first.",
     );
     return result;
   }

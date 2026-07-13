@@ -152,8 +152,8 @@ describe("drwn add mcp", () => {
   test("adds a user library MCP server as an explicit project definition", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
-    const { saveMcpLibrary } = await import("../cli/core/mcp-library");
-    await saveMcpLibrary(fixture.agentsDir, {
+    const { seedMcpInventory } = await import("./mcp-inventory-fixture");
+    await seedMcpInventory(fixture.agentsDir, {
       version: 1,
       servers: {
         github: {

@@ -17,7 +17,7 @@ async function selectMachineMcp(
   id: string,
 ) {
   const result = await runAgentsCli(
-    ["library", "defaults", "add", "mcp", id],
+    ["machine", "mcp", "enable", id],
     {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
@@ -181,9 +181,9 @@ describe("drwn mcp", () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     const { ensureStoreInitialized } = await import("../cli/core/card-store");
-    const { saveMcpLibrary } = await import("../cli/core/mcp-library");
+    const { seedMcpInventory } = await import("./mcp-inventory-fixture");
     await ensureStoreInitialized(fixture.agentsDir);
-    await saveMcpLibrary(fixture.agentsDir, {
+    await seedMcpInventory(fixture.agentsDir, {
       version: 1,
       servers: {
         github: {
@@ -210,8 +210,8 @@ describe("drwn mcp", () => {
   test("project list excludes machine-only MCP library definitions", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
-    const { saveMcpLibrary } = await import("../cli/core/mcp-library");
-    await saveMcpLibrary(fixture.agentsDir, {
+    const { seedMcpInventory } = await import("./mcp-inventory-fixture");
+    await seedMcpInventory(fixture.agentsDir, {
       version: 1,
       servers: {
         "machine-only": {

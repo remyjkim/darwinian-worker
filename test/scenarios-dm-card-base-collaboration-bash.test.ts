@@ -78,7 +78,7 @@ if (!payload.ok || payload.entry.url !== 'git+' + process.env.CARD_REMOTE_URL + 
 }
 NODE
 
-drwn_consumer library catalog add "$CATALOG_URL"
+drwn_consumer catalog add "$CATALOG_URL"
 drwn_consumer search card dm-card-base --scope @remyjkim --json > "$SEARCH_INITIAL_JSON"
 node - "$SEARCH_INITIAL_JSON" <<'NODE'
 const fs = require('fs');
@@ -94,7 +94,7 @@ assert_skill "$PINNED_PROJECT" bootstrap-project
 
 rm -rf "$PINNED_PROJECT/.claude" "$PINNED_PROJECT/.codex" "$PINNED_PROJECT/.cursor"
 force_missing_locked_path "$PINNED_PROJECT"
-drwn_fresh library catalog list --json > "$FRESH_CATALOGS_JSON"
+drwn_fresh catalog list --json > "$FRESH_CATALOGS_JSON"
 node - "$FRESH_CATALOGS_JSON" <<'NODE'
 const fs = require('fs');
 const payload = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
@@ -172,7 +172,7 @@ if (payload.results.length !== 1 || payload.results[0].url !== 'git+' + process.
 }
 NODE
 
-drwn_consumer library catalog refresh @remyjkim
+drwn_consumer catalog refresh @remyjkim
 drwn_consumer search card dm-card-base --scope @remyjkim --json > "$SEARCH_REFRESHED_JSON"
 node - "$SEARCH_REFRESHED_JSON" <<'NODE'
 const fs = require('fs');

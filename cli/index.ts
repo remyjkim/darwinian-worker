@@ -87,23 +87,35 @@ import { ExtensionsListCommand } from "./commands/extensions/list";
 import { ExtensionsSetupCommand } from "./commands/extensions/setup";
 import { ExtensionsShowCommand } from "./commands/extensions/show";
 import { ExtensionsStatusCommand } from "./commands/extensions/status";
-import { LibraryAddSkillCommand } from "./commands/library/add/skill";
-import { LibraryAddMcpCommand } from "./commands/library/add/mcp";
 import {
-  LibraryCatalogAddCommand,
-  LibraryCatalogListCommand,
-  LibraryCatalogRefreshCommand,
-  LibraryCatalogRemoveCommand,
-} from "./commands/library/catalog";
-import { LibraryDefaultsAddMcpCommand } from "./commands/library/defaults/add-mcp";
-import { LibraryDefaultsAddSkillCommand } from "./commands/library/defaults/add-skill";
-import { LibraryDefaultsListCommand } from "./commands/library/defaults/list";
-import { LibraryDefaultsRemoveMcpCommand } from "./commands/library/defaults/remove-mcp";
-import { LibraryDefaultsRemoveSkillCommand } from "./commands/library/defaults/remove-skill";
-import { LibraryListCommand } from "./commands/library/list";
-import { LibraryShowCommand } from "./commands/library/show";
+  CatalogAddCommand,
+  CatalogListCommand,
+  CatalogRefreshCommand,
+  CatalogRemoveCommand,
+} from "./commands/catalog/manage";
 import { McpListCommand } from "./commands/mcp/list";
 import { McpWriteCommand } from "./commands/mcp/write";
+import {
+  MachineSkillDisableCommand,
+  MachineSkillEnableCommand,
+  MachineSkillInstallCommand,
+  MachineSkillListCommand,
+  MachineSkillReferencesCommand,
+  MachineSkillShowCommand,
+  MachineSkillUninstallCommand,
+  MachineSkillUpdateCommand,
+} from "./commands/machine/skill";
+import {
+  MachineMcpAddCommand,
+  MachineMcpDisableCommand,
+  MachineMcpEnableCommand,
+  MachineMcpListCommand,
+  MachineMcpReferencesCommand,
+  MachineMcpRemoveCommand,
+  MachineMcpShowCommand,
+  MachineMcpUpdateCommand,
+} from "./commands/machine/mcp";
+import { MachineInventoryGcCommand } from "./commands/machine/inventory";
 import { WorkerMindCommand } from "./commands/worker/mind/mind";
 import { WorkerMindProvisionCommand } from "./commands/worker/mind/provision";
 import { WorkerMindStatusCommand } from "./commands/worker/mind/status";
@@ -117,20 +129,8 @@ import { SearchCardCommand } from "./commands/search/card";
 import { SearchSkillCommand } from "./commands/search/skill";
 import { ScanCommand } from "./commands/scan";
 import { StatusCommand } from "./commands/status";
-import { StoreMigrateCommand } from "./commands/store/migrate";
-import { StoreMigrateToGitCommand } from "./commands/store/migrate-to-git";
-import { StoreGcCommand } from "./commands/store/gc";
-import { StoreVerifyCommand } from "./commands/store/verify";
-import { StoreExportCommand } from "./commands/store/export";
-import { StoreSeedCommand } from "./commands/store/seed";
-import { StoreStatusCommand } from "./commands/store/status";
-import { SkillsListCommand } from "./commands/skills/list";
-import { SkillsPackagesAddCommand } from "./commands/skills/packages/add";
-import { SkillsPackagesListCommand } from "./commands/skills/packages/list";
-import { SkillsPackagesShowCommand } from "./commands/skills/packages/show";
 import { WriteCommand } from "./commands/write";
 import { ExportSessionsCommand } from "./commands/export/sessions";
-import { detectLegacyLayout } from "./core/migration";
 
 const packageJson = JSON.parse(
   readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../package.json"), "utf8"),
@@ -142,10 +142,23 @@ const cli = new Cli({
   binaryVersion: packageJson.version ?? "0.0.0",
 });
 
-cli.register(SkillsListCommand);
-cli.register(SkillsPackagesAddCommand);
-cli.register(SkillsPackagesListCommand);
-cli.register(SkillsPackagesShowCommand);
+cli.register(MachineSkillListCommand);
+cli.register(MachineSkillShowCommand);
+cli.register(MachineSkillReferencesCommand);
+cli.register(MachineSkillInstallCommand);
+cli.register(MachineSkillUpdateCommand);
+cli.register(MachineSkillUninstallCommand);
+cli.register(MachineSkillEnableCommand);
+cli.register(MachineSkillDisableCommand);
+cli.register(MachineMcpListCommand);
+cli.register(MachineMcpShowCommand);
+cli.register(MachineMcpReferencesCommand);
+cli.register(MachineMcpAddCommand);
+cli.register(MachineMcpUpdateCommand);
+cli.register(MachineMcpRemoveCommand);
+cli.register(MachineMcpEnableCommand);
+cli.register(MachineMcpDisableCommand);
+cli.register(MachineInventoryGcCommand);
 cli.register(AddSkillCommand);
 cli.register(AddMcpCommand);
 cli.register(ProjectAddCommand);
@@ -206,19 +219,10 @@ cli.register(ProjectApplyCommand);
 cli.register(ProjectRemoveCommand);
 cli.register(ProjectPinCommand);
 cli.register(ProjectUpdateCommand);
-cli.register(LibraryAddSkillCommand);
-cli.register(LibraryAddMcpCommand);
-cli.register(LibraryCatalogListCommand);
-cli.register(LibraryCatalogAddCommand);
-cli.register(LibraryCatalogRemoveCommand);
-cli.register(LibraryCatalogRefreshCommand);
-cli.register(LibraryDefaultsListCommand);
-cli.register(LibraryDefaultsAddSkillCommand);
-cli.register(LibraryDefaultsRemoveSkillCommand);
-cli.register(LibraryDefaultsAddMcpCommand);
-cli.register(LibraryDefaultsRemoveMcpCommand);
-cli.register(LibraryListCommand);
-cli.register(LibraryShowCommand);
+cli.register(CatalogListCommand);
+cli.register(CatalogAddCommand);
+cli.register(CatalogRemoveCommand);
+cli.register(CatalogRefreshCommand);
 cli.register(SearchSkillCommand);
 cli.register(SearchMcpCommand);
 cli.register(SearchCardCommand);
@@ -245,13 +249,6 @@ cli.register(DevCommand);
 cli.register(ScanCommand);
 cli.register(AnalyzeSessionsCommand);
 cli.register(ExportSessionsCommand);
-cli.register(StoreMigrateCommand);
-cli.register(StoreMigrateToGitCommand);
-cli.register(StoreGcCommand);
-cli.register(StoreVerifyCommand);
-cli.register(StoreExportCommand);
-cli.register(StoreSeedCommand);
-cli.register(StoreStatusCommand);
 cli.register(StatusCommand);
 cli.register(DoctorCommand);
 cli.register(InitCommand);
@@ -275,9 +272,6 @@ const context = createAgentsContext();
 try {
   if (!isHookInvocation) {
     validateRepoRoot(context.repoRoot);
-    if (detectLegacyLayout(context.agentsDir)) {
-      process.stderr.write("WARNING: pre-cards layout detected. Run `drwn store migrate` to upgrade.\n");
-    }
   }
   await cli.runExit(argv, context);
 } catch (error) {

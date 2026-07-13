@@ -44,7 +44,7 @@ describe("cli parity", () => {
 
     const commands = [
       ["status", "--json"],
-      ["skills", "list", "--json"],
+      ["machine", "skill", "list", "--json"],
       ["mcp", "list", "--json"],
     ];
 

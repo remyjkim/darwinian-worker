@@ -24,7 +24,7 @@ export async function createCapabilityCardFromDefaults(options: {
   });
   if (capabilities.skills.length === 0 && capabilities.mcpServers.length === 0) {
     throw new Error(
-      "No effective machine capabilities are configured. Add selections with drwn library defaults add skill <id> or drwn library defaults add mcp <id>.",
+      "No effective machine capabilities are configured. Add selections with drwn machine skill enable <id> or drwn machine mcp enable <id>.",
     );
   }
   const source = await createCardSource({

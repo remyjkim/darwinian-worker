@@ -6,7 +6,7 @@ import { existsSync } from "node:fs";
 import { lstat, mkdir, readFile, readdir, readlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { buildEffectiveState } from "../cli/core/effective-state";
-import { saveMcpLibrary } from "../cli/core/mcp-library";
+import { seedMcpInventory } from "./mcp-inventory-fixture";
 import { resolveMachineConfigPath } from "../cli/core/store-paths";
 import {
   cleanupTempRoots,
@@ -120,7 +120,7 @@ test("project state and output are independent from machine capability state", a
   machine.optional = { context7: true, "machine-only": true };
   machine.parallel = { cli: { enabled: false }, mcp: { enabled: true } };
   await writeFile(machinePath, `${JSON.stringify(machine, null, 2)}\n`);
-  await saveMcpLibrary(fixture.agentsDir, {
+  await seedMcpInventory(fixture.agentsDir, {
     version: 1,
     servers: {
       "machine-only": {

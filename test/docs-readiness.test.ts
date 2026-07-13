@@ -132,7 +132,7 @@ describe("documentation readiness", () => {
     expect(usageGuide).toContain("drwn status --why");
     expect(usageGuide).toContain("drwn library defaults add");
     expect(usageGuide).toContain("drwn card catalog publish");
-    expect(usageGuide).toContain("library catalog refresh");
+    expect(usageGuide).toContain("catalog refresh");
     expect(usageGuide).toContain("https://github.com/curation-labs/dm-cards-catalog-v1.git");
     expect(usageGuide).toContain("repo-native and installed package-backed skills");
     expect(usageGuide).toContain("darwinian-minds");

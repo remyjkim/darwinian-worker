@@ -25,12 +25,12 @@ test("removing an explicit skill removes its previously materialized downstream 
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
 
-  expect((await runAgentsCli(["library", "defaults", "add", "skill", "alpha"], envFor(fixture))).exitCode).toBe(0);
+  expect((await runAgentsCli(["machine", "skill", "enable", "alpha"], envFor(fixture))).exitCode).toBe(0);
   expect((await runAgentsCli(["write", "--skills-only"], envFor(fixture))).exitCode).toBe(0);
   const linkPath = join(fixture.homeDir, ".claude", "skills", "alpha");
   expect(lstatSync(linkPath).isDirectory()).toBe(true);
 
-  expect((await runAgentsCli(["library", "defaults", "remove", "skill", "alpha"], envFor(fixture))).exitCode).toBe(0);
+  expect((await runAgentsCli(["machine", "skill", "disable", "alpha"], envFor(fixture))).exitCode).toBe(0);
   const result = await runAgentsCli(["write", "--skills-only", "--json"], envFor(fixture));
 
   expect(result.exitCode).toBe(0);
@@ -41,14 +41,14 @@ test("removing an explicit skill removes its previously materialized downstream 
 test("cleanup preserves user content that replaced a removed managed copy", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
-  expect((await runAgentsCli(["library", "defaults", "add", "skill", "alpha"], envFor(fixture))).exitCode).toBe(0);
+  expect((await runAgentsCli(["machine", "skill", "enable", "alpha"], envFor(fixture))).exitCode).toBe(0);
   expect((await runAgentsCli(["write", "--skills-only"], envFor(fixture))).exitCode).toBe(0);
   const linkPath = join(fixture.homeDir, ".claude", "skills", "alpha");
   await rm(linkPath, { recursive: true, force: true });
   await mkdir(linkPath, { recursive: true });
   await writeFile(join(linkPath, "SKILL.md"), "user content\n");
 
-  expect((await runAgentsCli(["library", "defaults", "remove", "skill", "alpha"], envFor(fixture))).exitCode).toBe(0);
+  expect((await runAgentsCli(["machine", "skill", "disable", "alpha"], envFor(fixture))).exitCode).toBe(0);
 
   const result = await runAgentsCli(["write", "--skills-only", "--json"], envFor(fixture));
 

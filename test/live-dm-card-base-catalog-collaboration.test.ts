@@ -54,7 +54,7 @@ liveTest("publishes and consumes the live dm-card-base GitHub repo through a cat
     url: liveRef,
   });
 
-  expect((await runAgentsCli(["library", "catalog", "add", catalog.url], envFor(consumer))).exitCode).toBe(0);
+  expect((await runAgentsCli(["catalog", "add", catalog.url], envFor(consumer))).exitCode).toBe(0);
   const search = await runAgentsCli(["search", "card", "dm-card-base", "--scope", "@remyjkim", "--json"], envFor(consumer));
   expect(search.exitCode, search.stderr).toBe(0);
   expect(JSON.parse(search.stdout).results).toEqual([

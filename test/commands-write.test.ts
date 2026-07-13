@@ -23,7 +23,7 @@ describe("drwn write", () => {
       AGENTS_DIR: fixture.agentsDir,
     };
 
-    expect((await runAgentsCli(["library", "defaults", "add", "skill", "alpha"], env)).exitCode).toBe(0);
+    expect((await runAgentsCli(["machine", "skill", "enable", "alpha"], env)).exitCode).toBe(0);
 
     const write = await runAgentsCli(["write", "--dry-run"], env);
 
@@ -39,7 +39,7 @@ describe("drwn write", () => {
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,
     };
-    expect((await runAgentsCli(["library", "defaults", "add", "mcp", "context7"], env)).exitCode).toBe(0);
+    expect((await runAgentsCli(["machine", "mcp", "enable", "context7"], env)).exitCode).toBe(0);
 
     const json = await runAgentsCli(["write", "--dry-run", "--json"], env);
     expect(json.exitCode).toBe(0);
@@ -72,8 +72,8 @@ describe("drwn write", () => {
   test("global default skills write without curated symlinks", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
-    expect((await runAgentsCli(["library", "defaults", "add", "skill", "alpha"], envFor(fixture))).exitCode).toBe(0);
-    expect((await runAgentsCli(["library", "defaults", "add", "mcp", "context7"], envFor(fixture))).exitCode).toBe(0);
+    expect((await runAgentsCli(["machine", "skill", "enable", "alpha"], envFor(fixture))).exitCode).toBe(0);
+    expect((await runAgentsCli(["machine", "mcp", "enable", "context7"], envFor(fixture))).exitCode).toBe(0);
 
     const result = await runAgentsCli(["write", "--dry-run"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
@@ -132,9 +132,9 @@ describe("drwn write", () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     const { ensureStoreInitialized } = await import("../cli/core/card-store");
-    const { saveMcpLibrary } = await import("../cli/core/mcp-library");
+    const { seedMcpInventory } = await import("./mcp-inventory-fixture");
     await ensureStoreInitialized(fixture.agentsDir);
-    await saveMcpLibrary(fixture.agentsDir, {
+    await seedMcpInventory(fixture.agentsDir, {
       version: 1,
       servers: {
         github: {
@@ -146,7 +146,7 @@ describe("drwn write", () => {
         },
       },
     });
-    expect((await runAgentsCli(["library", "defaults", "add", "mcp", "github"], envFor(fixture))).exitCode).toBe(0);
+    expect((await runAgentsCli(["machine", "mcp", "enable", "github"], envFor(fixture))).exitCode).toBe(0);
 
     const result = await runAgentsCli(["write", "--dry-run"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
@@ -161,8 +161,8 @@ describe("drwn write", () => {
   test("project-enabled user library MCP servers render during write", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
-    const { saveMcpLibrary } = await import("../cli/core/mcp-library");
-    await saveMcpLibrary(fixture.agentsDir, {
+    const { seedMcpInventory } = await import("./mcp-inventory-fixture");
+    await seedMcpInventory(fixture.agentsDir, {
       version: 1,
       servers: {
         github: {

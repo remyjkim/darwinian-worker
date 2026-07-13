@@ -131,7 +131,7 @@ test("card diff classifies structural changes", async () => {
   expect(diff.stdout).toContain("Classification: minor");
 });
 
-test("card new fails on a legacy layout and points the user at store migrate", async () => {
+test("card new fails closed on unsupported legacy prototype state", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   await mkdir(join(fixture.agentsDir, "drwn"), { recursive: true });
@@ -146,5 +146,6 @@ test("card new fails on a legacy layout and points the user at store migrate", a
   const result = await runAgentsCli(["card", "new", "@me/backend", "--no-git"], envFor(fixture));
 
   expect(result.exitCode).not.toBe(0);
-  expect(result.stderr).toContain("drwn store migrate");
+  expect(result.stderr).toContain("Legacy prototype drwn state is unsupported");
+  expect(result.stderr).not.toContain("drwn store migrate");
 });

@@ -34,7 +34,7 @@ test("a published card becomes discoverable and cloneable from a shared catalog"
   expect((await runAgentsCli(["card", "publish", "@team/backend"], envFor(producer))).exitCode).toBe(0);
   expect((await runAgentsCli(["card", "remote", "add", "@team/backend", cardRemote.url], envFor(producer))).exitCode).toBe(0);
   expect((await runAgentsCli(["card", "push", "@team/backend"], envFor(producer))).exitCode).toBe(0);
-  expect((await runAgentsCli(["library", "catalog", "add", catalog.url], envFor(producer))).exitCode).toBe(0);
+  expect((await runAgentsCli(["catalog", "add", catalog.url], envFor(producer))).exitCode).toBe(0);
 
   const published = await runAgentsCli(
     [
@@ -57,7 +57,7 @@ test("a published card becomes discoverable and cloneable from a shared catalog"
   expect(published.exitCode).toBe(0);
   expect(JSON.parse(published.stdout).entry.url).toBe(`git+${cardRemote.url}#v1.2.3`);
 
-  expect((await runAgentsCli(["library", "catalog", "add", catalog.url], envFor(consumer))).exitCode).toBe(0);
+  expect((await runAgentsCli(["catalog", "add", catalog.url], envFor(consumer))).exitCode).toBe(0);
   const discovered = await runAgentsCli(["search", "card", "backend", "--scope", "@team", "--json"], envFor(consumer));
   expect(discovered.exitCode).toBe(0);
   const results = JSON.parse(discovered.stdout).results;

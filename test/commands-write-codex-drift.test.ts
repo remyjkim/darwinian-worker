@@ -72,7 +72,7 @@ test("write --root removes a Codex MCP entry when the default is removed and lea
 
   // Register context7 as a machine default and materialize at user scope.
   expect(
-    (await runAgentsCli(["library", "defaults", "add", "mcp", "context7", "--json"], envFor(fixture))).exitCode,
+    (await runAgentsCli(["machine", "mcp", "enable", "context7", "--json"], envFor(fixture))).exitCode,
   ).toBe(0);
   expect(
     (await runAgentsCli(["write", "--root", "--mcp-only", "--json"], envFor(fixture))).exitCode,
@@ -85,7 +85,7 @@ test("write --root removes a Codex MCP entry when the default is removed and lea
 
   // Remove the default and re-run --root.
   expect(
-    (await runAgentsCli(["library", "defaults", "remove", "mcp", "context7", "--json"], envFor(fixture))).exitCode,
+    (await runAgentsCli(["machine", "mcp", "disable", "context7", "--json"], envFor(fixture))).exitCode,
   ).toBe(0);
   expect(
     (await runAgentsCli(["write", "--root", "--mcp-only", "--json"], envFor(fixture))).exitCode,

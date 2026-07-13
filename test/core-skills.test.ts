@@ -28,7 +28,7 @@ function machineSkillOptions(repoRoot: string, agentsDir: string, homeDir: strin
 }
 
 async function createInstalledBundle(agentsDir: string, skillName = "hello-skill") {
-  const packageRoot = join(agentsDir, "packages", "skills", "@acme", "skills-sample", "1.0.0");
+  const packageRoot = join(agentsDir, "drwn", "skills", "@acme", "skills-sample", "1.0.0");
   const skillDir = join(packageRoot, "skills", "shared", skillName);
   await mkdir(skillDir, { recursive: true });
   await writeFile(join(skillDir, "SKILL.md"), `---\nname: ${skillName}\ndescription: hello\n---\n`);

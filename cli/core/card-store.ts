@@ -96,7 +96,7 @@ async function writeJson(pathValue: string, value: unknown) {
 
 function assertNoLegacyLayout(agentsDir: string) {
   if (detectLegacyLayout(agentsDir)) {
-    throw new Error("Legacy drwn layout detected. Run `drwn store migrate` before authoring or applying cards.");
+    throw new Error("Legacy prototype drwn state is unsupported. Reset the legacy machine state before authoring or applying cards.");
   }
 }
 

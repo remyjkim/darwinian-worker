@@ -37,7 +37,7 @@ describe("machine skill selection", () => {
   test("write projects only explicitly selected machine skills", async () => {
     const fixture = await scaffoldCliFixture({ curatedSkillNames: ["beta"] });
     tempRoots.push(fixture.root);
-    expect((await runAgentsCli(["library", "defaults", "add", "skill", "alpha"], envFor(fixture))).exitCode).toBe(0);
+    expect((await runAgentsCli(["machine", "skill", "enable", "alpha"], envFor(fixture))).exitCode).toBe(0);
 
     const result = await runAgentsCli(["write", "--scope", "machine", "--skills-only"], envFor(fixture));
 
@@ -49,9 +49,9 @@ describe("machine skill selection", () => {
   test("removing an explicit skill removes only prior drwn-owned projection", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
-    await runAgentsCli(["library", "defaults", "add", "skill", "alpha"], envFor(fixture));
+    await runAgentsCli(["machine", "skill", "enable", "alpha"], envFor(fixture));
     await runAgentsCli(["write", "--scope", "machine", "--skills-only"], envFor(fixture));
-    await runAgentsCli(["library", "defaults", "remove", "skill", "alpha"], envFor(fixture));
+    await runAgentsCli(["machine", "skill", "disable", "alpha"], envFor(fixture));
 
     const result = await runAgentsCli(["write", "--scope", "machine", "--skills-only"], envFor(fixture));
 

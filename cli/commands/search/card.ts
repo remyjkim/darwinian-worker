@@ -14,7 +14,7 @@ export class SearchCardCommand extends BaseCommand {
     description: "Search registered card catalogs.",
     details: `
       Searches catalog.json entries in registered Git-backed card catalogs.
-      Catalogs must be registered locally (drwn library catalog add) before
+      Catalogs must be registered locally (drwn catalog add) before
       their cards appear in results. Use --scope to limit results to a single
       catalog scope.
     `,

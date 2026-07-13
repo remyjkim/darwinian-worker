@@ -9,10 +9,12 @@ import { DrwnError } from "../cli/core/errors";
 import {
   createEmptyMachineConfig,
   initializeMachineConfig,
+  mutateMachineConfig,
   parseMachineConfig,
   readMachineConfigFile,
   writeMachineConfigFile,
 } from "../cli/core/machine-config";
+import { resolveMachineConfigPath } from "../cli/core/store-paths";
 import { cleanupTempRoots, createTempRoot } from "./helpers";
 
 const tempRoots: string[] = [];
@@ -152,5 +154,21 @@ describe("machine config V1", () => {
     await writeFile(path, "{not-json\n");
 
     await expect(readMachineConfigFile(path)).rejects.toMatchObject({ code: "MACHINE_CONFIG_INVALID" });
+  });
+
+  test("mutations acquire inventory then machine state while dry-runs create no file", async () => {
+    const root = await createTempRoot("machine-mutate-");
+    tempRoots.push(root);
+    const agentsDir = join(root, ".agents");
+    const path = resolveMachineConfigPath(agentsDir);
+    const mutate = (config: ReturnType<typeof createEmptyMachineConfig>) => {
+      config.capabilities.skills = ["alpha"];
+      return { config, value: config.capabilities.skills };
+    };
+
+    expect(await mutateMachineConfig(agentsDir, mutate, { dryRun: true })).toEqual(["alpha"]);
+    expect(existsSync(path)).toBe(false);
+    expect(await mutateMachineConfig(agentsDir, mutate)).toEqual(["alpha"]);
+    expect((await readMachineConfigFile(path))?.capabilities.skills).toEqual(["alpha"]);
   });
 });

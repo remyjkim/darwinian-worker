@@ -50,8 +50,8 @@ describe("drwn status", () => {
         },
       },
     });
-    const { saveMcpLibrary } = await import("../cli/core/mcp-library");
-    await saveMcpLibrary(fixture.agentsDir, {
+    const { seedMcpInventory } = await import("./mcp-inventory-fixture");
+    await seedMcpInventory(fixture.agentsDir, {
       version: 1,
       servers: {
         "machine-only": {
@@ -186,16 +186,16 @@ describe("drwn status", () => {
     tempRoots.push(fixture.root);
     const profile = await installStatusProfile(fixture);
     const { ensureStoreInitialized } = await import("../cli/core/card-store");
-    const { saveMcpLibrary } = await import("../cli/core/mcp-library");
+    const { seedMcpInventory } = await import("./mcp-inventory-fixture");
     await ensureStoreInitialized(fixture.agentsDir);
-    await saveMcpLibrary(fixture.agentsDir, {
+    await seedMcpInventory(fixture.agentsDir, {
       version: 1,
       servers: {
         github: {
           description: "GitHub",
           transport: "stdio",
           command: "npx",
-          env: { GITHUB_TOKEN: "status-secret-sentinel" },
+          env: { GITHUB_TOKEN: "${GITHUB_TOKEN}" },
           optional: true,
         },
       },

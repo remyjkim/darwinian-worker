@@ -195,16 +195,34 @@ function verifyDocsPresence() {
   } satisfies CheckResult;
 }
 
-function verifyStoreExportSecurity() {
-  const sourcePath = join(repoRoot, "cli/commands/store/export.ts");
-  const source = readFileSync(sourcePath, "utf8");
-  const issues: string[] = [];
+type SourceOverrides = Record<string, string>;
 
-  if (!source.includes("STORE_EXPORT_DISABLED_UNSAFE")) {
-    issues.push("ordinary export must retain the fail-closed error code");
+export function verifyStoreExportSecurity(root = repoRoot, overrides: SourceOverrides = {}) {
+  const issues: string[] = [];
+  const source = (pathValue: string) => {
+    if (Object.hasOwn(overrides, pathValue)) return overrides[pathValue]!;
+    const absolutePath = join(root, pathValue);
+    return existsSync(absolutePath) ? readFileSync(absolutePath, "utf8") : "";
+  };
+  const publicExportPath = "cli/commands/store/export.ts";
+  const publicExportExists = Object.hasOwn(overrides, publicExportPath)
+    ? overrides[publicExportPath]!.length > 0
+    : existsSync(join(root, publicExportPath));
+  const index = source("cli/index.ts");
+  const deploy = source("cli/core/worker-deploy.ts");
+  const deployTests = source("test/core-worker-deploy.test.ts");
+
+  if (publicExportExists || /StoreExportCommand/.test(index) || /commands\/store\/export/.test(index)) {
+    issues.push("public whole-Store export must remain unavailable");
   }
-  if (/\bcreateArchive\s*\(/.test(source) || /entries\s*:\s*\[\s*["']drwn["']\s*\]/.test(source)) {
-    issues.push("ordinary export must not archive the drwn store root");
+  if (!deploy.includes("function storeExportEntries") || !deploy.includes('new Set<string>(["drwn/store.json"])')) {
+    issues.push("remote deploy must retain its scoped Store export allowlist");
+  }
+  if (/entries\s*:\s*\[\s*["']drwn["']\s*\]/.test(deploy)) {
+    issues.push("remote deploy must not archive the whole drwn Store root");
+  }
+  if (!deployTests.includes("storeExport decodes and seeds a store") || !deployTests.includes("without leaking local schemas")) {
+    issues.push("scoped remote deploy export coverage is missing");
   }
 
   return {
@@ -213,8 +231,6 @@ function verifyStoreExportSecurity() {
     details: issues.join("; ") || undefined,
   } satisfies CheckResult;
 }
-
-type SourceOverrides = Record<string, string>;
 
 function sourceSlice(content: string, startToken: string, endToken?: string) {
   const start = content.indexOf(startToken);
@@ -404,14 +420,8 @@ export function verifyMachineContract(root = repoRoot, overrides: SourceOverride
     }
   }
 
-  const storeExport = source("cli/commands/store/export.ts");
-  if (
-    !storeExport.includes("STORE_EXPORT_DISABLED_UNSAFE") ||
-    /\bcreateArchive\s*\(/.test(storeExport) ||
-    /entries\s*:\s*\[\s*["']drwn["']\s*\]/.test(storeExport)
-  ) {
-    issues.push("whole-Store export must remain fail-closed");
-  }
+  const storeExportSecurity = verifyStoreExportSecurity(root, overrides);
+  if (!storeExportSecurity.ok) issues.push(storeExportSecurity.details ?? "whole-Store export security is not enforced");
 
   return {
     name: "machine capability contract",

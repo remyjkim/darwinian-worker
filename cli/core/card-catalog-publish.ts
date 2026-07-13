@@ -149,7 +149,7 @@ export async function publishCardToCatalog(
       ...(commit ? { commit } : {}),
       warnings,
       next: [
-        `drwn library catalog refresh ${manifest.scope}`,
+        `drwn catalog refresh ${manifest.scope}`,
         `drwn search card ${built.entry.name} --scope ${manifest.scope}`,
       ],
     };

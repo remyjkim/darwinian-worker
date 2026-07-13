@@ -6,7 +6,6 @@ import { existsSync } from "node:fs";
 import { lstat, readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { isStringRecord } from "./card-manifest";
-import { resolveMcpLibraryPath } from "./paths";
 import { writeAtomically } from "./fs";
 import { DrwnError } from "./errors";
 import { withInventoryLock } from "./inventory-lock";
@@ -14,8 +13,6 @@ import { tombstoneInventoryPath } from "./inventory-tombstones";
 import { sanitizeMcpServerSecrets } from "./mcp-secret-policy";
 import { assertStoreWritable, resolveStoreMcpServerFile, resolveStoreMcpServersDir } from "./store-paths";
 import type { RegistryServer, UserMcpLibrary } from "./types";
-
-export { resolveMcpLibraryPath };
 
 export type McpRecordCommitCheckpoint = "before-record-write" | "after-record-write";
 
@@ -89,17 +86,6 @@ export async function loadMcpLibrary(agentsDir: string): Promise<UserMcpLibrary>
     }
   }
   return { version: 1, servers };
-}
-
-export async function saveMcpLibrary(agentsDir: string, library: UserMcpLibrary) {
-  validateMcpLibrary(library);
-  return withInventoryLock(agentsDir, async () => {
-    assertStoreWritable();
-    for (const [id, server] of Object.entries(library.servers)) {
-      await writeMcpRecordUnlocked(agentsDir, id, stageMcpRecord(id, server).bytes);
-    }
-    return resolveStoreMcpServersDir(agentsDir);
-  });
 }
 
 function stageMcpRecord(id: string, server: RegistryServer) {

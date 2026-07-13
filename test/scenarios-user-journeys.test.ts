@@ -75,11 +75,11 @@ describe("user journeys", () => {
     let result = await runAgentsCli(["status"], env);
     expect(result.exitCode).toBe(0);
 
-    result = await runAgentsCli(["skills", "list"], env);
+    result = await runAgentsCli(["machine", "skill", "list"], env);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("alpha");
 
-    result = await runAgentsCli(["library", "defaults", "add", "skill", "alpha"], env);
+    result = await runAgentsCli(["machine", "skill", "enable", "alpha"], env);
     expect(result.exitCode).toBe(0);
 
     result = await runAgentsCli(["write", "--skills-only"], env);
@@ -95,7 +95,7 @@ describe("user journeys", () => {
       AGENTS_DIR: fixture.agentsDir,
     };
 
-    expect((await runAgentsCli(["library", "defaults", "add", "skill", "alpha"], env)).exitCode).toBe(0);
+    expect((await runAgentsCli(["machine", "skill", "enable", "alpha"], env)).exitCode).toBe(0);
 
     const legacy = await runSyncWrapper(["--dry-run"], env);
     const modern = await runAgentsCli(["write", "--dry-run"], env);
@@ -115,10 +115,10 @@ describe("user journeys", () => {
       AGENTS_DIR: fixture.agentsDir,
     };
 
-    await runAgentsCli(["library", "defaults", "add", "skill", "alpha"], env);
-    await runAgentsCli(["library", "defaults", "add", "mcp", "context7"], env);
+    await runAgentsCli(["machine", "skill", "enable", "alpha"], env);
+    await runAgentsCli(["machine", "mcp", "enable", "context7"], env);
     await runAgentsCli(["write"], env);
-    await runAgentsCli(["library", "defaults", "remove", "skill", "alpha"], env);
+    await runAgentsCli(["machine", "skill", "disable", "alpha"], env);
     const claudeMcp = JSON.parse(await readFile(fixture.claudeUserMcp, "utf8"));
     claudeMcp.mcpServers.context7.command = "node";
     await writeFile(
@@ -251,14 +251,14 @@ describe("user journeys", () => {
       AGENTS_DIR: fixture.agentsDir,
     };
 
-    let result = await runAgentsCli(["skills", "packages", "add", bundleRoot], env);
+    let result = await runAgentsCli(["machine", "skill", "install", bundleRoot], env);
     expect(result.exitCode).toBe(0);
 
-    result = await runAgentsCli(["skills", "packages", "show", "@acme/skills-sample"], env);
+    result = await runAgentsCli(["machine", "skill", "show", "--package", "@acme/skills-sample"], env);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("hello-skill");
 
-    result = await runAgentsCli(["library", "defaults", "add", "skill", "hello-skill"], env);
+    result = await runAgentsCli(["machine", "skill", "enable", "hello-skill"], env);
     expect(result.exitCode).toBe(0);
 
     result = await runAgentsCli(["write", "--skills-only"], env);

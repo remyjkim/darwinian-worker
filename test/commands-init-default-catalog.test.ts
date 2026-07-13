@@ -57,7 +57,7 @@ describe("drwn init: default community catalog from packaged config", () => {
     expect(init.exitCode).toBe(0);
     expect(init.stderr).not.toContain("could not register default community catalog");
 
-    const listed = await runAgentsCli(["library", "catalog", "list", "--json"], envFor(fixture));
+    const listed = await runAgentsCli(["catalog", "list", "--json"], envFor(fixture));
     expect(listed.exitCode).toBe(0);
     const index = JSON.parse(listed.stdout);
     const urls = (index.catalogs as Array<{ url: string }>).map((c) => c.url);
@@ -77,7 +77,7 @@ describe("drwn init: default community catalog from packaged config", () => {
     expect(init.exitCode).toBe(0);
     expect(init.stderr).toBe("");
 
-    const listed = await runAgentsCli(["library", "catalog", "list", "--json"], envFor(fixture));
+    const listed = await runAgentsCli(["catalog", "list", "--json"], envFor(fixture));
     expect(listed.exitCode).toBe(0);
     const index = JSON.parse(listed.stdout);
     expect(index.catalogs).toEqual([]);
@@ -100,7 +100,7 @@ describe("drwn init: default community catalog from packaged config", () => {
     );
 
     expect(init.exitCode).toBe(0);
-    const listed = await runAgentsCli(["library", "catalog", "list", "--json"], envFor(fixture));
+    const listed = await runAgentsCli(["catalog", "list", "--json"], envFor(fixture));
     const index = JSON.parse(listed.stdout);
     expect(index.catalogs).toEqual([]);
   });

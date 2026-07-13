@@ -111,7 +111,7 @@ describe("drwn add skill", () => {
     const projectDir = join(fixture.root, "project");
     await mkdir(projectDir, { recursive: true });
 
-    const imported = await runAgentsCli(["library", "add", "skill", join(looseDir, "SKILL.md")], envFor(fixture), fixture.root);
+    const imported = await runAgentsCli(["machine", "skill", "install", join(looseDir, "SKILL.md")], envFor(fixture), fixture.root);
     const result = await runAgentsCli(["add", "skill", "loose-activate"], envFor(fixture), projectDir);
 
     expect(imported.exitCode).toBe(0);

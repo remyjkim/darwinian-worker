@@ -23,7 +23,7 @@ function envFor(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
 test("write twice in machine scope produces zero changes on second write", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
-  expect((await runAgentsCli(["library", "defaults", "add", "skill", "alpha"], envFor(fixture))).exitCode).toBe(0);
+  expect((await runAgentsCli(["machine", "skill", "enable", "alpha"], envFor(fixture))).exitCode).toBe(0);
 
   const first = await runAgentsCli(["write", "--json"], envFor(fixture));
   expect(first.exitCode).toBe(0);

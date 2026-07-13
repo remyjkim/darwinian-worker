@@ -270,6 +270,12 @@ interface SkillBundleCommitOptions {
   version: string;
   existingSkillNames: Set<string>;
   existingSkills?: ExistingSkillRecord[];
+  beforeCommit?: (context: {
+    manifest: BundleManifest;
+    integrity: `sha256-${string}`;
+    previous: InstalledSkillBundle | null;
+    previousIntegrity: `sha256-${string}` | null;
+  }) => void | Promise<void>;
   checkpoint?: (checkpoint: SkillPackageCommitCheckpoint) => void | Promise<void>;
 }
 
@@ -361,6 +367,20 @@ async function commitSkillBundleRoot(options: SkillBundleCommitOptions, operatio
     if (await hashSkillPackageDirectory(options.bundleRoot) !== stagedIntegrity) {
       throw new DrwnError("INVENTORY_STAGING_CHANGED", `Staged skill package changed before commit: ${options.packageName}`);
     }
+    const previousIntegrity = livePackage ? await hashSkillPackageDirectory(livePackage.versionRoot) : null;
+    await options.beforeCommit?.({
+      manifest: lockedManifest,
+      integrity: stagedIntegrity,
+      previous: livePackage ?? null,
+      previousIntegrity,
+    });
+    if (
+      operation === "update" &&
+      livePackage?.activeVersion === options.version &&
+      previousIntegrity === stagedIntegrity
+    ) {
+      return livePackage;
+    }
 
     const packageRoot = activeSkillPackageRoot(options.agentsDir, options.packageName);
     const versionRoot = activeSkillPackageVersionRoot(options.agentsDir, options.packageName, options.version);
@@ -424,6 +444,7 @@ interface SkillPackageSourceOptions {
   packageSpec: string;
   existingSkillNames: Set<string>;
   existingSkills?: ExistingSkillRecord[];
+  beforeCommit?: SkillBundleCommitOptions["beforeCommit"];
 }
 
 async function commitSkillPackageSource(
@@ -473,6 +494,7 @@ async function commitSkillPackageSource(
       version: metadata.version,
       existingSkillNames: options.existingSkillNames,
       existingSkills: options.existingSkills,
+      beforeCommit: options.beforeCommit,
     });
   } finally {
     rmSync(packDir, { recursive: true, force: true });
@@ -624,6 +646,7 @@ interface LooseSkillSourceOptions {
   scope?: BundleSkillEntry["scope"];
   packageName?: string;
   version?: string;
+  beforeCommit?: SkillBundleCommitOptions["beforeCommit"];
 }
 
 async function commitLooseSkillSource(options: LooseSkillSourceOptions, operation: SkillPackageOperation) {
@@ -692,6 +715,7 @@ async function commitLooseSkillSource(options: LooseSkillSourceOptions, operatio
       version,
       existingSkillNames: options.existingSkillNames,
       existingSkills: options.existingSkills,
+      beforeCommit: options.beforeCommit,
     });
     return {
       ...installed,

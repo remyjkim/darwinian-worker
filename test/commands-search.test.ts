@@ -96,8 +96,8 @@ describe("drwn search", () => {
   test("search mcp --library includes user MCP library entries", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
-    const { saveMcpLibrary } = await import("../cli/core/mcp-library");
-    await saveMcpLibrary(fixture.agentsDir, {
+    const { seedMcpInventory } = await import("./mcp-inventory-fixture");
+    await seedMcpInventory(fixture.agentsDir, {
       version: 1,
       servers: {
         github: {

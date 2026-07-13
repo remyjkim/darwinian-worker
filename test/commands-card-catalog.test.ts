@@ -88,21 +88,21 @@ test("default community catalog points to the public Curation Labs catalog", asy
   expect(resolveDefaultCommunityCatalogUrl(config)).toBe(CURATION_LABS_CATALOG_URL);
 });
 
-test("library catalog add registers a catalog by URL and discovers its scope", async () => {
+test("catalog add registers a catalog by URL and discovers its scope", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   const catalog = await createCatalogRepo();
   tempRoots.push(catalog.tempDir);
 
   const added = await runAgentsCli(
-    ["library", "catalog", "add", catalog.url],
+    ["catalog", "add", catalog.url],
     envFor(fixture),
   );
   expect(added.exitCode).toBe(0);
   expect(added.stdout).toContain("@team");
 
   const listed = await runAgentsCli(
-    ["library", "catalog", "list", "--json"],
+    ["catalog", "list", "--json"],
     envFor(fixture),
   );
   const index = JSON.parse(listed.stdout);
@@ -113,12 +113,12 @@ test("library catalog add registers a catalog by URL and discovers its scope", a
   expect(index.catalogs[0].cardCount).toBe(1);
 });
 
-test("library catalog list returns an empty index when no catalogs are registered", async () => {
+test("catalog list returns an empty index when no catalogs are registered", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
 
   const result = await runAgentsCli(
-    ["library", "catalog", "list", "--json"],
+    ["catalog", "list", "--json"],
     envFor(fixture),
   );
 
@@ -128,51 +128,51 @@ test("library catalog list returns an empty index when no catalogs are registere
   expect(index.catalogs).toEqual([]);
 });
 
-test("library catalog remove accepts a scope identifier", async () => {
+test("catalog remove accepts a scope identifier", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   const catalog = await createCatalogRepo();
   tempRoots.push(catalog.tempDir);
 
-  await runAgentsCli(["library", "catalog", "add", catalog.url], envFor(fixture));
+  await runAgentsCli(["catalog", "add", catalog.url], envFor(fixture));
   const removed = await runAgentsCli(
-    ["library", "catalog", "remove", "@team"],
+    ["catalog", "remove", "@team"],
     envFor(fixture),
   );
 
   expect(removed.exitCode).toBe(0);
   const listed = await runAgentsCli(
-    ["library", "catalog", "list", "--json"],
+    ["catalog", "list", "--json"],
     envFor(fixture),
   );
   expect(JSON.parse(listed.stdout).catalogs).toEqual([]);
 });
 
-test("library catalog remove also accepts the URL", async () => {
+test("catalog remove also accepts the URL", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   const catalog = await createCatalogRepo();
   tempRoots.push(catalog.tempDir);
 
-  await runAgentsCli(["library", "catalog", "add", catalog.url], envFor(fixture));
+  await runAgentsCli(["catalog", "add", catalog.url], envFor(fixture));
   const removed = await runAgentsCli(
-    ["library", "catalog", "remove", catalog.url],
+    ["catalog", "remove", catalog.url],
     envFor(fixture),
   );
 
   expect(removed.exitCode).toBe(0);
 });
 
-test("library catalog add refuses duplicate scope from different URLs", async () => {
+test("catalog add refuses duplicate scope from different URLs", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   const catalogA = await createCatalogRepo();
   const catalogB = await createCatalogRepo();
   tempRoots.push(catalogA.tempDir, catalogB.tempDir);
 
-  await runAgentsCli(["library", "catalog", "add", catalogA.url], envFor(fixture));
+  await runAgentsCli(["catalog", "add", catalogA.url], envFor(fixture));
   const collisionResult = await runAgentsCli(
-    ["library", "catalog", "add", catalogB.url],
+    ["catalog", "add", catalogB.url],
     envFor(fixture),
   );
 
@@ -181,17 +181,17 @@ test("library catalog add refuses duplicate scope from different URLs", async ()
   expect(collisionMessage).toContain("scope");
 });
 
-test("library catalog refresh updates the cached card count after new cards are added upstream", async () => {
+test("catalog refresh updates the cached card count after new cards are added upstream", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   const catalog = await createCatalogRepo();
   tempRoots.push(catalog.tempDir);
 
-  await runAgentsCli(["library", "catalog", "add", catalog.url], envFor(fixture));
+  await runAgentsCli(["catalog", "add", catalog.url], envFor(fixture));
   const before = JSON.parse(
     (
       await runAgentsCli(
-        ["library", "catalog", "list", "--json"],
+        ["catalog", "list", "--json"],
         envFor(fixture),
       )
     ).stdout,
@@ -207,7 +207,7 @@ test("library catalog refresh updates the cached card count after new cards are 
   ]);
 
   const refreshed = await runAgentsCli(
-    ["library", "catalog", "refresh"],
+    ["catalog", "refresh"],
     envFor(fixture),
   );
   expect(refreshed.exitCode).toBe(0);
@@ -215,7 +215,7 @@ test("library catalog refresh updates the cached card count after new cards are 
   const after = JSON.parse(
     (
       await runAgentsCli(
-        ["library", "catalog", "list", "--json"],
+        ["catalog", "list", "--json"],
         envFor(fixture),
       )
     ).stdout,
@@ -229,7 +229,7 @@ test("search card finds cards from a registered catalog", async () => {
   const catalog = await createCatalogRepo();
   tempRoots.push(catalog.tempDir);
 
-  await runAgentsCli(["library", "catalog", "add", catalog.url], envFor(fixture));
+  await runAgentsCli(["catalog", "add", catalog.url], envFor(fixture));
   const result = await runAgentsCli(
     ["search", "card", "backend", "--json"],
     envFor(fixture),
@@ -259,8 +259,8 @@ test("search card --scope filters by catalog scope", async () => {
   });
   tempRoots.push(teamCatalog.tempDir, personalCatalog.tempDir);
 
-  await runAgentsCli(["library", "catalog", "add", teamCatalog.url], envFor(fixture));
-  await runAgentsCli(["library", "catalog", "add", personalCatalog.url], envFor(fixture));
+  await runAgentsCli(["catalog", "add", teamCatalog.url], envFor(fixture));
+  await runAgentsCli(["catalog", "add", personalCatalog.url], envFor(fixture));
 
   const filtered = await runAgentsCli(
     ["search", "card", "backend", "--scope", "@team", "--json"],
@@ -273,14 +273,14 @@ test("search card --scope filters by catalog scope", async () => {
   expect(parsed.results[0].scope).toBe("@team");
 });
 
-test("DRWN_STORE_READONLY refuses library catalog add", async () => {
+test("DRWN_STORE_READONLY refuses catalog add", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   const catalog = await createCatalogRepo();
   tempRoots.push(catalog.tempDir);
 
   const env = { ...envFor(fixture), DRWN_STORE_READONLY: "1" };
-  const result = await runAgentsCli(["library", "catalog", "add", catalog.url], env);
+  const result = await runAgentsCli(["catalog", "add", catalog.url], env);
 
   expect(result.exitCode).not.toBe(0);
   const errorMessage = (result.stderr + result.stdout).toLowerCase();
@@ -304,7 +304,7 @@ test("init --no-default-catalogs skips default catalog pre-registration", async 
 
   expect(result.exitCode).toBe(0);
   const listed = await runAgentsCli(
-    ["library", "catalog", "list", "--json"],
+    ["catalog", "list", "--json"],
     envFor(fixture),
   );
   expect(JSON.parse(listed.stdout).catalogs).toEqual([]);

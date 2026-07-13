@@ -137,7 +137,7 @@ describe("drwn doctor", () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
 
-    await runAgentsCli(["library", "defaults", "add", "skill", "alpha"], {
+    await runAgentsCli(["machine", "skill", "enable", "alpha"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,
@@ -147,7 +147,7 @@ describe("drwn doctor", () => {
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,
     });
-    await runAgentsCli(["library", "defaults", "remove", "skill", "alpha"], {
+    await runAgentsCli(["machine", "skill", "disable", "alpha"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,
@@ -168,7 +168,7 @@ describe("drwn doctor", () => {
   test("reports foreign machine projection conflicts without mutating them", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
-    await runAgentsCli(["library", "defaults", "add", "skill", "alpha"], envFor(fixture));
+    await runAgentsCli(["machine", "skill", "enable", "alpha"], envFor(fixture));
     const destination = join(fixture.homeDir, ".claude", "skills", "alpha");
     await mkdir(destination, { recursive: true });
     await writeFile(join(destination, "SKILL.md"), "foreign content\n");
@@ -217,7 +217,7 @@ describe("drwn doctor", () => {
   test("reports drift in a recorded machine-owned MCP field", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
-    expect((await runAgentsCli(["library", "defaults", "add", "mcp", "context7"], envFor(fixture))).exitCode).toBe(0);
+    expect((await runAgentsCli(["machine", "mcp", "enable", "context7"], envFor(fixture))).exitCode).toBe(0);
     expect((await runAgentsCli(["write", "--scope", "machine", "--mcp-only"], envFor(fixture))).exitCode).toBe(0);
     const config = JSON.parse(await readFile(fixture.claudeUserMcp, "utf8"));
     config.mcpServers.context7.command = "mutated-command";

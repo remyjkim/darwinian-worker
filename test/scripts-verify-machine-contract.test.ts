@@ -55,20 +55,21 @@ describe("machine capability release gate", () => {
   test("detects missing ownership coverage, stale Operator pins, and unsafe Store export", () => {
     const ownershipTests = readFileSync(join(repoRoot, "test/scenarios-root-scope.test.ts"), "utf8");
     const registry = readFileSync(join(repoRoot, "registry/machine-profiles.json"), "utf8");
-    const storeExport = readFileSync(join(repoRoot, "cli/commands/store/export.ts"), "utf8");
+    const index = readFileSync(join(repoRoot, "cli/index.ts"), "utf8");
     const result = verifyMachineContract(repoRoot, {
       "test/scenarios-root-scope.test.ts": ownershipTests.replace(
         'const foreignMcpTargets = ["claude", "codex", "cursor"] as const',
         "ownership case removed",
       ),
       "registry/machine-profiles.json": registry.replaceAll("1.0.2", "1.0.1"),
-      "cli/commands/store/export.ts": `${storeExport}\ncreateArchive({ entries: ["drwn"] });\n`,
+      "cli/index.ts": `${index}\ncli.register(StoreExportCommand);\n`,
+      "cli/commands/store/export.ts": "export class StoreExportCommand {}\n",
     });
 
     expect(result.ok).toBe(false);
     expect(result.details).toContain("foreign ownership coverage is missing");
     expect(result.details).toContain("Operator version must be 1.0.2");
-    expect(result.details).toContain("whole-Store export must remain fail-closed");
+    expect(result.details).toContain("public whole-Store export must remain unavailable");
   });
 
   test("release JSON includes the machine capability contract gate", async () => {

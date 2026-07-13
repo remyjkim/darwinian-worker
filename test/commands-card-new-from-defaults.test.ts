@@ -83,9 +83,9 @@ test("card new --from-defaults captures effective MCP definitions with secret re
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   const { ensureStoreInitialized } = await import("../cli/core/card-store");
-  const { saveMcpLibrary } = await import("../cli/core/mcp-library");
+  const { seedMcpInventory } = await import("./mcp-inventory-fixture");
   await ensureStoreInitialized(fixture.agentsDir);
-  await saveMcpLibrary(fixture.agentsDir, {
+  await seedMcpInventory(fixture.agentsDir, {
     version: 1,
     servers: {
       notion: {

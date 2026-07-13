@@ -127,7 +127,7 @@ test("card catalog publish --mode direct updates a registered scope and makes se
   tempRoots.push(fixture.root);
   await publishPushableCard(fixture);
   const catalog = await createCatalogRemote({ scope: "@team" });
-  expect((await runAgentsCli(["library", "catalog", "add", catalog.url], envFor(fixture))).exitCode).toBe(0);
+  expect((await runAgentsCli(["catalog", "add", catalog.url], envFor(fixture))).exitCode).toBe(0);
 
   const published = await runAgentsCli(
     [

@@ -6,6 +6,8 @@ import { readFile } from "node:fs/promises";
 import { z } from "zod";
 import { DrwnError } from "./errors";
 import { writeAtomically } from "./fs";
+import { withInventoryLock, withMachineLock } from "./inventory-lock";
+import { resolveMachineConfigPath } from "./store-paths";
 import type { MachineConfig } from "./types";
 
 export const DARWINIAN_OPERATOR_SKILL_IDS = [
@@ -174,4 +176,21 @@ export async function initializeMachineConfig(path: string): Promise<{ config: M
   const config = createEmptyMachineConfig();
   await writeMachineConfigFile(path, config);
   return { config, created: true };
+}
+
+export async function mutateMachineConfig<T>(
+  agentsDir: string,
+  prepare: (config: MachineConfig) => { config: MachineConfig; value: T } | Promise<{ config: MachineConfig; value: T }>,
+  options: { dryRun?: boolean } = {},
+): Promise<T> {
+  const path = resolveMachineConfigPath(agentsDir);
+  const run = async () => {
+    const current = await readMachineConfigFile(path) ?? createEmptyMachineConfig();
+    const prepared = await prepare(structuredClone(current));
+    const validated = parseMachineConfig(prepared.config, path);
+    if (!options.dryRun) await writeMachineConfigFile(path, validated);
+    return prepared.value;
+  };
+  if (options.dryRun) return run();
+  return withInventoryLock(agentsDir, () => withMachineLock(agentsDir, run));
 }

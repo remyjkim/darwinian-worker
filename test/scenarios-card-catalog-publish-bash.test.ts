@@ -55,7 +55,7 @@ test("bash direct publish still pushes when read-only store skips local catalog 
   tempRoots.push(fixture.root);
   await publishPushableCard(fixture);
   const catalog = await createCatalogRemote({ scope: "@team" });
-  expect((await runAgentsCli(["library", "catalog", "add", catalog.url], envFor(fixture))).exitCode).toBe(0);
+  expect((await runAgentsCli(["catalog", "add", catalog.url], envFor(fixture))).exitCode).toBe(0);
   const outPath = join(fixture.root, "direct.json");
   const searchPath = join(fixture.root, "search.json");
 
@@ -73,7 +73,7 @@ if (!payload.warnings.some((warning) => warning.includes('read-only'))) {
   throw new Error('read-only refresh warning missing: ' + JSON.stringify(payload.warnings));
 }
 NODE
-"$BUN_BIN" run "$DRWN_ENTRYPOINT" library catalog refresh @team
+"$BUN_BIN" run "$DRWN_ENTRYPOINT" catalog refresh @team
 "$BUN_BIN" run "$DRWN_ENTRYPOINT" search card backend --scope @team --json > "$SEARCH_PATH"
 node <<'NODE'
 const fs = require('fs');

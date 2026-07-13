@@ -56,7 +56,7 @@ test("team follows a dm-card-base catalog, installs it, refreshes catalog update
     tags: ["base", "skills"],
   });
 
-  expect((await runAgentsCli(["library", "catalog", "add", catalog.url], envFor(consumer))).exitCode).toBe(0);
+  expect((await runAgentsCli(["catalog", "add", catalog.url], envFor(consumer))).exitCode).toBe(0);
   const discovered = await searchDmCardBase(consumer);
   expect(discovered).toEqual(
     expect.objectContaining({
@@ -77,7 +77,7 @@ test("team follows a dm-card-base catalog, installs it, refreshes catalog update
   await rm(join(pinnedProject, ".codex"), { recursive: true, force: true });
   await rm(join(pinnedProject, ".cursor"), { recursive: true, force: true });
   await rm(initialPinnedLock.cards[0]!.path, { recursive: true, force: true });
-  const freshCatalogs = await runAgentsCli(["library", "catalog", "list", "--json"], envFor(freshConsumer));
+  const freshCatalogs = await runAgentsCli(["catalog", "list", "--json"], envFor(freshConsumer));
   expect(JSON.parse(freshCatalogs.stdout).catalogs).toEqual([]);
   const noWrite = await runAgentsCli(["install", "--no-write"], envFor(freshConsumer), pinnedProject);
   expect(noWrite.exitCode, noWrite.stderr).toBe(0);
@@ -114,7 +114,7 @@ test("team follows a dm-card-base catalog, installs it, refreshes catalog update
   expect(updateCatalog.exitCode, updateCatalog.stderr).toBe(0);
 
   expect((await searchDmCardBase(consumer)).url).toBe(`git+${cardRemote.url}#v0.1.0`);
-  const refreshed = await runAgentsCli(["library", "catalog", "refresh", "@remyjkim"], envFor(consumer));
+  const refreshed = await runAgentsCli(["catalog", "refresh", "@remyjkim"], envFor(consumer));
   expect(refreshed.exitCode, refreshed.stderr).toBe(0);
   expect((await searchDmCardBase(consumer)).url).toBe(`git+${cardRemote.url}#v0.1.1`);
 

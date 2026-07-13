@@ -147,7 +147,7 @@ export async function addCardCatalog(
   if (index.catalogs.some((entry) => entry.scope === manifest.scope)) {
     await rm(path, { recursive: true, force: true });
     throw new Error(
-      `Card catalog scope already registered: ${manifest.scope} (use \`drwn library catalog remove ${manifest.scope}\` first)`,
+      `Card catalog scope already registered: ${manifest.scope} (use \`drwn catalog remove ${manifest.scope}\` first)`,
     );
   }
   const entry: CatalogIndexEntry = {
@@ -252,7 +252,7 @@ export async function searchCardCatalogs(
     }
     if (!existsSync(entry.path)) {
       warnings.push(
-        `card catalog ${entry.scope} (${entry.url}) is registered but its local clone is missing; run \`drwn library catalog refresh ${entry.scope}\` to recover`,
+        `card catalog ${entry.scope} (${entry.url}) is registered but its local clone is missing; run \`drwn catalog refresh ${entry.scope}\` to recover`,
       );
       continue;
     }
