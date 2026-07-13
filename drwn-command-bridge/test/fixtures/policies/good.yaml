@@ -1,0 +1,21 @@
+version: 1
+default: deny
+allow:
+  - program: git
+    args_allow: ["status", "log"]
+    risk: low
+    path_args:
+      all_slashy: true
+  - program: dotnet
+    args_allow: ["build", "test"]
+    risk: medium
+deny_always:
+  - pattern: "\\bsudo\\b"
+  - pattern: "[;&|`]"
+consent_required_above: low
+consent_cache_ttl_ms: 0
+env_allow: ["CI"]
+roots_allow:
+  - "~/projects"
+sandbox:
+  required: true

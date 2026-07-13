@@ -1,0 +1,58 @@
+{
+  "name": "drwn-command-bridge",
+  "version": "0.1.0",
+  "description": "A default-deny MCP host bridge for audited, consent-gated execution of allowlisted commands.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "author": "remyjkim <jkkim123@gmail.com>",
+  "homepage": "https://github.com/remyjkim/darwinian-worker/tree/main/drwn-command-bridge",
+  "bugs": {
+    "url": "https://github.com/remyjkim/darwinian-worker/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/remyjkim/darwinian-worker.git",
+    "directory": "drwn-command-bridge"
+  },
+  "keywords": [
+    "mcp",
+    "security",
+    "sandbox",
+    "command-execution",
+    "darwinian"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "drwn-command-bridge": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "bridge.policy.example.yaml",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "bun build src/index.ts --target=node --outfile dist/index.js --banner \"#!/usr/bin/env node\"",
+    "prepack": "bun run build",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "pack:check": "npm pack --dry-run --json",
+    "smoke:macos": "bun run build && bun run scripts/native-macos-smoke.ts",
+    "verify": "bun run typecheck && bun test && bun run build && bun run pack:check"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "ulid": "^3.0.2",
+    "yaml": "^2.8.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.13",
+    "typescript": "^6.0.3"
+  }
+}

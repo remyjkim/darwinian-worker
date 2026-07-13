@@ -1,0 +1,34 @@
+version: 1
+default: deny
+
+allow:
+  - program: git
+    args_allow: ["status", "diff", "log"]
+    risk: low
+    path_args:
+      all_slashy: true
+  - program: bun
+    args_allow: ["test", "run"]
+    risk: medium
+    path_args:
+      all_slashy: true
+  - program: node
+    args_allow: ["--version"]
+    risk: low
+
+deny_always:
+  - pattern: '\b(?:sudo|doas|runas|pkexec)\b'
+  - pattern: '[;&|<>`]'
+  - pattern: '\$\('
+  - pattern: '\brm\s+-rf\s+/'
+  - pattern: '(?:^|\s)(?:~|/Users/[^/\s]+|/home/[^/\s]+)/(?:\.ssh|\.aws|\.gnupg)(?:/|\s|$)'
+
+consent_required_above: low
+consent_cache_ttl_ms: 0
+env_allow:
+  - CI
+  - NO_COLOR
+roots_allow:
+  - "~/dev/darwinian-minds"
+sandbox:
+  required: true
