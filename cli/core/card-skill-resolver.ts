@@ -8,6 +8,7 @@ import { findAvailableSkill, type SkillScope } from "./skills";
 import { hashManagedDirectory } from "./write-record";
 import { canonicalJsonHash } from "./managed-fields";
 import { DrwnError } from "./errors";
+import type { ResolvedMachineSkill } from "./defaults";
 
 export type ResolvedSkillSource =
   | {
@@ -20,6 +21,12 @@ export type ResolvedSkillSource =
       layer: "user-default";
       path: string;
       scope: SkillScope;
+    }
+  | {
+      layer: "machine-profile" | "machine-explicit";
+      path: string;
+      scope: SkillScope;
+      profileId?: "darwinian-operator";
     }
   | {
       layer: "missing";
@@ -63,6 +70,7 @@ export async function resolveSkillSource(
   repoRoot: string,
   agentsDir: string,
   contentRoots?: Record<string, string>,
+  machineSources?: Record<string, ResolvedMachineSkill>,
 ): Promise<ResolvedSkillSource> {
   for (let index = activeCards.length - 1; index >= 0; index -= 1) {
     const card = activeCards[index]!;
@@ -90,6 +98,16 @@ export async function resolveSkillSource(
       cardName: card.name,
       cardVersion: card.version,
       path,
+    };
+  }
+
+  const machineSource = machineSources?.[name];
+  if (machineSource) {
+    return {
+      layer: machineSource.source === "profile" ? "machine-profile" : "machine-explicit",
+      path: machineSource.path,
+      scope: machineSource.scope,
+      profileId: machineSource.profileId,
     };
   }
 

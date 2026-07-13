@@ -138,8 +138,8 @@ describe("drwn library defaults", () => {
     expect((await readUserConfig(fixture)).capabilities.mcpServers).toContain("github");
 
     const list = await runAgentsCli(["library", "defaults", "list", "--json"], envFor(fixture));
-    const parsed = JSON.parse(list.stdout) as { mcpServers: Array<{ id: string; source: string; status: string }> };
-    expect(parsed.mcpServers).toContainEqual({ id: "github", status: "resolved", source: "library" });
+    const parsed = JSON.parse(list.stdout) as { mcpServers: Array<{ id: string; source: string; status: string; provenance: string }> };
+    expect(parsed.mcpServers).toContainEqual({ id: "github", status: "resolved", provenance: "explicit", source: "library" });
   });
 
   test("adds an MCP to explicit empty machine intent without seeding packaged defaults", async () => {

@@ -1,8 +1,8 @@
-// ABOUTME: Verifies the extracted skill curation and sync helpers for the drwn harness CLI core.
-// ABOUTME: Keeps shared-skill publication semantics stable while commands are added on top.
+// ABOUTME: Verifies Library skill discovery and selection-driven downstream sync.
+// ABOUTME: Ensures ambient curated and target-only directories are never machine activation authority.
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { cp, lstat, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, lstat, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { normalizeSyncPathOptions } from "../cli/core/paths";
@@ -11,11 +11,7 @@ import { createInstalledSkillBundle } from "./helpers";
 const tempRoots: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(
-    tempRoots.splice(0).map(async (root) => {
-      await rm(root, { recursive: true, force: true });
-    }),
-  );
+  await Promise.all(tempRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
 async function createTempRoot() {
@@ -31,265 +27,117 @@ function machineSkillOptions(repoRoot: string, agentsDir: string, homeDir: strin
   };
 }
 
-async function createInstalledBundle(
-  agentsDir: string,
-  options?: { packageName?: string; version?: string; skillName?: string; scope?: "shared" | "claude-only" | "codex-only" | "experimental" },
-) {
-  const packageName = options?.packageName ?? "@acme/skills-sample";
-  const version = options?.version ?? "1.0.0";
-  const skillName = options?.skillName ?? "hello-skill";
-  const scope = options?.scope ?? "shared";
-  const packageRoot = join(agentsDir, "packages", "skills", ...packageName.split("/"), version);
-  const skillDir = join(packageRoot, "skills", scope, skillName);
+async function createInstalledBundle(agentsDir: string, skillName = "hello-skill") {
+  const packageRoot = join(agentsDir, "packages", "skills", "@acme", "skills-sample", "1.0.0");
+  const skillDir = join(packageRoot, "skills", "shared", skillName);
   await mkdir(skillDir, { recursive: true });
   await writeFile(join(skillDir, "SKILL.md"), `---\nname: ${skillName}\ndescription: hello\n---\n`);
-  await writeFile(
-    join(packageRoot, "bundle.json"),
-    JSON.stringify({
-      schemaVersion: 1,
-      bundleName: packageName,
-      version,
-      skills: [{ name: skillName, scope, path: `skills/${scope}/${skillName}` }],
-    }),
-  );
-  await writeFile(join(dirname(packageRoot), "current"), `${version}\n`);
+  await writeFile(join(packageRoot, "bundle.json"), JSON.stringify({
+    schemaVersion: 1,
+    bundleName: "@acme/skills-sample",
+    version: "1.0.0",
+    skills: [{ name: skillName, scope: "shared", path: `skills/shared/${skillName}` }],
+  }));
+  await writeFile(join(dirname(packageRoot), "current"), "1.0.0\n");
 }
 
 describe("core skills", () => {
-  test("listSkillsByScope returns repo skills across all four scopes", async () => {
+  test("listSkillsByScope returns repo skills across all scopes", async () => {
     const root = await createTempRoot();
-    const sharedPath = join(root, "skills", "shared", "alpha");
-    const experimentalPath = join(root, "skills", "experimental", "beta");
-
-    await mkdir(sharedPath, { recursive: true });
-    await mkdir(experimentalPath, { recursive: true });
-    await writeFile(join(sharedPath, "SKILL.md"), "---\nname: alpha\ndescription: alpha\n---\n");
-    await writeFile(join(experimentalPath, "SKILL.md"), "---\nname: beta\ndescription: beta\n---\n");
-
+    await mkdir(join(root, "skills", "shared", "alpha"), { recursive: true });
+    await mkdir(join(root, "skills", "experimental", "beta"), { recursive: true });
+    await writeFile(join(root, "skills", "shared", "alpha", "SKILL.md"), "alpha\n");
+    await writeFile(join(root, "skills", "experimental", "beta", "SKILL.md"), "beta\n");
     const { listSkillsByScope } = await import("../cli/core/skills");
+
     const result = await listSkillsByScope(root);
 
     expect(result.shared.map((skill) => skill.name)).toContain("alpha");
     expect(result.experimental.map((skill) => skill.name)).toContain("beta");
   });
 
-  test("curateSkill copies a shared skill into the agents publication layer", async () => {
-    const root = await createTempRoot();
-    const homeDir = join(root, "home");
-    const agentsDir = join(homeDir, ".agents");
-    const sharedPath = join(root, "skills", "shared", "alpha");
-    const curatedPath = join(agentsDir, "skills", "alpha");
-
-    await mkdir(sharedPath, { recursive: true });
-    await mkdir(dirname(curatedPath), { recursive: true });
-    await writeFile(join(sharedPath, "SKILL.md"), "---\nname: alpha\ndescription: alpha\n---\n");
-
-    const { curateSkill } = await import("../cli/core/skills");
-    await curateSkill({ repoRoot: root, agentsDir }, "alpha");
-
-    expect((await lstat(curatedPath)).isDirectory()).toBe(true);
-    expect((await lstat(curatedPath)).isSymbolicLink()).toBe(false);
-    expect(await readFile(join(curatedPath, "SKILL.md"), "utf8")).toContain("name: alpha");
-  });
-
-  test("uncurateSkill removes an agents-layer symlink", async () => {
-    const root = await createTempRoot();
-    const homeDir = join(root, "home");
-    const agentsDir = join(homeDir, ".agents");
-    const sharedPath = join(root, "skills", "shared", "alpha");
-    const curatedPath = join(agentsDir, "skills", "alpha");
-
-    await mkdir(sharedPath, { recursive: true });
-    await mkdir(dirname(curatedPath), { recursive: true });
-    await writeFile(join(sharedPath, "SKILL.md"), "---\nname: alpha\ndescription: alpha\n---\n");
-    await cp(sharedPath, curatedPath, { recursive: true });
-
-    const { uncurateSkill } = await import("../cli/core/skills");
-    await uncurateSkill({ agentsDir }, "alpha");
-
-    await expect(lstat(curatedPath)).rejects.toThrow();
-  });
-
-  test("uncurateSkill throws for skill that is not curated", async () => {
-    const root = await createTempRoot();
-    const agentsDir = join(root, "home", ".agents");
-    await mkdir(join(agentsDir, "skills"), { recursive: true });
-
-    const { uncurateSkill } = await import("../cli/core/skills");
-    await expect(uncurateSkill({ agentsDir }, "not-curated")).rejects.toThrow();
-  });
-
-  test("curateSkill copies a package-backed shared skill into the agents layer", async () => {
+  test("buildSkillInventory includes package-backed source metadata", async () => {
     const root = await createTempRoot();
     const homeDir = join(root, "home");
     const agentsDir = join(homeDir, ".agents");
     await mkdir(join(root, "skills", "shared"), { recursive: true });
-    await mkdir(join(agentsDir, "skills"), { recursive: true });
-    await createInstalledBundle(agentsDir, { skillName: "hello-skill" });
-
-    const { curateSkill } = await import("../cli/core/skills");
-    const curatedPath = await curateSkill({ repoRoot: root, agentsDir }, "hello-skill");
-
-    expect((await lstat(curatedPath)).isDirectory()).toBe(true);
-    expect((await lstat(curatedPath)).isSymbolicLink()).toBe(false);
-    expect(await readFile(join(curatedPath, "SKILL.md"), "utf8")).toContain("name: hello-skill");
-  });
-
-  test("buildSkillInventory includes package-backed skills with source metadata", async () => {
-    const root = await createTempRoot();
-    const homeDir = join(root, "home");
-    const agentsDir = join(homeDir, ".agents");
-    const sharedPath = join(root, "skills", "shared", "alpha");
-    await mkdir(sharedPath, { recursive: true });
-    await writeFile(join(sharedPath, "SKILL.md"), "---\nname: alpha\ndescription: alpha\n---\n");
-    await createInstalledBundle(agentsDir, { skillName: "hello-skill" });
-
+    await createInstalledBundle(agentsDir);
     const { buildSkillInventory } = await import("../cli/core/skills");
-    const inventory = await buildSkillInventory(root, agentsDir, homeDir);
-    const packageSkill = inventory.find((skill) => skill.name === "hello-skill");
 
-    expect(packageSkill?.scope).toBe("shared");
-    expect(packageSkill?.sourceType).toBe("npm");
-    expect(packageSkill?.sourceId).toBe("@acme/skills-sample");
-    expect(packageSkill?.sourceVersion).toBe("1.0.0");
+    const item = (await buildSkillInventory(root, agentsDir, homeDir)).find((skill) => skill.name === "hello-skill");
+
+    expect(item).toMatchObject({ scope: "shared", sourceType: "npm", sourceId: "@acme/skills-sample", sourceVersion: "1.0.0" });
   });
 
-  test("syncSkills include adds a non-curated skill to downstream links", async () => {
+  test("syncSkills materializes only explicitly included repo skills", async () => {
     const root = await createTempRoot();
     const homeDir = join(root, "home");
     const agentsDir = join(homeDir, ".agents");
-    const alphaPath = join(root, "skills", "shared", "alpha");
-    const betaPath = join(root, "skills", "shared", "beta");
-    const curatedAlpha = join(agentsDir, "skills", "alpha");
-
-    await mkdir(alphaPath, { recursive: true });
-    await mkdir(betaPath, { recursive: true });
-    await mkdir(dirname(curatedAlpha), { recursive: true });
-    await writeFile(join(alphaPath, "SKILL.md"), "---\nname: alpha\ndescription: alpha\n---\n");
-    await writeFile(join(betaPath, "SKILL.md"), "---\nname: beta\ndescription: beta\n---\n");
-    await cp(alphaPath, curatedAlpha, { recursive: true });
-
+    const alpha = join(root, "skills", "shared", "alpha");
+    await mkdir(alpha, { recursive: true });
+    await writeFile(join(alpha, "SKILL.md"), "repo-alpha\n");
+    await mkdir(join(agentsDir, "skills", "beta"), { recursive: true });
+    await writeFile(join(agentsDir, "skills", "beta", "SKILL.md"), "ambient-beta\n");
     const { syncSkills } = await import("../cli/core/skills");
-    const result = await syncSkills(
-      machineSkillOptions(root, agentsDir, homeDir),
-      { include: ["beta"] },
-    );
 
-    expect(result.warnings).toEqual([]);
-    expect((await lstat(join(homeDir, ".claude", "skills", "beta"))).isDirectory()).toBe(true);
-    expect((await lstat(join(homeDir, ".codex", "skills", "beta"))).isDirectory()).toBe(true);
+    await syncSkills(machineSkillOptions(root, agentsDir, homeDir), { include: ["alpha"] });
+
+    expect(await readFile(join(homeDir, ".claude", "skills", "alpha", "SKILL.md"), "utf8")).toBe("repo-alpha\n");
+    await expect(access(join(homeDir, ".claude", "skills", "beta"))).rejects.toThrow();
   });
 
-  test("syncSkills include adds a package-backed non-curated skill to downstream links", async () => {
+  test("syncSkills materializes an explicitly included package skill", async () => {
     const root = await createTempRoot();
     const homeDir = join(root, "home");
     const agentsDir = join(homeDir, ".agents");
     await mkdir(join(root, "skills", "shared"), { recursive: true });
-    await mkdir(join(agentsDir, "skills"), { recursive: true });
     await createInstalledSkillBundle(agentsDir, { skillName: "hello-skill" });
-
     const { syncSkills } = await import("../cli/core/skills");
-    const result = await syncSkills(
-      machineSkillOptions(root, agentsDir, homeDir),
-      { include: ["hello-skill"] },
-    );
 
-    expect(result.warnings).toEqual([]);
+    await syncSkills(machineSkillOptions(root, agentsDir, homeDir), { include: ["hello-skill"] });
+
     expect((await lstat(join(homeDir, ".claude", "skills", "hello-skill"))).isDirectory()).toBe(true);
     expect((await lstat(join(homeDir, ".codex", "skills", "hello-skill"))).isDirectory()).toBe(true);
   });
 
-  test("syncSkills exclude removes a curated skill from downstream links", async () => {
+  test("exclude wins over include", async () => {
     const root = await createTempRoot();
     const homeDir = join(root, "home");
     const agentsDir = join(homeDir, ".agents");
-    const alphaPath = join(root, "skills", "shared", "alpha");
-    const curatedAlpha = join(agentsDir, "skills", "alpha");
-
-    await mkdir(alphaPath, { recursive: true });
-    await mkdir(dirname(curatedAlpha), { recursive: true });
-    await writeFile(join(alphaPath, "SKILL.md"), "---\nname: alpha\ndescription: alpha\n---\n");
-    await cp(alphaPath, curatedAlpha, { recursive: true });
-
+    await mkdir(join(root, "skills", "shared", "alpha"), { recursive: true });
+    await writeFile(join(root, "skills", "shared", "alpha", "SKILL.md"), "alpha\n");
     const { syncSkills } = await import("../cli/core/skills");
-    const result = await syncSkills(
-      machineSkillOptions(root, agentsDir, homeDir),
-      { exclude: ["alpha"] },
-    );
+
+    const result = await syncSkills(machineSkillOptions(root, agentsDir, homeDir), {
+      include: ["alpha"],
+      exclude: ["alpha"],
+    });
 
     expect(result.changes.some((change) => change.includes("alpha"))).toBe(false);
   });
 
-  test("syncSkills exclude wins over include", async () => {
-    const root = await createTempRoot();
-    const homeDir = join(root, "home");
-    const agentsDir = join(homeDir, ".agents");
-    const alphaPath = join(root, "skills", "shared", "alpha");
-
-    await mkdir(alphaPath, { recursive: true });
-    await writeFile(join(alphaPath, "SKILL.md"), "---\nname: alpha\ndescription: alpha\n---\n");
-
-    const { syncSkills } = await import("../cli/core/skills");
-    const result = await syncSkills(
-      machineSkillOptions(root, agentsDir, homeDir),
-      { include: ["alpha"], exclude: ["alpha"] },
-    );
-
-    expect(result.changes.some((change) => change.includes("alpha"))).toBe(false);
-  });
-
-  test("syncSkills fails when include references a nonexistent skill", async () => {
+  test("missing explicit includes fail before mutation", async () => {
     const root = await createTempRoot();
     const homeDir = join(root, "home");
     const agentsDir = join(homeDir, ".agents");
     await mkdir(join(root, "skills", "shared"), { recursive: true });
-    await mkdir(join(agentsDir, "skills"), { recursive: true });
-
     const { syncSkills } = await import("../cli/core/skills");
-    await expect(
-      syncSkills(
-        machineSkillOptions(root, agentsDir, homeDir),
-        { include: ["missing-skill"] },
-      ),
-    ).rejects.toThrow("missing-skill");
+
+    await expect(syncSkills(machineSkillOptions(root, agentsDir, homeDir), { include: ["missing"] }))
+      .rejects.toThrow("missing");
+    await expect(access(join(homeDir, ".claude", "skills"))).rejects.toThrow();
   });
 
-  test("syncSkills installs downstream links from a curated package-backed source", async () => {
+  test("target-only repo directories do not activate without explicit selection", async () => {
     const root = await createTempRoot();
     const homeDir = join(root, "home");
     const agentsDir = join(homeDir, ".agents");
-    await mkdir(join(root, "skills", "shared"), { recursive: true });
-    await mkdir(join(agentsDir, "skills"), { recursive: true });
-    await createInstalledBundle(agentsDir, { skillName: "hello-skill" });
+    await mkdir(join(root, "skills", "claude-only", "target-skill"), { recursive: true });
+    await writeFile(join(root, "skills", "claude-only", "target-skill", "SKILL.md"), "target\n");
+    const { syncSkills } = await import("../cli/core/skills");
 
-    const { curateSkill, syncSkills } = await import("../cli/core/skills");
-    await curateSkill({ repoRoot: root, agentsDir }, "hello-skill");
     await syncSkills(machineSkillOptions(root, agentsDir, homeDir));
 
-    expect((await lstat(join(homeDir, ".claude", "skills", "hello-skill"))).isDirectory()).toBe(true);
-    expect((await lstat(join(homeDir, ".codex", "skills", "hello-skill"))).isDirectory()).toBe(true);
-  });
-});
-
-describe("skill name validation", () => {
-  test("rejects names with path separators", async () => {
-    const root = await createTempRoot();
-    const agentsDir = join(root, "home", ".agents");
-    await mkdir(join(agentsDir, "skills"), { recursive: true });
-
-    const { curateSkill } = await import("../cli/core/skills");
-    await expect(curateSkill({ repoRoot: root, agentsDir }, "../../../etc/passwd")).rejects.toThrow();
-    await expect(curateSkill({ repoRoot: root, agentsDir }, "foo/bar")).rejects.toThrow();
-    await expect(curateSkill({ repoRoot: root, agentsDir }, "foo\\bar")).rejects.toThrow();
-  });
-
-  test("rejects names that are '.' or '..'", async () => {
-    const root = await createTempRoot();
-    const agentsDir = join(root, "home", ".agents");
-    await mkdir(join(agentsDir, "skills"), { recursive: true });
-
-    const { curateSkill } = await import("../cli/core/skills");
-    await expect(curateSkill({ repoRoot: root, agentsDir }, "..")).rejects.toThrow();
-    await expect(curateSkill({ repoRoot: root, agentsDir }, ".")).rejects.toThrow();
+    await expect(access(join(homeDir, ".claude", "skills", "target-skill"))).rejects.toThrow();
   });
 });

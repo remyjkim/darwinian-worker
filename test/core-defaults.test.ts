@@ -1,119 +1,122 @@
-// ABOUTME: Verifies default resolution helpers for skills and MCP servers.
-// ABOUTME: Protects explicit defaults while preserving legacy fallback behavior.
+// ABOUTME: Verifies that profile and explicit selections are the only machine capability authority.
+// ABOUTME: Protects provenance, deduplication, missing-capability errors, and ambient-directory isolation.
 
-import { describe, expect, test } from "bun:test";
-import { createFixtureConfig, createFixtureRegistry } from "./helpers";
+import { afterEach, describe, expect, test } from "bun:test";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { resolveMachineCapabilities } from "../cli/core/defaults";
+import { resolveCard, writeMachineConfig } from "../cli/core/card-store";
+import { createEmptyMachineConfig } from "../cli/core/machine-config";
+import { cleanupTempRoots, publishCardWithSkills, scaffoldCliFixture } from "./helpers";
 
-function paths() {
-  return {
-    claudeSettings: "/tmp/claude.json",
-    codexConfig: "/tmp/codex.toml",
-    cursorConfig: "/tmp/cursor.json",
+const tempRoots: string[] = [];
+
+afterEach(async () => {
+  await cleanupTempRoots(tempRoots);
+});
+
+async function installProfileFixture(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
+  await publishCardWithSkills(fixture, {
+    name: "@darwinian/operator",
+    version: "1.0.2",
+    skills: ["bootstrap-project"],
+    servers: {},
+  });
+  const resolved = await resolveCard(fixture.agentsDir, "@darwinian/operator@1.0.2");
+  const profile = {
+    id: "darwinian-operator" as const,
+    source: "git+https://github.com/curation-labs/darwinian-operator.git#v1.0.2" as const,
+    name: "@darwinian/operator" as const,
+    version: "1.0.2" as const,
+    commit: resolved.git!.commit,
+    treeSha: resolved.treeSha!,
+    integrity: resolved.integrity as `sha256-${string}`,
+    skills: ["bootstrap-project"],
+    mcpServers: [],
   };
+  await writeMachineConfig(fixture.agentsDir, {
+    ...createEmptyMachineConfig(),
+    capabilities: { profile, skills: [], mcpServers: [] },
+  });
+  return { profile, resolved };
 }
 
-describe("core defaults", () => {
-  test("explicit default predicates treat absent arrays as uninitialized and empty arrays as explicit", async () => {
-    const { hasExplicitMcpDefaults, hasExplicitSkillDefaults } = await import("../cli/core/defaults");
-    const config = createFixtureConfig(paths(), false);
+describe("machine capability resolution", () => {
+  test("empty intent activates nothing despite packaged defaults and curated directories", async () => {
+    const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
+    tempRoots.push(fixture.root);
+    await writeMachineConfig(fixture.agentsDir, createEmptyMachineConfig());
 
-    expect(hasExplicitMcpDefaults(config)).toBe(false);
-    expect(hasExplicitSkillDefaults(config)).toBe(false);
-
-    config.defaults = { mcpServers: [], skills: [] };
-    expect(hasExplicitMcpDefaults(config)).toBe(true);
-    expect(hasExplicitSkillDefaults(config)).toBe(true);
-
-    config.defaults = { mcpServers: ["context7"], skills: ["alpha"] };
-    expect(hasExplicitMcpDefaults(config)).toBe(true);
-    expect(hasExplicitSkillDefaults(config)).toBe(true);
-  });
-
-  test("falls back to current MCP activation when explicit defaults are absent", async () => {
-    const { resolveDefaultMcpNames } = await import("../cli/core/defaults");
-    const config = createFixtureConfig(paths(), false);
-    const registry = createFixtureRegistry();
-
-    expect(resolveDefaultMcpNames(config, registry)).toEqual(["context7"]);
-  });
-
-  test("empty MCP defaults activate nothing while absent defaults fall back to current activation", async () => {
-    const { resolveDefaultMcpNames } = await import("../cli/core/defaults");
-    const { buildActiveServers } = await import("../cli/core/mcp");
-    const registry = createFixtureRegistry();
-    const absent = createFixtureConfig(paths(), false);
-    const empty = createFixtureConfig(paths(), false);
-    empty.defaults = { mcpServers: [] };
-
-    expect(resolveDefaultMcpNames(empty, registry)).toEqual([]);
-    expect(Object.keys(buildActiveServers(registry, empty))).toEqual([]);
-    expect(resolveDefaultMcpNames(absent, registry)).toEqual(["context7"]);
-    expect(Object.keys(buildActiveServers(registry, absent))).toEqual(["context7"]);
-  });
-
-  test("explicit MCP defaults control active MCP names", async () => {
-    const { resolveDefaultMcpNames, applyMcpDefaultsToConfig } = await import("../cli/core/defaults");
-    const { buildActiveServers } = await import("../cli/core/mcp");
-    const config = createFixtureConfig(paths(), true);
-    config.defaults = { mcpServers: ["parallel-search"] };
-    const registry = createFixtureRegistry();
-
-    expect(resolveDefaultMcpNames(config, registry)).toEqual(["parallel-search"]);
-    expect(Object.keys(buildActiveServers(registry, applyMcpDefaultsToConfig(config)))).toEqual(["parallel-search"]);
-  });
-
-  test("ensure helpers seed absent defaults and preserve explicit defaults including empty", async () => {
-    const { ensureMcpDefaultsInitialized, ensureSkillDefaultsInitialized } = await import("../cli/core/defaults");
-
-    // Absent defaults are seeded with the resolved set.
-    const absent = createFixtureConfig(paths(), false);
-    expect(ensureMcpDefaultsInitialized(absent, ["context7"])).toEqual(["context7"]);
-    expect(ensureSkillDefaultsInitialized(absent, ["alpha"])).toEqual(["alpha"]);
-
-    // Explicit empty defaults are preserved, not re-seeded.
-    const empty = createFixtureConfig(paths(), false);
-    empty.defaults = { mcpServers: [], skills: [] };
-    expect(ensureMcpDefaultsInitialized(empty, ["context7"])).toEqual([]);
-    expect(ensureSkillDefaultsInitialized(empty, ["alpha"])).toEqual([]);
-
-    // Non-empty explicit defaults are preserved.
-    const explicit = createFixtureConfig(paths(), false);
-    explicit.defaults = { mcpServers: ["context7"], skills: ["alpha"] };
-    expect(ensureMcpDefaultsInitialized(explicit, ["parallel-search"])).toEqual(["context7"]);
-    expect(ensureSkillDefaultsInitialized(explicit, ["beta"])).toEqual(["alpha"]);
-  });
-
-  test("merges user MCP library entries without mutating built-in registry", async () => {
-    const { mergeUserMcpLibrary } = await import("../cli/core/defaults");
-    const registry = createFixtureRegistry();
-    const merged = mergeUserMcpLibrary(registry, {
-      version: 1,
-      servers: {
-        github: {
-          description: "GitHub",
-          transport: "stdio",
-          command: "npx",
-          args: ["-y", "@modelcontextprotocol/server-github"],
-          optional: true,
-        },
-      },
+    const resolved = await resolveMachineCapabilities({
+      repoRoot: fixture.repoRoot,
+      agentsDir: fixture.agentsDir,
     });
 
-    expect(merged.servers.github?.command).toBe("npx");
-    expect(registry.servers.github).toBeUndefined();
+    expect(resolved.skills).toEqual([]);
+    expect(resolved.mcpServers).toEqual([]);
   });
 
-  test("reports unknown default references", async () => {
-    const { validateDefaultReferences } = await import("../cli/core/defaults");
-    const config = createFixtureConfig(paths(), false);
-    config.defaults = { skills: ["missing-skill"], mcpServers: ["missing-mcp"] };
-    const issues = await validateDefaultReferences({
-      config,
-      registry: createFixtureRegistry(),
-      skillNames: new Set(["alpha"]),
+  test("resolves explicit Library skills and MCP servers", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    await writeMachineConfig(fixture.agentsDir, {
+      ...createEmptyMachineConfig(),
+      capabilities: { profile: null, skills: ["alpha"], mcpServers: ["context7"] },
     });
 
-    expect(issues).toContain('Unknown default skill: "missing-skill"');
-    expect(issues).toContain('Unknown default MCP server: "missing-mcp"');
+    const resolved = await resolveMachineCapabilities({
+      repoRoot: fixture.repoRoot,
+      agentsDir: fixture.agentsDir,
+    });
+
+    expect(resolved.skills).toEqual([expect.objectContaining({ id: "alpha", source: "explicit" })]);
+    expect(resolved.mcpServers).toEqual([expect.objectContaining({ id: "context7", source: "explicit" })]);
+  });
+
+  test("attributes profile and explicit overlap to the profile once", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    await mkdir(join(fixture.repoRoot, "skills", "shared", "bootstrap-project"), { recursive: true });
+    await writeFile(join(fixture.repoRoot, "skills", "shared", "bootstrap-project", "SKILL.md"), "---\nname: bootstrap-project\ndescription: explicit duplicate\n---\n");
+    const { profile, resolved: profileCard } = await installProfileFixture(fixture);
+    await writeMachineConfig(fixture.agentsDir, {
+      ...createEmptyMachineConfig(),
+      capabilities: { profile, skills: ["bootstrap-project"], mcpServers: [] },
+    });
+
+    const capabilities = await resolveMachineCapabilities({
+      repoRoot: fixture.repoRoot,
+      agentsDir: fixture.agentsDir,
+    });
+
+    expect(capabilities.skills).toEqual([{
+      id: "bootstrap-project",
+      source: "profile",
+      profileId: "darwinian-operator",
+      path: join(profileCard.dir, "skills", "bootstrap-project"),
+      scope: "shared",
+    }]);
+  });
+
+  test("fails with stable errors for missing explicit capabilities", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    await writeMachineConfig(fixture.agentsDir, {
+      ...createEmptyMachineConfig(),
+      capabilities: { profile: null, skills: ["missing-skill"], mcpServers: [] },
+    });
+
+    await expect(resolveMachineCapabilities({ repoRoot: fixture.repoRoot, agentsDir: fixture.agentsDir }))
+      .rejects.toMatchObject({ code: "MACHINE_CAPABILITY_NOT_FOUND" });
+  });
+
+  test("fails when pinned profile bytes are missing instead of fetching", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const { profile } = await installProfileFixture(fixture);
+    await rm(join(fixture.agentsDir, "drwn", "extracted", profile.treeSha), { recursive: true, force: true });
+
+    await expect(resolveMachineCapabilities({ repoRoot: fixture.repoRoot, agentsDir: fixture.agentsDir }))
+      .rejects.toMatchObject({ code: "MACHINE_PROFILE_NOT_AVAILABLE" });
   });
 });

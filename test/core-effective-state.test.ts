@@ -6,6 +6,8 @@ import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { buildEffectiveState } from "../cli/core/effective-state";
+import { writeMachineConfig } from "../cli/core/card-store";
+import { createEmptyMachineConfig } from "../cli/core/machine-config";
 import {
   cleanupTempRoots,
   installProjectWorkers,
@@ -29,14 +31,14 @@ function envFor(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
   };
 }
 
-test("project write does not include machine default skills", async () => {
+test("project write does not include machine capability skills", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   expect((await runAgentsCli(["card", "new", "@me/backend", "--no-git"], envFor(fixture))).exitCode).toBe(0);
-  const machinePath = join(fixture.agentsDir, "drwn", "machine.json");
-  const machine = JSON.parse(await readFile(machinePath, "utf8"));
-  machine.defaults = { skills: ["beta"] };
-  await writeFile(machinePath, `${JSON.stringify(machine, null, 2)}\n`);
+  await writeMachineConfig(fixture.agentsDir, {
+    ...createEmptyMachineConfig(),
+    capabilities: { profile: null, skills: ["beta"], mcpServers: [] },
+  });
   const projectDir = join(fixture.root, "project");
   await writeSupportedProjectConfig(projectDir, { skills: { include: ["alpha"] } });
 
@@ -45,6 +47,44 @@ test("project write does not include machine default skills", async () => {
   expect(write.exitCode).toBe(0);
   expect(existsSync(join(projectDir, ".claude", "skills", "alpha"))).toBe(true);
   expect(existsSync(join(projectDir, ".claude", "skills", "beta"))).toBe(false);
+});
+
+test("machine effective state uses only explicit selections", async () => {
+  const fixture = await scaffoldCliFixture({ curatedSkillNames: ["beta"] });
+  tempRoots.push(fixture.root);
+  await writeMachineConfig(fixture.agentsDir, {
+    ...createEmptyMachineConfig(),
+    capabilities: { profile: null, skills: ["alpha"], mcpServers: ["context7"] },
+  });
+
+  const state = await buildEffectiveState({
+    repoRoot: fixture.repoRoot,
+    agentsDir: fixture.agentsDir,
+    homeDir: fixture.homeDir,
+    cwd: fixture.root,
+    scope: "machine",
+  });
+
+  expect(state.skillSelection?.include).toEqual(["alpha"]);
+  expect(Object.keys(state.activeServers)).toEqual(["context7"]);
+  expect(state.skillSelection?.include).not.toContain("beta");
+});
+
+test("empty machine intent disables packaged optional and required MCP defaults", async () => {
+  const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
+  tempRoots.push(fixture.root);
+  await writeMachineConfig(fixture.agentsDir, createEmptyMachineConfig());
+
+  const state = await buildEffectiveState({
+    repoRoot: fixture.repoRoot,
+    agentsDir: fixture.agentsDir,
+    homeDir: fixture.homeDir,
+    cwd: fixture.root,
+    scope: "machine",
+  });
+
+  expect(state.skillSelection?.include ?? []).toEqual([]);
+  expect(state.activeServers).toEqual({});
 });
 
 test("buildEffectiveState exposes the project card, skill, MCP, extension, and target merge", async () => {

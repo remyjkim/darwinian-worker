@@ -5,6 +5,7 @@ import { Option, UsageError } from "clipanion";
 import { buildSkillInventory } from "../../../core/skills";
 import { classifySkillAddInput, ingestLooseSkill, ingestSkillPackage } from "../../../core/skill-packages";
 import { renderJson } from "../../../core/output";
+import { ensureStoreInitialized } from "../../../core/card-store";
 import { BaseCommand } from "../../base";
 
 export class LibraryAddSkillCommand extends BaseCommand {
@@ -18,8 +19,8 @@ export class LibraryAddSkillCommand extends BaseCommand {
       the local library. This makes the bundle's skills available to drwn but
       does not activate them in any project.
 
-      After adding a bundle, use drwn add skill or drwn skills curate to opt in
-      to specific skills.
+      After adding a bundle, use drwn add skill or drwn library defaults add
+      skill to opt into specific skills.
     `,
     examples: [
       ["Add a bundle from npm", "drwn library add skill @acme/skill-bundle"],
@@ -57,6 +58,7 @@ export class LibraryAddSkillCommand extends BaseCommand {
 
   async execute() {
     try {
+      await ensureStoreInitialized(this.context.agentsDir);
       const inventory = await buildSkillInventory(this.context.repoRoot, this.context.agentsDir, this.context.homeDir);
       const existingSkillNames = new Set(inventory.map((skill) => skill.name));
       const existingSkills = inventory.map((skill) => ({

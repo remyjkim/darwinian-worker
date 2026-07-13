@@ -19,7 +19,7 @@ import { loadConfigLocal, loadCardLockLocal, mergeProjectWithLocal, type ConfigL
 import { resolveCardContentRoot } from "./card-content-root";
 import { resolveMode } from "./mode-resolution";
 import { loadConfig } from "./config";
-import { hasExplicitSkillDefaults, mergeUserMcpLibrary } from "./defaults";
+import { mergeUserMcpLibrary, resolveMachineCapabilities, type ResolvedMachineCapabilities } from "./defaults";
 import { loadMcpLibrary } from "./mcp-library";
 import { buildActiveServers, renderMcpServerForTarget } from "./mcp";
 import { normalizeSyncPathOptions, resolveToolPaths } from "./paths";
@@ -68,6 +68,7 @@ export interface EffectiveState {
   ambientCollisions: AmbientCollision[];
   ambientMcpErrors: AmbientMcpInspectionError[];
   skillSelection?: SkillSyncOverrides;
+  machineCapabilities: ResolvedMachineCapabilities | null;
   recordPath: string;
   scopeRoot: string;
   scopedOptions: NormalizedSyncOptions;
@@ -263,11 +264,20 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
     : (await loadEffectiveConfig(repoConfig, normalized.agentsDir)).config;
   let effectiveConfig = baseConfig;
   let effectiveRegistry = registry;
-  const baseDefaultSkills = !projectConfigPath && hasExplicitSkillDefaults(baseConfig)
-    ? [...(baseConfig.defaults?.skills ?? [])]
-    : [];
-  let skillSelection: SkillSyncOverrides | undefined = baseDefaultSkills.length > 0
-    ? { include: [...baseDefaultSkills] }
+  const machineCapabilities = projectConfigPath
+    ? null
+    : await resolveMachineCapabilities({ repoRoot: normalized.repoRoot, agentsDir: normalized.agentsDir });
+  if (machineCapabilities) {
+    effectiveRegistry = {
+      version: registry.version,
+      servers: {
+        ...registry.servers,
+        ...Object.fromEntries(machineCapabilities.mcpServers.map((entry) => [entry.id, entry.server])),
+      },
+    };
+  }
+  let skillSelection: SkillSyncOverrides | undefined = machineCapabilities?.skills.length
+    ? { include: machineCapabilities.skills.map((skill) => skill.id) }
     : undefined;
   let lockedCards: CardLockEntry[] = [];
   let activeCards: CardLockEntry[] = [];
@@ -378,7 +388,9 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
     writeScope: projectRoot ? "project" : "machine",
     generatedDir: projectRoot ? join(projectRoot, ".agents", "drwn", "generated") : resolveStoreGeneratedDir(normalized.agentsDir),
   };
-  const activeServers = buildActiveServers(effectiveRegistry, effectiveConfig);
+  const activeServers = machineCapabilities
+    ? Object.fromEntries(machineCapabilities.mcpServers.map((entry) => [entry.id, entry.server]))
+    : buildActiveServers(effectiveRegistry, effectiveConfig);
   let ambientCollisions: AmbientCollision[] = [];
   let ambientMcpErrors: AmbientMcpInspectionError[] = [];
   if (projectRoot) {
@@ -437,6 +449,7 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
     ambientCollisions,
     ambientMcpErrors,
     skillSelection,
+    machineCapabilities,
     recordPath: projectRoot ? resolveProjectWriteRecordPath(projectRoot) : resolveGlobalWriteRecordPath(normalized.agentsDir),
     scopeRoot,
     scopedOptions,

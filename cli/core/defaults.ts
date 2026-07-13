@@ -2,6 +2,14 @@
 // ABOUTME: Keeps default policy separate from reusable library inventory.
 
 import type { CanonicalConfig, CanonicalRegistry, UserMcpLibrary } from "./types";
+import type { RegistryServer } from "./types";
+import { join } from "node:path";
+import { readMachineConfig } from "./card-store";
+import { verifyMachineProfilePin } from "./machine-profiles";
+import { findAvailableSkill, type SkillScope } from "./skills";
+import { loadRegistry } from "./registry";
+import { loadMcpLibrary } from "./mcp-library";
+import { DrwnError } from "./errors";
 
 function isParallelMcpName(name: string) {
   return name === "parallel-search" || name === "parallel-task";
@@ -79,6 +87,92 @@ export function mergeUserMcpLibrary(registry: CanonicalRegistry, library: UserMc
       ...registry.servers,
       ...library.servers,
     },
+  };
+}
+
+export interface ResolvedMachineSkill {
+  id: string;
+  source: "profile" | "explicit";
+  profileId?: "darwinian-operator";
+  path: string;
+  scope: SkillScope;
+}
+
+export interface ResolvedMachineMcpServer {
+  id: string;
+  source: "profile" | "explicit";
+  profileId?: "darwinian-operator";
+  server: RegistryServer;
+}
+
+export interface ResolvedMachineCapabilities {
+  profileId: "darwinian-operator" | null;
+  skills: ResolvedMachineSkill[];
+  mcpServers: ResolvedMachineMcpServer[];
+}
+
+function capabilityNotFound(kind: "skill" | "MCP server", id: string): never {
+  throw new DrwnError(
+    "MACHINE_CAPABILITY_NOT_FOUND",
+    `Explicit machine ${kind} is not available in the local Library: ${id}`,
+  );
+}
+
+export async function resolveMachineCapabilities(options: {
+  repoRoot: string;
+  agentsDir: string;
+}): Promise<ResolvedMachineCapabilities> {
+  const machine = await readMachineConfig(options.agentsDir);
+  const skills: ResolvedMachineSkill[] = [];
+  const mcpServers: ResolvedMachineMcpServer[] = [];
+  const selectedSkills = new Set<string>();
+  const selectedServers = new Set<string>();
+
+  if (machine.capabilities.profile) {
+    const pin = machine.capabilities.profile;
+    const verified = await verifyMachineProfilePin(options.agentsDir, pin);
+    for (const id of pin.skills) {
+      skills.push({
+        id,
+        source: "profile",
+        profileId: pin.id,
+        path: join(verified.dir, "skills", id),
+        scope: "shared",
+      });
+      selectedSkills.add(id);
+    }
+    for (const id of pin.mcpServers) {
+      const server = verified.manifest.servers?.[id];
+      if (!server || !("transport" in server)) capabilityNotFound("MCP server", id);
+      mcpServers.push({ id, source: "profile", profileId: pin.id, server });
+      selectedServers.add(id);
+    }
+  }
+
+  for (const id of machine.capabilities.skills) {
+    if (selectedSkills.has(id)) continue;
+    const skill = await findAvailableSkill(options.repoRoot, options.agentsDir, id);
+    if (!skill) capabilityNotFound("skill", id);
+    skills.push({ id, source: "explicit", path: skill.path, scope: skill.scope });
+    selectedSkills.add(id);
+  }
+
+  const registry = mergeUserMcpLibrary(
+    await loadRegistry(options.repoRoot),
+    await loadMcpLibrary(options.agentsDir),
+  );
+  for (const id of machine.capabilities.mcpServers) {
+    if (selectedServers.has(id)) continue;
+    const server = registry.servers[id];
+    if (!server || server.transport === "platform-provided") capabilityNotFound("MCP server", id);
+    mcpServers.push({ id, source: "explicit", server });
+    selectedServers.add(id);
+  }
+
+  return {
+    profileId: machine.capabilities.profile?.id ?? null,
+    skills,
+    mcpServers,
   };
 }
 

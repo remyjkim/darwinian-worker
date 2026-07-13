@@ -434,6 +434,7 @@ export async function syncRepository(options: SyncOptions = {}): Promise<SyncRes
       state.skillSelection,
       state.skillApplyOrderCards,
       state.contentRootsByCard,
+      Object.fromEntries((state.machineCapabilities?.skills ?? []).map((skill) => [skill.id, skill])),
     );
     result.changes.push(...skillsResult.changes);
     result.warnings.push(...skillsResult.warnings);

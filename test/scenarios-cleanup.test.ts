@@ -21,15 +21,16 @@ function envFor(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
   };
 }
 
-test("uncurating a skill removes its previously materialized downstream copy on next write", async () => {
-  const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
+test("removing an explicit skill removes its previously materialized downstream copy on next write", async () => {
+  const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
 
+  expect((await runAgentsCli(["library", "defaults", "add", "skill", "alpha"], envFor(fixture))).exitCode).toBe(0);
   expect((await runAgentsCli(["write", "--skills-only"], envFor(fixture))).exitCode).toBe(0);
   const linkPath = join(fixture.homeDir, ".claude", "skills", "alpha");
   expect(lstatSync(linkPath).isDirectory()).toBe(true);
 
-  expect((await runAgentsCli(["skills", "uncurate", "alpha"], envFor(fixture))).exitCode).toBe(0);
+  expect((await runAgentsCli(["library", "defaults", "remove", "skill", "alpha"], envFor(fixture))).exitCode).toBe(0);
   const result = await runAgentsCli(["write", "--skills-only", "--json"], envFor(fixture));
 
   expect(result.exitCode).toBe(0);
@@ -38,15 +39,16 @@ test("uncurating a skill removes its previously materialized downstream copy on 
 });
 
 test("cleanup refuses to overwrite, then preserves, user content that replaced a managed copy", async () => {
-  const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
+  const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
+  expect((await runAgentsCli(["library", "defaults", "add", "skill", "alpha"], envFor(fixture))).exitCode).toBe(0);
   expect((await runAgentsCli(["write", "--skills-only"], envFor(fixture))).exitCode).toBe(0);
   const linkPath = join(fixture.homeDir, ".claude", "skills", "alpha");
   await rm(linkPath, { recursive: true, force: true });
   await mkdir(linkPath, { recursive: true });
   await writeFile(join(linkPath, "SKILL.md"), "user content\n");
 
-  expect((await runAgentsCli(["skills", "uncurate", "alpha"], envFor(fixture))).exitCode).toBe(0);
+  expect((await runAgentsCli(["library", "defaults", "remove", "skill", "alpha"], envFor(fixture))).exitCode).toBe(0);
 
   // Without --force, drift protection refuses and leaves the user content untouched.
   const refused = await runAgentsCli(["write", "--skills-only"], envFor(fixture));

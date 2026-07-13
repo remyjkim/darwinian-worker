@@ -13,6 +13,8 @@ import { parse as parseToml } from "smol-toml";
 import { cp, lstat, mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { writeMachineConfig } from "../cli/core/card-store";
+import { createEmptyMachineConfig } from "../cli/core/machine-config";
 
 const tempRoots: string[] = [];
 
@@ -643,6 +645,10 @@ describe("syncRepository", () => {
     const beforeClaude = await readFile(claudeSettingsPath, "utf8");
     const beforeCodex = await readFile(codexConfigPath, "utf8");
     const beforeCursor = await readFile(cursorConfigPath, "utf8");
+    await writeMachineConfig(agentsDir, {
+      ...createEmptyMachineConfig(),
+      capabilities: { profile: null, skills: [], mcpServers: ["context7"] },
+    });
 
     const result = await syncRepository({
       repoRoot,
@@ -658,7 +664,7 @@ describe("syncRepository", () => {
     expect(await readFile(cursorConfigPath, "utf8")).toBe(beforeCursor);
   });
 
-  test("skills sync copies downstream skills from curated shared skills", async () => {
+  test("skills sync ignores ambient copies and uses the explicitly selected Library source", async () => {
     const root = await createTempRoot();
     const homeDir = join(root, "home");
     const repoRoot = join(root, "repo");
@@ -675,7 +681,8 @@ describe("syncRepository", () => {
     await mkdir(dirname(codexSkillPath), { recursive: true });
 
     await writeFile(join(sharedSkillPath, "SKILL.md"), "---\nname: alpha\ndescription: alpha\n---\n");
-    await cp(sharedSkillPath, agentsSkillPath, { recursive: true });
+    await mkdir(agentsSkillPath, { recursive: true });
+    await writeFile(join(agentsSkillPath, "SKILL.md"), "ambient copy\n");
     await writeFile(join(repoRoot, "registry", "mcp-servers.json"), JSON.stringify(createRegistry(), null, 2));
     await writeFile(
       join(repoRoot, "registry", "config.json"),
@@ -707,6 +714,10 @@ describe("syncRepository", () => {
         2,
       ),
     );
+    await writeMachineConfig(agentsDir, {
+      ...createEmptyMachineConfig(),
+      capabilities: { profile: null, skills: ["alpha"], mcpServers: [] },
+    });
 
     await syncRepository({
       repoRoot,
@@ -718,7 +729,7 @@ describe("syncRepository", () => {
 
     expect((await lstat(claudeSkillPath)).isDirectory()).toBe(true);
     expect((await lstat(claudeSkillPath)).isSymbolicLink()).toBe(false);
-    expect(await readFile(join(claudeSkillPath, "SKILL.md"), "utf8")).toBe(await readFile(join(agentsSkillPath, "SKILL.md"), "utf8"));
-    expect(await readFile(join(codexSkillPath, "SKILL.md"), "utf8")).toBe(await readFile(join(agentsSkillPath, "SKILL.md"), "utf8"));
+    expect(await readFile(join(claudeSkillPath, "SKILL.md"), "utf8")).toBe(await readFile(join(sharedSkillPath, "SKILL.md"), "utf8"));
+    expect(await readFile(join(codexSkillPath, "SKILL.md"), "utf8")).toBe(await readFile(join(sharedSkillPath, "SKILL.md"), "utf8"));
   });
 });

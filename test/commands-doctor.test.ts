@@ -48,15 +48,20 @@ describe("drwn doctor", () => {
   });
 
   test("reports stale downstream skill symlinks", async () => {
-    const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
+    const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
 
+    await runAgentsCli(["library", "defaults", "add", "skill", "alpha"], {
+      AGENTS_REPO_ROOT: fixture.repoRoot,
+      AGENTS_HOME_DIR: fixture.homeDir,
+      AGENTS_DIR: fixture.agentsDir,
+    });
     await runAgentsCli(["write", "--skills-only"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,
     });
-    await runAgentsCli(["skills", "uncurate", "alpha"], {
+    await runAgentsCli(["library", "defaults", "remove", "skill", "alpha"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,

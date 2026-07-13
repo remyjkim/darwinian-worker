@@ -1,10 +1,11 @@
-// ABOUTME: Implements drwn skills packages add for installing package-backed skill bundles into ~/.agents.
-// ABOUTME: Keeps package-backed skills as available sources only; curation and write remain separate steps.
+// ABOUTME: Implements drwn skills packages add for installing package-backed skill bundles into the Store.
+// ABOUTME: Keeps package-backed skills as available Library sources without activating them.
 
 import { Option, UsageError } from "clipanion";
 import { buildSkillInventory } from "../../../../cli/core/skills";
 import { classifySkillAddInput, ingestLooseSkill, ingestSkillPackage } from "../../../../cli/core/skill-packages";
 import { renderJson } from "../../../../cli/core/output";
+import { ensureStoreInitialized } from "../../../../cli/core/card-store";
 import { BaseCommand } from "../../base";
 
 export class SkillsPackagesAddCommand extends BaseCommand {
@@ -19,8 +20,8 @@ export class SkillsPackagesAddCommand extends BaseCommand {
       visible to library and add commands, but are not automatically activated
       in any project.
 
-      Use drwn add skill, drwn skills curate, or library defaults commands to
-      opt into installed skills.
+      Use drwn add skill or drwn library defaults add skill to opt into an
+      installed skill.
     `,
     examples: [
       ["Install a bundle from npm", "drwn skills packages add @acme/skill-bundle"],
@@ -58,6 +59,7 @@ export class SkillsPackagesAddCommand extends BaseCommand {
 
   async execute() {
     try {
+      await ensureStoreInitialized(this.context.agentsDir);
       const inventory = await buildSkillInventory(this.context.repoRoot, this.context.agentsDir, this.context.homeDir);
       const existingSkillNames = new Set(inventory.map((skill) => skill.name));
       const existingSkills = inventory.map((skill) => ({

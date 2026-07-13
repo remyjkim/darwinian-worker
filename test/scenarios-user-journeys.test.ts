@@ -63,7 +63,7 @@ async function addParallelSkills(repoRoot: string) {
 }
 
 describe("user journeys", () => {
-  test("first-time user can inspect, curate, and write a skill downstream", async () => {
+  test("first-time user can inspect, select, and write a skill downstream", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     const env = {
@@ -79,7 +79,7 @@ describe("user journeys", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("alpha");
 
-    result = await runAgentsCli(["skills", "curate", "alpha"], env);
+    result = await runAgentsCli(["library", "defaults", "add", "skill", "alpha"], env);
     expect(result.exitCode).toBe(0);
 
     result = await runAgentsCli(["write", "--skills-only"], env);
@@ -87,13 +87,15 @@ describe("user journeys", () => {
   });
 
   test("legacy wrapper user sees plausible equivalent dry-run intent", async () => {
-    const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
+    const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     const env = {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,
     };
+
+    expect((await runAgentsCli(["library", "defaults", "add", "skill", "alpha"], env)).exitCode).toBe(0);
 
     const legacy = await runSyncWrapper(["--dry-run"], env);
     const modern = await runAgentsCli(["write", "--dry-run"], env);
@@ -105,7 +107,7 @@ describe("user journeys", () => {
   });
 
   test("drifted environment user gets drift, stale link, and missing generated file reports", async () => {
-    const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
+    const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     const env = {
       AGENTS_REPO_ROOT: fixture.repoRoot,
@@ -113,8 +115,9 @@ describe("user journeys", () => {
       AGENTS_DIR: fixture.agentsDir,
     };
 
+    await runAgentsCli(["library", "defaults", "add", "skill", "alpha"], env);
     await runAgentsCli(["write", "--skills-only"], env);
-    await runAgentsCli(["skills", "uncurate", "alpha"], env);
+    await runAgentsCli(["library", "defaults", "remove", "skill", "alpha"], env);
     await writeFile(
       fixture.claudeSettings,
       JSON.stringify({ model: "sonnet", mcpServers: { rogue: { url: "x" } } }, null, 2),
@@ -237,7 +240,7 @@ describe("user journeys", () => {
     expect(doctorResult.stdout).toContain("deleted-skill");
   });
 
-  test("package-backed bundle user can add, inspect, curate, and write a skill downstream", async () => {
+  test("package-backed bundle user can add, inspect, select, and write a skill downstream", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     const { bundleRoot } = await createBundleFixture(fixture.root);
@@ -254,7 +257,7 @@ describe("user journeys", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("hello-skill");
 
-    result = await runAgentsCli(["skills", "curate", "hello-skill"], env);
+    result = await runAgentsCli(["library", "defaults", "add", "skill", "hello-skill"], env);
     expect(result.exitCode).toBe(0);
 
     result = await runAgentsCli(["write", "--skills-only"], env);

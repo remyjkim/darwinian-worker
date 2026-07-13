@@ -34,7 +34,7 @@ export {
 export async function syncRepository(options: SyncOptions = {}) {
   return await syncRepositoryCore({
     ...options,
-    repoRoot: options.repoRoot ?? inferRepoRootFromModulePath(import.meta.path),
+    repoRoot: options.repoRoot ?? process.env.AGENTS_REPO_ROOT ?? inferRepoRootFromModulePath(import.meta.path),
   });
 }
 

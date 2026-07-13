@@ -1,7 +1,7 @@
-// ABOUTME: Manages repo skill discovery, curation, and downstream skill sync state computation.
-// ABOUTME: Encapsulates the curated publication layer so commands don't manipulate copies ad hoc.
+// ABOUTME: Manages Library skill discovery and downstream skill sync state computation.
+// ABOUTME: Keeps explicit selections separate from ambient legacy skill directories.
 
-import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { CardLockEntry } from "./card-lock";
@@ -40,12 +40,6 @@ export interface SkillInventoryItem extends RepoSkill {
 export interface SkillSyncOverrides {
   include?: string[];
   exclude?: string[];
-}
-
-function validateSkillName(name: string) {
-  if (name.includes("/") || name.includes("\\") || name === "." || name === "..") {
-    throw new Error(`Invalid skill name: ${name}`);
-  }
 }
 
 interface MaterializeIntent {
@@ -226,39 +220,6 @@ export async function buildSkillInventory(repoRoot: string, agentsDir: string, h
   return [...repoInventory, ...packageInventory].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export async function curateSkill(
-  options: { repoRoot: string; agentsDir: string },
-  name: string,
-) {
-  validateSkillName(name);
-  const skill = await findAvailableSkill(options.repoRoot, options.agentsDir, name);
-  if (!skill) {
-    throw new Error(`Unknown skill: ${name}`);
-  }
-  if (skill.scope !== "shared") {
-    throw new Error(`Only shared skills can be curated into ~/.agents/skills: ${name}`);
-  }
-
-  const curatedPath = join(options.agentsDir, "skills", name);
-  mkdirSync(join(options.agentsDir, "skills"), { recursive: true });
-  rmSync(curatedPath, { recursive: true, force: true });
-  cpSync(skill.path, curatedPath, { recursive: true, dereference: true });
-
-  return curatedPath;
-}
-
-export async function uncurateSkill(
-  options: { agentsDir: string },
-  name: string,
-) {
-  validateSkillName(name);
-  const curatedPath = join(options.agentsDir, "skills", name);
-  if (!existsSync(curatedPath)) {
-    throw new Error(`Skill is not curated: ${name}`);
-  }
-  rmSync(curatedPath, { recursive: true, force: true });
-}
-
 export async function findStaleManagedEntries(dirPath: string, desiredNames: Set<string>) {
   if (!existsSync(dirPath)) {
     return [];
@@ -277,12 +238,11 @@ export async function syncSkills(
   overrides?: SkillSyncOverrides,
   lockedCards: CardLockEntry[] = [],
   contentRoots?: Record<string, string>,
+  machineSources?: Record<string, import("./defaults").ResolvedMachineSkill>,
 ): Promise<SyncResult> {
   const managedPaths: ManagedPath[] = [];
   const result: SyncResult = { changes: [], warnings: [], managedPaths };
   const toolPaths = resolveToolPaths(options.toolRoot ?? options.homeDir);
-  const scopeDirs = resolveSkillScopeDirs(options.repoRoot);
-  const curatedDir = join(options.agentsDir, "skills");
   const excluded = new Set(overrides?.exclude ?? []);
   result.warnings.push(...collectDuplicateSkillWarnings(lockedCards));
   for (const skill of excluded) {
@@ -298,7 +258,7 @@ export async function syncSkills(
   }> = [];
   const errors: string[] = [];
   for (const name of includes) {
-    const source = await resolveSkillSource(name, lockedCards, options.repoRoot, options.agentsDir, contentRoots);
+    const source = await resolveSkillSource(name, lockedCards, options.repoRoot, options.agentsDir, contentRoots, machineSources);
     if (source.layer === "missing") {
       errors.push(source.reason);
       continue;
@@ -314,91 +274,16 @@ export async function syncSkills(
   const claudeIntents = new Map<string, MaterializeIntent>();
   const codexIntents = new Map<string, MaterializeIntent>();
 
-  if (options.writeScope === "machine" && existsSync(curatedDir)) {
-    const curatedEntries = await readdir(curatedDir, { withFileTypes: true });
-    for (const entry of curatedEntries) {
-      if (entry.name.startsWith(".")) {
-        continue;
-      }
-      if (excluded.has(entry.name)) {
-        continue;
-      }
-      const sourcePath = join(curatedDir, entry.name);
-      if (!options.target || options.target === "claude") {
-        desiredClaude.add(entry.name);
-        recordIntent(claudeIntents, {
-          linkPath: join(toolPaths.claudeSkills, entry.name),
-          targetPath: sourcePath,
-          relPath: `.claude/skills/${entry.name}`,
-          layerLabel: "user-default",
-        });
-      }
-      if (!options.target || options.target === "codex") {
-        desiredCodex.add(entry.name);
-        recordIntent(codexIntents, {
-          linkPath: join(toolPaths.codexSkills, entry.name),
-          targetPath: sourcePath,
-          relPath: `.codex/skills/${entry.name}`,
-          layerLabel: "user-default",
-        });
-      }
-    }
-  }
-
-  if (
-    options.writeScope === "machine" &&
-    (!options.target || options.target === "claude") &&
-    existsSync(scopeDirs.claudeOnly)
-  ) {
-    const entries = await readdir(scopeDirs.claudeOnly, { withFileTypes: true });
-    for (const entry of entries) {
-      if (entry.name.startsWith(".")) {
-        continue;
-      }
-      if (excluded.has(entry.name)) {
-        continue;
-      }
-      desiredClaude.add(entry.name);
-      const targetPath = join(scopeDirs.claudeOnly, entry.name);
-      recordIntent(claudeIntents, {
-        linkPath: join(toolPaths.claudeSkills, entry.name),
-        targetPath,
-        relPath: `.claude/skills/${entry.name}`,
-        layerLabel: "user-default",
-      });
-    }
-  }
-
-  if (
-    options.writeScope === "machine" &&
-    (!options.target || options.target === "codex") &&
-    existsSync(scopeDirs.codexOnly)
-  ) {
-    const entries = await readdir(scopeDirs.codexOnly, { withFileTypes: true });
-    for (const entry of entries) {
-      if (entry.name.startsWith(".")) {
-        continue;
-      }
-      if (excluded.has(entry.name)) {
-        continue;
-      }
-      desiredCodex.add(entry.name);
-      const targetPath = join(scopeDirs.codexOnly, entry.name);
-      recordIntent(codexIntents, {
-        linkPath: join(toolPaths.codexSkills, entry.name),
-        targetPath,
-        relPath: `.codex/skills/${entry.name}`,
-        layerLabel: "user-default",
-      });
-    }
-  }
-
   for (const { name, source } of resolvedIncludes) {
     const targetPath = source.path;
     const scope = source.layer === "card" ? "shared" : source.scope;
     const layerLabel = source.layer === "card"
       ? `card ${source.cardName}@${source.cardVersion}`
-      : "user-default";
+      : source.layer === "machine-profile"
+        ? `machine profile ${source.profileId}`
+        : source.layer === "machine-explicit"
+          ? "explicit machine selection"
+          : "user-default";
     if (!options.target || options.target === "claude") {
       if (scope === "shared" || scope === "claude-only") {
         desiredClaude.add(name);

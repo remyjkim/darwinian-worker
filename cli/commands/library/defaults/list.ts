@@ -2,7 +2,7 @@
 // ABOUTME: Keeps global defaults visible without mutating inventory or project config.
 
 import { Option } from "clipanion";
-import { mergeUserMcpLibrary } from "../../../core/defaults";
+import { mergeUserMcpLibrary, resolveMachineCapabilities } from "../../../core/defaults";
 import { readMachineConfig } from "../../../core/card-store";
 import { loadRegistry } from "../../../core/registry";
 import { buildSkillInventory } from "../../../core/skills";
@@ -40,19 +40,33 @@ export class LibraryDefaultsListCommand extends BaseCommand {
     ]);
     const registry = mergeUserMcpLibrary(builtInRegistry, userMcpLibrary);
     const config = await readMachineConfig(this.context.agentsDir);
+    const effective = await resolveMachineCapabilities({
+      repoRoot: this.context.repoRoot,
+      agentsDir: this.context.agentsDir,
+    });
     const skillMap = new Map(skills.map((skill) => [skill.name, skill]));
 
     const payload = {
       profile: config.capabilities.profile?.id ?? null,
-      skills: config.capabilities.skills.map((id) => ({
-        id,
-        status: skillMap.has(id) ? "resolved" : "missing",
-        source: skillMap.get(id)?.sourceType ?? "repo",
+      skills: effective.skills.map((item) => ({
+        id: item.id,
+        status: "resolved",
+        provenance: item.source,
+        source: item.source === "profile" ? "profile" : skillMap.get(item.id)?.sourceType ?? "repo",
       })),
-      mcpServers: config.capabilities.mcpServers.map((id) => ({
-        id,
-        status: registry.servers[id] ? "resolved" : "missing",
-        source: builtInRegistry.servers[id] ? "built-in" : userMcpLibrary.servers[id] ? "library" : "missing",
+      mcpServers: effective.mcpServers.map((item) => ({
+        id: item.id,
+        status: "resolved",
+        provenance: item.source,
+        source: item.source === "profile"
+          ? "profile"
+          : builtInRegistry.servers[item.id]
+            ? "built-in"
+            : userMcpLibrary.servers[item.id]
+              ? "library"
+              : registry.servers[item.id]
+                ? "registry"
+                : "missing",
       })),
     };
 
@@ -62,10 +76,10 @@ export class LibraryDefaultsListCommand extends BaseCommand {
     }
 
     const rows = [
-      ...payload.skills.map((item) => ["skill", item.id, item.status, item.source]),
-      ...payload.mcpServers.map((item) => ["mcp", item.id, item.status, item.source]),
+      ...payload.skills.map((item) => ["skill", item.id, item.provenance, item.source]),
+      ...payload.mcpServers.map((item) => ["mcp", item.id, item.provenance, item.source]),
     ];
-    this.context.stdout.write(rows.length > 0 ? renderTable(["kind", "id", "status", "source"], rows) : "No global defaults configured.\n");
+    this.context.stdout.write(rows.length > 0 ? renderTable(["kind", "id", "provenance", "source"], rows) : "No global defaults configured.\n");
     return 0;
   }
 }

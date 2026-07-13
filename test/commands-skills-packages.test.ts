@@ -1,10 +1,11 @@
 // ABOUTME: Verifies drwn skills packages add/list/show command behavior for package-backed skill bundles.
-// ABOUTME: Locks in the package-backed extension source UX without conflating it with curation or write.
+// ABOUTME: Locks in Store-backed Library inventory without conflating installation with activation.
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { cleanupTempRoots, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { resolveStoreSkillPackageVersionRoot } from "../cli/core/store-paths";
 
 const tempRoots: string[] = [];
 
@@ -75,7 +76,7 @@ describe("drwn skills packages", () => {
     expect(result.exitCode).toBe(0);
     const manifest = JSON.parse(
       await readFile(
-        join(fixture.agentsDir, "packages", "skills", "@acme", "skills-sample", "1.0.0", "bundle.json"),
+        join(resolveStoreSkillPackageVersionRoot(fixture.agentsDir, "@acme/skills-sample", "1.0.0"), "bundle.json"),
         "utf8",
       ),
     ) as { bundleName: string };
@@ -100,7 +101,7 @@ describe("drwn skills packages", () => {
     expect(parsed.skillName).toBe("package-loose");
     const manifest = JSON.parse(
       await readFile(
-        join(fixture.agentsDir, "packages", "skills", "@local", "package-loose", "0.1.0", "bundle.json"),
+        join(resolveStoreSkillPackageVersionRoot(fixture.agentsDir, "@local/package-loose", "0.1.0"), "bundle.json"),
         "utf8",
       ),
     ) as { bundleName: string };

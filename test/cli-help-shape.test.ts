@@ -62,13 +62,19 @@ const REQUIRED_SNIPPETS: Record<string, string[]> = {
   "extensions setup": ["Beads only", "MarkItDown only", "--no-install"],
   "extensions doctor": ["all extensions"],
   "mcp list": ["Project-aware"],
-  "library defaults add skill": ["curates it into"],
+  "library defaults add skill": ["explicit machine capability"],
   "library defaults add mcp": ["safe no-op"],
   "store export": ["disabled", "credentials", "no unrestricted override"],
   worker: ["one selected project Worker", "drwn use", "Cards compose"],
 };
 
 describe("drwn command help", () => {
+  test("does not register prototype curation commands", async () => {
+    const topLevel = await helpFor([]);
+    expect(topLevel.stdout).not.toContain("drwn skills curate");
+    expect(topLevel.stdout).not.toContain("drwn skills uncurate");
+  });
+
   test("every registered command renders Details and Examples sections", async () => {
     const topLevel = await helpFor([]);
     expect(topLevel.exitCode).toBe(0);
