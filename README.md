@@ -36,6 +36,10 @@ drwn write
 
 For a project-local harness, run `drwn init` in the project root, then `drwn add skill <name>` and `drwn write`.
 
+## Store Export Safety
+
+Whole-store export is disabled because `~/.agents/drwn` can contain credentials and operational machine state. `drwn store export` exits with `STORE_EXPORT_DISABLED_UNSAFE`, creates no archive, and has no unrestricted override. Treat any broad Store archives created by earlier releases as sensitive.
+
 ## Claude Session Signals Beta
 
 `drwn` includes hidden Claude Code hook commands that can record active Cards and

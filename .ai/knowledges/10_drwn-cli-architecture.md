@@ -1062,8 +1062,8 @@ Verified placeholder. `commands/scan.ts` registers under `["scan"]` and emits a 
 | `store migrate` | pre-cards → cards layout via staging+archive | `commands/store/migrate.ts` → `migrateStore` (`migration.ts`) |
 | `store migrate-to-git` | per-version dirs → per-card bare Git repos | `commands/store/migrate-to-git.ts` → `migrateCardsToGit` (`store-migrate.ts`) |
 | `store gc` | `git gc` in each card bare repo | `commands/store/gc.ts` |
-| `store export` | tar of `~/.agents/drwn` to `--out` | `commands/store/export.ts` |
-| `store seed` | populate an empty drwn store from a tarball or directory snapshot | `commands/store/seed.ts` → `store-seed.ts` |
+| `store export` | fail closed with `STORE_EXPORT_DISABLED_UNSAFE`; whole-store archives can include credentials and operational state | `commands/store/export.ts` |
+| `store seed` | populate an empty drwn store from a legacy tarball or prepared directory | `commands/store/seed.ts` → `store-seed.ts` |
 
 **`store migrate` flow:** short-circuit when `detectLegacyLayout` is false (`commands/store/migrate.ts`, `migration.ts`); build `drwn.staging-<ts>/`; copy machine config or seed `{version: 1, optional: {}}` (`migration.ts`); explode MCP library into per-id JSON files; copy skill packages; create empty `cards/`, `sources/`, `generated/`, `extracted/`, `catalogs/`; write `store.json` (schema-version 1); validate staging; archive old layout under `drwn.archive-<ts>`; `rename` staging into the live store.
 

@@ -64,6 +64,7 @@ const REQUIRED_SNIPPETS: Record<string, string[]> = {
   "mcp list": ["Project-aware"],
   "library defaults add skill": ["curates it into"],
   "library defaults add mcp": ["safe no-op"],
+  "store export": ["disabled", "credentials", "no unrestricted override"],
 };
 
 describe("drwn command help", () => {

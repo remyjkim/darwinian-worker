@@ -604,7 +604,7 @@ drwn store seed --from /seed/drwn-store
 drwn store seed --from /seed/drwn-store.tar --force
 ```
 
-`store seed` unpacks a previously exported drwn store snapshot into
+`store seed` unpacks a legacy drwn store snapshot or prepared directory into
 `~/.agents/drwn`. It accepts a tarball or directory via `--from` (required).
 It refuses to overwrite a non-empty store unless `--force` is passed. Designed
 for CI base images and airgapped deployments.
@@ -617,9 +617,13 @@ drwn store export --out /tmp/drwn-store.tar
 DRWN_STORE_READONLY=1 drwn card publish @me/backend
 ```
 
-`store gc` runs `git gc` in each local card repo. `store export` writes a tar
-archive of `~/.agents/drwn`. `DRWN_STORE_READONLY=1` refuses store mutations,
-which is useful for validation workflows against mounted or unpacked snapshots.
+`store gc` runs `git gc` in each local card repo. `store export` is retained as
+a fail-closed command and returns `STORE_EXPORT_DISABLED_UNSAFE` before creating
+an output directory. A broad `~/.agents/drwn` archive can contain credentials
+and operational state, so there is no unrestricted override and archives from
+earlier releases must be treated as sensitive. `DRWN_STORE_READONLY=1` refuses
+store mutations, which is useful for validation workflows against mounted or
+unpacked legacy snapshots.
 
 ## Scan Command
 

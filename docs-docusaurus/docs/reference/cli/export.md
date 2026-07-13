@@ -86,4 +86,4 @@ If you need the `.tar.gz` form for HTTP upload, pass `--gzip` to `drwn export se
 ## Related
 
 - [Status](./status) — effective harness summary for the project being exported
-- [Store export](./store) — archive of `~/.agents/drwn/` itself (distinct from session logs)
+- [Store maintenance](./store) - whole-store export is disabled because `~/.agents/drwn/` can contain credentials; session export remains a separate, scoped command

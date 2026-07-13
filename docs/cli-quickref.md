@@ -250,6 +250,18 @@ Auth commands:
 - `drwn whoami [--json]`
 - `drwn logout [--json]`
 
+Store maintenance commands:
+
+- `drwn store status [--json]`
+- `drwn store verify [--json]`
+- `drwn store migrate [--yes]`
+- `drwn store migrate-to-git [--dry-run] [--json]`
+- `drwn store gc`
+- `drwn store seed --from <legacy-snapshot-or-directory> [--force]`
+- `drwn store export --out <path>` (registered but disabled)
+
+`drwn store export` fails with `STORE_EXPORT_DISABLED_UNSAFE` before creating an output directory. Whole-store archives can contain credentials, machine defaults, project registrations, write history, generated state, and caches. There is no unrestricted override. Treat archives produced by earlier releases as sensitive. Deploy's scoped Card payload export and legacy Store seed inputs are separate paths and remain supported.
+
 Export commands:
 
 - `drwn export sessions [--dry-run] [--gzip] [--out <path>]`

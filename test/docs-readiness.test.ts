@@ -92,6 +92,7 @@ describe("documentation readiness", () => {
     expect(readme).toContain("drwn status");
     expect(readme).toContain("concepts/disciplines");
     expect(readme).toContain("concepts/safety-model");
+    expect(readme).toContain("Whole-store export is disabled");
 
     // cli-quickref carries the usage-pattern content the slim README points to.
     expect(quickref).toContain("Usage modes");
@@ -109,8 +110,10 @@ describe("documentation readiness", () => {
     expect(quickref).toContain("registry/config.json");
     expect(quickref).toContain("registry/mcp-servers.json");
     expect(quickref).toContain("drwn apply");
+    expect(quickref).toContain("STORE_EXPORT_DISABLED_UNSAFE");
 
     expect(repoOperatorDocs).toContain("drwn apply");
+    expect(usageGuide).toContain("STORE_EXPORT_DISABLED_UNSAFE");
     expect(usageGuide).toContain("<project>/.agents/drwn/config.json");
     expect(usageGuide).toContain("~/.agents/drwn/machine.json");
     expect(usageGuide).toContain("~/.agents/drwn/mcp-servers");
@@ -157,6 +160,7 @@ describe("documentation readiness", () => {
     expect(docsDocusaurus).toContain("~/.agents/drwn/machine.json");
     expect(docsDocusaurus).toContain("~/.agents/drwn/skills");
     expect(docsDocusaurus).toContain("~/.agents/drwn/mcp-servers");
+    expect(docsDocusaurus).toContain("STORE_EXPORT_DISABLED_UNSAFE");
     for (const command of [
       "drwn card source list",
       "drwn card source show",

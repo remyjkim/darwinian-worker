@@ -25,8 +25,9 @@ drwn store verify
 drwn store migrate
 drwn store migrate-to-git --dry-run --json
 drwn store gc
-drwn store export --out /tmp/drwn-store.tar
 ```
+
+Whole-store export is disabled with `STORE_EXPORT_DISABLED_UNSAFE` because this directory can contain credentials and operational state. There is no unrestricted override. Treat broad Store archives produced by earlier releases as sensitive.
 
 Readonly mode is useful for validation against mounted or unpacked snapshots:
 

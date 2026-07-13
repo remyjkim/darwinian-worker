@@ -195,6 +195,25 @@ function verifyDocsPresence() {
   } satisfies CheckResult;
 }
 
+function verifyStoreExportSecurity() {
+  const sourcePath = join(repoRoot, "cli/commands/store/export.ts");
+  const source = readFileSync(sourcePath, "utf8");
+  const issues: string[] = [];
+
+  if (!source.includes("STORE_EXPORT_DISABLED_UNSAFE")) {
+    issues.push("ordinary export must retain the fail-closed error code");
+  }
+  if (/\bcreateArchive\s*\(/.test(source) || /entries\s*:\s*\[\s*["']drwn["']\s*\]/.test(source)) {
+    issues.push("ordinary export must not archive the drwn store root");
+  }
+
+  return {
+    name: "store export security",
+    ok: issues.length === 0,
+    details: issues.join("; ") || undefined,
+  } satisfies CheckResult;
+}
+
 async function verifySchemaPackageReachable() {
   const pkg = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8")) as {
     dependencies?: Record<string, string>;
@@ -260,6 +279,7 @@ async function main() {
   warnings.push(...packageResult.warnings);
 
   checks.push(verifyDocsPresence());
+  checks.push(verifyStoreExportSecurity());
   checks.push(await verifySchemaPackageReachable());
   checks.push(await verifyPackageContents());
 

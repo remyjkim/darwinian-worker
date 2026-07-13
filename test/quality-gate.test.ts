@@ -26,5 +26,6 @@ describe("quality gate", () => {
     expect(await proc.exited).toBe(0);
     expect(parsed.ok).toBe(true);
     expect(parsed.checks.some((check) => check.name === "package metadata")).toBe(true);
+    expect(parsed.checks.some((check) => check.name === "store export security")).toBe(true);
   });
 });

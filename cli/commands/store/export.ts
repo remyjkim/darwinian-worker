@@ -1,5 +1,5 @@
-// ABOUTME: Implements drwn store export for creating read-only store archives.
-// ABOUTME: Archives ~/.agents/drwn for transfer or inspection.
+// ABOUTME: Preserves the store export command as a fail-closed security boundary.
+// ABOUTME: Refuses whole-store archives because the store contains credentials and operational state.
 
 import { Option } from "clipanion";
 import { DrwnError } from "../../core/errors";
@@ -10,12 +10,13 @@ export class StoreExportCommand extends BaseCommand {
 
   static override usage = BaseCommand.Usage({
     category: "Store",
-    description: "Export the local drwn store as a tar archive.",
+    description: "Report that unsafe whole-store export is disabled.",
     details: `
-      Writes a tar archive containing the local ~/.agents/drwn store. The
-      archive can be mounted or unpacked read-only for validation workflows.
+      Whole-store export is disabled because ~/.agents/drwn can contain
+      credentials and operational state. There is no unrestricted override.
+      Portable inventory export is tracked as a separate, allowlisted format.
     `,
-    examples: [["Export the store", "drwn store export --out /tmp/drwn-store.tar"]],
+    examples: [["Confirm the safety boundary", "drwn store export --out /tmp/drwn-store.tar"]],
   });
 
   out = Option.String("--out", { required: true, description: "Output tar archive path." });
