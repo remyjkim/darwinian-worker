@@ -38,7 +38,7 @@ test("removing an explicit skill removes its previously materialized downstream 
   expect(existsSync(linkPath)).toBe(false);
 });
 
-test("cleanup refuses to overwrite, then preserves, user content that replaced a managed copy", async () => {
+test("cleanup preserves user content that replaced a removed managed copy", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   expect((await runAgentsCli(["library", "defaults", "add", "skill", "alpha"], envFor(fixture))).exitCode).toBe(0);
@@ -50,14 +50,8 @@ test("cleanup refuses to overwrite, then preserves, user content that replaced a
 
   expect((await runAgentsCli(["library", "defaults", "remove", "skill", "alpha"], envFor(fixture))).exitCode).toBe(0);
 
-  // Without --force, drift protection refuses and leaves the user content untouched.
-  const refused = await runAgentsCli(["write", "--skills-only"], envFor(fixture));
-  expect(refused.exitCode).not.toBe(0);
-  expect(`${refused.stdout}${refused.stderr}`).toContain("drift");
-  expect(existsSync(join(linkPath, "SKILL.md"))).toBe(true);
+  const result = await runAgentsCli(["write", "--skills-only", "--json"], envFor(fixture));
 
-  // With --force, the write proceeds but cleanup still preserves the differing user content.
-  const result = await runAgentsCli(["write", "--skills-only", "--force", "--json"], envFor(fixture));
   expect(result.exitCode).toBe(0);
   expect(existsSync(join(linkPath, "SKILL.md"))).toBe(true);
   expect(JSON.parse(result.stdout).warnings.some((warning: string) => warning.includes("preserved user-owned path"))).toBe(true);

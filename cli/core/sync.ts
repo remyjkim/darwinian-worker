@@ -221,7 +221,7 @@ export function collectMachineProjectionConflicts(
 ): MachineProjectionConflict[] {
   if (state.scopedOptions.writeScope !== "machine") return [];
   const desired = planMachineManagedPaths(state);
-  const { toAdd, toRemove, toVerify } = diffWriteRecord(previousRecord, desired);
+  const { toAdd, toVerify } = diffWriteRecord(previousRecord, desired);
   const conflicts: MachineProjectionConflict[] = [];
 
   for (const entry of toAdd) {
@@ -253,7 +253,7 @@ export function collectMachineProjectionConflicts(
     }
   }
 
-  for (const entry of [...toVerify, ...toRemove]) {
+  for (const entry of toVerify) {
     const absolutePath = managedPathAbsolute(state, entry);
     if (entry.kind === "managed-fields") {
       const current = inspectManagedFields(absolutePath, entry);
