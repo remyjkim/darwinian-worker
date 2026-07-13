@@ -4,6 +4,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { loadPolicyFile, parsePolicyText } from "../src/policy/load";
 
 const fixtureUrl = (name: string) => new URL(`./fixtures/policies/${name}`, import.meta.url);
@@ -110,7 +111,7 @@ allow:
 
 describe("loadPolicyFile", () => {
   test("loads a policy file from disk", async () => {
-    const policy = await loadPolicyFile(fixtureUrl("good.yaml").pathname, { homeDir: "/Users/operator" });
+    const policy = await loadPolicyFile(fileURLToPath(fixtureUrl("good.yaml")), { homeDir: "/Users/operator" });
 
     expect(policy.allow.map((entry) => entry.program)).toEqual(["git", "dotnet"]);
   });

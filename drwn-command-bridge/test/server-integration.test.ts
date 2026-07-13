@@ -7,6 +7,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createServer, type ServerDependencies } from "../src/server";
 import { parsePolicyText } from "../src/policy/load";
 import type { AttemptPayload, OutcomePayload } from "../src/audit/log";
@@ -196,7 +197,7 @@ describe("MCP server integration", () => {
     }
 
     const offenders = [];
-    for (const file of await sourceFiles(new URL("../src", import.meta.url).pathname)) {
+    for (const file of await sourceFiles(fileURLToPath(new URL("../src", import.meta.url)))) {
       if ((await readFile(file, "utf8")).includes("console.log")) {
         offenders.push(file);
       }
