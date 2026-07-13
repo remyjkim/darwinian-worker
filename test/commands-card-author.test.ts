@@ -23,7 +23,7 @@ test("card new creates a source with card.json and persists scope", async () => 
   expect(result.exitCode).toBe(0);
   expect(existsSync(join(fixture.agentsDir, "drwn", "sources", "@me", "backend", "card.json"))).toBe(true);
   const machine = JSON.parse(await readFile(join(fixture.agentsDir, "drwn", "machine.json"), "utf8"));
-  expect(machine.authoring.scope).toBe("@me");
+  expect(machine.policy.authoring.scope).toBe("@me");
 });
 
 test("card new fails for unscoped non-interactive names without authoring scope", async () => {

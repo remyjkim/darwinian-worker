@@ -6,6 +6,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { cleanupTempRoots, scaffoldCliFixture } from "./helpers";
 import type { AgentsContext } from "../cli/context";
+import { createEmptyMachineConfig } from "../cli/core/machine-config";
 
 const tempRoots: string[] = [];
 
@@ -31,7 +32,7 @@ describe("loadAnalyzerConfig", () => {
     expect(cfg).toMatchObject({
       apiUrl: undefined,
       clientId: "drwn-cli",
-      configPath: join(fixture.agentsDir, "drwn", "config.json"),
+      configPath: join(fixture.agentsDir, "drwn", "machine.json"),
     });
   });
 
@@ -40,12 +41,10 @@ describe("loadAnalyzerConfig", () => {
     tempRoots.push(fixture.root);
     await mkdir(join(fixture.agentsDir, "drwn"), { recursive: true });
     await writeFile(
-      join(fixture.agentsDir, "drwn", "config.json"),
+      join(fixture.agentsDir, "drwn", "machine.json"),
       JSON.stringify({
-        version: 1,
-        targets: {},
-        optional: {},
-        analyzer: { apiUrl: "https://configured.test", clientId: "configured-client" },
+        ...createEmptyMachineConfig(),
+        policy: { analyzer: { apiUrl: "https://configured.test", clientId: "configured-client" } },
       }),
     );
     const { loadAnalyzerConfig } = await import("../cli/core/auth/config");
@@ -63,17 +62,15 @@ describe("loadAnalyzerConfig", () => {
     tempRoots.push(fixture.root);
     await mkdir(join(fixture.agentsDir, "drwn"), { recursive: true });
     await writeFile(
-      join(fixture.agentsDir, "drwn", "config.json"),
+      join(fixture.agentsDir, "drwn", "machine.json"),
       JSON.stringify({
-        version: 1,
-        targets: {},
-        optional: {},
-        analyzer: {
+        ...createEmptyMachineConfig(),
+        policy: { analyzer: {
           apiUrl: "https://api.test/",
           clientId: "custom-client",
           webBaseUrl: "https://app.test/",
           maxArchiveBytes: 1234,
-        },
+        } },
       }),
     );
     const { loadAnalyzerConfig } = await import("../cli/core/auth/config");
@@ -91,12 +88,10 @@ describe("loadAnalyzerConfig", () => {
     tempRoots.push(fixture.root);
     await mkdir(join(fixture.agentsDir, "drwn"), { recursive: true });
     await writeFile(
-      join(fixture.agentsDir, "drwn", "config.json"),
+      join(fixture.agentsDir, "drwn", "machine.json"),
       JSON.stringify({
-        version: 1,
-        targets: {},
-        optional: {},
-        analyzer: { webBaseUrl: "https://configured-app.test" },
+        ...createEmptyMachineConfig(),
+        policy: { analyzer: { webBaseUrl: "https://configured-app.test" } },
       }),
     );
     const { loadAnalyzerConfig } = await import("../cli/core/auth/config");
@@ -116,10 +111,8 @@ describe("loadAnalyzerConfig", () => {
     await writeFile(
       join(fixture.agentsDir, "drwn", "machine.json"),
       JSON.stringify({
-        version: 1,
-        targets: {},
-        optional: {},
-        analyzer: { apiUrl: "https://machine.test/" },
+        ...createEmptyMachineConfig(),
+        policy: { analyzer: { apiUrl: "https://machine.test/" } },
       }),
     );
     const { loadAnalyzerConfig } = await import("../cli/core/auth/config");

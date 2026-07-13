@@ -3,12 +3,12 @@
 
 import { existsSync, lstatSync, mkdirSync, readlinkSync, renameSync, rmSync } from "node:fs";
 import { cp, mkdir, readdir, readFile, rename } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { writeAtomically } from "./fs";
-import { resolveLibraryDir, resolveSkillPackagesRoot, resolveUserConfigPath } from "./paths";
+import { createEmptyMachineConfig, parseMachineConfig } from "./machine-config";
+import { resolveLibraryDir, resolveSkillPackagesRoot } from "./paths";
 import {
   resolveCardsRoot,
-  resolveMachineConfigPath,
   resolveSourcesRoot,
   resolveStoreGeneratedDir,
   resolveStoreMcpServersDir,
@@ -36,23 +36,13 @@ function timestamp() {
 }
 
 export function detectLegacyLayout(agentsDir: string): boolean {
-  const hasLegacyConfig = existsSync(resolveUserConfigPath(agentsDir));
   const hasLegacyLibrary = existsSync(resolveLibraryDir(agentsDir));
   const hasLegacyPackages = existsSync(join(agentsDir, "packages"));
-  return hasLegacyConfig || hasLegacyLibrary || hasLegacyPackages;
+  return hasLegacyLibrary || hasLegacyPackages;
 }
 
 async function writeJson(pathValue: string, value: unknown) {
   await writeAtomically(pathValue, `${JSON.stringify(value, null, 2)}\n`);
-}
-
-async function copyIfExists(from: string, to: string) {
-  if (!existsSync(from)) {
-    return false;
-  }
-  await mkdir(dirname(to), { recursive: true });
-  await cp(from, to, { recursive: true, verbatimSymlinks: true, force: true });
-  return true;
 }
 
 async function explodeMcpLibrary(agentsDir: string, stagingRoot: string, steps: string[]) {
@@ -80,7 +70,7 @@ async function validateStaging(stagingRoot: string) {
     }
   }
   JSON.parse(await readFile(join(stagingRoot, "store.json"), "utf8"));
-  JSON.parse(await readFile(join(stagingRoot, "machine.json"), "utf8"));
+  parseMachineConfig(JSON.parse(await readFile(join(stagingRoot, "machine.json"), "utf8")), join(stagingRoot, "machine.json"));
   for (const entry of await readdir(join(stagingRoot, "mcp-servers"), { withFileTypes: true })) {
     if (entry.isFile() && entry.name.endsWith(".json")) {
       JSON.parse(await readFile(join(stagingRoot, "mcp-servers", entry.name), "utf8"));
@@ -101,14 +91,8 @@ export async function migrateStore(options: MigrationOptions): Promise<Migration
   rmSync(stagingPath, { recursive: true, force: true });
   await mkdir(stagingPath, { recursive: true });
 
-  const legacyConfig = resolveUserConfigPath(options.agentsDir);
-  if (existsSync(legacyConfig)) {
-    await copyIfExists(legacyConfig, join(stagingPath, "machine.json"));
-    steps.push("migrated machine config");
-  } else {
-    await writeJson(join(stagingPath, "machine.json"), { version: 1, optional: {} });
-    steps.push("created empty machine config");
-  }
+  await writeJson(join(stagingPath, "machine.json"), createEmptyMachineConfig());
+  steps.push("created empty machine config; prototype machine intent was not migrated");
 
   const libraryVersion = await explodeMcpLibrary(options.agentsDir, stagingPath, steps);
   const legacySkillsRoot = resolveSkillPackagesRoot(options.agentsDir);

@@ -7,6 +7,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeMachineConfig } from "../cli/core/card-store";
 import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { createEmptyMachineConfig } from "../cli/core/machine-config";
 
 const tempRoots: string[] = [];
 
@@ -18,15 +19,9 @@ test("card new --from-defaults captures machine default skills into a profile ca
   const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
   tempRoots.push(fixture.root);
   await writeMachineConfig(fixture.agentsDir, {
-    version: 1,
-    optional: {},
-    defaults: { skills: ["alpha"] },
-    targets: {
-      claude: { enabled: true, configPath: fixture.claudeSettings, format: "json-merge", mcpKey: "mcpServers" },
-      codex: { enabled: true, configPath: fixture.codexConfig, format: "toml-merge", mcpKey: "mcp_servers" },
-      cursor: { enabled: true, configPath: fixture.cursorConfig, format: "json-standalone", mcpKey: "mcpServers" },
-    },
-    authoring: { scope: "@me" },
+    ...createEmptyMachineConfig(),
+    policy: { authoring: { scope: "@me" } },
+    capabilities: { profile: null, skills: ["alpha"], mcpServers: [] },
   });
 
   const result = await runAgentsCli(["card", "new", "everyday", "--from-defaults", "--no-git"], envFor(fixture));
@@ -43,14 +38,8 @@ test("card new --from-defaults fails when no skill defaults are configured", asy
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   await writeMachineConfig(fixture.agentsDir, {
-    version: 1,
-    optional: {},
-    targets: {
-      claude: { enabled: true, configPath: fixture.claudeSettings, format: "json-merge", mcpKey: "mcpServers" },
-      codex: { enabled: true, configPath: fixture.codexConfig, format: "toml-merge", mcpKey: "mcp_servers" },
-      cursor: { enabled: true, configPath: fixture.cursorConfig, format: "json-standalone", mcpKey: "mcpServers" },
-    },
-    authoring: { scope: "@me" },
+    ...createEmptyMachineConfig(),
+    policy: { authoring: { scope: "@me" } },
   });
   const result = await runAgentsCli(["card", "new", "everyday", "--from-defaults", "--no-git"], envFor(fixture));
   expect(result.exitCode).toBe(1);

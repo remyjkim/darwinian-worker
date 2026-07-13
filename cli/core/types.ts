@@ -92,11 +92,34 @@ export interface StoreMetadata {
   initAt: string;
 }
 
-export type MachineConfig = CanonicalConfig & {
-  authoring?: {
-    scope?: string;
+export interface MachineProfilePin {
+  id: "darwinian-operator";
+  source: "git+https://github.com/curation-labs/darwinian-operator.git#v1.0.2";
+  name: "@darwinian/operator";
+  version: "1.0.2";
+  commit: string;
+  treeSha: string;
+  integrity: `sha256-${string}`;
+  skills: string[];
+  mcpServers: string[];
+}
+
+export interface MachineConfig {
+  schema: "drwn.machine";
+  schemaVersion: 1;
+  policy: {
+    authoring?: { scope?: string };
+    targets?: Partial<Record<TargetName, Partial<TargetConfig>>>;
+    catalogs?: CanonicalConfig["catalogs"];
+    analyzer?: CanonicalConfig["analyzer"];
+    trustedSources?: TrustedSourcesPolicy;
   };
-};
+  capabilities: {
+    profile: MachineProfilePin | null;
+    skills: string[];
+    mcpServers: string[];
+  };
+}
 
 export type ServerOverride =
   | { enabled: boolean }

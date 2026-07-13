@@ -1,12 +1,11 @@
 // ABOUTME: Adds a skill to machine-wide defaults.
-// ABOUTME: Maintains the ~/.agents/skills compatibility publication symlink.
+// ABOUTME: Mutates explicit machine intent without projecting or curating files.
 
 import { Option, UsageError } from "clipanion";
-import { loadConfig } from "../../../core/config";
-import { addDefaultValue, ensureSkillDefaultsInitialized } from "../../../core/defaults";
-import { loadRegistry } from "../../../core/registry";
-import { curateSkill, findAvailableSkill, listCuratedSkills } from "../../../core/skills";
-import { loadOrInitializeUserConfig, saveUserConfig } from "../../../core/user-config";
+import { addDefaultValue } from "../../../core/defaults";
+import { readMachineConfig, writeMachineConfig } from "../../../core/card-store";
+import { findAvailableSkill } from "../../../core/skills";
+import { resolveMachineConfigPath } from "../../../core/store-paths";
 import { renderJson } from "../../../core/output";
 import { BaseCommand } from "../../base";
 
@@ -15,18 +14,16 @@ export class LibraryDefaultsAddSkillCommand extends BaseCommand {
 
   static override usage = BaseCommand.Usage({
     category: "Library",
-    description: "Add a shared skill to machine-wide defaults and curate it into the ~/.agents publication layer.",
+    description: "Add a shared skill to explicit machine capability selections.",
     details: `
-      Promotes a shared-scope skill to machine-wide defaults and curates it into
-      ~/.agents/skills so downstream tools can consume it. Non-shared skills are
-      rejected as global defaults.
+      Selects a shared-scope Library skill as explicit machine capability
+      intent. Non-shared skills are rejected as machine defaults.
 
-      Use --dry-run to preview the default change without writing config or
-      performing the curation side effect.
+      Use --dry-run to preview without initializing or writing machine state.
     `,
     examples: [
       ["Add a default skill", "drwn library defaults add skill alpha"],
-      ["Preview the curation side effect", "drwn library defaults add skill alpha --dry-run"],
+      ["Preview a machine selection", "drwn library defaults add skill alpha --dry-run"],
       ["Add a package-backed skill as JSON", "drwn library defaults add skill hello-skill --json"],
     ],
   });
@@ -50,32 +47,23 @@ export class LibraryDefaultsAddSkillCommand extends BaseCommand {
       throw new UsageError(`Only shared skills can be global defaults: ${this.skillName}`);
     }
 
-    const [repoConfig, registry, curatedSkills] = await Promise.all([
-      loadConfig(this.context.repoRoot),
-      loadRegistry(this.context.repoRoot),
-      listCuratedSkills(this.context.agentsDir),
-    ]);
-    const { path, config } = await loadOrInitializeUserConfig({
-      repoConfig,
-      registry,
-      agentsDir: this.context.agentsDir,
-    });
-    const defaults = ensureSkillDefaultsInitialized(config, curatedSkills.map((skill) => skill.name));
+    const path = resolveMachineConfigPath(this.context.agentsDir);
+    const config = await readMachineConfig(this.context.agentsDir);
+    const defaults = config.capabilities.skills;
     const alreadyDefault = defaults.includes(this.skillName);
-    config.defaults!.skills = addDefaultValue(defaults, this.skillName);
+    config.capabilities.skills = addDefaultValue(defaults, this.skillName);
 
     if (!this.dryRun) {
-      await saveUserConfig(path, config);
-      await curateSkill({ repoRoot: this.context.repoRoot, agentsDir: this.context.agentsDir }, this.skillName);
+      await writeMachineConfig(this.context.agentsDir, config);
     }
 
     const payload = {
       kind: "skill",
       id: this.skillName,
-      scope: "global-default",
+      scope: "machine-explicit",
       action: alreadyDefault ? "already-default" : "added",
       configPath: path,
-      next: ["drwn write --dry-run"],
+      next: ["drwn write --scope machine --dry-run"],
     };
 
     if (this.json) {
@@ -91,7 +79,7 @@ export class LibraryDefaultsAddSkillCommand extends BaseCommand {
         ...(this.dryRun ? [`Would update ${path}`] : [`Updated ${path}`]),
         "",
         "Next:",
-        "  drwn write --dry-run",
+        "  drwn write --scope machine --dry-run",
       ].join("\n") + "\n",
     );
     return 0;

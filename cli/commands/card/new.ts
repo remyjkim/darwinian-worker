@@ -61,11 +61,11 @@ export class CardNewCommand extends BaseCommand {
     }
     const machine = await readMachineConfig(this.context.agentsDir);
 
-    let scopeForCreate: string | undefined = this.scope ?? machine.authoring?.scope;
+    let scopeForCreate: string | undefined = this.scope ?? machine.policy.authoring?.scope;
     if (isCardUnscopedName(this.name) && !scopeForCreate) {
       const resolved = await resolveScopeForCardNew({
         explicit: this.scope,
-        savedScope: machine.authoring?.scope,
+        savedScope: machine.policy.authoring?.scope,
         isInteractive: process.stdin.isTTY === true && process.stdout.isTTY === true,
         probe: () => probeAuthoringScope({ runGh: defaultProbeGh, runGit: defaultProbeGit }),
         prompt: async (suggested) => {

@@ -1,11 +1,13 @@
-// ABOUTME: Verifies user-owned drwn global config helpers.
-// ABOUTME: Protects defaults initialization without changing repo-root fixture behavior.
+// ABOUTME: Verifies strict machine configuration initialization and policy-only runtime merging.
+// ABOUTME: Ensures prototype config and ambient curated directories are never activation authority.
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { cleanupTempRoots, scaffoldCliFixture } from "./helpers";
-import type { CanonicalConfig } from "../cli/core/types";
+import { createEmptyMachineConfig } from "../cli/core/machine-config";
+import { resolveMachineConfigPath } from "../cli/core/store-paths";
 
 const tempRoots: string[] = [];
 
@@ -13,58 +15,72 @@ afterEach(async () => {
   await cleanupTempRoots(tempRoots);
 });
 
-describe("user global config", () => {
-  test("resolves the user drwn config under the agents dir", async () => {
-    const fixture = await scaffoldCliFixture();
-    tempRoots.push(fixture.root);
-
-    const { resolveUserDrwnDir, resolveUserConfigPath } = await import("../cli/core/user-config");
-
-    expect(resolveUserDrwnDir(fixture.agentsDir)).toBe(join(fixture.agentsDir, "drwn"));
-    expect(resolveUserConfigPath(fixture.agentsDir)).toBe(join(fixture.agentsDir, "drwn", "config.json"));
-  });
-
-  test("saves and loads stable user config JSON", async () => {
-    const fixture = await scaffoldCliFixture();
-    tempRoots.push(fixture.root);
-
-    const { loadUserConfig, resolveUserConfigPath, saveUserConfig } = await import("../cli/core/user-config");
-    const path = resolveUserConfigPath(fixture.agentsDir);
-    const config: CanonicalConfig = {
-      version: 1,
-      targets: {
-        claude: { enabled: true, configPath: fixture.claudeSettings, format: "json-merge", mcpKey: "mcpServers" },
-        codex: { enabled: true, configPath: fixture.codexConfig, format: "toml-merge", mcpKey: "mcp_servers" },
-        cursor: { enabled: true, configPath: fixture.cursorConfig, format: "json-standalone", mcpKey: "mcpServers" },
-      },
-      optional: {},
-      defaults: { skills: ["alpha"], mcpServers: ["context7"] },
-    };
-
-    await saveUserConfig(path, config);
-
-    expect(await loadUserConfig(path)).toEqual(config);
-    expect(await readFile(path, "utf8")).toEndWith("\n");
-  });
-
-  test("initializes defaults from packaged config, registry, and curated skills", async () => {
+describe("machine runtime config", () => {
+  test("initializes explicit empty intent without scanning ambient skills or packaged defaults", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     await mkdir(join(fixture.agentsDir, "skills"), { recursive: true });
     await symlink(join(fixture.repoRoot, "skills", "shared", "alpha"), join(fixture.agentsDir, "skills", "alpha"), "dir");
-
     const { loadConfig } = await import("../cli/core/config");
     const { loadRegistry } = await import("../cli/core/registry");
-    const { initializeUserConfigFromPackagedDefaults } = await import("../cli/core/user-config");
+    const { loadOrInitializeMachineConfig } = await import("../cli/core/user-config");
 
-    const initialized = await initializeUserConfigFromPackagedDefaults(
-      await loadConfig(fixture.repoRoot),
-      await loadRegistry(fixture.repoRoot),
-      fixture.agentsDir,
+    const loaded = await loadOrInitializeMachineConfig({
+      repoConfig: await loadConfig(fixture.repoRoot),
+      registry: await loadRegistry(fixture.repoRoot),
+      agentsDir: fixture.agentsDir,
+    });
+
+    expect(loaded.created).toBe(true);
+    expect(loaded.path).toBe(resolveMachineConfigPath(fixture.agentsDir));
+    expect(loaded.config).toEqual(createEmptyMachineConfig());
+    expect(existsSync(loaded.path)).toBe(true);
+  });
+
+  test("merges only machine policy into packaged runtime config", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const { loadConfig } = await import("../cli/core/config");
+    const { loadEffectiveConfig } = await import("../cli/core/user-config");
+    const repoConfig = await loadConfig(fixture.repoRoot);
+    await mkdir(join(fixture.agentsDir, "drwn"), { recursive: true });
+    await writeFile(
+      resolveMachineConfigPath(fixture.agentsDir),
+      `${JSON.stringify({
+        ...createEmptyMachineConfig(),
+        policy: {
+          targets: { codex: { enabled: false } },
+          analyzer: { apiUrl: "https://machine.test" },
+          trustedSources: { strict: true },
+        },
+        capabilities: { profile: null, skills: ["alpha"], mcpServers: ["notion"] },
+      }, null, 2)}\n`,
     );
 
-    expect(initialized.defaults?.skills).toContain("alpha");
-    expect(initialized.defaults?.mcpServers).toContain("context7");
-    expect(initialized.targets.claude.configPath).toBe(fixture.claudeSettings);
+    const loaded = await loadEffectiveConfig(repoConfig, fixture.agentsDir);
+
+    expect(loaded.userConfigPath).toBe(resolveMachineConfigPath(fixture.agentsDir));
+    expect(loaded.config.targets.codex.enabled).toBe(false);
+    expect(loaded.config.analyzer?.apiUrl).toBe("https://machine.test");
+    expect(loaded.config.trustedSources?.strict).toBe(true);
+    expect(loaded.config.defaults).toEqual(repoConfig.defaults);
+  });
+
+  test("does not read the prototype config.json fallback", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const { loadConfig } = await import("../cli/core/config");
+    const { loadEffectiveConfig } = await import("../cli/core/user-config");
+    const repoConfig = await loadConfig(fixture.repoRoot);
+    await mkdir(join(fixture.agentsDir, "drwn"), { recursive: true });
+    await writeFile(
+      join(fixture.agentsDir, "drwn", "config.json"),
+      JSON.stringify({ version: 1, analyzer: { apiUrl: "https://prototype.test" }, optional: {} }),
+    );
+
+    const loaded = await loadEffectiveConfig(repoConfig, fixture.agentsDir);
+
+    expect(loaded.userConfigPath).toBeNull();
+    expect(loaded.config).toEqual(repoConfig);
   });
 });

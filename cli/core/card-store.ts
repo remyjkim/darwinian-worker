@@ -13,6 +13,7 @@ import type { CardOrigin, GitLockInfo } from "./card-lock";
 import { detectLegacyLayout } from "./migration";
 import { compareVersions, gt, isStrictSemver, maxSatisfying, validRange } from "./semver-utils";
 import { writeAtomically } from "./fs";
+import { createEmptyMachineConfig, initializeMachineConfig, readMachineConfigFile, writeMachineConfigFile } from "./machine-config";
 import * as git from "./git";
 import { readCardMeta, readDeprecationMapFromMeta, writeCardMeta } from "./card-meta";
 import { DrwnError } from "./errors";
@@ -132,20 +133,17 @@ export async function ensureStoreInitialized(agentsDir: string) {
     await writeJson(metadataPath, { schemaVersion: 1, initAt: nowIso() } satisfies StoreMetadata);
   }
   const machinePath = resolveMachineConfigPath(agentsDir);
-  if (!existsSync(machinePath)) {
-    await writeJson(machinePath, { version: 1, optional: {} });
-  }
+  await initializeMachineConfig(machinePath);
 }
 
 export async function readMachineConfig(agentsDir: string): Promise<MachineConfig> {
-  await ensureStoreInitialized(agentsDir);
-  return JSON.parse(await readFile(resolveMachineConfigPath(agentsDir), "utf8")) as MachineConfig;
+  return (await readMachineConfigFile(resolveMachineConfigPath(agentsDir))) ?? createEmptyMachineConfig();
 }
 
 export async function writeMachineConfig(agentsDir: string, config: MachineConfig) {
   assertStoreWritable();
   await ensureStoreInitialized(agentsDir);
-  await writeJson(resolveMachineConfigPath(agentsDir), config);
+  await writeMachineConfigFile(resolveMachineConfigPath(agentsDir), config);
 }
 
 export function normalizeCardName(name: string, scope?: string) {
@@ -267,7 +265,7 @@ export async function createCardSource(options: {
   await ensureStoreInitialized(options.agentsDir);
   if (options.scope) {
     const machine = await readMachineConfig(options.agentsDir);
-    machine.authoring = { ...(machine.authoring ?? {}), scope: options.scope };
+    machine.policy.authoring = { ...(machine.policy.authoring ?? {}), scope: options.scope };
     await writeMachineConfig(options.agentsDir, machine);
   }
 

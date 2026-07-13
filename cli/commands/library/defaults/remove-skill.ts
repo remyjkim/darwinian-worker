@@ -2,12 +2,10 @@
 // ABOUTME: Leaves the underlying repo or package-backed skill source intact.
 
 import { Option, UsageError } from "clipanion";
-import { existsSync } from "node:fs";
-import { loadConfig } from "../../../core/config";
-import { ensureSkillDefaultsInitialized, removeDefaultValue } from "../../../core/defaults";
-import { loadRegistry } from "../../../core/registry";
-import { findAvailableSkill, listCuratedSkills, uncurateSkill } from "../../../core/skills";
-import { loadOrInitializeUserConfig, saveUserConfig } from "../../../core/user-config";
+import { removeDefaultValue } from "../../../core/defaults";
+import { readMachineConfig, writeMachineConfig } from "../../../core/card-store";
+import { findAvailableSkill } from "../../../core/skills";
+import { resolveMachineConfigPath } from "../../../core/store-paths";
 import { renderJson } from "../../../core/output";
 import { BaseCommand } from "../../base";
 
@@ -18,9 +16,8 @@ export class LibraryDefaultsRemoveSkillCommand extends BaseCommand {
     category: "Library",
     description: "Remove a skill from machine-wide defaults.",
     details: `
-      Removes a skill from machine-wide defaults. When not in --dry-run mode,
-      also removes the curated ~/.agents/skills link if it exists. The source
-      skill in the repo or package cache is left intact.
+      Removes an explicit machine skill selection. The source skill in the
+      Library and any profile-provided copy remain intact.
     `,
     examples: [
       ["Remove a default skill", "drwn library defaults remove skill alpha"],
@@ -44,34 +41,23 @@ export class LibraryDefaultsRemoveSkillCommand extends BaseCommand {
       throw new UsageError(`Unknown skill: ${this.skillName}`);
     }
 
-    const [repoConfig, registry, curatedSkills] = await Promise.all([
-      loadConfig(this.context.repoRoot),
-      loadRegistry(this.context.repoRoot),
-      listCuratedSkills(this.context.agentsDir),
-    ]);
-    const { path, config } = await loadOrInitializeUserConfig({
-      repoConfig,
-      registry,
-      agentsDir: this.context.agentsDir,
-    });
-    const defaults = ensureSkillDefaultsInitialized(config, curatedSkills.map((skill) => skill.name));
+    const path = resolveMachineConfigPath(this.context.agentsDir);
+    const config = await readMachineConfig(this.context.agentsDir);
+    const defaults = config.capabilities.skills;
     const wasDefault = defaults.includes(this.skillName);
-    config.defaults!.skills = removeDefaultValue(defaults, this.skillName);
+    config.capabilities.skills = removeDefaultValue(defaults, this.skillName);
 
     if (!this.dryRun) {
-      await saveUserConfig(path, config);
-      if (existsSync(`${this.context.agentsDir}/skills/${this.skillName}`)) {
-        await uncurateSkill({ agentsDir: this.context.agentsDir }, this.skillName);
-      }
+      await writeMachineConfig(this.context.agentsDir, config);
     }
 
     const payload = {
       kind: "skill",
       id: this.skillName,
-      scope: "global-default",
+      scope: "machine-explicit",
       action: wasDefault ? "removed" : "not-default",
       configPath: path,
-      next: ["drwn write --dry-run"],
+      next: ["drwn write --scope machine --dry-run"],
     };
 
     if (this.json) {
@@ -87,7 +73,7 @@ export class LibraryDefaultsRemoveSkillCommand extends BaseCommand {
         ...(this.dryRun ? [`Would update ${path}`] : [`Updated ${path}`]),
         "",
         "Next:",
-        "  drwn write --dry-run",
+        "  drwn write --scope machine --dry-run",
       ].join("\n") + "\n",
     );
     return 0;

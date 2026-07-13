@@ -7,6 +7,7 @@ import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { cleanupTempRoots, createTempRoot } from "./helpers";
 import { ensureStoreInitialized } from "../cli/core/card-store";
+import { createEmptyMachineConfig } from "../cli/core/machine-config";
 import { detectLegacyLayout, migrateStore } from "../cli/core/migration";
 
 const tempRoots: string[] = [];
@@ -62,6 +63,17 @@ test("detectLegacyLayout returns true for pre-cards fixture", async () => {
   expect(detectLegacyLayout(fixture.agentsDir)).toBe(true);
 });
 
+test("prototype config alone is not a supported migration source", async () => {
+  const root = await createTempRoot("prototype-config-");
+  tempRoots.push(root);
+  const agentsDir = join(root, ".agents");
+  await mkdir(join(agentsDir, "drwn"), { recursive: true });
+  await writeFile(join(agentsDir, "drwn", "config.json"), JSON.stringify({ version: 1, optional: {} }));
+
+  expect(detectLegacyLayout(agentsDir)).toBe(false);
+  expect((await migrateStore({ agentsDir })).steps).toEqual(["no legacy layout detected"]);
+});
+
 test("migrateStore produces the expected post-cards layout", async () => {
   const fixture = await scaffoldPreCardsFixture();
 
@@ -82,6 +94,7 @@ test("migrateStore produces the expected post-cards layout", async () => {
   expect(existsSync(result.archivedTo)).toBe(true);
   expect(existsSync(join(fixture.agentsDir, "library"))).toBe(false);
   expect(existsSync(join(fixture.agentsDir, "packages"))).toBe(false);
+  expect(JSON.parse(await readFile(join(fixture.agentsDir, "drwn", "machine.json"), "utf8"))).toEqual(createEmptyMachineConfig());
 
   const context7 = JSON.parse(await readFile(join(fixture.agentsDir, "drwn", "mcp-servers", "context7.json"), "utf8"));
   expect(context7.command).toBe("npx");
@@ -103,6 +116,16 @@ test("detectLegacyLayout returns true even after the cards-era store is initiali
   await ensureStoreInitialized(fixture.agentsDir);
 
   expect(detectLegacyLayout(fixture.agentsDir)).toBe(true);
+});
+
+test("store initialization writes the first supported empty machine contract", async () => {
+  const root = await createTempRoot("store-init-");
+  tempRoots.push(root);
+  const agentsDir = join(root, ".agents");
+
+  await ensureStoreInitialized(agentsDir);
+
+  expect(JSON.parse(await readFile(join(agentsDir, "drwn", "machine.json"), "utf8"))).toEqual(createEmptyMachineConfig());
 });
 
 test("migrateStore moves forward legacy data even when the cards-era store was preemptively initialized", async () => {

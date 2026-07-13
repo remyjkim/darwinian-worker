@@ -3,7 +3,6 @@
 
 import { addCardSourceSkill } from "./card-source";
 import { createCardSource, readMachineConfig } from "./card-store";
-import { hasExplicitSkillDefaults } from "./defaults";
 
 export async function createProfileCardFromDefaults(options: {
   agentsDir: string;
@@ -14,14 +13,14 @@ export async function createProfileCardFromDefaults(options: {
   noGit?: boolean;
 }) {
   const machine = await readMachineConfig(options.agentsDir);
-  if (!hasExplicitSkillDefaults(machine)) {
+  if (machine.capabilities.skills.length === 0) {
     throw new Error("No default skill set configured in machine.json. Add defaults with drwn library defaults add-skill first.");
   }
-  const skillNames = [...(machine.defaults?.skills ?? [])];
+  const skillNames = [...machine.capabilities.skills];
   if (skillNames.length === 0) {
     throw new Error("No default skill set configured in machine.json. Add defaults with drwn library defaults add-skill first.");
   }
-  const scope = options.scope ?? machine.authoring?.scope;
+  const scope = options.scope ?? machine.policy.authoring?.scope;
   const source = await createCardSource({
     agentsDir: options.agentsDir,
     name: options.name,

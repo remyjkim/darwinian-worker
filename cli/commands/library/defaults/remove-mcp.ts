@@ -2,17 +2,10 @@
 // ABOUTME: Leaves the built-in or library MCP definition available for future project use.
 
 import { Option, UsageError } from "clipanion";
-import { loadConfig } from "../../../core/config";
-import {
-  ensureMcpDefaultsInitialized,
-  mergeUserMcpLibrary,
-  removeDefaultValue,
-  resolveDefaultMcpNames,
-} from "../../../core/defaults";
+import { removeDefaultValue } from "../../../core/defaults";
+import { readMachineConfig, writeMachineConfig } from "../../../core/card-store";
 import { findLibraryMcpServer } from "../../../core/library";
-import { loadMcpLibrary } from "../../../core/mcp-library";
-import { loadRegistry } from "../../../core/registry";
-import { loadEffectiveConfig, loadOrInitializeUserConfig, saveUserConfig } from "../../../core/user-config";
+import { resolveMachineConfigPath } from "../../../core/store-paths";
 import { renderJson } from "../../../core/output";
 import { BaseCommand } from "../../base";
 
@@ -44,38 +37,28 @@ export class LibraryDefaultsRemoveMcpCommand extends BaseCommand {
   });
 
   async execute() {
-    const [repoConfig, builtInRegistry, userMcpLibrary] = await Promise.all([
-      loadConfig(this.context.repoRoot),
-      loadRegistry(this.context.repoRoot),
-      loadMcpLibrary(this.context.agentsDir),
-    ]);
-    const registry = mergeUserMcpLibrary(builtInRegistry, userMcpLibrary);
     const server = await findLibraryMcpServer(this.context.repoRoot, this.serverName, this.context.agentsDir);
     if (!server) {
       throw new UsageError(`Unknown MCP server: ${this.serverName}`);
     }
 
-    const { path, config } = await loadOrInitializeUserConfig({
-      repoConfig,
-      registry,
-      agentsDir: this.context.agentsDir,
-    });
-    const effective = await loadEffectiveConfig(repoConfig, this.context.agentsDir);
-    const defaults = ensureMcpDefaultsInitialized(config, resolveDefaultMcpNames(effective.config, registry));
+    const path = resolveMachineConfigPath(this.context.agentsDir);
+    const config = await readMachineConfig(this.context.agentsDir);
+    const defaults = config.capabilities.mcpServers;
     const wasDefault = defaults.includes(this.serverName);
-    config.defaults!.mcpServers = removeDefaultValue(defaults, this.serverName);
+    config.capabilities.mcpServers = removeDefaultValue(defaults, this.serverName);
 
     if (!this.dryRun) {
-      await saveUserConfig(path, config);
+      await writeMachineConfig(this.context.agentsDir, config);
     }
 
     const payload = {
       kind: "mcp",
       id: this.serverName,
-      scope: "global-default",
+      scope: "machine-explicit",
       action: wasDefault ? "removed" : "not-default",
       configPath: path,
-      next: ["drwn write --dry-run"],
+      next: ["drwn write --scope machine --dry-run"],
     };
 
     if (this.json) {
@@ -91,7 +74,7 @@ export class LibraryDefaultsRemoveMcpCommand extends BaseCommand {
         ...(this.dryRun ? [`Would update ${path}`] : [`Updated ${path}`]),
         "",
         "Next:",
-        "  drwn write --dry-run",
+        "  drwn write --scope machine --dry-run",
       ].join("\n") + "\n",
     );
     return 0;

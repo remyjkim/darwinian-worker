@@ -3,7 +3,7 @@
 
 import type { AgentsContext } from "../../context";
 import { loadConfig } from "../config";
-import { resolveUserConfigPath } from "../paths";
+import { resolveMachineConfigPath } from "../store-paths";
 import { loadEffectiveConfig } from "../user-config";
 
 export interface AnalyzerConfig {
@@ -47,6 +47,6 @@ export async function loadAnalyzerConfig(
     maxArchiveBytes: effectiveAnalyzer.maxArchiveBytes ??
       packagedAnalyzer.maxArchiveBytes ??
       DEFAULT_MAX_ARCHIVE_BYTES,
-    configPath: loaded.userConfigPath ?? resolveUserConfigPath(context.agentsDir),
+    configPath: loaded.userConfigPath ?? resolveMachineConfigPath(context.agentsDir),
   };
 }
