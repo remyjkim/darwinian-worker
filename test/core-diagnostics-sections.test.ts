@@ -6,7 +6,7 @@ import { mkdir, chmod, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { buildDiagnosticsSections } from "../cli/core/diagnostics";
 import { saveWriteRecord } from "../cli/core/write-record";
-import { cleanupTempRoots, scaffoldCliFixture, writeTestCardLock } from "./helpers";
+import { cleanupTempRoots, scaffoldCliFixture, writeSupportedProjectConfig, writeTestCardLock } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -20,7 +20,7 @@ test("diagnostics sections compose cards, store, and write-record state", async 
   const projectDir = join(fixture.root, "project");
   const configPath = join(projectDir, ".agents", "drwn", "config.json");
   await mkdir(dirname(configPath), { recursive: true });
-  await writeFile(configPath, JSON.stringify({ version: 1, cards: ["@me/backend@^1.0.0"] }, null, 2));
+  await writeSupportedProjectConfig(projectDir, { workers: ["@me/backend@^1.0.0"], activeWorker: "@me/backend" });
   await writeTestCardLock(projectDir, [
     {
       name: "@me/backend",

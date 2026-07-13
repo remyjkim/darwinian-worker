@@ -8,7 +8,7 @@ import { mkdtemp, mkdir, writeFile, rm, cp } from "node:fs/promises";
 import { chmod } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import type { CanonicalConfig, CanonicalRegistry } from "../cli/core/types";
+import type { CanonicalConfig, CanonicalRegistry, ProjectConfig } from "../cli/core/types";
 import { writeCardLock, type CardLockEntry, type ProjectLockGraph } from "../cli/core/card-lock";
 
 export function projectLockGraph(cards: CardLockEntry[]): ProjectLockGraph {
@@ -25,6 +25,35 @@ export function projectLockGraph(cards: CardLockEntry[]): ProjectLockGraph {
 
 export async function writeTestCardLock(projectRoot: string, cards: CardLockEntry[]) {
   return writeCardLock(projectRoot, projectLockGraph(cards));
+}
+
+export function supportedProjectConfig(overrides: Partial<ProjectConfig> = {}): ProjectConfig {
+  return {
+    schema: "drwn.project-config",
+    schemaVersion: 1,
+    workers: [],
+    activeWorker: null,
+    ...overrides,
+  };
+}
+
+export async function writeSupportedProjectConfig(projectRoot: string, overrides: Partial<ProjectConfig> = {}) {
+  const path = join(projectRoot, ".agents", "drwn", "config.json");
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, `${JSON.stringify(supportedProjectConfig(overrides), null, 2)}\n`);
+  return path;
+}
+
+export async function installProjectWorkers(
+  projectRoot: string,
+  agentsDir: string,
+  workers: string[],
+  activeWorker: string | null,
+  overrides: Partial<ProjectConfig> = {},
+) {
+  const { applyProjectCardSpecs } = await import("../cli/core/card-project");
+  await applyProjectCardSpecs(projectRoot, agentsDir, workers);
+  await writeSupportedProjectConfig(projectRoot, { workers, activeWorker, ...overrides });
 }
 
 export async function createTempRoot(prefix: string) {

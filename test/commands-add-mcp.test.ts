@@ -5,7 +5,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { cleanupTempRoots, publishCardWithSkills, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, installProjectWorkers, publishCardWithSkills, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -33,9 +33,9 @@ describe("drwn add mcp", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("Added context7");
     const config = JSON.parse(await readFile(join(projectDir, ".agents", "drwn", "config.json"), "utf8")) as {
-      servers?: Record<string, { enabled?: boolean }>;
+      mcpServers?: Record<string, { enabled?: boolean }>;
     };
-    expect(config.servers?.context7).toEqual({ enabled: true });
+    expect(config.mcpServers?.context7).toEqual({ enabled: true });
   });
 
   test("preserves existing project fields", async () => {
@@ -43,17 +43,16 @@ describe("drwn add mcp", () => {
     tempRoots.push(fixture.root);
     const projectDir = join(fixture.root, "project");
     const configPath = join(projectDir, ".agents", "drwn", "config.json");
-    await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-    await writeFile(configPath, JSON.stringify({ version: 1, skills: { include: ["alpha"] } }, null, 2));
+    await writeSupportedProjectConfig(projectDir, { skills: { include: ["alpha"] } });
 
     await runAgentsCli(["add", "mcp", "context7"], envFor(fixture), projectDir);
 
     const config = JSON.parse(await readFile(configPath, "utf8")) as {
       skills?: { include?: string[] };
-      servers?: Record<string, { enabled?: boolean }>;
+      mcpServers?: Record<string, { enabled?: boolean }>;
     };
     expect(config.skills?.include).toEqual(["alpha"]);
-    expect(config.servers?.context7).toEqual({ enabled: true });
+    expect(config.mcpServers?.context7).toEqual({ enabled: true });
   });
 
   test("dry-run json does not write project config", async () => {
@@ -124,10 +123,10 @@ describe("drwn add mcp", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("GITHUB_TOKEN");
     const projectConfig = JSON.parse(await readFile(join(projectDir, ".agents", "drwn", "config.json"), "utf8")) as {
-      servers?: Record<string, { command?: string; env?: Record<string, string> }>;
+      mcpServers?: Record<string, { command?: string; env?: Record<string, string> }>;
     };
-    expect(projectConfig.servers?.github?.command).toBe("npx");
-    expect(projectConfig.servers?.github?.env?.GITHUB_TOKEN).toBe("${GITHUB_TOKEN}");
+    expect(projectConfig.mcpServers?.github?.command).toBe("npx");
+    expect(projectConfig.mcpServers?.github?.env?.GITHUB_TOKEN).toBe("${GITHUB_TOKEN}");
   });
 
   test("does not write a project override for an already global default MCP", async () => {
@@ -171,9 +170,9 @@ describe("drwn add mcp", () => {
 
     expect(result.exitCode).toBe(0);
     const config = JSON.parse(await readFile(join(projectDir, ".agents", "drwn", "config.json"), "utf8")) as {
-      servers?: Record<string, { enabled?: boolean }>;
+      mcpServers?: Record<string, { enabled?: boolean }>;
     };
-    expect(config.servers?.github).toEqual({ enabled: true });
+    expect(config.mcpServers?.github).toEqual({ enabled: true });
   });
 
   test("adds a card-local optional MCP server toggle to project config", async () => {
@@ -194,8 +193,7 @@ describe("drwn add mcp", () => {
     });
     const projectDir = join(fixture.root, "project");
     const configPath = join(projectDir, ".agents", "drwn", "config.json");
-    await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-    await writeFile(configPath, JSON.stringify({ version: 1, cards: ["@me/base@1.0.0"], activeWorkers: ["@me/base"] }, null, 2));
+    await installProjectWorkers(projectDir, fixture.agentsDir, ["@me/base@1.0.0"], "@me/base");
 
     const result = await runAgentsCli(["add", "mcp", "card-local", "--json"], envFor(fixture), projectDir);
 
@@ -205,8 +203,8 @@ describe("drwn add mcp", () => {
     expect(parsed.action).toBe("enabled");
     expect(parsed.requiredEnv).toEqual(["CARD_LOCAL_TOKEN"]);
     const config = JSON.parse(await readFile(configPath, "utf8")) as {
-      servers?: Record<string, { enabled?: boolean; command?: string }>;
+      mcpServers?: Record<string, { enabled?: boolean; command?: string }>;
     };
-    expect(config.servers?.["card-local"]).toEqual({ enabled: true });
+    expect(config.mcpServers?.["card-local"]).toEqual({ enabled: true });
   });
 });

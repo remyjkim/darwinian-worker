@@ -5,8 +5,7 @@ import { afterEach, expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { syncRepository } from "../cli/core/sync";
-import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture } from "./helpers";
-import { mkdir, writeFile } from "node:fs/promises";
+import { cleanupTempRoots, envFor, installProjectWorkers, publishCardWithSkills, runAgentsCli, scaffoldCliFixture } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -19,11 +18,7 @@ test("two consecutive writes produce no material changes on a vendored project",
   tempRoots.push(fixture.root);
   await publishCardWithSkills(fixture, { name: "@me/backend", skills: ["alpha"] });
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(
-    join(projectDir, ".agents", "drwn", "config.json"),
-    JSON.stringify({ version: 1, cards: ["@me/backend@^1.0.0"], activeWorkers: ["@me/backend"] }, null, 2),
-  );
+  await installProjectWorkers(projectDir, fixture.agentsDir, ["@me/backend@^1.0.0"], "@me/backend");
 
   const first = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);
   expect(first.exitCode).toBe(0);

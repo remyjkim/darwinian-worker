@@ -5,7 +5,9 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { evaluateVersionFloor, loadCardLock, type CardLockEntry, type VersionFloorStatus } from "./card-lock";
 import { resolveSkillSource } from "./card-skill-resolver";
-import { mergeCardManifestsIntoProjectConfig, resolveProjectCards } from "./card-project";
+import { mergeCardManifestsIntoProjectConfig } from "./card-project";
+import { loadConfigLocal, loadCardLockLocal, mergeProjectWithLocal } from "./config-local";
+import { selectProjectWorker } from "./effective-state";
 import { loadConfig } from "./config";
 import { buildActiveServers, hashCodexManagedServers, mergeClaudeSettingsText, mergeCodexTomlText, renderCursorConfig, renderJsonMcpConfig } from "./mcp";
 import { hasExplicitSkillDefaults, mergeUserMcpLibrary, validateDefaultReferences } from "./defaults";
@@ -159,18 +161,25 @@ async function loadProjectWithCards(agentsDir: string, projectConfigPath?: strin
     return {
       projectRoot: null as string | null,
       projectConfig: null as ProjectConfig | null,
-      cardLocks: [] as Awaited<ReturnType<typeof resolveProjectCards>>,
+      cardLocks: [] as CardLockEntry[],
       projectWithCards: null as ProjectConfig | null,
     };
   }
   const projectRoot = resolveProjectRootFromConfigPath(projectConfigPath);
-  const projectConfig = await loadProjectConfig(projectConfigPath);
-  let cardLocks: Awaited<ReturnType<typeof resolveProjectCards>> = [];
-  try {
-    cardLocks = projectConfig.workers.length > 0 ? await resolveProjectCards(agentsDir, projectConfig.workers) : [];
-  } catch {
-    cardLocks = [];
-  }
+  const committedConfig = await loadProjectConfig(projectConfigPath);
+  const [committedLock, configLocal, localLock] = await Promise.all([
+    loadCardLock(projectRoot),
+    loadConfigLocal(projectRoot),
+    loadCardLockLocal(projectRoot),
+  ]);
+  const selection = selectProjectWorker({
+    projectConfig: committedConfig,
+    committedLock,
+    configLocal,
+    localLock,
+  });
+  const projectConfig = mergeProjectWithLocal(committedConfig, configLocal);
+  const cardLocks = selection.activeCards;
   const projectWithCards = mergeCardManifestsIntoProjectConfig(
     projectConfig,
     cardLocks.map((card) => card.manifest),

@@ -4,7 +4,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { cleanupTempRoots, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -18,10 +18,16 @@ async function projectWithLockFloor(minDrwnVersion: string) {
   const projectDir = join(fixture.root, "proj");
   const drwnDir = join(projectDir, ".agents", "drwn");
   await mkdir(drwnDir, { recursive: true });
-  await writeFile(join(drwnDir, "config.json"), JSON.stringify({ version: 1 }, null, 2));
+  await writeSupportedProjectConfig(projectDir);
   await writeFile(
     join(drwnDir, "card.lock"),
-    JSON.stringify({ lockfileVersion: 4, store: { minDrwnVersion }, cards: [] }, null, 2),
+    JSON.stringify({
+      schema: "drwn.project-lock",
+      schemaVersion: 1,
+      store: { minDrwnVersion },
+      workerRoots: [],
+      cards: [],
+    }, null, 2),
   );
   const env = {
     AGENTS_REPO_ROOT: fixture.repoRoot,

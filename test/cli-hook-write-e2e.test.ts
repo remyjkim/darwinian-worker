@@ -5,7 +5,7 @@ import { afterEach, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
-import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, envFor, installProjectWorkers, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -51,10 +51,7 @@ async function publishHookPolicyCard(fixture: Awaited<ReturnType<typeof scaffold
 async function createProjectWithTrustedHookCard(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
   const manifest = await publishHookPolicyCard(fixture);
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1, cards: [] }, null, 2));
-  expect((await runAgentsCli(["card", "add", `@me/policy@${manifest.version}`], envFor(fixture), projectDir)).exitCode).toBe(0);
-  expect((await runAgentsCli(["worker", "stack", "use", "@me/policy"], envFor(fixture), projectDir)).exitCode).toBe(0);
+  await installProjectWorkers(projectDir, fixture.agentsDir, [`@me/policy@${manifest.version}`], "@me/policy");
   expect((await runAgentsCli(["card", "trust", "@me/policy", "--hooks"], envFor(fixture), projectDir)).exitCode).toBe(0);
   return projectDir;
 }
@@ -80,10 +77,7 @@ test("drwn write materializes card hook composers and runtime settings", async (
   const manifest = JSON.parse(await readFile(join(sourceDir, "card.json"), "utf8"));
 
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1, cards: [] }, null, 2));
-  expect((await runAgentsCli(["card", "add", `@me/policy@${manifest.version}`], envFor(fixture), projectDir)).exitCode).toBe(0);
-  expect((await runAgentsCli(["worker", "stack", "use", "@me/policy"], envFor(fixture), projectDir)).exitCode).toBe(0);
+  await installProjectWorkers(projectDir, fixture.agentsDir, [`@me/policy@${manifest.version}`], "@me/policy");
   expect((await runAgentsCli(["card", "trust", "@me/policy", "--hooks"], envFor(fixture), projectDir)).exitCode).toBe(0);
 
   const write = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);
@@ -130,10 +124,7 @@ test("drwn write skips untrusted hooks and --strict-hooks fails", async () => {
   expect((await runAgentsCli(["card", "publish", "@me/policy"], envFor(fixture))).exitCode).toBe(0);
   const manifest = JSON.parse(await readFile(join(sourceDir, "card.json"), "utf8"));
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1, cards: [] }, null, 2));
-  expect((await runAgentsCli(["card", "add", `@me/policy@${manifest.version}`], envFor(fixture), projectDir)).exitCode).toBe(0);
-  expect((await runAgentsCli(["worker", "stack", "use", "@me/policy"], envFor(fixture), projectDir)).exitCode).toBe(0);
+  await installProjectWorkers(projectDir, fixture.agentsDir, [`@me/policy@${manifest.version}`], "@me/policy");
 
   const write = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);
   const strict = await runAgentsCli(["write", "--strict-hooks"], envFor(fixture), projectDir);
@@ -191,8 +182,7 @@ test("drwn write leaves session-signal hooks off by default", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1 }, null, 2));
+  await writeSupportedProjectConfig(projectDir);
 
   const write = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);
 
@@ -204,11 +194,7 @@ test("drwn write materializes enabled session-signal hooks with absolute invocat
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(
-    join(projectDir, ".agents", "drwn", "config.json"),
-    JSON.stringify({ version: 1, hooks: { signals: { enabled: true } } }, null, 2),
-  );
+  await writeSupportedProjectConfig(projectDir, { hooks: { signals: { enabled: true } } });
 
   const write = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);
 
@@ -273,13 +259,9 @@ test("drwn write honors project hooks.exclude entries", async () => {
   const manifest = JSON.parse(await readFile(join(sourceDir, "card.json"), "utf8"));
 
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(
-    join(projectDir, ".agents", "drwn", "config.json"),
-    JSON.stringify({ version: 1, cards: [], hooks: { exclude: ["@me/policy:guard"] } }, null, 2),
-  );
-  expect((await runAgentsCli(["card", "add", `@me/policy@${manifest.version}`], envFor(fixture), projectDir)).exitCode).toBe(0);
-  expect((await runAgentsCli(["worker", "stack", "use", "@me/policy"], envFor(fixture), projectDir)).exitCode).toBe(0);
+  await installProjectWorkers(projectDir, fixture.agentsDir, [`@me/policy@${manifest.version}`], "@me/policy", {
+    hooks: { exclude: ["@me/policy:guard"] },
+  });
 
   const write = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);
 

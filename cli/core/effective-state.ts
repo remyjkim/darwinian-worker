@@ -2,12 +2,11 @@
 // ABOUTME: Keeps project card, overlay, registry, and target resolution in one place.
 
 import { join } from "node:path";
-import type { CardLockEntry } from "./card-lock";
-import { mergeCardManifestsIntoProjectConfig, resolveProjectCards } from "./card-project";
-import { parseCardRef } from "./card-store";
+import type { CardLockEntry, ProjectLockV1, WorkerRootLockEntry } from "./card-lock";
+import { mergeCardManifestsIntoProjectConfig } from "./card-project";
 import { collectCardServerDefinitions, mergeCardServerDefinitionsIntoRegistry, type CardServerDefinition } from "./card-mcp";
-import { loadCardLock, backfillLockTreeShas } from "./card-lock";
-import { loadConfigLocal, loadCardLockLocal, mergeProjectWithLocal } from "./config-local";
+import { loadCardLock } from "./card-lock";
+import { loadConfigLocal, loadCardLockLocal, mergeProjectWithLocal, type ConfigLocal } from "./config-local";
 import { resolveCardContentRoot } from "./card-content-root";
 import { resolveMode } from "./mode-resolution";
 import { loadConfig } from "./config";
@@ -29,6 +28,8 @@ import type {
 import { loadEffectiveConfig } from "./user-config";
 import { resolveProjectWriteRecordPath } from "./write-record";
 import type { SkillSyncOverrides } from "./skills";
+import { DrwnError } from "./errors";
+import { assertWorkerCapabilityCompatibility } from "./card-skill-resolver";
 
 import type { ResolvedCardMode } from "./mode-resolution";
 
@@ -42,6 +43,7 @@ export interface EffectiveState {
   projectRoot: string | null;
   projectConfig: ProjectConfig | null;
   projectConfigWithCards: ProjectConfig | null;
+  workerSelection: EffectiveWorkerSelection | null;
   cardServerDefinitions: CardServerDefinition[];
   lockedCards: CardLockEntry[];
   activeCards: CardLockEntry[];
@@ -56,6 +58,146 @@ export interface EffectiveState {
   recordPath: string;
   scopeRoot: string;
   scopedOptions: NormalizedSyncOptions;
+}
+
+export interface EffectiveWorkerSelection {
+  installedRoots: WorkerRootLockEntry[];
+  activeWorker: string | null;
+  selectedRoot: WorkerRootLockEntry | null;
+  installedCards: CardLockEntry[];
+  activeCards: CardLockEntry[];
+  selectionSource: "project" | "local";
+  localOverrides: {
+    cardReplacements: string[];
+    localOnlyRoots: string[];
+    sourceOverrides: string[];
+  };
+  localCardNames: Set<string>;
+}
+
+interface SelectProjectWorkerOptions {
+  projectConfig: ProjectConfig;
+  committedLock: ProjectLockV1 | null;
+  configLocal: ConfigLocal | null;
+  localLock: ProjectLockV1 | null;
+}
+
+function invalidSelection(detail: string): never {
+  throw new DrwnError("PROJECT_LOCK_INVALID", `Invalid project Worker graph: ${detail}`);
+}
+
+function sameTopology(left: WorkerRootLockEntry, right: WorkerRootLockEntry): boolean {
+  return left.name === right.name && left.kind === right.kind &&
+    left.members.length === right.members.length && left.members.every((member, index) => right.members[index] === member);
+}
+
+function closureNames(root: WorkerRootLockEntry): string[] {
+  return [root.name, ...root.members];
+}
+
+export function selectProjectWorker(options: SelectProjectWorkerOptions): EffectiveWorkerSelection {
+  const { projectConfig, committedLock, configLocal, localLock } = options;
+  const committedRoots = committedLock?.workerRoots ?? [];
+  if (projectConfig.workers.length !== committedRoots.length) {
+    invalidSelection("project requirements and committed lock roots differ");
+  }
+  projectConfig.workers.forEach((spec, index) => {
+    if (committedRoots[index]?.requested !== spec) {
+      invalidSelection(`requirement ${spec} does not match committed root ${committedRoots[index]?.requested ?? "<missing>"}`);
+    }
+  });
+
+  const committedRootsByName = new Map(committedRoots.map((root) => [root.name, root]));
+  const committedCardsByName = new Map((committedLock?.cards ?? []).map((card) => [card.name, card]));
+  const localRootsByName = new Map((localLock?.workerRoots ?? []).map((root) => [root.name, root]));
+  const localCardsByName = new Map((localLock?.cards ?? []).map((card) => [card.name, card]));
+  const replacementNames = Object.keys(configLocal?.cardReplacements ?? {});
+  const localOnlyNames = configLocal?.localOnlyRoots ?? [];
+  const localOnlySet = new Set(localOnlyNames);
+  const replacementSet = new Set(replacementNames);
+
+  for (const name of replacementNames) {
+    if (!committedCardsByName.has(name)) invalidSelection(`local replacement ${name} is not a committed Card`);
+    if (!localCardsByName.has(name)) invalidSelection(`local replacement ${name} is missing from card.lock.local`);
+  }
+  for (const name of localOnlyNames) {
+    if (committedRootsByName.has(name)) invalidSelection(`local-only root ${name} is already committed`);
+    if (!localRootsByName.has(name)) invalidSelection(`local-only root ${name} is missing from card.lock.local`);
+  }
+  for (const localRoot of localLock?.workerRoots ?? []) {
+    if (localOnlySet.has(localRoot.name)) continue;
+    const committedRoot = committedRootsByName.get(localRoot.name);
+    if (!committedRoot) invalidSelection(`local root ${localRoot.name} is neither committed nor declared local-only`);
+    if (!sameTopology(committedRoot, localRoot)) invalidSelection(`local root ${localRoot.name} changes committed root topology`);
+    if (!closureNames(localRoot).some((name) => replacementSet.has(name))) {
+      invalidSelection(`local root ${localRoot.name} contains no declared Card replacement`);
+    }
+  }
+
+  const installedRoots = [...committedRoots];
+  for (const name of localOnlyNames) installedRoots.push(localRootsByName.get(name)!);
+  const installedCardsByName = new Map(committedCardsByName);
+  const localCardNames = new Set<string>();
+  for (const name of replacementNames) {
+    installedCardsByName.set(name, localCardsByName.get(name)!);
+    localCardNames.add(name);
+  }
+  for (const name of localOnlyNames) {
+    const localRoot = localRootsByName.get(name)!;
+    for (const cardName of closureNames(localRoot)) {
+      const card = localCardsByName.get(cardName);
+      if (!card) invalidSelection(`local-only root ${name} is missing Card ${cardName}`);
+      const existing = installedCardsByName.get(cardName);
+      if (existing && existing.integrity !== card.integrity) {
+        invalidSelection(`local-only root ${name} conflicts with installed Card ${cardName}`);
+      }
+      installedCardsByName.set(cardName, card);
+      localCardNames.add(cardName);
+    }
+  }
+
+  const selectionSource = configLocal?.activeWorker !== undefined ? "local" : "project";
+  const activeWorker = configLocal?.activeWorker !== undefined ? configLocal.activeWorker : projectConfig.activeWorker;
+  if (activeWorker === null) {
+    return {
+      installedRoots,
+      activeWorker,
+      selectedRoot: null,
+      installedCards: [...installedCardsByName.values()],
+      activeCards: [],
+      selectionSource,
+      localOverrides: {
+        cardReplacements: replacementNames,
+        localOnlyRoots: localOnlyNames,
+        sourceOverrides: Object.keys(configLocal?.sourceOverrides ?? {}),
+      },
+      localCardNames,
+    };
+  }
+
+  const selectedRoot = installedRoots.find((root) => root.name === activeWorker) ?? null;
+  if (!selectedRoot || (localOnlySet.has(activeWorker) && selectionSource !== "local")) {
+    throw new DrwnError("ACTIVE_WORKER_NOT_INSTALLED", `Active Worker ${activeWorker} is not an installed selectable root`);
+  }
+  const activeCards = closureNames(selectedRoot).map((name) => {
+    const card = installedCardsByName.get(name);
+    if (!card) invalidSelection(`selected root ${selectedRoot.name} is missing Card ${name}`);
+    return card;
+  });
+  return {
+    installedRoots,
+    activeWorker,
+    selectedRoot,
+    installedCards: [...installedCardsByName.values()],
+    activeCards,
+    selectionSource,
+    localOverrides: {
+      cardReplacements: replacementNames,
+      localOnlyRoots: localOnlyNames,
+      sourceOverrides: Object.keys(configLocal?.sourceOverrides ?? {}),
+    },
+    localCardNames,
+  };
 }
 
 export async function buildEffectiveState(options: SyncOptions = {}): Promise<EffectiveState> {
@@ -80,6 +222,7 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
   let skillApplyOrderCards: CardLockEntry[] = [];
   let projectConfig: ProjectConfig | null = null;
   let projectConfigWithCards: ProjectConfig | null = null;
+  let workerSelection: EffectiveWorkerSelection | null = null;
   let cardServerDefinitions: CardServerDefinition[] = [];
   let overlayCards: CardLockEntry[] = [];
   const cardModes: Record<string, ResolvedCardMode> = {};
@@ -95,29 +238,20 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
     if (configLocal?.activeWorker !== undefined && configLocal.activeWorker !== projectConfig.activeWorker) {
       overlayWarnings.push("config.local.json activeWorker overrides committed activeWorker");
     }
-    projectConfig = mergeProjectWithLocal(projectConfig, configLocal);
     const cardLock = projectRoot ? await loadCardLock(projectRoot) : null;
-    const committedCards =
-      cardLock?.cards && cardLock.cards.length > 0
-        ? cardLock.cards
-        : projectConfig.workers.length > 0
-          ? await resolveProjectCards(normalized.agentsDir, projectConfig.workers)
-          : [];
-    const localLockCards = projectRoot ? (await loadCardLockLocal(projectRoot))?.cards ?? [] : [];
-    const byName = new Map<string, CardLockEntry>();
-    for (const card of committedCards) {
-      byName.set(card.name, card);
-      cardLanes[card.name] = "committed";
+    const localLock = projectRoot ? await loadCardLockLocal(projectRoot) : null;
+    workerSelection = selectProjectWorker({ projectConfig, committedLock: cardLock, configLocal, localLock });
+    projectConfig = mergeProjectWithLocal(projectConfig, configLocal);
+    lockedCards = workerSelection.installedCards;
+    activeCards = workerSelection.activeCards;
+    assertWorkerCapabilityCompatibility(activeCards);
+    skillApplyOrderCards = activeCards;
+    for (const card of lockedCards) {
+      cardLanes[card.name] = workerSelection.localCardNames.has(card.name) ? "localOverlay" : "committed";
     }
-    for (const card of localLockCards) {
-      if (byName.has(card.name)) {
-        overlayWarnings.push(`card.lock.local overrides committed lock entry for ${card.name}`);
-      }
-      byName.set(card.name, card);
-      cardLanes[card.name] = "localOverlay";
+    for (const name of workerSelection.localOverrides.cardReplacements) {
+      overlayWarnings.push(`card.lock.local replaces committed lock entry for ${name}`);
     }
-    lockedCards = [...byName.values()];
-    lockedCards = await backfillLockTreeShas(normalized.agentsDir, lockedCards);
     for (const card of lockedCards) {
       let resolved = resolveMode(card, {
         projectConfig,
@@ -156,8 +290,6 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
         }
       }
     }
-    activeCards = selectActiveCards(lockedCards, projectConfig.activeWorker === null ? [] : [projectConfig.activeWorker]);
-    skillApplyOrderCards = orderCardsByApplySpecs(activeCards, projectConfig.workers);
     projectConfigWithCards = mergeCardManifestsIntoProjectConfig(
       projectConfig,
       activeCards.map((card) => card.manifest),
@@ -198,6 +330,7 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
     projectRoot,
     projectConfig,
     projectConfigWithCards,
+    workerSelection,
     cardServerDefinitions,
     lockedCards,
     activeCards,
@@ -254,39 +387,4 @@ export function assertMachineWriteScopeAllowed(options: {
   throw new Error(
     "Machine-scope drwn write would modify user home tool configs (~/.claude, ~/.codex, ...). Re-run with --scope machine or --root to confirm.",
   );
-}
-
-function selectActiveCards(lockedCards: CardLockEntry[], activeWorkers?: string[]) {
-  if (activeWorkers === undefined) {
-    return lockedCards;
-  }
-  if (activeWorkers.length === 0) {
-    return [];
-  }
-  const byName = new Map(lockedCards.map((card) => [card.name, card]));
-  return activeWorkers.flatMap((name) => {
-    const card = byName.get(name);
-    return card ? [card] : [];
-  });
-}
-
-export function orderCardsByApplySpecs(cards: CardLockEntry[], specs: string[]) {
-  const byName = new Map(cards.map((card) => [card.name, card]));
-  const unused = [...cards];
-  return specs.flatMap((spec) => {
-    const parsed = parseCardRef(spec);
-    if (parsed.origin === "store" && parsed.name) {
-      const card = byName.get(parsed.name);
-      if (!card) {
-        return [];
-      }
-      const idx = unused.indexOf(card);
-      if (idx >= 0) {
-        unused.splice(idx, 1);
-      }
-      return [card];
-    }
-    const card = unused.shift();
-    return card ? [card] : [];
-  });
 }

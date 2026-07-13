@@ -18,7 +18,7 @@ import {
   writeVendorManifestSidecar,
 } from "../cli/core/vendor-manifest";
 import { ensureVendorTree, resolveProjectVendorTree } from "../cli/core/vendor";
-import { cleanupTempRoots, createFixtureConfig, createFixtureRegistry, createTempRoot, writeTestCardLock } from "./helpers";
+import { cleanupTempRoots, createFixtureConfig, createFixtureRegistry, createTempRoot, writeSupportedProjectConfig, writeTestCardLock } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -86,10 +86,7 @@ async function scaffoldVendoredProject() {
   );
 
   await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(
-    join(projectDir, ".agents", "drwn", "config.json"),
-    JSON.stringify({ version: 1, cards: ["@me/tool@1.0.0"], activeWorkers: ["@me/tool"] }, null, 2),
-  );
+  await writeSupportedProjectConfig(projectDir, { workers: ["@me/tool@1.0.0"], activeWorker: "@me/tool" });
   await writeTestCardLock(projectDir, [
     {
       name: resolved.name,

@@ -5,7 +5,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, envFor, installProjectWorkers, publishCardWithSkills, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -94,11 +94,7 @@ describe("drwn write", () => {
     repoConfig.defaults = { skills: ["alpha"], mcpServers: ["context7"] };
     await writeFile(join(fixture.agentsDir, "drwn", "config.json"), JSON.stringify(repoConfig, null, 2));
     const projectDir = join(fixture.root, "project");
-    await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-    await writeFile(
-      join(projectDir, ".agents", "drwn", "config.json"),
-      JSON.stringify({ version: 1, skills: { exclude: ["alpha"] } }, null, 2),
-    );
+    await writeSupportedProjectConfig(projectDir, { skills: { exclude: ["alpha"] } });
 
     const result = await runAgentsCli(["write", "--dry-run"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
@@ -119,11 +115,7 @@ describe("drwn write", () => {
     repoConfig.defaults = { mcpServers: ["context7"] };
     await writeFile(join(fixture.agentsDir, "drwn", "config.json"), JSON.stringify(repoConfig, null, 2));
     const projectDir = join(fixture.root, "project");
-    await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-    await writeFile(
-      join(projectDir, ".agents", "drwn", "config.json"),
-      JSON.stringify({ version: 1, servers: { context7: { enabled: false } } }, null, 2),
-    );
+    await writeSupportedProjectConfig(projectDir, { mcpServers: { context7: { enabled: false } } });
 
     const result = await runAgentsCli(["write", "--dry-run", "--json"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
@@ -183,11 +175,7 @@ describe("drwn write", () => {
       },
     });
     const projectDir = join(fixture.root, "project");
-    await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-    await writeFile(
-      join(projectDir, ".agents", "drwn", "config.json"),
-      JSON.stringify({ version: 1, servers: { github: { enabled: true } } }, null, 2),
-    );
+    await writeSupportedProjectConfig(projectDir, { mcpServers: { github: { enabled: true } } });
 
     const result = await runAgentsCli(["write"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
@@ -216,11 +204,7 @@ describe("drwn write", () => {
       },
     });
     const projectDir = join(fixture.root, "project");
-    await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-    await writeFile(
-      join(projectDir, ".agents", "drwn", "config.json"),
-      JSON.stringify({ version: 1, cards: ["@me/base@1.0.0"], activeWorkers: ["@me/base"] }, null, 2),
-    );
+    await installProjectWorkers(projectDir, fixture.agentsDir, ["@me/base@1.0.0"], "@me/base");
 
     const result = await runAgentsCli(["write", "--dry-run"], envFor(fixture), projectDir);
 
@@ -246,11 +230,7 @@ describe("drwn write", () => {
       },
     });
     const projectDir = join(fixture.root, "project");
-    await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-    await writeFile(
-      join(projectDir, ".agents", "drwn", "config.json"),
-      JSON.stringify({ version: 1, cards: ["@me/base@1.0.0"], activeWorkers: ["@me/base"] }, null, 2),
-    );
+    await installProjectWorkers(projectDir, fixture.agentsDir, ["@me/base@1.0.0"], "@me/base");
 
     const result = await runAgentsCli(["write", "--dry-run", "--json"], envFor(fixture), projectDir);
 
@@ -281,12 +261,9 @@ describe("drwn write", () => {
       },
     });
     const projectDir = join(fixture.root, "project");
-    await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-    await writeFile(
-      join(projectDir, ".agents", "drwn", "config.json"),
-      JSON.stringify({ version: 1, cards: ["@me/base@1.0.0"], activeWorkers: ["@me/base"] }, null, 2),
-    );
-    expect((await runAgentsCli(["add", "mcp", "card-local"], envFor(fixture), projectDir)).exitCode).toBe(0);
+    await installProjectWorkers(projectDir, fixture.agentsDir, ["@me/base@1.0.0"], "@me/base", {
+      mcpServers: { "card-local": { enabled: true } },
+    });
 
     const result = await runAgentsCli(["write"], envFor(fixture), projectDir);
 
@@ -314,26 +291,16 @@ describe("drwn write", () => {
       },
     });
     const projectDir = join(fixture.root, "project");
-    await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-    await writeFile(
-      join(projectDir, ".agents", "drwn", "config.json"),
-      JSON.stringify(
-        {
-          version: 1,
-          cards: ["@me/base@1.0.0"],
-          servers: {
-            "card-local": {
-              description: "Project server",
-              transport: "stdio",
-              command: "project-server",
-              optional: false,
-            },
-          },
+    await installProjectWorkers(projectDir, fixture.agentsDir, ["@me/base@1.0.0"], "@me/base", {
+      mcpServers: {
+        "card-local": {
+          description: "Project server",
+          transport: "stdio",
+          command: "project-server",
+          optional: false,
         },
-        null,
-        2,
-      ),
-    );
+      },
+    });
 
     const result = await runAgentsCli(["write", "--dry-run"], envFor(fixture), projectDir);
 
@@ -346,11 +313,7 @@ describe("drwn write", () => {
     tempRoots.push(fixture.root);
     await publishCardWithSkills(fixture, { name: "@me/backend", skills: ["alpha"] });
     const projectDir = join(fixture.root, "project");
-    await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-    await writeFile(
-      join(projectDir, ".agents", "drwn", "config.json"),
-      JSON.stringify({ version: 1, cards: ["@me/backend@^1.0.0"], activeWorkers: ["@me/backend"] }, null, 2),
-    );
+    await installProjectWorkers(projectDir, fixture.agentsDir, ["@me/backend@^1.0.0"], "@me/backend");
 
     const dryRun = await runAgentsCli(["write", "--dry-run", "--json"], envFor(fixture), projectDir);
 
@@ -370,11 +333,7 @@ describe("drwn write", () => {
     tempRoots.push(fixture.root);
     await publishCardWithSkills(fixture, { name: "@me/backend", skills: ["alpha"] });
     const projectDir = join(fixture.root, "project");
-    await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-    await writeFile(
-      join(projectDir, ".agents", "drwn", "config.json"),
-      JSON.stringify({ version: 1, cards: ["@me/backend@^1.0.0"], activeWorkers: ["@me/backend"] }, null, 2),
-    );
+    await installProjectWorkers(projectDir, fixture.agentsDir, ["@me/backend@^1.0.0"], "@me/backend");
 
     const dryRun = await runAgentsCli(["write", "--dry-run", "--json"], envFor(fixture), projectDir);
 

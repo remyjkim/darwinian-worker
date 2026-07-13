@@ -5,6 +5,9 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { CardLockEntry } from "./card-lock";
 import { findAvailableSkill, type SkillScope } from "./skills";
+import { hashManagedDirectory } from "./write-record";
+import { canonicalJsonHash } from "./managed-fields";
+import { DrwnError } from "./errors";
 
 export type ResolvedSkillSource =
   | {
@@ -23,15 +26,46 @@ export type ResolvedSkillSource =
       reason: string;
     };
 
+export function assertWorkerCapabilityCompatibility(cards: CardLockEntry[]): void {
+  const skills = new Map<string, { hash: string; card: string }>();
+  const servers = new Map<string, { hash: string; card: string }>();
+  for (const card of cards) {
+    for (const skill of card.skills) {
+      const skillPath = join(card.path, "skills", skill);
+      if (!existsSync(skillPath)) continue;
+      const hash = hashManagedDirectory(skillPath);
+      const previous = skills.get(skill);
+      if (previous && previous.hash !== hash) {
+        throw new DrwnError(
+          "WORKER_CAPABILITY_CONFLICT",
+          `Worker capability skill:${skill} has incompatible definitions from ${previous.card} and ${card.name}`,
+        );
+      }
+      skills.set(skill, { hash, card: card.name });
+    }
+    for (const [serverName, server] of Object.entries(card.manifest.servers ?? {})) {
+      const hash = canonicalJsonHash(server);
+      const previous = servers.get(serverName);
+      if (previous && previous.hash !== hash) {
+        throw new DrwnError(
+          "WORKER_CAPABILITY_CONFLICT",
+          `Worker capability mcp:${serverName} has incompatible definitions from ${previous.card} and ${card.name}`,
+        );
+      }
+      servers.set(serverName, { hash, card: card.name });
+    }
+  }
+}
+
 export async function resolveSkillSource(
   name: string,
-  lockedCards: CardLockEntry[],
+  activeCards: CardLockEntry[],
   repoRoot: string,
   agentsDir: string,
   contentRoots?: Record<string, string>,
 ): Promise<ResolvedSkillSource> {
-  for (let index = lockedCards.length - 1; index >= 0; index -= 1) {
-    const card = lockedCards[index]!;
+  for (let index = activeCards.length - 1; index >= 0; index -= 1) {
+    const card = activeCards[index]!;
     if (!card.skills.includes(name)) {
       continue;
     }
@@ -70,6 +104,6 @@ export async function resolveSkillSource(
 
   return {
     layer: "missing",
-    reason: `skill '${name}' is not provided by any applied card and is not available as a user-default; check spelling or add a card that provides it.`,
+    reason: `skill '${name}' is not provided by the selected Worker closure and is not available as a user-default; check spelling or select a Worker that provides it.`,
   };
 }

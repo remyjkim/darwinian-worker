@@ -8,7 +8,7 @@ import { writeConfigLocal } from "../cli/core/config-local";
 import { buildEffectiveState } from "../cli/core/effective-state";
 import { syncRepository } from "../cli/core/sync";
 import { renderSyncResult } from "../cli/core/output";
-import { cleanupTempRoots, publishCardWithSkills, scaffoldCliFixture, writeTestCardLock } from "./helpers";
+import { cleanupTempRoots, publishCardWithSkills, scaffoldCliFixture, writeSupportedProjectConfig, writeTestCardLock } from "./helpers";
 
 const tempRoots: string[] = [];
 afterEach(async () => cleanupTempRoots(tempRoots));
@@ -19,10 +19,7 @@ test("syncRepository exposes linked/overlay cardModes and keeps absent-source wa
   await publishCardWithSkills(fixture, { name: "@me/modes", skills: ["alpha"] });
   const projectDir = join(fixture.root, "project");
   await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(
-    join(projectDir, ".agents", "drwn", "config.json"),
-    `${JSON.stringify({ version: 1, cards: ["@me/modes@1.0.0"] }, null, 2)}\n`,
-  );
+  await writeSupportedProjectConfig(projectDir, { workers: ["@me/modes@1.0.0"], activeWorker: "@me/modes" });
   const { resolveCard } = await import("../cli/core/card-store");
   const resolved = await resolveCard(fixture.agentsDir, "@me/modes@1.0.0");
   await writeTestCardLock(projectDir, [
@@ -72,10 +69,11 @@ test("syncRepository exposes linked/overlay cardModes and keeps absent-source wa
 
   const absentProject = join(fixture.root, "project-absent");
   await mkdir(join(absentProject, ".agents", "drwn"), { recursive: true });
-  await writeFile(
-    join(absentProject, ".agents", "drwn", "config.json"),
-    `${JSON.stringify({ version: 1, materialization: "linked", cards: ["@me/modes@1.0.0"] }, null, 2)}\n`,
-  );
+  await writeSupportedProjectConfig(absentProject, {
+    workers: ["@me/modes@1.0.0"],
+    activeWorker: "@me/modes",
+    materialization: "linked",
+  });
   await writeTestCardLock(absentProject, [
     {
       name: resolved.name,

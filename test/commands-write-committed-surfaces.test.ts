@@ -5,7 +5,7 @@ import { afterEach, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { cleanupTempRoots, publishCardWithSkills, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, installProjectWorkers, publishCardWithSkills, runAgentsCli, scaffoldCliFixture } from "./helpers";
 
 const tempRoots: string[] = [];
 afterEach(async () => cleanupTempRoots(tempRoots));
@@ -24,17 +24,10 @@ test("committedSurfaces write leaves skills visible to git status porcelain", as
   const projectDir = join(fixture.root, "project");
   await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
   await initGitRepo(projectDir);
-  await writeFile(
-    join(projectDir, ".agents", "drwn", "config.json"),
-    `${JSON.stringify({ version: 1, committedSurfaces: true, cards: ["@me/commit@1.0.0"], skills: { include: ["alpha"] } }, null, 2)}\n`,
-  );
-
-  const apply = await runAgentsCli(["card", "apply", "@me/commit@1.0.0"], {
-    AGENTS_REPO_ROOT: fixture.repoRoot,
-    AGENTS_HOME_DIR: fixture.homeDir,
-    AGENTS_DIR: fixture.agentsDir,
-  }, projectDir);
-  expect(apply.exitCode).toBe(0);
+  await installProjectWorkers(projectDir, fixture.agentsDir, ["@me/commit@1.0.0"], "@me/commit", {
+    committedSurfaces: true,
+    skills: { include: ["alpha"] },
+  });
 
   const write = await runAgentsCli(["write", "--skills-only"], {
     AGENTS_REPO_ROOT: fixture.repoRoot,
@@ -48,7 +41,10 @@ test("committedSurfaces write leaves skills visible to git status porcelain", as
   expect(gitignore).not.toContain(".claude/skills/");
   expect(gitignore).toContain("config.local.json");
 
-  await writeFile(join(projectDir, ".agents", "drwn", "config.local.json"), `${JSON.stringify({ overrides: {} }, null, 2)}\n`);
+  await writeFile(
+    join(projectDir, ".agents", "drwn", "config.local.json"),
+    `${JSON.stringify({ schema: "drwn.project-local", schemaVersion: 1 }, null, 2)}\n`,
+  );
   const { spawnSync } = await import("node:child_process");
   const ignoredSkill = spawnSync(
     "git",
