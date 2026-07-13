@@ -10,7 +10,8 @@ import { ensureDefaultCommunityCatalog, resolveDefaultCommunityCatalogUrl } from
 import { loadConfig } from "../core/config";
 import { ensureBeadsProjectExtensionConfig, normalizeBeadsTargets } from "../core/extensions/beads";
 import { ensureParallelProjectExtensionConfig } from "../core/extensions/parallel";
-import { resolveInitMode } from "../core/interactivity";
+import { resolveInitMode, resolveRecommendedProfileChoice } from "../core/interactivity";
+import { initializeMachineCapabilities } from "../core/machine-profiles";
 import { ensureGitignoreEntries, ensureVendorGitattributes } from "../core/git-hygiene";
 import { registerProject } from "../core/project-registry";
 import { scaffoldProjectConfig } from "../core/project";
@@ -72,10 +73,14 @@ export class InitCommand extends BaseCommand {
     if (mode.mode === "error") {
       throw new Error(mode.message ?? "Invalid init mode.");
     }
+    const existingConfigPath = join(projectDir, ".agents", "drwn", "config.json");
+    if (existsSync(existingConfigPath) && !this.force) {
+      throw new Error(`Project config already exists: ${existingConfigPath}`);
+    }
 
     const configPath = mode.mode === "guided"
       ? await this.executeGuided(projectDir)
-      : await scaffoldProjectConfig(projectDir, { force: this.force });
+      : await this.executeMinimal(projectDir);
     await ensureGitignoreEntries(projectDir);
     await ensureVendorGitattributes(projectDir);
     await registerProject(this.context.agentsDir, projectDir);
@@ -99,10 +104,27 @@ export class InitCommand extends BaseCommand {
     return 0;
   }
 
+  private async executeMinimal(projectDir: string) {
+    await initializeMachineCapabilities({
+      agentsDir: this.context.agentsDir,
+      repoRoot: this.context.repoRoot,
+      guided: false,
+    });
+    return scaffoldProjectConfig(projectDir, { force: this.force });
+  }
+
   private async executeGuided(projectDir: string) {
-    const configPath = await scaffoldProjectConfig(projectDir, { force: this.force });
     const rl = createInterface({ input, output });
     try {
+      await initializeMachineCapabilities({
+        agentsDir: this.context.agentsDir,
+        repoRoot: this.context.repoRoot,
+        guided: true,
+        promptRecommended: async () => resolveRecommendedProfileChoice(
+          await rl.question("Use Recommended Darwinian Operator machine capabilities? [Y/n] "),
+        ),
+      });
+      const configPath = await scaffoldProjectConfig(projectDir, { force: this.force });
       const parallelAnswer = (await rl.question("Enable Parallel extension for this project? [y/N] ")).trim().toLowerCase();
       if (parallelAnswer === "y" || parallelAnswer === "yes") {
         const mcpAnswer = (await rl.question("Enable Parallel MCP too? [y/N] ")).trim().toLowerCase();
@@ -122,9 +144,9 @@ export class InitCommand extends BaseCommand {
           includeSkill: includeSkillAnswer === "y" || includeSkillAnswer === "yes",
         });
       }
+      return configPath;
     } finally {
       rl.close();
     }
-    return configPath;
   }
 }

@@ -26,6 +26,16 @@ describe("core interactivity", () => {
     expect(result.message).toContain("TTY");
   });
 
+  test("preselects the Recommended profile unless the guided answer opts out", async () => {
+    const { resolveRecommendedProfileChoice } = await import("../cli/core/interactivity");
+
+    expect(resolveRecommendedProfileChoice("")).toBe(true);
+    expect(resolveRecommendedProfileChoice("yes")).toBe(true);
+    expect(resolveRecommendedProfileChoice("Y")).toBe(true);
+    expect(resolveRecommendedProfileChoice("n")).toBe(false);
+    expect(resolveRecommendedProfileChoice("no")).toBe(false);
+  });
+
   test("resolves install decision mode for explicit MarkItDown setup flags", async () => {
     const { resolveInstallDecisionMode } = await import("../cli/core/interactivity");
 

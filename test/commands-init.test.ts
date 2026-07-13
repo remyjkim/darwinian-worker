@@ -3,8 +3,10 @@
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { cleanupTempRoots, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { createEmptyMachineConfig } from "../cli/core/machine-config";
 
 const tempRoots: string[] = [];
 
@@ -35,6 +37,23 @@ describe("drwn init", () => {
     expect(result.exitCode).toBe(0);
     const configPath = join(projectDir, ".agents", "drwn", "config.json");
     expect(JSON.parse(await readFile(configPath, "utf8"))).toEqual(emptyProject);
+    expect(JSON.parse(await readFile(join(fixture.agentsDir, "drwn", "machine.json"), "utf8"))).toEqual(createEmptyMachineConfig());
+  });
+
+  test("minimal setup creates explicit empty machine intent", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const projectDir = join(fixture.root, "minimal-project");
+    await mkdir(projectDir, { recursive: true });
+
+    const result = await runAgentsCli(["init", "--minimal", "--no-default-catalogs"], {
+      AGENTS_REPO_ROOT: fixture.repoRoot,
+      AGENTS_HOME_DIR: fixture.homeDir,
+      AGENTS_DIR: fixture.agentsDir,
+    }, projectDir);
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(await readFile(join(fixture.agentsDir, "drwn", "machine.json"), "utf8"))).toEqual(createEmptyMachineConfig());
   });
 
   test("exits non-zero when config already exists without force", async () => {
@@ -53,6 +72,7 @@ describe("drwn init", () => {
 
     expect(result.exitCode).not.toBe(0);
     expect(JSON.parse(await readFile(configPath, "utf8"))).toEqual({ ...emptyProject, skills: { include: ["alpha"] } });
+    expect(existsSync(join(fixture.agentsDir, "drwn", "machine.json"))).toBe(false);
   });
 
   test("force overwrites existing config", async () => {

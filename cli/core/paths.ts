@@ -50,6 +50,10 @@ export function resolvePackagedMcpRegistryPath(repoRoot: string) {
   return join(resolvePackagedRegistryDir(repoRoot), "mcp-servers.json");
 }
 
+export function resolveMachineProfilesRegistryPath(repoRoot: string) {
+  return join(resolvePackagedRegistryDir(repoRoot), "machine-profiles.json");
+}
+
 export function expandHomePath(pathValue: string, homeDir: string) {
   if (pathValue === "~") {
     return homeDir;
