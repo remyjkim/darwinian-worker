@@ -83,14 +83,14 @@ export async function resolveSkillSource(
         layer: "missing",
         reason: contentRoots
           ? `no content root resolved for ${card.name} in project scope`
-          : `card store is corrupt for ${card.name}@${card.version}: missing content root. Re-run \`drwn card update\` after republishing the card.`,
+          : `card inventory is corrupt for ${card.name}@${card.version}: missing content root. Run \`drwn install --no-write\` to hydrate locked Card bytes.`,
       };
     }
     const path = join(root, "skills", name);
     if (!existsSync(path)) {
       return {
         layer: "missing",
-        reason: `card store is corrupt for ${card.name}@${card.version}: missing skills/${name}. Re-run \`drwn card update\` after republishing the card.`,
+        reason: `card inventory is corrupt for ${card.name}@${card.version}: missing skills/${name}. Run \`drwn install --no-write\` to hydrate locked Card bytes.`,
       };
     }
     return {

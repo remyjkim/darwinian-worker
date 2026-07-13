@@ -113,7 +113,7 @@ export async function verifyStoreDirAgainstLock(storeDir: string, integrity: str
   const digest = manifestIntegrityDigest(manifest);
   if (digest !== integrity) {
     throw new Error(
-      "store content for repair does not match card.lock integrity; re-fetch the card (drwn card update) before re-vendoring",
+      "inventory content does not match card.lock integrity; run drwn install --no-write before writing the project again",
     );
   }
   return manifest;

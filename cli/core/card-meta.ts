@@ -68,10 +68,10 @@ export function formatSuccessorSuggestion(cardName: string, meta: CardMeta | nul
     return null;
   }
   if (cardScopesMatch(cardName, meta.successor)) {
-    return `Successor available: ${meta.successor}. Run drwn card apply ${meta.successor} to migrate.`;
+    return `Successor available: ${meta.successor}. Run drwn apply ${meta.successor} to replace this Worker.`;
   }
   if (options?.acceptSuccessor) {
-    return `Cross-scope successor accepted: ${meta.successor}. Run drwn card apply ${meta.successor} to migrate.`;
+    return `Cross-scope successor accepted: ${meta.successor}. Run drwn apply ${meta.successor} to replace this Worker.`;
   }
   return `Successor claims ${meta.successor} (cross-scope). Re-run with --accept-successor or confirm via catalog before applying.`;
 }

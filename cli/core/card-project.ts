@@ -210,7 +210,7 @@ export async function setHookConsent(
 ): Promise<CardTrustMutation> {
   const lock = await loadCardLock(projectRoot);
   if (!lock) {
-    throw new Error("Card lockfile not found. Run drwn card update first.");
+    throw new Error("Card lockfile not found. Run drwn update first.");
   }
   const target = findLockedCard(lock.cards, cardNameOrRef);
   if (!target) {
@@ -245,7 +245,7 @@ export async function clearHookConsent(
 ): Promise<CardTrustMutation> {
   const lock = await loadCardLock(projectRoot);
   if (!lock) {
-    throw new Error("Card lockfile not found. Run drwn card update first.");
+    throw new Error("Card lockfile not found. Run drwn update first.");
   }
   const target = findLockedCard(lock.cards, cardNameOrRef);
   if (!target) {

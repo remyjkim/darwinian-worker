@@ -25,7 +25,7 @@ import type { SyncResult } from "./types";
 function offlineVendorRepairMessage(card: CardLockEntry) {
   return (
     `Cannot repair vendored content for ${card.name}@${card.version}: vendor tree is missing or corrupt and the machine store is unavailable. ` +
-    `Restore committed vendor bytes from git, or run drwn card update on a networked machine.`
+    `Restore committed vendor bytes from git, or run drwn install --no-write and then drwn write on a networked machine.`
   );
 }
 
