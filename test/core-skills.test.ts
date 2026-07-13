@@ -24,6 +24,13 @@ async function createTempRoot() {
   return root;
 }
 
+function machineSkillOptions(repoRoot: string, agentsDir: string, homeDir: string) {
+  return {
+    ...normalizeSyncPathOptions({ repoRoot, agentsDir, homeDir }, import.meta.path),
+    writeScope: "machine" as const,
+  };
+}
+
 async function createInstalledBundle(
   agentsDir: string,
   options?: { packageName?: string; version?: string; skillName?: string; scope?: "shared" | "claude-only" | "codex-only" | "experimental" },
@@ -164,7 +171,7 @@ describe("core skills", () => {
 
     const { syncSkills } = await import("../cli/core/skills");
     const result = await syncSkills(
-      normalizeSyncPathOptions({ repoRoot: root, agentsDir, homeDir }, import.meta.path),
+      machineSkillOptions(root, agentsDir, homeDir),
       { include: ["beta"] },
     );
 
@@ -183,7 +190,7 @@ describe("core skills", () => {
 
     const { syncSkills } = await import("../cli/core/skills");
     const result = await syncSkills(
-      normalizeSyncPathOptions({ repoRoot: root, agentsDir, homeDir }, import.meta.path),
+      machineSkillOptions(root, agentsDir, homeDir),
       { include: ["hello-skill"] },
     );
 
@@ -206,7 +213,7 @@ describe("core skills", () => {
 
     const { syncSkills } = await import("../cli/core/skills");
     const result = await syncSkills(
-      normalizeSyncPathOptions({ repoRoot: root, agentsDir, homeDir }, import.meta.path),
+      machineSkillOptions(root, agentsDir, homeDir),
       { exclude: ["alpha"] },
     );
 
@@ -224,7 +231,7 @@ describe("core skills", () => {
 
     const { syncSkills } = await import("../cli/core/skills");
     const result = await syncSkills(
-      normalizeSyncPathOptions({ repoRoot: root, agentsDir, homeDir }, import.meta.path),
+      machineSkillOptions(root, agentsDir, homeDir),
       { include: ["alpha"], exclude: ["alpha"] },
     );
 
@@ -241,7 +248,7 @@ describe("core skills", () => {
     const { syncSkills } = await import("../cli/core/skills");
     await expect(
       syncSkills(
-        normalizeSyncPathOptions({ repoRoot: root, agentsDir, homeDir }, import.meta.path),
+        machineSkillOptions(root, agentsDir, homeDir),
         { include: ["missing-skill"] },
       ),
     ).rejects.toThrow("missing-skill");
@@ -257,7 +264,7 @@ describe("core skills", () => {
 
     const { curateSkill, syncSkills } = await import("../cli/core/skills");
     await curateSkill({ repoRoot: root, agentsDir }, "hello-skill");
-    await syncSkills(normalizeSyncPathOptions({ repoRoot: root, agentsDir, homeDir }, import.meta.path));
+    await syncSkills(machineSkillOptions(root, agentsDir, homeDir));
 
     expect((await lstat(join(homeDir, ".claude", "skills", "hello-skill"))).isDirectory()).toBe(true);
     expect((await lstat(join(homeDir, ".codex", "skills", "hello-skill"))).isDirectory()).toBe(true);

@@ -175,7 +175,17 @@ describe("drwn write", () => {
       },
     });
     const projectDir = join(fixture.root, "project");
-    await writeSupportedProjectConfig(projectDir, { mcpServers: { github: { enabled: true } } });
+    await writeSupportedProjectConfig(projectDir, {
+      mcpServers: {
+        github: {
+          description: "GitHub",
+          transport: "stdio",
+          command: "npx",
+          args: ["-y", "@modelcontextprotocol/server-github"],
+          optional: false,
+        },
+      },
+    });
 
     const result = await runAgentsCli(["write"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
@@ -328,7 +338,7 @@ describe("drwn write", () => {
     }
   });
 
-  test("write --dry-run dedupes when both user-default and card supply the same name", async () => {
+  test("project dry-run ignores a same-ID machine curation and uses Card bytes", async () => {
     const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
     tempRoots.push(fixture.root);
     await publishCardWithSkills(fixture, { name: "@me/backend", skills: ["alpha"] });
@@ -342,7 +352,7 @@ describe("drwn write", () => {
     const lines = parsed.changes.filter((change) => change.includes(".claude/skills/alpha"));
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain("← card @me/backend@1.0.0");
-    expect(lines[0]).toContain("(also available: user-default)");
+    expect(lines[0]).not.toContain("user-default");
   });
 
   test("all write modes preserve project requirement and lock bytes", async () => {

@@ -3,10 +3,17 @@
 
 import { afterEach, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { buildEffectiveState } from "../cli/core/effective-state";
-import { cleanupTempRoots, publishCardWithSkills, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import {
+  cleanupTempRoots,
+  installProjectWorkers,
+  publishCardWithSkills,
+  runAgentsCli,
+  scaffoldCliFixture,
+  writeSupportedProjectConfig,
+} from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -31,9 +38,7 @@ test("project write does not include machine default skills", async () => {
   machine.defaults = { skills: ["beta"] };
   await writeFile(machinePath, `${JSON.stringify(machine, null, 2)}\n`);
   const projectDir = join(fixture.root, "project");
-  const configPath = join(projectDir, ".agents", "drwn", "config.json");
-  await mkdir(dirname(configPath), { recursive: true });
-  await writeFile(configPath, JSON.stringify({ version: 1, skills: { include: ["alpha"] } }, null, 2));
+  await writeSupportedProjectConfig(projectDir, { skills: { include: ["alpha"] } });
 
   const write = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);
 
@@ -58,31 +63,19 @@ test("buildEffectiveState exposes the project card, skill, MCP, extension, and t
     },
   });
   const projectDir = join(fixture.root, "project");
-  const configPath = join(projectDir, ".agents", "drwn", "config.json");
-  await mkdir(dirname(configPath), { recursive: true });
-  await writeFile(
-    configPath,
-    JSON.stringify(
-      {
-        version: 1,
-        cards: ["@me/base@1.0.0"],
-        activeWorkers: ["@me/base"],
-        skills: { include: ["beta"] },
-        servers: {
-          "project-server": {
-            description: "Project server",
-            transport: "stdio",
-            command: "project-server",
-            optional: false,
-          },
-        },
-        extensions: { custom: { enabled: true, flavor: "test" } },
-        targets: { cursor: { enabled: false } },
+  await installProjectWorkers(projectDir, fixture.agentsDir, ["@me/base@1.0.0"], "@me/base", {
+    skills: { include: ["beta"] },
+    mcpServers: {
+      "project-server": {
+        description: "Project server",
+        transport: "stdio",
+        command: "project-server",
+        optional: false,
       },
-      null,
-      2,
-    ),
-  );
+    },
+    extensions: { custom: { enabled: true, flavor: "test" } },
+    targets: { cursor: { enabled: false } },
+  });
 
   const state = await buildEffectiveState({
     repoRoot: fixture.repoRoot,
@@ -119,23 +112,9 @@ test("buildEffectiveState activates a card-local optional MCP with a project tog
     },
   });
   const projectDir = join(fixture.root, "project");
-  const configPath = join(projectDir, ".agents", "drwn", "config.json");
-  await mkdir(dirname(configPath), { recursive: true });
-  await writeFile(
-    configPath,
-    JSON.stringify(
-      {
-        version: 1,
-        cards: ["@me/base@1.0.0"],
-        activeWorkers: ["@me/base"],
-        servers: {
-          "card-local": { enabled: true },
-        },
-      },
-      null,
-      2,
-    ),
-  );
+  await installProjectWorkers(projectDir, fixture.agentsDir, ["@me/base@1.0.0"], "@me/base", {
+    mcpServers: { "card-local": { enabled: true } },
+  });
 
   const state = await buildEffectiveState({
     repoRoot: fixture.repoRoot,

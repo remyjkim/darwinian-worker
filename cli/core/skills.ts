@@ -314,7 +314,7 @@ export async function syncSkills(
   const claudeIntents = new Map<string, MaterializeIntent>();
   const codexIntents = new Map<string, MaterializeIntent>();
 
-  if (existsSync(curatedDir)) {
+  if (options.writeScope === "machine" && existsSync(curatedDir)) {
     const curatedEntries = await readdir(curatedDir, { withFileTypes: true });
     for (const entry of curatedEntries) {
       if (entry.name.startsWith(".")) {
@@ -345,7 +345,11 @@ export async function syncSkills(
     }
   }
 
-  if ((!options.target || options.target === "claude") && existsSync(scopeDirs.claudeOnly)) {
+  if (
+    options.writeScope === "machine" &&
+    (!options.target || options.target === "claude") &&
+    existsSync(scopeDirs.claudeOnly)
+  ) {
     const entries = await readdir(scopeDirs.claudeOnly, { withFileTypes: true });
     for (const entry of entries) {
       if (entry.name.startsWith(".")) {
@@ -365,7 +369,11 @@ export async function syncSkills(
     }
   }
 
-  if ((!options.target || options.target === "codex") && existsSync(scopeDirs.codexOnly)) {
+  if (
+    options.writeScope === "machine" &&
+    (!options.target || options.target === "codex") &&
+    existsSync(scopeDirs.codexOnly)
+  ) {
     const entries = await readdir(scopeDirs.codexOnly, { withFileTypes: true });
     for (const entry of entries) {
       if (entry.name.startsWith(".")) {

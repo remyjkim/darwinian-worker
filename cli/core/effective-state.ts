@@ -14,7 +14,7 @@ import { hasExplicitSkillDefaults, mergeUserMcpLibrary } from "./defaults";
 import { loadMcpLibrary } from "./mcp-library";
 import { buildActiveServers } from "./mcp";
 import { normalizeSyncPathOptions } from "./paths";
-import { findProjectConfig, loadProjectConfig, mergeProjectConfig, resolveProjectRootFromConfigPath } from "./project";
+import { findProjectConfig, isServerToggle, loadProjectConfig, mergeProjectConfig, resolveProjectRootFromConfigPath } from "./project";
 import { loadRegistry } from "./registry";
 import { resolveGlobalWriteRecordPath, resolveStoreGeneratedDir } from "./store-paths";
 import type {
@@ -30,6 +30,7 @@ import { resolveProjectWriteRecordPath } from "./write-record";
 import type { SkillSyncOverrides } from "./skills";
 import { DrwnError } from "./errors";
 import { assertWorkerCapabilityCompatibility } from "./card-skill-resolver";
+import { getExtension } from "./extensions/registry";
 
 import type { ResolvedCardMode } from "./mode-resolution";
 
@@ -95,6 +96,39 @@ function sameTopology(left: WorkerRootLockEntry, right: WorkerRootLockEntry): bo
 
 function closureNames(root: WorkerRootLockEntry): string[] {
   return [root.name, ...root.members];
+}
+
+function projectBaseConfig(repoConfig: CanonicalConfig): CanonicalConfig {
+  const config: CanonicalConfig = JSON.parse(JSON.stringify(repoConfig));
+  delete config.defaults;
+  config.optional = {};
+  config.parallel = {
+    ...(config.parallel ?? {}),
+    mcp: { ...(config.parallel?.mcp ?? {}), enabled: false },
+  };
+  return config;
+}
+
+function projectBaseRegistry(
+  builtInRegistry: CanonicalRegistry,
+  projectConfig: ProjectConfig,
+): CanonicalRegistry {
+  const names = new Set<string>();
+  for (const [name, override] of Object.entries(projectConfig.mcpServers ?? {})) {
+    if (isServerToggle(override)) names.add(name);
+  }
+  for (const [extensionName, extensionConfig] of Object.entries(projectConfig.extensions ?? {})) {
+    if (extensionConfig.enabled === false || extensionConfig.mcp !== true) continue;
+    for (const server of getExtension(extensionName)?.mcpServers ?? []) names.add(server.name);
+  }
+  return {
+    version: builtInRegistry.version,
+    servers: Object.fromEntries(
+      [...names]
+        .filter((name) => Boolean(builtInRegistry.servers[name]))
+        .map((name) => [name, builtInRegistry.servers[name]!]),
+    ),
+  };
 }
 
 export function selectProjectWorker(options: SelectProjectWorkerOptions): EffectiveWorkerSelection {
@@ -213,11 +247,14 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
   const registry = projectConfigPath
     ? builtInRegistry
     : mergeUserMcpLibrary(builtInRegistry, await loadMcpLibrary(normalized.agentsDir));
-  const { config: machineConfig } = await loadEffectiveConfig(repoConfig, normalized.agentsDir);
-  const baseConfig = projectConfigPath ? repoConfig : machineConfig;
+  const baseConfig = projectConfigPath
+    ? projectBaseConfig(repoConfig)
+    : (await loadEffectiveConfig(repoConfig, normalized.agentsDir)).config;
   let effectiveConfig = baseConfig;
   let effectiveRegistry = registry;
-  const baseDefaultSkills = hasExplicitSkillDefaults(baseConfig) ? [...(baseConfig.defaults?.skills ?? [])] : [];
+  const baseDefaultSkills = !projectConfigPath && hasExplicitSkillDefaults(baseConfig)
+    ? [...(baseConfig.defaults?.skills ?? [])]
+    : [];
   let skillSelection: SkillSyncOverrides | undefined = baseDefaultSkills.length > 0
     ? { include: [...baseDefaultSkills] }
     : undefined;
@@ -304,7 +341,10 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
     inactiveCardServerDefinitions = collectCardServerDefinitions(
       lockedCards.filter((card) => !activeNames.has(card.name)),
     );
-    const registryWithCards = mergeCardServerDefinitionsIntoRegistry(registry, cardServerDefinitions);
+    const registryWithCards = mergeCardServerDefinitionsIntoRegistry(
+      projectBaseRegistry(builtInRegistry, projectConfig),
+      cardServerDefinitions,
+    );
     const projectOverlay: ProjectConfig = {
       ...projectConfigWithCards,
       mcpServers: projectConfig.mcpServers,
@@ -314,7 +354,6 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
     effectiveRegistry = merged.registry;
     skillSelection = {
       include: [
-        ...baseDefaultSkills,
         ...(merged.skills?.include ?? []),
       ],
       exclude: merged.skills?.exclude,
