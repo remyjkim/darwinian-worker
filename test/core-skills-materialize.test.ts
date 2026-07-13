@@ -1,13 +1,14 @@
-// ABOUTME: Migration + drift coverage for copy-based skill materialization through syncRepository.
-// ABOUTME: A pre-upgrade symlink install converts to a copied directory; hand-edits trip drift protection.
+// ABOUTME: Clean-slate rejection and drift coverage for copy-based machine skill materialization.
+// ABOUTME: Pre-contract symlink state is never claimed; hand-edited owned copies trip drift protection.
 
 import { afterEach, expect, test } from "bun:test";
 import { lstatSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { cleanupTempRoots, scaffoldCliFixture } from "./helpers";
+import { createEmptyMachineConfig, writeMachineConfigFile } from "../cli/core/machine-config";
 import { syncRepository } from "../cli/core/sync";
 import { loadWriteRecord, saveWriteRecord } from "../cli/core/write-record";
-import { resolveGlobalWriteRecordPath } from "../cli/core/store-paths";
+import { resolveGlobalWriteRecordPath, resolveMachineConfigPath } from "../cli/core/store-paths";
 
 const tempRoots: string[] = [];
 
@@ -26,9 +27,16 @@ function machineSyncOptions(fixture: Awaited<ReturnType<typeof scaffoldCliFixtur
   };
 }
 
-test("migrates a pre-upgrade symlink skill install to a copied directory and stays idempotent", async () => {
+async function selectAlphaForMachine(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
+  const machine = createEmptyMachineConfig();
+  machine.capabilities.skills = ["alpha"];
+  await writeMachineConfigFile(resolveMachineConfigPath(fixture.agentsDir), machine);
+}
+
+test("rejects a pre-contract symlink projection without claiming or replacing it", async () => {
   const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
   tempRoots.push(fixture.root);
+  await selectAlphaForMachine(fixture);
   const claudeAlpha = join(fixture.homeDir, ".claude", "skills", "alpha");
   const curatedAlpha = join(fixture.agentsDir, "skills", "alpha");
 
@@ -43,23 +51,20 @@ test("migrates a pre-upgrade symlink skill install to a copied directory and sta
     managedPaths: [{ path: ".claude/skills/alpha", kind: "symlink", target: curatedAlpha }],
   });
 
-  await syncRepository(machineSyncOptions(fixture));
-
-  expect(lstatSync(claudeAlpha).isSymbolicLink()).toBe(false);
-  expect(lstatSync(claudeAlpha).isDirectory()).toBe(true);
+  await expect(syncRepository(machineSyncOptions(fixture))).rejects.toMatchObject({
+    code: "MACHINE_PROJECTION_CONFLICT",
+  });
+  expect(lstatSync(claudeAlpha).isSymbolicLink()).toBe(true);
   expect(readFileSync(join(claudeAlpha, "SKILL.md"), "utf8")).toContain("alpha");
-
-  const saved = loadWriteRecord(recordPath);
-  const entry = saved?.managedPaths.find((path) => path.path === ".claude/skills/alpha");
-  expect(entry?.kind).toBe("managed-directory");
-
-  const second = await syncRepository(machineSyncOptions(fixture));
-  expect(second.changes.some((change) => change.includes(".claude/skills/alpha"))).toBe(false);
+  expect(loadWriteRecord(recordPath)?.managedPaths).toEqual([
+    { path: ".claude/skills/alpha", kind: "symlink", target: curatedAlpha },
+  ]);
 });
 
 test("refuses to overwrite a hand-edited copied skill without --force, succeeds with it", async () => {
   const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
   tempRoots.push(fixture.root);
+  await selectAlphaForMachine(fixture);
   const claudeAlpha = join(fixture.homeDir, ".claude", "skills", "alpha");
 
   await syncRepository(machineSyncOptions(fixture));

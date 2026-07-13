@@ -2,8 +2,8 @@
 // ABOUTME: Protects harness MCP listing and write behavior while the CLI replaces ad hoc script usage.
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { cleanupTempRoots, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
 const tempRoots: string[] = [];
@@ -11,6 +11,21 @@ const tempRoots: string[] = [];
 afterEach(async () => {
   await cleanupTempRoots(tempRoots);
 });
+
+async function selectMachineMcp(
+  fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>,
+  id: string,
+) {
+  const result = await runAgentsCli(
+    ["library", "defaults", "add", "mcp", id],
+    {
+      AGENTS_REPO_ROOT: fixture.repoRoot,
+      AGENTS_HOME_DIR: fixture.homeDir,
+      AGENTS_DIR: fixture.agentsDir,
+    },
+  );
+  expect(result.exitCode).toBe(0);
+}
 
 describe("drwn mcp", () => {
   test("list shows harness servers and active state", async () => {
@@ -31,6 +46,7 @@ describe("drwn mcp", () => {
   test("list supports --json output", async () => {
     const fixture = await scaffoldCliFixture({ parallelMcpEnabled: true });
     tempRoots.push(fixture.root);
+    await selectMachineMcp(fixture, "parallel-search");
 
     const result = await runAgentsCli(["mcp", "list", "--json"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
@@ -63,6 +79,7 @@ describe("drwn mcp", () => {
   test("write --dry-run reports changes without mutating target files", async () => {
     const fixture = await scaffoldCliFixture({ parallelMcpEnabled: true });
     tempRoots.push(fixture.root);
+    await selectMachineMcp(fixture, "parallel-search");
     const before = await readFile(fixture.claudeSettings, "utf8");
 
     const result = await runAgentsCli(["mcp", "write", "--dry-run"], {
@@ -79,6 +96,7 @@ describe("drwn mcp", () => {
   test("write --dry-run reports MCP changes without mutating target files", async () => {
     const fixture = await scaffoldCliFixture({ parallelMcpEnabled: true });
     tempRoots.push(fixture.root);
+    await selectMachineMcp(fixture, "parallel-search");
     const before = await readFile(fixture.claudeSettings, "utf8");
 
     const result = await runAgentsCli(["mcp", "write", "--dry-run"], {
@@ -95,6 +113,7 @@ describe("drwn mcp", () => {
   test("write supports --json output", async () => {
     const fixture = await scaffoldCliFixture({ parallelMcpEnabled: true });
     tempRoots.push(fixture.root);
+    await selectMachineMcp(fixture, "parallel-search");
 
     const result = await runAgentsCli(["mcp", "write", "--dry-run", "--json"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
@@ -128,6 +147,7 @@ describe("drwn mcp", () => {
   test("write --target=claude limits output scope", async () => {
     const fixture = await scaffoldCliFixture({ parallelMcpEnabled: true });
     tempRoots.push(fixture.root);
+    await selectMachineMcp(fixture, "parallel-search");
 
     const result = await runAgentsCli(["mcp", "write", "--dry-run", "--target=claude"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
@@ -160,7 +180,9 @@ describe("drwn mcp", () => {
   test("list uses user global defaults and MCP library entries", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
+    const { ensureStoreInitialized } = await import("../cli/core/card-store");
     const { saveMcpLibrary } = await import("../cli/core/mcp-library");
+    await ensureStoreInitialized(fixture.agentsDir);
     await saveMcpLibrary(fixture.agentsDir, {
       version: 1,
       servers: {
@@ -172,10 +194,7 @@ describe("drwn mcp", () => {
         },
       },
     });
-    const config = JSON.parse(await readFile(join(fixture.repoRoot, "registry", "config.json"), "utf8"));
-    config.defaults = { mcpServers: ["github"] };
-    await mkdir(join(fixture.agentsDir, "drwn"), { recursive: true });
-    await writeFile(join(fixture.agentsDir, "drwn", "config.json"), JSON.stringify(config, null, 2));
+    await selectMachineMcp(fixture, "github");
 
     const result = await runAgentsCli(["mcp", "list", "--json"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,

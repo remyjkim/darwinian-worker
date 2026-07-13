@@ -62,6 +62,16 @@ async function scaffoldFixture() {
 
   await writeFile(join(repoRoot, "registry", "mcp-servers.json"), JSON.stringify(registry, null, 2));
   await writeFile(join(repoRoot, "registry", "config.json"), JSON.stringify(config, null, 2));
+  await mkdir(join(homeDir, ".agents", "drwn"), { recursive: true });
+  await writeFile(
+    join(homeDir, ".agents", "drwn", "machine.json"),
+    `${JSON.stringify({
+      schema: "drwn.machine",
+      schemaVersion: 1,
+      policy: {},
+      capabilities: { profile: null, skills: [], mcpServers: ["context7"] },
+    }, null, 2)}\n`,
+  );
   await writeFile(claudeSettings, JSON.stringify({ model: "sonnet" }, null, 2));
   await writeFile(codexConfig, 'personality = "pragmatic"\n');
   await writeFile(cursorConfig, JSON.stringify({ mcpServers: {} }, null, 2));

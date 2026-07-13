@@ -16,7 +16,12 @@ async function writeStrictMachinePolicy(fixture: Awaited<ReturnType<typeof scaff
   await mkdir(join(fixture.agentsDir, "drwn"), { recursive: true });
   await writeFile(
     join(fixture.agentsDir, "drwn", "machine.json"),
-    `${JSON.stringify({ version: 1, optional: {}, trustedSources: { strict: true, gitOwners: ["curation-labs"] } }, null, 2)}\n`,
+    `${JSON.stringify({
+      schema: "drwn.machine",
+      schemaVersion: 1,
+      policy: { trustedSources: { strict: true, gitOwners: ["curation-labs"] } },
+      capabilities: { profile: null, skills: [], mcpServers: [] },
+    }, null, 2)}\n`,
   );
 }
 

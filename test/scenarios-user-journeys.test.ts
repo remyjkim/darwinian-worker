@@ -3,7 +3,7 @@
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { mkdir, rm, writeFile, symlink } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile, symlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { cleanupTempRoots, runAgentsCli, runSyncWrapper, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
@@ -116,11 +116,14 @@ describe("user journeys", () => {
     };
 
     await runAgentsCli(["library", "defaults", "add", "skill", "alpha"], env);
-    await runAgentsCli(["write", "--skills-only"], env);
+    await runAgentsCli(["library", "defaults", "add", "mcp", "context7"], env);
+    await runAgentsCli(["write"], env);
     await runAgentsCli(["library", "defaults", "remove", "skill", "alpha"], env);
+    const claudeMcp = JSON.parse(await readFile(fixture.claudeUserMcp, "utf8"));
+    claudeMcp.mcpServers.context7.command = "node";
     await writeFile(
-      fixture.claudeSettings,
-      JSON.stringify({ model: "sonnet", mcpServers: { rogue: { url: "x" } } }, null, 2),
+      fixture.claudeUserMcp,
+      JSON.stringify(claudeMcp, null, 2),
     );
 
     const result = await runAgentsCli(["doctor", "--json"], env);
@@ -148,10 +151,8 @@ describe("user journeys", () => {
     let result = await runAgentsCli(["init", "--non-interactive", "--no-default-catalogs"], env, projectDir);
     expect(result.exitCode).toBe(0);
 
-    const projectConfigPath = join(projectDir, ".agents", "drwn", "config.json");
     await writeSupportedProjectConfig(projectDir, {
       mcpServers: {
-        context7: { enabled: false },
         localdb: {
           description: "Project DB",
           transport: "stdio",

@@ -5,6 +5,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { resolveStoreSkillPackageCurrentLink } from "../cli/core/store-paths";
 import {
   cleanupTempRoots,
   createInstalledSkillBundle,
@@ -95,7 +96,7 @@ describe("drwn library", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("@acme/skills-sample@1.0.0");
-    expect(existsSync(join(fixture.agentsDir, "packages", "skills", "@acme", "skills-sample", "current"))).toBe(true);
+    expect(existsSync(resolveStoreSkillPackageCurrentLink(fixture.agentsDir, "@acme/skills-sample"))).toBe(true);
     expect(existsSync(join(fixture.root, ".agents", "drwn", "config.json"))).toBe(false);
   });
 
@@ -114,8 +115,8 @@ describe("drwn library", () => {
     expect(directParsed.packageName).toBe("@local/loose-direct");
     expect(directParsed.activeVersion).toBe("0.1.0");
     expect(directParsed.skillName).toBe("loose-direct");
-    expect(existsSync(join(fixture.agentsDir, "packages", "skills", "@local", "loose-direct", "current"))).toBe(true);
-    expect(existsSync(join(fixture.agentsDir, "packages", "skills", "@local", "loose-directory", "current"))).toBe(true);
+    expect(existsSync(resolveStoreSkillPackageCurrentLink(fixture.agentsDir, "@local/loose-direct"))).toBe(true);
+    expect(existsSync(resolveStoreSkillPackageCurrentLink(fixture.agentsDir, "@local/loose-directory"))).toBe(true);
     expect(existsSync(join(fixture.root, ".agents", "drwn", "config.json"))).toBe(false);
 
     const listed = await runAgentsCli(["library", "list", "skills", "--json"], envFor(fixture));
