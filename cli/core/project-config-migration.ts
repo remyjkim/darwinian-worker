@@ -39,8 +39,10 @@ function rootName(spec: string): string {
 
 function assertInstalledSelection(workers: string[], activeWorker: string | null | undefined) {
   if (activeWorker === undefined || activeWorker === null) return;
-  const installed = new Set(workers.map(rootName));
-  if (!installed.has(rootName(activeWorker))) {
+  const parsedWorkers = workers.map((worker) => parseCardRef(worker));
+  const installed = new Set(parsedWorkers.filter((worker) => worker.origin === "store").map((worker) => worker.name));
+  const hasOpaqueRootRef = parsedWorkers.some((worker) => worker.origin !== "store");
+  if (!installed.has(rootName(activeWorker)) && !hasOpaqueRootRef) {
     throw new DrwnError(
       "ACTIVE_WORKER_NOT_INSTALLED",
       `Active Worker ${activeWorker} is not an installed Worker root`,

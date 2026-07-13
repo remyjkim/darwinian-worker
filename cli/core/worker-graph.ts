@@ -4,6 +4,7 @@
 import type { CardLockEntry } from "./card-lock";
 import { DrwnError } from "./errors";
 import { resolveCard, type ResolveCardOptions } from "./card-store";
+import { parseCardRef } from "./card-store";
 
 export interface WorkerRootLockEntry {
   name: string;
@@ -116,4 +117,42 @@ export function graphFromCards(cards: CardLockEntry[]): ResolvedWorkerGraph {
     })),
     cards,
   };
+}
+
+export function reconstructLegacyWorkerGraph(cards: CardLockEntry[], specs: string[]): ResolvedWorkerGraph {
+  const byName = new Map(cards.map((card) => [card.name, card]));
+  const roots: WorkerRootLockEntry[] = specs.map((spec) => {
+    const name = parseCardRef(spec).name;
+    const card = byName.get(name);
+    if (!card) {
+      throw new DrwnError("WORKER_ROOT_LOCK_MISSING", `Legacy lockfile does not contain configured Worker root ${name}`);
+    }
+    const members = card.manifest.kind === "blueprint"
+      ? (card.manifest.composedFrom ?? []).map((memberSpec) => parseCardRef(memberSpec).name)
+      : [];
+    for (const member of members) {
+      if (!byName.has(member)) {
+        throw new DrwnError("WORKER_MEMBER_LOCK_MISSING", `Legacy lockfile does not contain ${name} member ${member}`);
+      }
+    }
+    return {
+      name,
+      requested: card.requested,
+      kind: card.manifest.kind === "blueprint" ? "blueprint" : "card",
+      members,
+    };
+  });
+  return { roots, cards };
+}
+
+export function overlayWorkerGraph(
+  committed: ResolvedWorkerGraph,
+  local: ResolvedWorkerGraph | null,
+): ResolvedWorkerGraph {
+  if (!local) return committed;
+  const roots = new Map(committed.roots.map((root) => [root.name, root]));
+  const cards = new Map(committed.cards.map((card) => [card.name, card]));
+  for (const root of local.roots) roots.set(root.name, root);
+  for (const card of local.cards) cards.set(card.name, card);
+  return { roots: [...roots.values()], cards: [...cards.values()] };
 }
