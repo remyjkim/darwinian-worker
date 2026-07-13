@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync
 import { dirname, join, resolve } from "node:path";
 import type { CanonicalConfig, CanonicalRegistry, ProjectConfig, RegistryServer, ServerOverride } from "./types";
 import { applyProjectExtensionConfig, mergeProjectSkillOverrides, toProjectSkillOverrides } from "./extensions/project-config";
+import { normalizeProjectConfig, type NormalizedProjectConfig } from "./project-config-migration";
 
 export interface MergedProjectState {
   config: CanonicalConfig;
@@ -39,11 +40,11 @@ export function resolveProjectRootFromConfigPath(configPath: string) {
 }
 
 export async function loadProjectConfig(configPath: string): Promise<ProjectConfig> {
-  const parsed = JSON.parse(readFileSync(configPath, "utf8")) as ProjectConfig;
-  if (parsed.version !== 1) {
-    throw new Error(`Unsupported project config version: ${String(parsed.version)}`);
-  }
-  return parsed;
+  return (await loadProjectConfigWithMigration(configPath)).config;
+}
+
+export async function loadProjectConfigWithMigration(configPath: string): Promise<NormalizedProjectConfig> {
+  return normalizeProjectConfig(JSON.parse(readFileSync(configPath, "utf8")));
 }
 
 export function mergeProjectConfig(
@@ -101,7 +102,7 @@ export async function scaffoldProjectConfig(projectDir: string, options?: { forc
   if (options?.force) {
     rmSync(configPath, { force: true });
   }
-  writeFileSync(configPath, `${JSON.stringify({ version: 1 }, null, 2)}\n`);
+  writeFileSync(configPath, `${JSON.stringify({ version: 2 }, null, 2)}\n`);
   return configPath;
 }
 

@@ -74,7 +74,7 @@ describe("core project", () => {
     const configPath = await writeProjectConfig(root, { version: 1 });
 
     const { loadProjectConfig } = await import("../cli/core/project");
-    expect(await loadProjectConfig(configPath)).toEqual({ version: 1 });
+    expect(await loadProjectConfig(configPath)).toEqual({ version: 2, workers: [] });
   });
 
   test("loadProjectConfig throws for unknown version", async () => {
@@ -114,7 +114,7 @@ describe("core project", () => {
 
     const { mergeProjectConfig } = await import("../cli/core/project");
     const merged = mergeProjectConfig(config, registry, {
-      version: 1,
+      version: 2,
       servers: {
         context7: { enabled: false },
         markdownify: { enabled: true },
@@ -143,7 +143,7 @@ describe("core project", () => {
 
     const { mergeProjectConfig } = await import("../cli/core/project");
     const merged = mergeProjectConfig(config, registry, {
-      version: 1,
+      version: 2,
       skills: {
         include: ["alpha"],
         exclude: ["beta"],
@@ -167,7 +167,7 @@ describe("core project", () => {
 
     const { mergeProjectConfig } = await import("../cli/core/project");
     const merged = mergeProjectConfig(config, registry, {
-      version: 1,
+      version: 2,
       extensions: {
         parallel: { enabled: true, skills: true, mcp: true },
       },
@@ -194,7 +194,7 @@ describe("core project", () => {
 
     const { mergeProjectConfig } = await import("../cli/core/project");
     const merged = mergeProjectConfig(config, registry, {
-      version: 1,
+      version: 2,
       extensions: {
         parallel: { enabled: false },
       },
@@ -220,7 +220,7 @@ describe("core project", () => {
 
     const { mergeProjectConfig } = await import("../cli/core/project");
     const merged = mergeProjectConfig(config, registry, {
-      version: 1,
+      version: 2,
       extensions: {
         beads: { enabled: true, includeSkill: true },
         parallel: { enabled: true },
@@ -246,7 +246,7 @@ describe("core project", () => {
 
     const { mergeProjectConfig } = await import("../cli/core/project");
     const merged = mergeProjectConfig(config, registry, {
-      version: 1,
+      version: 2,
       extensions: {
         markitdown: { enabled: true, skills: true },
       },
@@ -265,7 +265,7 @@ describe("core project", () => {
 
     const { mergeProjectConfig } = await import("../cli/core/project");
     const merged = mergeProjectConfig(config, registry, {
-      version: 1,
+      version: 2,
       extensions: {
         markitdown: { enabled: true, skills: true },
       },
@@ -289,7 +289,7 @@ describe("core project", () => {
 
     const { mergeProjectConfig } = await import("../cli/core/project");
     const merged = mergeProjectConfig(config, registry, {
-      version: 1,
+      version: 2,
       targets: {
         claude: { enabled: false },
         codex: { enabled: true },
@@ -307,7 +307,7 @@ describe("core project", () => {
     const configPath = await scaffoldProjectConfig(root);
     const contents = await readFile(configPath, "utf8");
 
-    expect(JSON.parse(contents)).toEqual({ version: 1 });
+    expect(JSON.parse(contents)).toEqual({ version: 2 });
   });
 
   test("scaffoldProjectConfig throws when file exists without force", async () => {
@@ -327,6 +327,6 @@ describe("core project", () => {
     const configPath = await scaffoldProjectConfig(root, { force: true });
     const contents = await readFile(configPath, "utf8");
 
-    expect(JSON.parse(contents)).toEqual({ version: 1 });
+    expect(JSON.parse(contents)).toEqual({ version: 2 });
   });
 });

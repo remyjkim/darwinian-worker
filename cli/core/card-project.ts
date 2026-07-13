@@ -104,9 +104,9 @@ export async function writeProjectCards(
 ): Promise<CardProjectMutation> {
   const config = readProjectConfigForWrite(projectRoot);
   const previousLock = await loadCardLock(projectRoot);
-  config.cards = [...specs];
+  config.workers = [...specs];
   const configPath = writeProjectConfigForWrite(projectRoot, config);
-  const graph = await resolveWorkerGraph(agentsDir, config.cards, options);
+  const graph = await resolveWorkerGraph(agentsDir, config.workers, options);
   const warnings: string[] = [];
   const previousByName = new Map((previousLock?.cards ?? []).map((card) => [card.name, card]));
   const locked = graph.cards.map((card) => {
@@ -128,13 +128,13 @@ export async function writeProjectCards(
   const lockGraph: ResolvedWorkerGraph = { roots: graph.roots, cards: locked };
   const lockPath = await persistCardLock(projectRoot, agentsDir, lockGraph);
   const lockedWithTreeSha = (await loadCardLock(projectRoot))?.cards ?? locked;
-  return { projectConfigPath: configPath, lockPath, cards: config.cards, locked: lockedWithTreeSha, warnings };
+  return { projectConfigPath: configPath, lockPath, cards: config.workers, locked: lockedWithTreeSha, warnings };
 }
 
 export async function getCurrentProjectCardSpecs(projectRoot: string) {
   const configPath = projectConfigPath(projectRoot);
   const config = await loadProjectConfig(configPath);
-  return [...(config.cards ?? [])];
+  return [...(config.workers ?? [])];
 }
 
 export async function applyProjectCardSpecs(
@@ -283,7 +283,7 @@ export async function readProjectCardStatus(
   const projectRoot = resolveProjectRootFromConfigPath(projectConfigPath);
   const config = await loadProjectConfig(projectConfigPath);
   const lock = await loadCardLock(projectRoot);
-  const specs = config.cards ?? [];
+  const specs = config.workers ?? [];
   const locked = lock?.cards ?? [];
   const outdated = await findOutdatedProjectCards(projectRoot, agentsDir);
   const state = await buildEffectiveState({

@@ -32,7 +32,7 @@ const baseCard: CardLockEntry = {
 describe("resolveMode", () => {
   test("explicit vendored wins over CARDS_SOURCE_PATH", () => {
     const mode = resolveMode(baseCard, {
-      projectConfig: { version: 1, materialization: "vendored" },
+      projectConfig: { version: 2, materialization: "vendored" },
       cardsSourcePath: "/tmp/sources",
     });
     expect(mode.mode).toBe("vendored");
@@ -83,7 +83,7 @@ describe("resolveMode", () => {
     tempRoots.push(root);
 
     const mode = resolveMode(baseCard, {
-      projectConfig: { version: 1, materialization: "linked" },
+      projectConfig: { version: 2, materialization: "linked" },
       cardsSourcePath: root,
     });
     expect(mode.mode).toBe("vendored");

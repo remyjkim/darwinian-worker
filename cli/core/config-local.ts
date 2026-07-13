@@ -11,8 +11,10 @@ import { writeAtomically } from "./fs";
 import { ensureGitignoreEntries } from "./git-hygiene";
 import type { ProjectConfig } from "./types";
 import { graphFromCards, resolveWorkerGraph, type ResolvedWorkerGraph } from "./worker-graph";
+import { normalizeLocalActiveWorker } from "./project-config-migration";
 
 export interface ConfigLocal {
+  activeWorker?: string | null;
   activate?: string[];
   overrides?: Record<string, string>;
 }
@@ -188,8 +190,9 @@ export function mergeProjectWithLocal(project: ProjectConfig, local: ConfigLocal
     return project;
   }
   const next: ProjectConfig = { ...project };
-  if (local.activate !== undefined) {
-    next.activeWorkers = [...local.activate];
+  const { activeWorker } = normalizeLocalActiveWorker(local);
+  if (activeWorker !== undefined) {
+    next.activeWorker = activeWorker;
   }
   return next;
 }

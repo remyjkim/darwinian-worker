@@ -30,7 +30,7 @@ describe("resolveHookRuntimes", () => {
 
   it("enables mastra only by explicit hook runtime opt-in", () => {
     const projectConfig: ProjectConfig = {
-      version: 1,
+      version: 2,
       hooks: { runtimes: { mastra: { enabled: true } } },
     };
     expect(resolveHookRuntimes({ effectiveConfig: config(), projectConfig })).toEqual(["claude-code", "codex", "mastra"]);
@@ -38,7 +38,7 @@ describe("resolveHookRuntimes", () => {
 
   it("lets hook runtime config override target-derived defaults", () => {
     const projectConfig: ProjectConfig = {
-      version: 1,
+      version: 2,
       hooks: {
         runtimes: {
           "claude-code": { enabled: false },

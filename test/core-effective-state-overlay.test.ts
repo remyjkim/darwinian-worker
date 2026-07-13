@@ -120,7 +120,7 @@ test("name collision: card.lock.local wins with warning", async () => {
   expect(state.vendorEligible.has("@me/shared")).toBe(false);
 });
 
-test("config.local activate overrides committed active stack", async () => {
+test("config.local accepts one legacy activate value and overrides committed selection", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   await publishCardWithSkills(fixture, { name: "@me/one", skills: ["one"] });

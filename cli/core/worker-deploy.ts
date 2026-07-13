@@ -130,18 +130,18 @@ function governanceFromEntry(card: CardLockEntry): WorkerDeployGovernance | null
 
 function deployProjectConfig(cardRef: string, projectRoot?: string | null): ProjectConfig {
   if (!projectRoot) {
-    return { version: 1, cards: [cardRef] };
+    return { version: 2, workers: [cardRef] };
   }
   try {
     const config = readProjectConfigForWrite(projectRoot);
-    if (config.cards?.includes(cardRef)) {
+    if (config.workers?.includes(cardRef)) {
       return config;
     }
   } catch {
     // Fall through to the minimal deploy config. Deploy must not depend on a local
     // project unless it clearly selected the exact deploy ref.
   }
-  return { version: 1, cards: [cardRef] };
+  return { version: 2, workers: [cardRef] };
 }
 
 function storeExportEntries(agentsDir: string, cards: CardLockEntry[]): string[] {

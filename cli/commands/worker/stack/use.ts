@@ -36,9 +36,13 @@ export class WorkerStackUseCommand extends BaseCommand {
       this.context.stderr.write(`Worker is not installed in this project: ${missing.join(", ")}\n`);
       return 1;
     }
+    if (this.names.length > 1) {
+      this.context.stderr.write("Worker stacks are unsupported; select exactly one Worker.\n");
+      return 1;
+    }
     const activeWorkers = [...this.names];
     const config = readProjectConfigForWrite(projectRoot);
-    config.activeWorkers = activeWorkers;
+    config.activeWorker = activeWorkers[0]!;
     const configPath = writeProjectConfigForWrite(projectRoot, config);
     const payload = { activeWorkers, configPath };
     if (this.json) {
