@@ -39,7 +39,12 @@ import { diffWriteRecord, loadWriteRecord, resolveProjectWriteRecordPath } from 
 import { isHookConsentValid } from "./hook-consent";
 import { DRWN_VERSION } from "./version";
 import type { CanonicalConfig, RegistryServer } from "./types";
-import { collectMachineProjectionConflicts, planMachineManagedPaths, type MachineProjectionConflict } from "./sync";
+import {
+  collectMachineProjectionConflicts,
+  planMachineManagedPaths,
+  planRepositoryProjection,
+  type MachineProjectionConflict,
+} from "./sync";
 import { readMachineConfig } from "./card-store";
 import { DrwnError } from "./errors";
 import { verifyMachineProfilePin } from "./machine-profiles";
@@ -284,7 +289,14 @@ export async function buildMachineStatusV1(
     issues.push(`MACHINE_CAPABILITY_NOT_FOUND: Explicit machine MCP server is not available in machine inventory: ${server.id}`);
   }
 
-  const record = loadWriteRecord(resolveGlobalWriteRecordPath(agentsDir));
+  const machineRecordPath = resolveGlobalWriteRecordPath(agentsDir);
+  let record = null;
+  try {
+    record = loadWriteRecord(machineRecordPath, "machine");
+  } catch (error) {
+    if (!(error instanceof DrwnError)) throw error;
+    issues.push(`${error.code}: ${error.message}`);
+  }
   let conflicts: MachineProjectionConflict[] = [];
   let current = false;
   if (issues.length === 0) {
@@ -322,7 +334,7 @@ export async function buildMachineStatusV1(
     projection: {
       healthy: issues.length === 0 && conflicts.length === 0,
       current,
-      recordPresent: record !== null,
+      recordPresent: existsSync(machineRecordPath),
       conflicts,
       issues,
     },
@@ -432,6 +444,12 @@ export async function buildProjectStatusV1(options: {
     declaredSkillIds: skillItems.map((entry) => entry.id),
     declaredMcpIds: mcpItems.map((entry) => entry.id),
   });
+  const projection = await planRepositoryProjection({
+    repoRoot: options.repoRoot,
+    agentsDir: options.agentsDir,
+    homeDir: options.homeDir,
+    cwd: projectRoot,
+  });
   return {
     schema: "drwn.project-status",
     schemaVersion: 1,
@@ -447,10 +465,7 @@ export async function buildProjectStatusV1(options: {
       collisions: state.ambientCollisions,
       enforcement: "target-native",
     },
-    projection: {
-      current: existsSync(state.recordPath) && state.overlayWarnings.length === 0,
-      issues: [...state.overlayWarnings],
-    },
+    projection: { current: projection.current, issues: projection.issues },
   };
 }
 
@@ -479,13 +494,23 @@ export async function buildStatusReport(repoRoot: string, agentsDir: string, hom
   };
 }
 
-function readWriteRecordStatus(path: string): DiagnosticsSections["writeRecord"] {
+function readWriteRecordStatus(
+  path: string,
+  scope: "project" | "machine",
+): DiagnosticsSections["writeRecord"] {
   const present = existsSync(path);
-  const record = loadWriteRecord(path);
+  let record = null;
+  let corrupt = false;
+  try {
+    record = loadWriteRecord(path, scope);
+  } catch (error) {
+    if (!(error instanceof DrwnError) || error.code !== "WRITE_RECORD_INVALID") throw error;
+    corrupt = true;
+  }
   return {
     path,
     present,
-    corrupt: present && record === null,
+    corrupt,
     managedPathCount: record?.managedPaths.length ?? 0,
     lastWriteAt: record?.lastWriteAt,
     lastWriteHarnessVersion: record?.lastWriteHarnessVersion,
@@ -573,7 +598,7 @@ export async function buildDiagnosticsSections(
       ? { configPath: projectConfigPath, root: projectRoot, cardCount: projectConfig.workers.length }
       : undefined,
     store,
-    writeRecord: readWriteRecordStatus(writeRecordPath),
+    writeRecord: readWriteRecordStatus(writeRecordPath, projectRoot ? "project" : "machine"),
     skills: {
       inventoryCount: repoSkills.length,
       activeCount: projectState
@@ -967,7 +992,12 @@ export async function buildDoctorReport(repoRoot: string, agentsDir: string, hom
     buildMachineStatusV1(repoRoot, agentsDir, homeDir),
   ]);
   const { config } = await loadEffectiveConfig(repoConfig, agentsDir);
-  const machineRecord = loadWriteRecord(resolveGlobalWriteRecordPath(agentsDir));
+  let machineRecord = null;
+  try {
+    machineRecord = loadWriteRecord(resolveGlobalWriteRecordPath(agentsDir), "machine");
+  } catch (error) {
+    if (!(error instanceof DrwnError) || error.code !== "WRITE_RECORD_INVALID") throw error;
+  }
   let staleSkillSymlinks: string[] = [];
   if (machineStatus.projection.issues.length === 0) {
     const machineState = await buildEffectiveState({
@@ -1109,6 +1139,8 @@ export async function buildDoctorReportWithProject(
     projectConfigIssues: [...report.projectConfigIssues, ...issues],
     ambientMcpCollisions: selectedAmbientCollisions(state),
   };
+  const projection = await planRepositoryProjection({ repoRoot, agentsDir, homeDir, cwd: projectRoot });
+  scopedReport.projectConfigIssues.push(...projection.issues);
   const sections = await buildDiagnosticsSections(repoRoot, agentsDir, homeDir, projectConfigPath);
   return {
     ...scopedReport,

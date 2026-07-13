@@ -58,10 +58,18 @@ test("diagnostics sections compose cards, store, and write-record state", async 
     },
   ]);
   saveWriteRecord(join(projectDir, ".agents", "drwn", "write-record.json"), {
-    writeRecordVersion: 1,
+    schema: "drwn.write-record",
+    schemaVersion: 1,
+    scope: "project",
     lastWriteAt: "2026-05-20T00:00:00.000Z",
     lastWriteHarnessVersion: "0.1.0",
-    managedPaths: [{ path: ".claude/skills/alpha", kind: "symlink", target: "alpha" }],
+    managedPaths: [{
+      path: ".claude/skills/alpha",
+      kind: "symlink",
+      linkTarget: "alpha",
+      surface: "skill",
+      target: "claude",
+    }],
   });
 
   const sections = await buildDiagnosticsSections(fixture.repoRoot, fixture.agentsDir, fixture.homeDir, configPath);
