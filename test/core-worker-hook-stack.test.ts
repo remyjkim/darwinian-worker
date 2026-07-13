@@ -5,7 +5,7 @@ import { afterEach, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, envFor, installProjectWorkers, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -19,27 +19,26 @@ async function publishHookCard(fixture: Awaited<ReturnType<typeof scaffoldCliFix
   expect((await runAgentsCli(["card", "publish", name], envFor(fixture))).exitCode).toBe(0);
 }
 
-test("active worker hooks project as one stack composer and preserve signals", async () => {
+async function publishHookBlueprint(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
+  expect((await runAgentsCli(["card", "new", "@me/worker", "--no-git"], envFor(fixture))).exitCode).toBe(0);
+  const path = join(fixture.agentsDir, "drwn", "sources", "@me", "worker", "card.json");
+  const manifest = JSON.parse(await readFile(path, "utf8"));
+  manifest.kind = "blueprint";
+  manifest.composedFrom = ["@me/base@1.0.0", "@me/overlay@1.0.0"];
+  await writeFile(path, `${JSON.stringify(manifest, null, 2)}\n`);
+  expect((await runAgentsCli(["card", "publish", "@me/worker"], envFor(fixture))).exitCode).toBe(0);
+}
+
+test("selected Blueprint hooks project as one closure composer and preserve signals", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   await publishHookCard(fixture, "@me/base", "guard");
   await publishHookCard(fixture, "@me/overlay", "audit");
+  await publishHookBlueprint(fixture);
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(
-    join(projectDir, ".agents", "drwn", "config.json"),
-    JSON.stringify(
-      {
-        version: 1,
-        cards: ["@me/base@1.0.0", "@me/overlay@1.0.0"],
-        activeWorkers: ["@me/base", "@me/overlay"],
-        hooks: { signals: { enabled: true } },
-      },
-      null,
-      2,
-    ),
-  );
-  expect((await runAgentsCli(["card", "apply", "@me/base@1.0.0", "@me/overlay@1.0.0"], envFor(fixture), projectDir)).exitCode).toBe(0);
+  await installProjectWorkers(projectDir, fixture.agentsDir, ["@me/worker@1.0.0"], "@me/worker", {
+    hooks: { signals: { enabled: true } },
+  });
   expect((await runAgentsCli(["card", "trust", "@me/base", "--hooks"], envFor(fixture), projectDir)).exitCode).toBe(0);
   expect((await runAgentsCli(["card", "trust", "@me/overlay", "--hooks"], envFor(fixture), projectDir)).exitCode).toBe(0);
 
@@ -47,8 +46,9 @@ test("active worker hooks project as one stack composer and preserve signals", a
   const settings = JSON.parse(await readFile(join(projectDir, ".claude", "settings.json"), "utf8"));
 
   expect(write.exitCode).toBe(0);
-  expect(existsSync(join(projectDir, ".agents", "drwn", "generated", "workers", "@me", "base", "hooks", "claude", "composer.mjs"))).toBe(true);
-  expect(existsSync(join(projectDir, ".agents", "drwn", "generated", "workers", "@me", "overlay", "hooks", "claude", "composer.mjs"))).toBe(true);
+  expect(existsSync(join(projectDir, ".agents", "drwn", "generated", "workers", "@me", "worker", "hooks", "claude", "composer.mjs"))).toBe(true);
+  expect(existsSync(join(projectDir, ".agents", "drwn", "generated", "workers", "@me", "base"))).toBe(false);
+  expect(existsSync(join(projectDir, ".agents", "drwn", "generated", "workers", "@me", "overlay"))).toBe(false);
   const preToolMatchers = settings.hooks.PreToolUse.map((entry: { matcher?: string }) => entry.matcher);
   expect(preToolMatchers.filter((matcher: string | undefined) => matcher === ".*")).toHaveLength(1);
   expect(preToolMatchers).toContain("Skill");
@@ -56,26 +56,14 @@ test("active worker hooks project as one stack composer and preserve signals", a
   expect(settings._drwn.ownedHooks.PreToolUse["m:Skill"]).toStartWith("sha256-");
 });
 
-test("clearing the active stack drops the card composer entry while signal hooks survive", async () => {
+test("deselecting the Worker drops the Card composer while signal hooks survive", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   await publishHookCard(fixture, "@me/base", "guard");
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(
-    join(projectDir, ".agents", "drwn", "config.json"),
-    JSON.stringify(
-      {
-        version: 1,
-        cards: ["@me/base@1.0.0"],
-        activeWorkers: ["@me/base"],
-        hooks: { signals: { enabled: true } },
-      },
-      null,
-      2,
-    ),
-  );
-  expect((await runAgentsCli(["card", "apply", "@me/base@1.0.0"], envFor(fixture), projectDir)).exitCode).toBe(0);
+  await installProjectWorkers(projectDir, fixture.agentsDir, ["@me/base@1.0.0"], "@me/base", {
+    hooks: { signals: { enabled: true } },
+  });
   expect((await runAgentsCli(["card", "trust", "@me/base", "--hooks"], envFor(fixture), projectDir)).exitCode).toBe(0);
 
   // Active stack: both the card composer (.*) and the signal (Skill) entries are owned.
@@ -85,8 +73,11 @@ test("clearing the active stack drops the card composer entry while signal hooks
   expect(active._drwn.ownedHooks.PreToolUse["m:.*"]).toStartWith("sha256-");
   expect(active._drwn.ownedHooks.PreToolUse["m:Skill"]).toStartWith("sha256-");
 
-  // Deactivate the stack and re-project: the card composer entry is dropped, signals remain.
-  expect((await runAgentsCli(["worker", "stack", "clear"], envFor(fixture), projectDir)).exitCode).toBe(0);
+  await writeSupportedProjectConfig(projectDir, {
+    workers: ["@me/base@1.0.0"],
+    activeWorker: null,
+    hooks: { signals: { enabled: true } },
+  });
   expect((await runAgentsCli(["write", "--target", "claude"], envFor(fixture), projectDir)).exitCode).toBe(0);
   const cleared = JSON.parse(await readFile(join(projectDir, ".claude", "settings.json"), "utf8"));
   expect(cleared.hooks.PreToolUse.some((entry: { matcher?: string }) => entry.matcher === ".*")).toBe(false);

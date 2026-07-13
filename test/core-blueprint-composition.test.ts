@@ -70,9 +70,9 @@ test("a blueprint composing another blueprint is refused", async () => {
   await publishBlueprint(fixture, { name: "@me/inner", composedFrom: ["@me/a@^1.0.0"] });
   await publishBlueprint(fixture, { name: "@me/outer", composedFrom: ["@me/inner@^1.0.0"] });
 
-  await expect(resolveProjectCards(fixture.agentsDir, ["@me/outer@^1.0.0"])).rejects.toThrow(
-    /recursion is not supported/,
-  );
+  await expect(resolveProjectCards(fixture.agentsDir, ["@me/outer@^1.0.0"])).rejects.toMatchObject({
+    code: "BLUEPRINT_MEMBER_IS_BLUEPRINT",
+  });
 });
 
 test("a member shared by a direct spec and a blueprint appears once (first wins)", async () => {
