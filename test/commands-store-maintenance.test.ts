@@ -3,9 +3,10 @@
 
 import { afterEach, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { computeContentManifest, manifestIntegrityDigest } from "../cli/core/content-manifest";
 import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture } from "./helpers";
 import { createLocalCardRepo } from "./fixtures/git-helpers";
 
@@ -37,19 +38,30 @@ test("store gc runs maintenance on card repos", async () => {
   expect(result.stdout).toContain("Garbage collection complete");
 });
 
-test("store export writes a tar archive", async () => {
+test("store export refuses whole-store archives before any side effect", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   await publishCardWithSkills(fixture, { name: "@me/backend", skills: ["alpha"] });
-  const outDir = await mkdtemp(join(tmpdir(), "drwn-export-"));
-  tempRoots.push(outDir);
+
+  const storeRoot = join(fixture.agentsDir, "drwn");
+  await writeFile(join(storeRoot, "credentials.json"), "credential-sentinel\n");
+  await writeFile(join(storeRoot, "machine.json"), "machine-sentinel\n");
+  await writeFile(join(storeRoot, "projects.json"), "project-sentinel\n");
+  await writeFile(join(storeRoot, "global-write-record.json"), "write-record-sentinel\n");
+  const before = manifestIntegrityDigest(await computeContentManifest(storeRoot));
+
+  const outputRoot = await mkdtemp(join(tmpdir(), "drwn-export-"));
+  tempRoots.push(outputRoot);
+  const outDir = join(outputRoot, "new-output-dir");
   const out = join(outDir, "store.tar");
 
   const result = await runAgentsCli(["store", "export", "--out", out], envFor(fixture));
 
-  expect(result.exitCode).toBe(0);
-  expect(existsSync(out)).toBe(true);
-  expect((await stat(out)).size).toBeGreaterThan(0);
+  expect(result.exitCode).not.toBe(0);
+  expect(result.stderr + result.stdout).toContain("STORE_EXPORT_DISABLED_UNSAFE");
+  expect(result.stderr + result.stdout).toContain("Whole-store export is disabled");
+  expect(existsSync(outDir)).toBe(false);
+  expect(manifestIntegrityDigest(await computeContentManifest(storeRoot))).toBe(before);
 });
 
 test("DRWN_STORE_READONLY blocks store mutations", async () => {

@@ -2,10 +2,7 @@
 // ABOUTME: Archives ~/.agents/drwn for transfer or inspection.
 
 import { Option } from "clipanion";
-import { mkdir } from "node:fs/promises";
-import { dirname } from "node:path";
-import { create as createArchive } from "../../core/archive";
-import { resolveStoreRoot } from "../../core/store-paths";
+import { DrwnError } from "../../core/errors";
 import { BaseCommand } from "../base";
 
 export class StoreExportCommand extends BaseCommand {
@@ -24,14 +21,12 @@ export class StoreExportCommand extends BaseCommand {
   out = Option.String("--out", { required: true, description: "Output tar archive path." });
 
   async execute() {
-    await mkdir(dirname(this.out), { recursive: true });
-    try {
-      await createArchive(this.out, { cwd: this.context.agentsDir, entries: ["drwn"], gzip: false });
-    } catch (error) {
-      this.context.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-      return 1;
-    }
-    this.context.stdout.write(`Exported ${resolveStoreRoot(this.context.agentsDir)} to ${this.out}\n`);
-    return 0;
+    const error = new DrwnError(
+      "STORE_EXPORT_DISABLED_UNSAFE",
+      "Whole-store export is disabled because it can include credentials and operational state.",
+      ["Portable inventory export is tracked separately; no unrestricted override is available."],
+    );
+    this.context.stderr.write(`${error.code}: ${error.message}\n${error.hints?.join("\n")}\n`);
+    return 1;
   }
 }
