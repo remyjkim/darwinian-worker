@@ -4,8 +4,9 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { evaluateVersionFloor, loadCardLock, type CardLockEntry, type VersionFloorStatus } from "./card-lock";
+import type { AmbientCollision } from "./ambient-policy";
 import { resolveSkillSource } from "./card-skill-resolver";
-import { buildEffectiveState } from "./effective-state";
+import { buildEffectiveState, selectedAmbientCollisions } from "./effective-state";
 import { inspectAmbientCapabilities } from "./ambient-capabilities";
 import { loadConfig } from "./config";
 import { buildActiveServers, hashCodexManagedServers, mergeClaudeSettingsText, mergeCodexTomlText, renderCursorConfig, renderJsonMcpConfig } from "./mcp";
@@ -48,6 +49,7 @@ export interface DoctorReport {
   projectConfigIssues: string[];
   surfaceNotes: string[];
   platformChecks: PlatformCheck[];
+  ambientMcpCollisions: AmbientCollision[];
   cards?: DiagnosticsSections["cards"];
   store?: DiagnosticsSections["store"];
   writeRecord?: DiagnosticsSections["writeRecord"];
@@ -145,7 +147,8 @@ export interface ProjectStatusV1 {
   };
   ambientCapabilities: {
     observations: Awaited<ReturnType<typeof inspectAmbientCapabilities>>;
-    enforcement: "diagnostic-only";
+    collisions: AmbientCollision[];
+    enforcement: "target-native";
   };
   projection: { current: boolean; issues: string[] };
 }
@@ -262,7 +265,11 @@ export async function buildProjectStatusV1(options: {
     localOverrides: { ...state.workerSelection.localOverrides },
     projectOverlays,
     declaredCapabilities: { skills: skillItems, mcp: mcpItems, hooks: hookItems },
-    ambientCapabilities: { observations: ambient, enforcement: "diagnostic-only" },
+    ambientCapabilities: {
+      observations: ambient,
+      collisions: state.ambientCollisions,
+      enforcement: "target-native",
+    },
     projection: {
       current: existsSync(state.recordPath) && state.overlayWarnings.length === 0,
       issues: [...state.overlayWarnings],
@@ -819,6 +826,7 @@ export async function buildDoctorReport(repoRoot: string, agentsDir: string, hom
     projectConfigIssues: defaultIssues,
     surfaceNotes: buildSurfaceNotes(config),
     platformChecks: buildPlatformChecks(),
+    ambientMcpCollisions: [],
     cards: sections.cards,
     store: sections.store,
     writeRecord: sections.writeRecord,
@@ -911,6 +919,7 @@ export async function buildDoctorReportWithProject(
     missingGeneratedFiles: await detectMissingGeneratedFiles(state.effectiveConfig, generatedDir),
     hookIssues: detectHookIssues(cardLocks, generatedDir),
     projectConfigIssues: [...report.projectConfigIssues, ...issues],
+    ambientMcpCollisions: selectedAmbientCollisions(state),
   };
   const sections = await buildDiagnosticsSections(repoRoot, agentsDir, homeDir, projectConfigPath);
   return {

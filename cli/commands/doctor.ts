@@ -53,6 +53,7 @@ export class DoctorCommand extends BaseCommand {
       this.context.homeDir,
       this.context.projectConfigPath,
     );
+    const unhealthy = report.ambientMcpCollisions.some((collision) => collision.disposition === "fatal");
 
     if (this.json) {
       const projectStatus = await buildProjectStatusV1({
@@ -62,10 +63,10 @@ export class DoctorCommand extends BaseCommand {
         projectConfigPath: this.context.projectConfigPath,
       });
       this.context.stdout.write(renderJson({ ...report, ...(projectStatus ?? {}) }));
-      return 0;
+      return unhealthy ? 1 : 0;
     }
 
     this.context.stdout.write(renderDoctorReport(report));
-    return 0;
+    return unhealthy ? 1 : 0;
   }
 }

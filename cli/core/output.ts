@@ -2,6 +2,7 @@
 // ABOUTME: Keeps presentation logic separate from filesystem and sync domain logic.
 
 import type { OptionalMcpReport } from "./mcp-report";
+import { formatAmbientCollision, type AmbientCollision } from "./ambient-policy";
 
 export function renderJson(value: unknown) {
   return `${JSON.stringify(value, null, 2)}\n`;
@@ -89,6 +90,7 @@ export function renderDoctorReport(report: {
   projectConfigIssues?: string[];
   surfaceNotes?: string[];
   platformChecks?: Array<{ name: string; ok: boolean; detail?: string }>;
+  ambientMcpCollisions?: AmbientCollision[];
 }) {
   const sections: string[] = [];
 
@@ -99,6 +101,10 @@ export function renderDoctorReport(report: {
     { label: "Missing generated files", items: report.missingGeneratedFiles },
     { label: "Hook issues", items: report.hookIssues ?? [] },
     { label: "Project config issues", items: report.projectConfigIssues ?? [] },
+    {
+      label: "Ambient MCP collisions",
+      items: (report.ambientMcpCollisions ?? []).map(formatAmbientCollision),
+    },
   ];
 
   for (const { label, items } of categories) {

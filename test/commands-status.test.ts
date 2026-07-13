@@ -54,7 +54,7 @@ describe("drwn status", () => {
       schemaVersion: 1,
       activeWorker: "@me/worker",
       selectionSource: "project",
-      ambientCapabilities: { enforcement: "diagnostic-only" },
+      ambientCapabilities: { enforcement: "target-native", collisions: [] },
     });
     expect(status.installedWorkers.map((entry: { id: string }) => entry.id)).toEqual(["@me/worker"]);
     expect(status.activeCards.map((entry: { id: string }) => entry.id)).toEqual(["@me/worker"]);
@@ -64,6 +64,55 @@ describe("drwn status", () => {
     expect(status.ambientCapabilities.observations).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "ambient-only", target: "codex" }),
     ]));
+  });
+
+  test("project JSON reports redacted target-native ambient MCP dispositions", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const projectDir = join(fixture.root, "ambient-status");
+    await writeSupportedProjectConfig(projectDir, {
+      mcpServers: {
+        notion: {
+          description: "Project Notion",
+          transport: "stdio",
+          command: "npx",
+          env: { NOTION_TOKEN: "project-secret-sentinel" },
+          optional: false,
+        },
+      },
+    });
+    await writeFile(
+      fixture.codexConfig,
+      '[mcp_servers.notion]\nurl = "https://mcp.notion.com/mcp"\nbearer_token_env_var = "USER_SECRET_SENTINEL"\n',
+    );
+
+    const result = await runAgentsCli(["status", "--json"], envFor(fixture), projectDir);
+
+    expect(result.exitCode, result.stderr).toBe(0);
+    const status = JSON.parse(result.stdout) as {
+      ambientCapabilities: {
+        enforcement: string;
+        collisions: Array<{
+          target: string;
+          id: string;
+          disposition: string;
+          reasonCode: string;
+          declared: { source: string; transport: string };
+          ambient: { source: string; transport: string };
+        }>;
+      };
+    };
+    expect(status.ambientCapabilities.enforcement).toBe("target-native");
+    expect(status.ambientCapabilities.collisions).toContainEqual(expect.objectContaining({
+      target: "codex",
+      id: "notion",
+      disposition: "fatal",
+      reasonCode: "CODEX_INCOMPATIBLE_TRANSPORTS",
+      declared: expect.objectContaining({ source: "project", transport: "stdio" }),
+      ambient: expect.objectContaining({ source: "user", transport: "http" }),
+    }));
+    expect(result.stdout).not.toContain("project-secret-sentinel");
+    expect(result.stdout).not.toContain("USER_SECRET_SENTINEL");
   });
 
   test("reports repo root, agents dir, and counts", async () => {

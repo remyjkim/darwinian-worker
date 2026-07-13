@@ -215,4 +215,53 @@ describe("drwn mcp", () => {
     expect(result.exitCode, result.stderr).toBe(0);
     expect(JSON.parse(result.stdout).map((entry: { name: string }) => entry.name)).not.toContain("machine-only");
   });
+
+  test("project list shows concise redacted same-ID ambient provenance", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const projectDir = join(fixture.root, "ambient-list");
+    await writeSupportedProjectConfig(projectDir, {
+      mcpServers: {
+        notion: {
+          description: "Project Notion",
+          transport: "stdio",
+          command: "npx",
+          env: { TOKEN: "project-secret-sentinel" },
+          optional: false,
+        },
+      },
+    });
+    await writeFile(
+      fixture.codexConfig,
+      '[mcp_servers.notion]\nurl = "https://mcp.notion.com/mcp"\nbearer_token_env_var = "USER_SECRET_SENTINEL"\n',
+    );
+
+    const json = await runAgentsCli(["mcp", "list", "--json"], {
+      AGENTS_REPO_ROOT: fixture.repoRoot,
+      AGENTS_HOME_DIR: fixture.homeDir,
+      AGENTS_DIR: fixture.agentsDir,
+    }, projectDir);
+    const human = await runAgentsCli(["mcp", "list"], {
+      AGENTS_REPO_ROOT: fixture.repoRoot,
+      AGENTS_HOME_DIR: fixture.homeDir,
+      AGENTS_DIR: fixture.agentsDir,
+    }, projectDir);
+
+    expect(json.exitCode).toBe(0);
+    expect(human.exitCode).toBe(0);
+    const notion = (JSON.parse(json.stdout) as Array<{
+      name: string;
+      ambient: Array<{ target: string; disposition: string; reasonCode: string; source: string; transport: string }>;
+    }>).find((entry) => entry.name === "notion");
+    expect(notion?.ambient).toContainEqual({
+      target: "codex",
+      disposition: "fatal",
+      reasonCode: "CODEX_INCOMPATIBLE_TRANSPORTS",
+      source: "user",
+      transport: "http",
+    });
+    expect(human.stdout).toContain("CODEX_INCOMPATIBLE_TRANSPORTS");
+    expect(`${json.stdout}\n${human.stdout}`).not.toContain("project-secret-sentinel");
+    expect(`${json.stdout}\n${human.stdout}`).not.toContain("USER_SECRET_SENTINEL");
+  });
 });

@@ -44,12 +44,24 @@ export class McpListCommand extends BaseCommand {
 
     const rows = Object.entries(state.effectiveRegistry.servers)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([name, server]) => ({
-        name,
-        transport: server.transport,
-        active: Object.hasOwn(state.activeServers, name),
-        targets: Object.hasOwn(state.activeServers, name) ? targetSummary : "",
-      }));
+      .map(([name, server]) => {
+        const ambient = state.ambientCollisions
+          .filter((collision) => collision.id === name)
+          .map((collision) => ({
+            target: collision.target,
+            disposition: collision.disposition,
+            reasonCode: collision.reasonCode,
+            source: collision.ambient.source,
+            transport: collision.ambient.transport,
+          }));
+        return {
+          name,
+          transport: server.transport,
+          active: Object.hasOwn(state.activeServers, name),
+          targets: Object.hasOwn(state.activeServers, name) ? targetSummary : "",
+          ambient,
+        };
+      });
 
     if (this.json) {
       this.context.stdout.write(renderJson(rows));
@@ -58,8 +70,14 @@ export class McpListCommand extends BaseCommand {
 
     this.context.stdout.write(
       renderTable(
-        ["name", "transport", "active", "targets"],
-        rows.map((row) => [row.name, row.transport, row.active ? "yes" : "no", row.targets]),
+        ["name", "transport", "active", "targets", "ambient"],
+        rows.map((row) => [
+          row.name,
+          row.transport,
+          row.active ? "yes" : "no",
+          row.targets,
+          row.ambient.map((entry) => `${entry.target}:${entry.reasonCode}`).join(","),
+        ]),
       ),
     );
     return 0;

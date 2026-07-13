@@ -156,6 +156,109 @@ describe("drwn doctor", () => {
     expect(parsed.mcpDrift.length).toBeGreaterThan(0);
   });
 
+  test("returns unhealthy for fatal ambient MCP collisions with redacted remediation", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const projectDir = join(fixture.root, "ambient-doctor");
+    await writeSupportedProjectConfig(projectDir, {
+      mcpServers: {
+        notion: {
+          description: "Project Notion",
+          transport: "stdio",
+          command: "npx",
+          env: { TOKEN: "project-secret-sentinel" },
+          optional: false,
+        },
+      },
+    });
+    await writeFile(
+      fixture.codexConfig,
+      '[mcp_servers.notion]\nurl = "https://mcp.notion.com/mcp"\nhttp_headers = { Authorization = "Bearer user-secret-sentinel" }\n',
+    );
+
+    const json = await runAgentsCli(["doctor", "--json"], envFor(fixture), projectDir);
+    const human = await runAgentsCli(["doctor"], envFor(fixture), projectDir);
+
+    expect(json.exitCode).toBe(1);
+    expect(human.exitCode).toBe(1);
+    const report = JSON.parse(json.stdout) as {
+      ambientMcpCollisions: Array<{ disposition: string; reasonCode: string; remediation: string }>;
+      ambientCapabilities: { enforcement: string; collisions: unknown[] };
+    };
+    expect(report.ambientMcpCollisions).toContainEqual(expect.objectContaining({
+      disposition: "fatal",
+      reasonCode: "CODEX_INCOMPATIBLE_TRANSPORTS",
+      remediation: "Rename one server ID or remove one of the conflicting transport definitions.",
+    }));
+    expect(report.ambientCapabilities.enforcement).toBe("target-native");
+    expect(human.stdout).toContain("CODEX_INCOMPATIBLE_TRANSPORTS");
+    expect(human.stdout).toContain("Rename one server ID");
+    expect(`${json.stdout}\n${human.stdout}`).not.toContain("project-secret-sentinel");
+    expect(`${json.stdout}\n${human.stdout}`).not.toContain("user-secret-sentinel");
+  });
+
+  test("keeps warning-only Claude ambient shadowing healthy", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const projectDir = join(fixture.root, "ambient-warning-doctor");
+    await writeSupportedProjectConfig(projectDir, {
+      mcpServers: {
+        notion: {
+          description: "Project Notion",
+          transport: "stdio",
+          command: "npx",
+          optional: false,
+        },
+      },
+    });
+    await writeFile(
+      fixture.claudeUserMcp,
+      `${JSON.stringify({ mcpServers: { notion: { type: "http", url: "https://mcp.notion.com/mcp" } } })}\n`,
+    );
+
+    const result = await runAgentsCli(["doctor", "--json"], envFor(fixture), projectDir);
+
+    expect(result.exitCode).toBe(0);
+    const report = JSON.parse(result.stdout) as {
+      ambientMcpCollisions: Array<{ disposition: string; reasonCode: string }>;
+    };
+    expect(report.ambientMcpCollisions).toContainEqual(expect.objectContaining({
+      disposition: "warning",
+      reasonCode: "CLAUDE_SCOPE_SHADOW",
+    }));
+  });
+
+  test("does not enforce a fatal-shaped collision on a disabled target", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const projectDir = join(fixture.root, "ambient-disabled-doctor");
+    await writeSupportedProjectConfig(projectDir, {
+      targets: { codex: { enabled: false } },
+      mcpServers: {
+        notion: {
+          description: "Project Notion",
+          transport: "stdio",
+          command: "npx",
+          optional: false,
+        },
+      },
+    });
+    await writeFile(fixture.codexConfig, '[mcp_servers.notion]\nurl = "https://mcp.notion.com/mcp"\n');
+
+    const result = await runAgentsCli(["doctor", "--json"], envFor(fixture), projectDir);
+
+    expect(result.exitCode).toBe(0);
+    const report = JSON.parse(result.stdout) as {
+      ambientMcpCollisions: Array<{ target: string }>;
+      ambientCapabilities: { collisions: Array<{ target: string; disposition: string }> };
+    };
+    expect(report.ambientMcpCollisions.some((collision) => collision.target === "codex")).toBe(false);
+    expect(report.ambientCapabilities.collisions).toContainEqual(expect.objectContaining({
+      target: "codex",
+      disposition: "fatal",
+    }));
+  });
+
   test("reports project config issues for unknown references and stale overrides", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);

@@ -245,3 +245,8 @@ export function classifyAmbientMcpCollisions(inputs: AmbientCollisionInput[]): A
     }),
   );
 }
+
+export function formatAmbientCollision(collision: AmbientCollision): string {
+  const remediation = collision.remediation ? ` ${collision.remediation}` : "";
+  return `${collision.reasonCode}: ${collision.target}/${collision.id} project ${collision.declared.transport} (${collision.declared.path}) vs ${collision.ambient.source} ${collision.ambient.transport} (${collision.ambient.path}).${remediation}`;
+}

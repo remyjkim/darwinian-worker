@@ -2,6 +2,7 @@
 // ABOUTME: Provides both human-readable and JSON output for operators and automation.
 
 import { Option } from "clipanion";
+import { formatAmbientCollision } from "../core/ambient-policy";
 import { answerWhy, buildDiagnosticsSections, buildProjectStatusV1, buildStatusReport, explainStatus } from "../core/diagnostics";
 import { buildEffectiveState } from "../core/effective-state";
 import { DrwnError } from "../core/errors";
@@ -162,6 +163,10 @@ export class StatusCommand extends BaseCommand {
         cwd: projectRoot,
       });
       output += `  Active Worker:      ${state.workerSelection?.activeWorker ?? "none"}\n`;
+      if (state.ambientCollisions.length > 0) {
+        output += "\nAmbient MCP collisions:\n";
+        output += `${state.ambientCollisions.map((collision) => `  - ${formatAmbientCollision(collision)}`).join("\n")}\n`;
+      }
       if (state.lockedCards.length > 0) {
         output += "\nCard modes:\n";
         for (const card of state.lockedCards) {
