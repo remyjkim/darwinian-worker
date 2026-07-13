@@ -8,7 +8,7 @@ import { loadConfig } from "../../core/config";
 import { findLibrarySkill } from "../../core/library";
 import { includeProjectSkill, projectConfigPath } from "../../core/project-writes";
 import { buildSkillInventory } from "../../core/skills";
-import { ingestSkillPackage } from "../../core/skill-packages";
+import { installSkillPackage } from "../../core/skill-packages";
 import { searchSkills, type SearchResult } from "../../core/search";
 import { renderJson } from "../../core/output";
 import { BaseCommand } from "../base";
@@ -102,7 +102,7 @@ export class AddSkillCommand extends BaseCommand {
       }
 
       const inventory = await buildSkillInventory(this.context.repoRoot, this.context.agentsDir, this.context.homeDir);
-      const installed = await ingestSkillPackage({
+      const installed = await installSkillPackage({
         agentsDir: this.context.agentsDir,
         packageSpec: packageName,
         existingSkillNames: new Set(inventory.map((item) => item.name)),

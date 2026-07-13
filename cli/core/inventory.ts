@@ -4,7 +4,7 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { loadMcpLibrary } from "./mcp-library";
-import { listInstalledSkillBundles } from "./skill-packages";
+import { hashSkillPackageDirectory, listInstalledSkillBundles } from "./skill-packages";
 import { resolveStoreMcpServerFile } from "./store-paths";
 import type { RegistryServer } from "./types";
 
@@ -15,6 +15,7 @@ export interface StandaloneSkillPackageRecord {
   packageRoot: string;
   versionRoot: string;
   exportedSkillIds: string[];
+  integrity: `sha256-${string}`;
 }
 
 export interface StandaloneMcpRecord {
@@ -26,21 +27,25 @@ export interface StandaloneMcpRecord {
 }
 
 export async function listStandaloneSkillPackages(agentsDir: string): Promise<StandaloneSkillPackageRecord[]> {
-  return (await listInstalledSkillBundles(agentsDir)).map((bundle) => ({
-    kind: "skill-package",
+  return Promise.all((await listInstalledSkillBundles(agentsDir)).map(async (bundle) => ({
+    kind: "skill-package" as const,
     packageName: bundle.packageName,
     activeVersion: bundle.activeVersion,
     packageRoot: bundle.packageRoot,
     versionRoot: bundle.versionRoot,
     exportedSkillIds: bundle.manifest.skills.map((skill) => skill.name).sort(),
-  }));
+    integrity: await hashSkillPackageDirectory(bundle.versionRoot),
+  })));
 }
 
-export async function findStandaloneSkillPackage(agentsDir: string, packageNameOrSkillId: string) {
+export async function findStandaloneSkillPackageByName(agentsDir: string, packageName: string) {
   const packages = await listStandaloneSkillPackages(agentsDir);
-  return packages.find((entry) => entry.packageName === packageNameOrSkillId) ??
-    packages.find((entry) => entry.exportedSkillIds.includes(packageNameOrSkillId)) ??
-    null;
+  return packages.find((entry) => entry.packageName === packageName) ?? null;
+}
+
+export async function findStandaloneSkillPackageBySkillId(agentsDir: string, skillId: string) {
+  const packages = await listStandaloneSkillPackages(agentsDir);
+  return packages.find((entry) => entry.exportedSkillIds.includes(skillId)) ?? null;
 }
 
 export async function listStandaloneMcpRecords(agentsDir: string): Promise<StandaloneMcpRecord[]> {

@@ -7,6 +7,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { captureProjectAsCard } from "../cli/core/card-capture";
 import { assertValidCardManifest } from "../cli/core/card-manifest";
+import { sanitizeMcpServerSecrets } from "../cli/core/mcp-secret-policy";
 import { resolveCardSourceDir } from "../cli/core/store-paths";
 import {
   cleanupTempRoots,
@@ -31,6 +32,18 @@ afterEach(async () => {
   delete process.env.DRWN_STORE_READONLY;
   delete process.env.DRWN_CAPTURE_SECRET;
   await cleanupTempRoots(tempRoots);
+});
+
+test("shared MCP secret policy preserves environment references without resolving them", () => {
+  const server = sanitizeMcpServerSecrets("notion", {
+    description: "Notion",
+    transport: "http",
+    url: "https://mcp.notion.com/mcp",
+    headers: { Authorization: "${NOTION_TOKEN}" },
+    optional: true,
+  });
+
+  expect(server.headers).toEqual({ Authorization: "${NOTION_TOKEN}" });
 });
 
 test("captureProjectAsCard snapshots only the selected closure and explicit overlays", async () => {

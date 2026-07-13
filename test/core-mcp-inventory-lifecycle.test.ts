@@ -47,4 +47,42 @@ describe("standalone MCP record persistence", () => {
     await createMcpLibraryRecord(agentsDir, "alpha", alpha);
     await expect(createMcpLibraryRecord(agentsDir, "alpha", alpha)).rejects.toThrow(/already exists/i);
   });
+
+  test("sanitizes known secret values and rejects unknown sensitive literals without changing current bytes", async () => {
+    const root = await createTempRoot("mcp-record-secrets-");
+    roots.push(root);
+    const agentsDir = join(root, ".agents");
+    const prior = process.env.DRWN_TEST_MCP_TOKEN;
+    process.env.DRWN_TEST_MCP_TOKEN = "known-secret-value";
+    try {
+      await createMcpLibraryRecord(agentsDir, "alpha", {
+        ...alpha,
+        headers: { Authorization: "Bearer known-secret-value" },
+      });
+      const path = join(agentsDir, "drwn", "mcp-servers", "alpha.json");
+      const stored = await readFile(path, "utf8");
+      expect(stored).toContain("Bearer ${DRWN_TEST_MCP_TOKEN}");
+      expect(stored).not.toContain("known-secret-value");
+
+      await expect(updateMcpLibraryRecord(agentsDir, "alpha", {
+        ...alpha,
+        headers: { Authorization: "Bearer untracked-literal" },
+      })).rejects.toThrow(/SECRET_LITERAL|environment variable/i);
+      expect(await readFile(path, "utf8")).toBe(stored);
+    } finally {
+      if (prior === undefined) delete process.env.DRWN_TEST_MCP_TOKEN;
+      else process.env.DRWN_TEST_MCP_TOKEN = prior;
+    }
+  });
+
+  test("rejects standalone records that collide with immutable registry IDs", async () => {
+    const root = await createTempRoot("mcp-record-reserved-");
+    roots.push(root);
+    const agentsDir = join(root, ".agents");
+
+    await expect(createMcpLibraryRecord(agentsDir, "alpha", alpha, {
+      reservedIds: ["alpha"],
+    })).rejects.toThrow(/immutable|registry|reserved/i);
+    expect(existsSync(join(agentsDir, "drwn", "mcp-servers", "alpha.json"))).toBe(false);
+  });
 });

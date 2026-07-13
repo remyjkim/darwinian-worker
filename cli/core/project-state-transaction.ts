@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import {
   copyFile,
+  lstat,
   mkdir,
   open,
   readFile,
@@ -256,9 +257,17 @@ async function removeAbandonedTransactions(projectRoot: string) {
 export async function withProjectStateLock<T>(
   projectRoot: string,
   operation: (owner: OwnerLockRecord) => Promise<T>,
+  options: { createStateDir?: boolean } = {},
 ): Promise<T> {
   const paths = transactionPaths(projectRoot);
-  await mkdir(paths.stateDir, { recursive: true });
+  if (options.createStateDir === false) {
+    const stats = await lstat(paths.stateDir);
+    if (!stats.isDirectory() || stats.isSymbolicLink()) {
+      throw new DrwnError("PROJECT_STATE_ROOT_INVALID", `Project state root is not a concrete directory: ${paths.stateDir}`);
+    }
+  } else {
+    await mkdir(paths.stateDir, { recursive: true });
+  }
   return withOrderedProjectOwnerLock(paths.lock, async (owner) => {
     await recoverUnderLock(projectRoot);
     await removeAbandonedTransactions(projectRoot);

@@ -4,9 +4,13 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { scanInventoryReferences } from "../cli/core/inventory-references";
+import {
+  scanInventoryReferenceReport,
+  scanInventoryReferences,
+  withLockedInventoryReferenceReport,
+} from "../cli/core/inventory-references";
 import { createEmptyMachineConfig, writeMachineConfigFile } from "../cli/core/machine-config";
-import { registerProject } from "../cli/core/project-registry";
+import { registerProject, resolveProjectsIndexPath } from "../cli/core/project-registry";
 import { resolveMachineConfigPath } from "../cli/core/store-paths";
 import { cleanupTempRoots, createTempRoot, writeSupportedProjectConfig } from "./helpers";
 
@@ -78,6 +82,53 @@ describe("standalone inventory reference discovery", () => {
     expect(await scanInventoryReferences({ agentsDir: state.agentsDir, skillIds: ["bootstrap-project"] })).toEqual([]);
   });
 
+  test("reports the normalized registered and explicit roots in the declared known scope", async () => {
+    const state = await fixture();
+    const registered = join(state.root, "registered");
+    const explicit = join(state.root, "explicit");
+    await writeSupportedProjectConfig(registered, { skills: { include: ["alpha"], exclude: [] } });
+    await writeSupportedProjectConfig(explicit);
+    await registerProject(state.agentsDir, registered);
+
+    const report = await scanInventoryReferenceReport({
+      agentsDir: state.agentsDir,
+      skillIds: ["alpha"],
+      projectRoots: [explicit, registered],
+    });
+
+    expect(report.scope).toEqual({
+      kind: "declared-known-scope",
+      machineConfigPath: resolveMachineConfigPath(state.agentsDir),
+      registeredProjectRoots: [registered],
+      explicitProjectRoots: [explicit, registered].sort((a, b) => a.localeCompare(b)),
+      projectRoots: [explicit, registered].sort((a, b) => a.localeCompare(b)),
+    });
+    expect(report.references).toEqual([
+      {
+        kind: "skill",
+        id: "alpha",
+        surface: "project",
+        relation: "include",
+        sourcePath: join(registered, ".agents", "drwn", "config.json"),
+        projectRoot: registered,
+      },
+    ]);
+  });
+
+  test("locked reports revalidate the same deterministic scope under machine and project locks", async () => {
+    const state = await fixture();
+    const project = join(state.root, "project");
+    await writeSupportedProjectConfig(project, { skills: { include: ["alpha"], exclude: [] } });
+    await registerProject(state.agentsDir, project);
+
+    const result = await withLockedInventoryReferenceReport(
+      { agentsDir: state.agentsDir, skillIds: ["alpha"] },
+      async (report) => ({ roots: report.scope.projectRoots, ids: report.references.map((entry) => entry.id) }),
+    );
+
+    expect(result).toEqual({ roots: [project], ids: ["alpha"] });
+  });
+
   test.each([
     ["missing registered root", "missing"],
     ["malformed registered config", "malformed"],
@@ -88,7 +139,10 @@ describe("standalone inventory reference discovery", () => {
       await mkdir(join(project, ".agents", "drwn"), { recursive: true });
       await writeFile(join(project, ".agents", "drwn", "config.json"), "not-json\n");
     }
-    await registerProject(state.agentsDir, project);
+    await writeFile(
+      resolveProjectsIndexPath(state.agentsDir),
+      `${JSON.stringify({ schemaVersion: 1, projects: [project] }, null, 2)}\n`,
+    );
 
     await expect(scanInventoryReferences({ agentsDir: state.agentsDir, skillIds: ["alpha"] })).rejects.toMatchObject({
       code: "INVENTORY_REFERENCE_SCAN_FAILED",

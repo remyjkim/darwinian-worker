@@ -3,7 +3,13 @@
 
 import { Option, UsageError } from "clipanion";
 import { buildSkillInventory } from "../../../../cli/core/skills";
-import { classifySkillAddInput, ingestLooseSkill, ingestSkillPackage } from "../../../../cli/core/skill-packages";
+import {
+  classifySkillAddInput,
+  installLooseSkill,
+  installSkillPackage,
+  updateLooseSkill,
+  updateSkillPackage,
+} from "../../../../cli/core/skill-packages";
 import { renderJson } from "../../../../cli/core/output";
 import { ensureStoreInitialized } from "../../../../cli/core/card-store";
 import { BaseCommand } from "../../base";
@@ -69,24 +75,30 @@ export class SkillsPackagesAddCommand extends BaseCommand {
       }));
       const inputKind = classifySkillAddInput(this.packageSpec);
       const installed = inputKind === "loose-skill"
-        ? await ingestLooseSkill({
+        ? await (this.replace ? updateLooseSkill : installLooseSkill)({
             agentsDir: this.context.agentsDir,
             sourcePath: this.packageSpec,
             existingSkillNames,
             existingSkills,
             as: this.as,
-            scope: this.scope as Parameters<typeof ingestLooseSkill>[0]["scope"],
+            scope: this.scope as Parameters<typeof installLooseSkill>[0]["scope"],
             packageName: this.packageName,
             version: this.version,
-            replace: this.replace,
           })
-        : await ingestSkillPackage({
-            agentsDir: this.context.agentsDir,
-            packageSpec: this.packageSpec,
-            existingSkillNames,
-            existingSkills,
-            replace: this.replace,
-          });
+        : this.replace
+          ? await updateSkillPackage({
+              agentsDir: this.context.agentsDir,
+              packageSpec: this.packageSpec,
+              packageName: this.packageSpec,
+              existingSkillNames,
+              existingSkills,
+            })
+          : await installSkillPackage({
+              agentsDir: this.context.agentsDir,
+              packageSpec: this.packageSpec,
+              existingSkillNames,
+              existingSkills,
+            });
 
       this.context.stdout.write(this.json ? renderJson(installed) : `${installed.packageName}@${installed.activeVersion}\n`);
       return 0;

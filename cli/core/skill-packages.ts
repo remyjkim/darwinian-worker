@@ -3,12 +3,12 @@
 
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync } from "node:fs";
-import { lstat, mkdir, mkdtemp, readdir, readFile, readlink, rename, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readdir, readFile, rename, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { extract as extractArchive } from "./archive";
 import { DrwnError } from "./errors";
-import { writeAtomically } from "./fs";
+import { flushDirectoryTree, syncDirectory, writeAtomically } from "./fs";
 import { withInventoryLock } from "./inventory-lock";
 import { tombstoneInventoryPath } from "./inventory-tombstones";
 import {
@@ -30,6 +30,11 @@ export interface ExistingSkillRecord {
 }
 
 export type SkillAddInputKind = "loose-skill" | "package-spec";
+export type SkillPackageCommitCheckpoint =
+  | "before-version-rename"
+  | "after-version-rename"
+  | "before-pointer-write"
+  | "after-pointer-write";
 
 export async function loadBundleManifest(bundleRoot: string): Promise<BundleManifest> {
   const manifestPath = join(bundleRoot, "bundle.json");
@@ -117,6 +122,7 @@ export async function validateBundleManifest(
     throw new Error(`Bundle version mismatch: expected ${version}, got ${manifest.version}`);
   }
 
+  const declaredSkillIds = new Set<string>();
   for (const skill of manifest.skills) {
     if (!skill.name || !skill.scope || !skill.path) {
       throw new Error(`Invalid bundle skill entry in ${packageName}`);
@@ -124,6 +130,11 @@ export async function validateBundleManifest(
     if (skill.name.includes("/") || skill.name.includes("\\") || skill.name === "." || skill.name === "..") {
       throw new Error(`Invalid skill name: ${skill.name}`);
     }
+    if (declaredSkillIds.has(skill.name)) {
+      throw new Error(`Duplicate skill ID in ${packageName}: ${skill.name}`);
+    }
+    declaredSkillIds.add(skill.name);
+    assertValidSkillScope(skill.scope);
     if (existingSkillNames.has(skill.name) && !options.allowedSkillNameCollisions?.has(skill.name)) {
       throw new Error(`Skill name collision: ${skill.name}`);
     }
@@ -141,18 +152,22 @@ export async function validateBundleManifest(
   }
 }
 
-// Resolves a bundle's active version from its `current` pointer, tolerating both conventions:
-// the canonical pointer file (holds the version string) and the legacy symlink to the version
-// directory (`current -> 1.0.0`). Reading the symlink as a file would raise EISDIR.
 async function resolveActiveVersion(currentPath: string): Promise<string> {
   const stats = await lstat(currentPath);
   if (stats.isSymbolicLink()) {
-    return basename(await readlink(currentPath)).trim();
+    throw new DrwnError(
+      "INVENTORY_PACKAGE_POINTER_INVALID",
+      `Unsupported symlink "current" pointer: ${currentPath}`,
+    );
   }
   if (stats.isFile()) {
-    return (await readFile(currentPath, "utf8")).trim();
+    const version = (await readFile(currentPath, "utf8")).trim();
+    if (!isStrictSemver(version)) {
+      throw new DrwnError("INVENTORY_PACKAGE_POINTER_INVALID", `Invalid "current" version at ${currentPath}`);
+    }
+    return version;
   }
-  throw new Error(`Unsupported "current" pointer (not a file or symlink): ${currentPath}`);
+  throw new DrwnError("INVENTORY_PACKAGE_POINTER_INVALID", `Unsupported "current" pointer: ${currentPath}`);
 }
 
 export async function listInstalledSkillBundles(agentsDir: string): Promise<InstalledSkillBundle[]> {
@@ -165,26 +180,40 @@ export async function listInstalledSkillBundles(agentsDir: string): Promise<Inst
 
   async function walk(dirPath: string): Promise<void> {
     const currentPath = join(dirPath, "current");
-    if (existsSync(currentPath)) {
-      // A single malformed bundle must not crash discovery for every caller (doctor, status, ...).
+    let currentExists = false;
+    try {
+      await lstat(currentPath);
+      currentExists = true;
+    } catch (error) {
+      if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) throw error;
+    }
+    if (currentExists) {
+      const packageName = relative(packagesRoot, dirPath).replaceAll("\\", "/");
       try {
         const activeVersion = await resolveActiveVersion(currentPath);
         const versionRoot = join(dirPath, activeVersion);
+        const versionStats = await lstat(versionRoot);
+        if (!versionStats.isDirectory() || versionStats.isSymbolicLink()) {
+          throw new Error(`active version is not a concrete directory: ${versionRoot}`);
+        }
         const manifest = await loadBundleManifest(versionRoot);
+        await validateBundleManifest(versionRoot, manifest, new Set(), packageName, activeVersion);
         bundles.push({
-          packageName: relative(packagesRoot, dirPath).replaceAll("\\", "/"),
+          packageName,
           activeVersion,
           packageRoot: dirPath,
           versionRoot,
           manifest,
         });
-      } catch {
-        // Skip an unreadable or inconsistent bundle rather than rejecting the whole walk.
+      } catch (error) {
+        if (error instanceof DrwnError) throw error;
+        throw new DrwnError("INVENTORY_PACKAGE_INVALID", `Invalid standalone skill package: ${packageName}`, undefined, error);
       }
       return;
     }
 
-    for (const entry of await readdir(dirPath, { withFileTypes: true })) {
+    const entries = await readdir(dirPath, { withFileTypes: true });
+    for (const entry of entries) {
       if (entry.isDirectory()) {
         await walk(join(dirPath, entry.name));
       }
@@ -232,25 +261,37 @@ export async function hashSkillPackageDirectory(root: string): Promise<`sha256-$
   return `sha256-${hash.digest("hex")}`;
 }
 
-function allowedReplacementCollisions(options: {
+type SkillPackageOperation = "install" | "update";
+
+interface SkillBundleCommitOptions {
+  agentsDir: string;
+  bundleRoot: string;
+  packageName: string;
+  version: string;
+  existingSkillNames: Set<string>;
+  existingSkills?: ExistingSkillRecord[];
+  checkpoint?: (checkpoint: SkillPackageCommitCheckpoint) => void | Promise<void>;
+}
+
+function allowedPackageCollisions(options: {
   packageName: string;
   manifest: BundleManifest;
   existingSkillNames: Set<string>;
   existingSkills?: ExistingSkillRecord[];
-  replace?: boolean;
+  operation: SkillPackageOperation;
 }) {
   const allowed = new Set<string>();
   for (const skill of options.manifest.skills) {
     if (!options.existingSkillNames.has(skill.name)) {
       continue;
     }
-    if (!options.replace) {
+    if (options.operation !== "update") {
       continue;
     }
     const existing = options.existingSkills?.find((record) => record.name === skill.name);
     if (!existing || existing.sourceType !== "npm" || existing.sourceId !== options.packageName) {
       throw new Error(
-        `Skill name collision: ${skill.name}. --replace can only update skills already installed from ${options.packageName}.`,
+        `Skill name collision: ${skill.name}. Update can only retain skills installed from ${options.packageName}.`,
       );
     }
     allowed.add(skill.name);
@@ -258,24 +299,23 @@ function allowedReplacementCollisions(options: {
   return allowed;
 }
 
-export async function installSkillBundleRoot(options: {
-  agentsDir: string;
-  bundleRoot: string;
-  packageName: string;
-  version: string;
-  existingSkillNames: Set<string>;
-  existingSkills?: ExistingSkillRecord[];
-  replace?: boolean;
-}) {
+async function commitSkillBundleRoot(options: SkillBundleCommitOptions, operation: SkillPackageOperation) {
   assertSafePackageNameForStorage(options.packageName);
   assertSafePackageVersion(options.version);
+  const existingPackage = await getInstalledSkillBundle(options.agentsDir, options.packageName);
+  if (operation === "install" && existingPackage) {
+    throw new DrwnError("INVENTORY_ITEM_ALREADY_EXISTS", `Skill package is already installed: ${options.packageName}`);
+  }
+  if (operation === "update" && !existingPackage) {
+    throw new DrwnError("INVENTORY_ITEM_NOT_FOUND", `Skill package is not installed: ${options.packageName}`);
+  }
   const manifest = await loadBundleManifest(options.bundleRoot);
-  const allowedSkillNameCollisions = allowedReplacementCollisions({
+  const allowedSkillNameCollisions = allowedPackageCollisions({
     packageName: options.packageName,
     manifest,
     existingSkillNames: options.existingSkillNames,
     existingSkills: options.existingSkills,
-    replace: options.replace,
+    operation,
   });
   await validateBundleManifest(
     options.bundleRoot,
@@ -287,6 +327,7 @@ export async function installSkillBundleRoot(options: {
   );
 
   const stagedIntegrity = await hashSkillPackageDirectory(options.bundleRoot);
+  await flushDirectoryTree(options.bundleRoot);
   return withInventoryLock(options.agentsDir, async () => {
     assertStoreWritable();
     const lockedManifest = await loadBundleManifest(options.bundleRoot);
@@ -294,13 +335,20 @@ export async function installSkillBundleRoot(options: {
     const liveSkills: ExistingSkillRecord[] = liveBundles.flatMap((bundle) =>
       bundle.manifest.skills.map((skill) => ({ name: skill.name, sourceType: "npm" as const, sourceId: bundle.packageName }))
     );
+    const livePackage = liveBundles.find((bundle) => bundle.packageName === options.packageName);
+    if (operation === "install" && livePackage) {
+      throw new DrwnError("INVENTORY_ITEM_ALREADY_EXISTS", `Skill package is already installed: ${options.packageName}`);
+    }
+    if (operation === "update" && !livePackage) {
+      throw new DrwnError("INVENTORY_ITEM_NOT_FOUND", `Skill package is not installed: ${options.packageName}`);
+    }
     const lockedNames = new Set([...options.existingSkillNames, ...liveSkills.map((skill) => skill.name)]);
-    const allowedLockedCollisions = allowedReplacementCollisions({
+    const allowedLockedCollisions = allowedPackageCollisions({
       packageName: options.packageName,
       manifest: lockedManifest,
       existingSkillNames: lockedNames,
       existingSkills: [...(options.existingSkills ?? []), ...liveSkills],
-      replace: options.replace,
+      operation,
     });
     await validateBundleManifest(
       options.bundleRoot,
@@ -328,9 +376,14 @@ export async function installSkillBundleRoot(options: {
         );
       }
     } else {
+      await options.checkpoint?.("before-version-rename");
       await rename(options.bundleRoot, versionRoot);
+      await syncDirectory(dirname(versionRoot));
+      await options.checkpoint?.("after-version-rename");
     }
+    await options.checkpoint?.("before-pointer-write");
     await writeAtomically(currentPath, `${options.version}\n`);
+    await options.checkpoint?.("after-pointer-write");
 
     return {
       packageName: options.packageName,
@@ -340,6 +393,14 @@ export async function installSkillBundleRoot(options: {
       manifest: lockedManifest,
     } satisfies InstalledSkillBundle;
   });
+}
+
+export function installSkillBundleRoot(options: SkillBundleCommitOptions) {
+  return commitSkillBundleRoot(options, "install");
+}
+
+export function updateSkillBundleRoot(options: SkillBundleCommitOptions) {
+  return commitSkillBundleRoot(options, "update");
 }
 
 export async function uninstallSkillPackage(agentsDir: string, packageName: string) {
@@ -358,13 +419,18 @@ export async function uninstallSkillPackage(agentsDir: string, packageName: stri
   });
 }
 
-export async function ingestSkillPackage(options: {
+interface SkillPackageSourceOptions {
   agentsDir: string;
   packageSpec: string;
   existingSkillNames: Set<string>;
   existingSkills?: ExistingSkillRecord[];
-  replace?: boolean;
-}) {
+}
+
+async function commitSkillPackageSource(
+  options: SkillPackageSourceOptions,
+  operation: SkillPackageOperation,
+  expectedPackageName?: string,
+) {
   const packDir = await mkdtemp(join(tmpdir(), "agents-skill-pack-"));
   const extractDir = await mkdtemp(join(tmpdir(), "agents-skill-extract-"));
 
@@ -384,6 +450,12 @@ export async function ingestSkillPackage(options: {
     if (!metadata) {
       throw new Error(`npm pack produced no metadata for ${options.packageSpec}`);
     }
+    if (expectedPackageName && metadata.name !== expectedPackageName) {
+      throw new DrwnError(
+        "INVENTORY_PACKAGE_IDENTITY_MISMATCH",
+        `Update source package is ${metadata.name}; expected ${expectedPackageName}`,
+      );
+    }
 
     const tarballPath = join(packDir, metadata.filename);
     try {
@@ -394,19 +466,26 @@ export async function ingestSkillPackage(options: {
     }
 
     const normalizedRoot = join(extractDir, "package");
-    return await installSkillBundleRoot({
+    return await (operation === "install" ? installSkillBundleRoot : updateSkillBundleRoot)({
       agentsDir: options.agentsDir,
       bundleRoot: normalizedRoot,
       packageName: metadata.name,
       version: metadata.version,
       existingSkillNames: options.existingSkillNames,
       existingSkills: options.existingSkills,
-      replace: options.replace,
     });
   } finally {
     rmSync(packDir, { recursive: true, force: true });
     rmSync(extractDir, { recursive: true, force: true });
   }
+}
+
+export function installSkillPackage(options: SkillPackageSourceOptions) {
+  return commitSkillPackageSource(options, "install");
+}
+
+export function updateSkillPackage(options: SkillPackageSourceOptions & { packageName: string }) {
+  return commitSkillPackageSource(options, "update", options.packageName);
 }
 
 function isLocalLookingSpec(spec: string) {
@@ -536,7 +615,7 @@ function defaultSyntheticPackageName(skillName: string) {
   return `@local/${skillName}`;
 }
 
-export async function ingestLooseSkill(options: {
+interface LooseSkillSourceOptions {
   agentsDir: string;
   sourcePath: string;
   existingSkillNames: Set<string>;
@@ -545,8 +624,9 @@ export async function ingestLooseSkill(options: {
   scope?: BundleSkillEntry["scope"];
   packageName?: string;
   version?: string;
-  replace?: boolean;
-}) {
+}
+
+async function commitLooseSkillSource(options: LooseSkillSourceOptions, operation: SkillPackageOperation) {
   const loose = resolveLooseSkillRoot(options.sourcePath);
   const sourceContent = await readFile(loose.skillMd, "utf8");
   const parsed = parseSkillFrontmatter(sourceContent);
@@ -603,16 +683,15 @@ export async function ingestLooseSkill(options: {
         2,
       )}\n`,
     );
-    await writeFile(join(bundleRoot, "README.md"), `# ${skillName}\n\nImported from ${resolve(options.sourcePath)}.\n`);
+    await writeFile(join(bundleRoot, "README.md"), `# ${skillName}\n\nManaged standalone skill package.\n`);
 
-    const installed = await installSkillBundleRoot({
+    const installed = await (operation === "install" ? installSkillBundleRoot : updateSkillBundleRoot)({
       agentsDir: options.agentsDir,
       bundleRoot,
       packageName,
       version,
       existingSkillNames: options.existingSkillNames,
       existingSkills: options.existingSkills,
-      replace: options.replace,
     });
     return {
       ...installed,
@@ -624,4 +703,12 @@ export async function ingestLooseSkill(options: {
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }
+}
+
+export function installLooseSkill(options: LooseSkillSourceOptions) {
+  return commitLooseSkillSource(options, "install");
+}
+
+export function updateLooseSkill(options: LooseSkillSourceOptions) {
+  return commitLooseSkillSource(options, "update");
 }

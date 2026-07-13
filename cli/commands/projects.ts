@@ -2,9 +2,7 @@
 // ABOUTME: Supports listing registered projects and bulk update across them.
 
 import { Option } from "clipanion";
-import { resolve } from "node:path";
 import { listRegisteredProjects, unregisterProject, updateAllRegisteredProjects } from "../core/project-registry";
-import { withInventoryLock } from "../core/inventory-lock";
 import { renderJson } from "../core/output";
 import { BaseCommand } from "./base";
 
@@ -91,15 +89,13 @@ export class ProjectsUnregisterCommand extends BaseCommand {
   json = Option.Boolean("--json", false);
 
   async execute() {
-    const registered = await listRegisteredProjects(this.context.agentsDir);
-    const normalized = resolve(this.projectRoot);
-    const wouldRemove = registered.some((project) => resolve(project) === normalized);
-    const result = this.dryRun
-      ? { removed: wouldRemove, projectRoot: normalized, dryRun: true }
-      : { ...(await withInventoryLock(this.context.agentsDir, () => unregisterProject(this.context.agentsDir, normalized))), dryRun: false };
+    const result = {
+      ...(await unregisterProject(this.context.agentsDir, this.projectRoot, { dryRun: this.dryRun })),
+      dryRun: this.dryRun,
+    };
     this.context.stdout.write(this.json
       ? renderJson(result)
-      : `${result.removed ? this.dryRun ? "Would unregister" : "Unregistered" : "Project was not registered"}: ${normalized}\n`);
+      : `${result.removed ? this.dryRun ? "Would unregister" : "Unregistered" : "Project was not registered"}: ${result.projectRoot}\n`);
     return 0;
   }
 }

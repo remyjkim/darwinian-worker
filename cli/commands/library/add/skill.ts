@@ -3,7 +3,13 @@
 
 import { Option, UsageError } from "clipanion";
 import { buildSkillInventory } from "../../../core/skills";
-import { classifySkillAddInput, ingestLooseSkill, ingestSkillPackage } from "../../../core/skill-packages";
+import {
+  classifySkillAddInput,
+  installLooseSkill,
+  installSkillPackage,
+  updateLooseSkill,
+  updateSkillPackage,
+} from "../../../core/skill-packages";
 import { renderJson } from "../../../core/output";
 import { ensureStoreInitialized } from "../../../core/card-store";
 import { BaseCommand } from "../../base";
@@ -68,24 +74,30 @@ export class LibraryAddSkillCommand extends BaseCommand {
       }));
       const inputKind = classifySkillAddInput(this.packageSpec);
       const installed = inputKind === "loose-skill"
-        ? await ingestLooseSkill({
+        ? await (this.replace ? updateLooseSkill : installLooseSkill)({
             agentsDir: this.context.agentsDir,
             sourcePath: this.packageSpec,
             existingSkillNames,
             existingSkills,
             as: this.as,
-            scope: this.scope as Parameters<typeof ingestLooseSkill>[0]["scope"],
+            scope: this.scope as Parameters<typeof installLooseSkill>[0]["scope"],
             packageName: this.packageName,
             version: this.version,
-            replace: this.replace,
           })
-        : await ingestSkillPackage({
-            agentsDir: this.context.agentsDir,
-            packageSpec: this.packageSpec,
-            existingSkillNames,
-            existingSkills,
-            replace: this.replace,
-          });
+        : this.replace
+          ? await updateSkillPackage({
+              agentsDir: this.context.agentsDir,
+              packageSpec: this.packageSpec,
+              packageName: this.packageSpec,
+              existingSkillNames,
+              existingSkills,
+            })
+          : await installSkillPackage({
+              agentsDir: this.context.agentsDir,
+              packageSpec: this.packageSpec,
+              existingSkillNames,
+              existingSkills,
+            });
 
       if (this.json) {
         this.context.stdout.write(renderJson(installed));

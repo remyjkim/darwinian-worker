@@ -8,7 +8,8 @@ import { type CardManifest } from "./card-manifest";
 import { resolveSkillSource } from "./card-skill-resolver";
 import { buildEffectiveState } from "./effective-state";
 import { writeAtomically } from "./fs";
-import type { RegistryServer, SyncOptions } from "./types";
+import { sanitizeMcpServerSecrets } from "./mcp-secret-policy";
+import type { SyncOptions } from "./types";
 
 export interface CaptureProjectOptions {
   agentsDir: string;
@@ -36,53 +37,7 @@ function uniqueSelectedSkills(include: string[] = [], exclude: string[] = []) {
   return [...new Set(include)].filter((name) => !excluded.has(name));
 }
 
-const SENSITIVE_NAME = /(auth|credential|key|password|secret|token)/i;
-const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
-const ENV_REFERENCE = /^\$\{[A-Za-z_][A-Za-z0-9_]*\}$/;
-
-function sensitiveEnvironmentValues() {
-  return Object.entries(process.env)
-    .filter(([name, value]) => SENSITIVE_NAME.test(name) && Boolean(value))
-    .sort((left, right) => (right[1]?.length ?? 0) - (left[1]?.length ?? 0));
-}
-
-function replaceKnownSecretValues(value: string) {
-  let sanitized = value;
-  for (const [name, secret] of sensitiveEnvironmentValues()) {
-    sanitized = sanitized.replaceAll(secret!, `\${${name}}`);
-  }
-  return sanitized;
-}
-
-function sanitizeSensitiveValue(value: string, field: string) {
-  if (ENV_REFERENCE.test(value)) return value;
-  if (ENV_NAME.test(value) && process.env[value] !== undefined) return `\${${value}}`;
-  const sanitized = replaceKnownSecretValues(value);
-  if (sanitized !== value || sanitized.includes("${")) return sanitized;
-  throw new Error(`CAPTURE_SECRET_LITERAL: ${field} must reference an environment variable`);
-}
-
-export function sanitizeServerForCapture(name: string, server: RegistryServer): RegistryServer {
-  const next: RegistryServer = JSON.parse(JSON.stringify(server));
-  next.args = next.args?.map((value, index, args) => {
-    const previous = args[index - 1] ?? "";
-    return SENSITIVE_NAME.test(previous) ? sanitizeSensitiveValue(value, `MCP ${name} args[${index}]`) : replaceKnownSecretValues(value);
-  });
-  next.env = next.env
-    ? Object.fromEntries(Object.entries(next.env).map(([key, value]) => [
-        key,
-        SENSITIVE_NAME.test(key) ? sanitizeSensitiveValue(value, `MCP ${name} env.${key}`) : replaceKnownSecretValues(value),
-      ]))
-    : undefined;
-  next.headers = next.headers
-    ? Object.fromEntries(Object.entries(next.headers).map(([key, value]) => [
-        key,
-        SENSITIVE_NAME.test(key) ? sanitizeSensitiveValue(value, `MCP ${name} headers.${key}`) : replaceKnownSecretValues(value),
-      ]))
-    : undefined;
-  if (next.url) next.url = replaceKnownSecretValues(next.url);
-  return next;
-}
+export const sanitizeServerForCapture = sanitizeMcpServerSecrets;
 
 export async function captureProjectAsCard(options: CaptureProjectOptions): Promise<CaptureProjectResult> {
   const state = await buildEffectiveState({
@@ -142,7 +97,7 @@ export async function captureProjectAsCard(options: CaptureProjectOptions): Prom
     const extensions = state.projectConfigWithCards?.extensions ?? {};
     const targets = state.projectConfigWithCards?.targets ?? {};
     const servers = Object.fromEntries(
-      Object.entries(state.activeServers).map(([name, server]) => [name, sanitizeServerForCapture(name, server)]),
+      Object.entries(state.activeServers).map(([name, server]) => [name, sanitizeMcpServerSecrets(name, server)]),
     );
     const selectedCard = state.activeCards.find((card) => card.name === state.workerSelection!.selectedRoot!.name);
     const closure = state.activeCards.map((card) => `${card.name}@${card.version}`).join(", ");

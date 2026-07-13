@@ -1,12 +1,17 @@
 // ABOUTME: Maintains the opt-in machine index of drwn-managed project roots.
 // ABOUTME: Widens store GC roots once projects.json is present.
 
-import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { constants, existsSync } from "node:fs";
+import { access, lstat, mkdir, readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { writeAtomically } from "./fs";
 import { assertStoreWritable } from "./store-paths";
 import { DrwnError } from "./errors";
+import { withInventoryLock } from "./inventory-lock";
+import { listStandaloneMcpRecords, listStandaloneSkillPackages } from "./inventory";
+import { loadProjectConfig } from "./project";
+import { withProjectStateLock } from "./project-state-transaction";
+import type { ProjectConfig } from "./types";
 
 export interface ProjectsIndex {
   schemaVersion: 1;
@@ -44,30 +49,156 @@ export async function loadProjectsIndex(agentsDir: string): Promise<ProjectsInde
   return { schemaVersion: 1, projects: [...projects] as string[] };
 }
 
-export async function writeProjectsIndex(agentsDir: string, index: ProjectsIndex) {
+async function writeProjectsIndex(agentsDir: string, index: ProjectsIndex) {
   assertStoreWritable();
   const indexPath = resolveProjectsIndexPath(agentsDir);
   await mkdir(dirname(indexPath), { recursive: true });
   await writeAtomically(indexPath, `${JSON.stringify(index, null, 2)}\n`);
 }
 
-export async function registerProject(agentsDir: string, projectRoot: string) {
-  const normalized = resolve(projectRoot);
-  const index = await loadProjectsIndex(agentsDir);
-  if (!index.projects.includes(normalized)) {
-    index.projects.push(normalized);
-    index.projects.sort((a, b) => a.localeCompare(b));
-    await writeProjectsIndex(agentsDir, index);
+async function loadExactProjectConfig(projectRoot: string): Promise<ProjectConfig> {
+  const configPath = join(projectRoot, ".agents", "drwn", "config.json");
+  let stats;
+  try {
+    stats = await lstat(projectRoot);
+    if (!stats.isDirectory() || stats.isSymbolicLink()) {
+      throw new Error("project root must be a concrete directory");
+    }
+    await access(projectRoot, constants.R_OK);
+    await access(configPath, constants.R_OK);
+    return await loadProjectConfig(configPath);
+  } catch (error) {
+    throw new DrwnError(
+      "PROJECT_REGISTRY_ROOT_INVALID",
+      `Cannot verify project registration at ${projectRoot}`,
+      ["Repair the exact project root and strict project config before retrying."],
+      error,
+    );
   }
 }
 
-export async function unregisterProject(agentsDir: string, projectRoot: string) {
+async function mutateProjectsIndex(
+  agentsDir: string,
+  mutate: (projects: string[]) => string[],
+): Promise<boolean> {
+  const index = await loadProjectsIndex(agentsDir);
+  const before = [...index.projects].map((project) => resolve(project)).sort((a, b) => a.localeCompare(b));
+  const after = [...new Set(mutate(before).map((project) => resolve(project)))].sort((a, b) => a.localeCompare(b));
+  if (before.length === after.length && before.every((project, index) => project === after[index])) return false;
+  await writeProjectsIndex(agentsDir, { schemaVersion: 1, projects: after });
+  return true;
+}
+
+function projectStandaloneReferences(
+  projectRoot: string,
+  config: ProjectConfig,
+  skillIds: Set<string>,
+  mcpIds: Set<string>,
+) {
+  const configPath = join(projectRoot, ".agents", "drwn", "config.json");
+  const references: Array<{ kind: "skill" | "mcp"; id: string; relation: "include" | "exclude" | "mcp-toggle" }> = [];
+  for (const id of config.skills?.include ?? []) {
+    if (skillIds.has(id)) references.push({ kind: "skill", id, relation: "include" });
+  }
+  for (const id of config.skills?.exclude ?? []) {
+    if (skillIds.has(id)) references.push({ kind: "skill", id, relation: "exclude" });
+  }
+  for (const [id, override] of Object.entries(config.mcpServers ?? {})) {
+    if (mcpIds.has(id) && "enabled" in override && !("transport" in override)) {
+      references.push({ kind: "mcp", id, relation: "mcp-toggle" });
+    }
+  }
+  return references
+    .sort((a, b) => `${a.kind}:${a.id}:${a.relation}`.localeCompare(`${b.kind}:${b.id}:${b.relation}`))
+    .map((reference) => ({ ...reference, surface: "project" as const, projectRoot, sourcePath: configPath }));
+}
+
+async function assertProjectHasNoStandaloneReferences(
+  projectRoot: string,
+  config: ProjectConfig,
+  agentsDir: string,
+) {
+  const packages = await listStandaloneSkillPackages(agentsDir);
+  const mcpRecords = await listStandaloneMcpRecords(agentsDir);
+  const references = projectStandaloneReferences(
+    projectRoot,
+    config,
+    new Set(packages.flatMap((entry) => entry.exportedSkillIds)),
+    new Set(mcpRecords.map((entry) => entry.id)),
+  );
+  if (references.length === 0) return;
+  const referencedIds = [...new Set(references.map((reference) => reference.id))].sort((a, b) => a.localeCompare(b));
+  throw new DrwnError(
+    "INVENTORY_ITEM_IN_USE",
+    `Cannot unregister ${projectRoot}; the project declares standalone inventory references: ${referencedIds.join(", ")}`,
+    references.map((reference) =>
+      `${reference.surface} ${reference.projectRoot}: ${reference.kind} ${reference.id} (${reference.relation}) at ${reference.sourcePath}`
+    ),
+  );
+}
+
+export async function registerProject(agentsDir: string, projectRoot: string) {
+  const normalized = resolve(projectRoot);
+  await loadExactProjectConfig(normalized);
+  return withInventoryLock(agentsDir, () =>
+    withProjectStateLock(normalized, async () => {
+      await loadExactProjectConfig(normalized);
+      const changed = await mutateProjectsIndex(agentsDir, (projects) => [...projects, normalized]);
+      return { registered: changed, projectRoot: normalized };
+    }, { createStateDir: false })
+  );
+}
+
+async function inspectProjectForUnregister(agentsDir: string, projectRoot: string) {
   const normalized = resolve(projectRoot);
   const index = await loadProjectsIndex(agentsDir);
-  const next = index.projects.filter((project) => resolve(project) !== normalized);
-  if (next.length === index.projects.length) return { removed: false, projectRoot: normalized };
-  await writeProjectsIndex(agentsDir, { schemaVersion: 1, projects: next });
-  return { removed: true, projectRoot: normalized };
+  if (!index.projects.some((project) => resolve(project) === normalized)) {
+    return { registered: false, projectRoot: normalized, missing: false };
+  }
+  try {
+    const stats = await lstat(normalized);
+    if (!stats.isDirectory() || stats.isSymbolicLink()) {
+      throw new DrwnError("PROJECT_UNREGISTER_UNSAFE", `Refusing to unregister ambiguous project root: ${normalized}`);
+    }
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      return { registered: true, projectRoot: normalized, missing: true };
+    }
+    if (error instanceof DrwnError) throw error;
+    throw new DrwnError("PROJECT_UNREGISTER_UNSAFE", `Cannot verify project root before unregistering: ${normalized}`, undefined, error);
+  }
+  const config = await loadExactProjectConfig(normalized);
+  await assertProjectHasNoStandaloneReferences(normalized, config, agentsDir);
+  return { registered: true, projectRoot: normalized, missing: false };
+}
+
+export async function unregisterProject(
+  agentsDir: string,
+  projectRoot: string,
+  options: { dryRun?: boolean } = {},
+) {
+  const normalized = resolve(projectRoot);
+  if (options.dryRun) {
+    const inspection = await inspectProjectForUnregister(agentsDir, normalized);
+    return { removed: inspection.registered, projectRoot: normalized };
+  }
+  return withInventoryLock(agentsDir, async () => {
+    const preflight = await inspectProjectForUnregister(agentsDir, normalized);
+    if (!preflight.registered) return { removed: false, projectRoot: normalized };
+    const remove = async () => ({
+      removed: await mutateProjectsIndex(
+        agentsDir,
+        (projects) => projects.filter((project) => resolve(project) !== normalized),
+      ),
+      projectRoot: normalized,
+    });
+    if (preflight.missing) return remove();
+    return withProjectStateLock(normalized, async () => {
+      const config = await loadExactProjectConfig(normalized);
+      await assertProjectHasNoStandaloneReferences(normalized, config, agentsDir);
+      return remove();
+    }, { createStateDir: false });
+  });
 }
 
 export async function listRegisteredProjects(agentsDir: string) {

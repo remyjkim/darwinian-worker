@@ -4,9 +4,11 @@
 import { access, lstat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { DrwnError } from "./errors";
+import { withInventoryLock, withMachineLock } from "./inventory-lock";
 import { readMachineConfigFile } from "./machine-config";
 import { loadProjectConfig } from "./project";
 import { listRegisteredProjects } from "./project-registry";
+import { withProjectStateLock } from "./project-state-transaction";
 import { resolveMachineConfigPath } from "./store-paths";
 
 export type InventoryReferenceKind = "skill" | "mcp";
@@ -25,6 +27,19 @@ export interface InventoryReferenceScanOptions {
   skillIds?: Iterable<string>;
   mcpIds?: Iterable<string>;
   projectRoots?: string[];
+}
+
+export interface InventoryReferenceScope {
+  kind: "declared-known-scope";
+  machineConfigPath: string;
+  registeredProjectRoots: string[];
+  explicitProjectRoots: string[];
+  projectRoots: string[];
+}
+
+export interface InventoryReferenceReport {
+  scope: InventoryReferenceScope;
+  references: InventoryReference[];
 }
 
 function scanFailed(path: string, error: unknown): DrwnError {
@@ -47,20 +62,38 @@ async function validateProjectRoot(root: string) {
 }
 
 export async function resolveInventoryReferenceRoots(agentsDir: string, explicitRoots: string[] = []) {
+  return (await resolveInventoryReferenceScope(agentsDir, explicitRoots)).projectRoots;
+}
+
+export async function resolveInventoryReferenceScope(
+  agentsDir: string,
+  explicitRoots: string[] = [],
+): Promise<InventoryReferenceScope> {
   let registered: string[];
   try {
     registered = await listRegisteredProjects(agentsDir);
   } catch (error) {
     throw scanFailed(`${agentsDir}/drwn/projects.json`, error);
   }
-  return [...new Set([...registered, ...explicitRoots].map((root) => resolve(root)))].sort((a, b) => a.localeCompare(b));
+  const registeredProjectRoots = [...new Set(registered.map((root) => resolve(root)))].sort((a, b) => a.localeCompare(b));
+  const explicitProjectRoots = [...new Set(explicitRoots.map((root) => resolve(root)))].sort((a, b) => a.localeCompare(b));
+  return {
+    kind: "declared-known-scope",
+    machineConfigPath: resolveMachineConfigPath(agentsDir),
+    registeredProjectRoots,
+    explicitProjectRoots,
+    projectRoots: [...new Set([...registeredProjectRoots, ...explicitProjectRoots])].sort((a, b) => a.localeCompare(b)),
+  };
 }
 
-export async function scanInventoryReferences(options: InventoryReferenceScanOptions): Promise<InventoryReference[]> {
+async function scanInventoryReferenceScope(
+  options: InventoryReferenceScanOptions,
+  scope: InventoryReferenceScope,
+): Promise<InventoryReference[]> {
   const skillIds = new Set(options.skillIds ?? []);
   const mcpIds = new Set(options.mcpIds ?? []);
   const references: InventoryReference[] = [];
-  const machinePath = resolveMachineConfigPath(options.agentsDir);
+  const machinePath = scope.machineConfigPath;
   let machine;
   try {
     machine = await readMachineConfigFile(machinePath);
@@ -74,7 +107,7 @@ export async function scanInventoryReferences(options: InventoryReferenceScanOpt
     if (mcpIds.has(id)) references.push({ kind: "mcp", id, surface: "machine", relation: "explicit-selection", sourcePath: machinePath });
   }
 
-  for (const projectRoot of await resolveInventoryReferenceRoots(options.agentsDir, options.projectRoots)) {
+  for (const projectRoot of scope.projectRoots) {
     await validateProjectRoot(projectRoot);
     const configPath = `${projectRoot}/.agents/drwn/config.json`;
     let config;
@@ -100,6 +133,37 @@ export async function scanInventoryReferences(options: InventoryReferenceScanOpt
       `${b.kind}:${b.id}:${b.surface}:${b.projectRoot ?? ""}:${b.relation}`,
     )
   );
+}
+
+export async function scanInventoryReferenceReport(
+  options: InventoryReferenceScanOptions,
+): Promise<InventoryReferenceReport> {
+  const scope = await resolveInventoryReferenceScope(options.agentsDir, options.projectRoots);
+  return { scope, references: await scanInventoryReferenceScope(options, scope) };
+}
+
+export async function scanInventoryReferences(options: InventoryReferenceScanOptions): Promise<InventoryReference[]> {
+  return (await scanInventoryReferenceReport(options)).references;
+}
+
+export async function withLockedInventoryReferenceReport<T>(
+  options: InventoryReferenceScanOptions,
+  operation: (report: InventoryReferenceReport) => Promise<T>,
+): Promise<T> {
+  return withInventoryLock(options.agentsDir, async () => {
+    const scope = await resolveInventoryReferenceScope(options.agentsDir, options.projectRoots);
+    return withMachineLock(options.agentsDir, async () => {
+      async function lockProject(index: number): Promise<T> {
+        const root = scope.projectRoots[index];
+        if (!root) {
+          return operation({ scope, references: await scanInventoryReferenceScope(options, scope) });
+        }
+        await validateProjectRoot(root);
+        return withProjectStateLock(root, () => lockProject(index + 1), { createStateDir: false });
+      }
+      return lockProject(0);
+    });
+  });
 }
 
 export function assertInventoryUnreferenced(
