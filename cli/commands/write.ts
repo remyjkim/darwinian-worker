@@ -2,8 +2,9 @@
 // ABOUTME: Provides the one-way operator vocabulary for writing effective state downstream.
 
 import { Option, UsageError } from "clipanion";
+import { AmbientMcpCollisionError } from "../core/ambient-policy";
 import { evaluateVersionFloor, formatVersionFloorWarning, loadCardLock } from "../core/card-lock";
-import { assertMachineWriteScopeAllowed, buildEffectiveState } from "../core/effective-state";
+import { assertAmbientMcpPreflight, assertMachineWriteScopeAllowed, buildEffectiveState } from "../core/effective-state";
 import {
   buildHookConsentAckKey,
   computeHookPolicyDigest,
@@ -130,8 +131,13 @@ export class WriteCommand extends BaseCommand {
         forceMachineScope: preflightState.normalized.forceMachineScope,
         scope: this.scope as "machine" | "project" | undefined,
       });
+      assertAmbientMcpPreflight(preflightState);
     } catch (error) {
-      this.context.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+      this.context.stderr.write(
+        this.json && error instanceof AmbientMcpCollisionError
+          ? renderJson(error.toJSON())
+          : `${error instanceof Error ? error.message : String(error)}\n`,
+      );
       return 1;
     }
 
@@ -230,7 +236,11 @@ export class WriteCommand extends BaseCommand {
     try {
       await runOnce();
     } catch (error) {
-      this.context.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+      this.context.stderr.write(
+        this.json && error instanceof AmbientMcpCollisionError
+          ? renderJson(error.toJSON())
+          : `${error instanceof Error ? error.message : String(error)}\n`,
+      );
       return 1;
     }
     return 0;

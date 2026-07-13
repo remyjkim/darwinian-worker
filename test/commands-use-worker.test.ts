@@ -115,6 +115,39 @@ test("a write failure leaves the valid Worker selection persisted", async () => 
   expect((await readProjectState(stateDir)).config.activeWorker).toBe("@me/one");
 });
 
+test("a fatal ambient collision preserves selected Worker intent without projection mutation", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  await publishCardWithSkills(fixture, {
+    name: "@me/notion-worker",
+    skills: ["alpha"],
+    servers: {
+      notion: {
+        description: "Project Notion",
+        transport: "stdio",
+        command: "npx",
+        args: ["-y", "@notionhq/notion-mcp-server"],
+        optional: false,
+      },
+    },
+  });
+  const projectDir = join(fixture.root, "ambient-use-project");
+  const stateDir = join(projectDir, ".agents", "drwn");
+  await writeSupportedProjectConfig(projectDir);
+  await writeFile(fixture.codexConfig, '[mcp_servers.notion]\nurl = "https://mcp.notion.com/mcp"\n');
+
+  const result = await runAgentsCli(["use", "@me/notion-worker@1.0.0"], envFor(fixture), projectDir);
+
+  expect(result.exitCode).toBe(1);
+  expect(result.stderr).toContain("CODEX_INCOMPATIBLE_TRANSPORTS");
+  expect(result.stderr).toContain("selection remains persisted");
+  expect((await readProjectState(stateDir)).config.activeWorker).toBe("@me/notion-worker");
+  expect(existsSync(join(projectDir, ".agents", "drwn", "generated", "workers.json"))).toBe(false);
+  expect(existsSync(join(projectDir, ".mcp.json"))).toBe(false);
+  expect(existsSync(join(projectDir, ".codex", "config.toml"))).toBe(false);
+  expect(existsSync(join(projectDir, ".claude", "skills", "alpha"))).toBe(false);
+});
+
 test("--no-write commits selection without projection and --dry-run changes nothing", async () => {
   const { fixture, projectDir, stateDir } = await projectFixture();
   const noWrite = await runAgentsCli(["use", "@me/one@1.0.0", "--no-write"], envFor(fixture), projectDir);

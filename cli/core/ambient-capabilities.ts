@@ -1,7 +1,7 @@
 // ABOUTME: Observes user-home skill and MCP surfaces without adding them to project declarations.
 // ABOUTME: Returns redacted provenance for status and doctor; enforcement belongs to target adapters.
 
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import { parse as parseToml } from "smol-toml";
 import type { AmbientMcpDefinition, AmbientDefinitionSource } from "./ambient-policy";
@@ -47,6 +47,24 @@ function appendDefinitions(
   }
 }
 
+function findClaudeProjectEntry(projects: Record<string, unknown>, projectRoot: string): unknown {
+  if (projectRoot in projects) return projects[projectRoot];
+  let canonicalRoot: string;
+  try {
+    canonicalRoot = realpathSync(projectRoot);
+  } catch {
+    return undefined;
+  }
+  for (const [candidate, entry] of Object.entries(projects)) {
+    try {
+      if (realpathSync(candidate) === canonicalRoot) return entry;
+    } catch {
+      // Stale Claude project keys are unrelated ambient observations.
+    }
+  }
+  return undefined;
+}
+
 const sourceOrder: Record<AmbientDefinitionSource, number> = { local: 0, project: 1, user: 2 };
 
 export async function inspectAmbientMcpDefinitions(options: {
@@ -73,7 +91,9 @@ export async function inspectAmbientMcpDefinitions(options: {
       }
       appendDefinitions(definitions, target, path, "user", parsed[targetConfig.mcpKey]);
       if (target === "claude" && options.projectRoot) {
-        const projectEntry = isObject(parsed.projects) ? parsed.projects[options.projectRoot] : undefined;
+        const projectEntry = isObject(parsed.projects)
+          ? findClaudeProjectEntry(parsed.projects, options.projectRoot)
+          : undefined;
         appendDefinitions(
           definitions,
           target,

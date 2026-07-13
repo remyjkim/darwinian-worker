@@ -2,7 +2,7 @@
 // ABOUTME: Verifies whole-entry shadowing remains non-fatal and reports redacted provenance.
 
 import { afterEach, expect, test } from "bun:test";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, realpath, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
@@ -111,7 +111,8 @@ test("Claude local scope precedence reports local and user provenance", async ()
     }>;
   };
   const collisions = output.ambientCollisions.filter((entry) => entry.reasonCode === "CLAUDE_SCOPE_SHADOW");
+  const canonicalProjectMcp = join(await realpath(projectDir), ".mcp.json");
   expect(collisions.map((entry) => entry.ambient.source)).toEqual(["local", "user"]);
   expect(collisions.every((entry) => entry.ambient.path === fixture.claudeUserMcp)).toBe(true);
-  expect(collisions.every((entry) => entry.declared.path === join(projectDir, ".mcp.json"))).toBe(true);
+  expect(collisions.every((entry) => entry.declared.path === canonicalProjectMcp)).toBe(true);
 });

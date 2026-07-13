@@ -1,6 +1,7 @@
 // ABOUTME: Classifies same-ID project and user-home MCP definitions using target-native semantics.
 // ABOUTME: Keeps normalized definitions private and returns only redacted provenance and stable policy results.
 
+import { DrwnError } from "./errors";
 import type { TargetName } from "./types";
 
 export type AmbientDisposition = "identical" | "warning" | "fatal";
@@ -43,6 +44,24 @@ export interface AmbientCollision {
 export interface AmbientCollisionInput {
   declared: AmbientMcpDefinition;
   ambient: AmbientMcpDefinition;
+}
+
+export class AmbientMcpCollisionError extends DrwnError {
+  constructor(public readonly collisions: AmbientCollision[]) {
+    super(
+      "AMBIENT_MCP_COLLISION",
+      [
+        "Ambient MCP preflight found an invalid selected-target configuration:",
+        ...collisions.map((entry) =>
+          `- ${entry.reasonCode}: ${entry.target}/${entry.id} project ${entry.declared.transport} (${entry.declared.path}) conflicts with ${entry.ambient.source} ${entry.ambient.transport} (${entry.ambient.path})`
+        ),
+      ].join("\n"),
+    );
+  }
+
+  override toJSON(): object {
+    return { code: this.code, message: this.message, collisions: this.collisions };
+  }
 }
 
 interface NormalizedDefinition {

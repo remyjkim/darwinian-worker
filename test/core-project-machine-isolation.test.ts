@@ -151,6 +151,7 @@ test("project state and output are independent from machine capability state", a
     cwd: projectRoot,
   });
   expect(declaredState(mutatedState)).toEqual(declaredState(baselineState));
+  expect(mutatedState.ambientCollisions).toEqual([]);
 
   const protectedRoots = [
     join(fixture.agentsDir, "drwn"),

@@ -4,11 +4,10 @@
 import { existsSync, readlinkSync, rmSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { expandHomePath, resolveGlobalCodexConfig, resolveToolPaths } from "./paths";
+import { expandHomePath, resolveToolPaths } from "./paths";
 import {
   CLAUDE_MCP_SERVER_HASH_PREFIX,
   codexUnsupportedHeaderKeys,
-  detectCodexLayerConflicts,
   hashCodexManagedServers,
   mergeClaudeSettingsText,
   mergeCodexTomlText,
@@ -29,7 +28,7 @@ import {
   saveWriteRecord,
   type ManagedPath,
 } from "./write-record";
-import { buildEffectiveState, recomputeContentRootsByCard } from "./effective-state";
+import { assertAmbientMcpPreflight, buildEffectiveState, recomputeContentRootsByCard } from "./effective-state";
 import { computeOptionalMcpReport } from "./mcp-report";
 import { reconcileVendorTrees } from "./vendor-reconcile";
 import { DRWN_VERSION } from "./version";
@@ -323,24 +322,7 @@ export async function syncMcp(
     }
 
     if (targetName === "codex") {
-      let codexServers = servers;
-      let codexConflicts: string[] = [];
-      if (options.writeScope === "project" && !options.force) {
-        const globalCodexPath = resolveGlobalCodexConfig(options.homeDir);
-        const globalText = await readTextIfExists(globalCodexPath, "");
-        codexConflicts = detectCodexLayerConflicts(globalText, servers);
-        if (codexConflicts.length > 0) {
-          codexServers = Object.fromEntries(
-            Object.entries(servers).filter(([name]) => !codexConflicts.includes(name)),
-          );
-          for (const name of codexConflicts) {
-            result.warnings.push(
-              `Codex MCP server "${name}" is defined with a different transport in ${globalCodexPath}; skipped the project-scope entry to avoid a config collision. Remove the global entry or rerun with --force.`,
-            );
-          }
-        }
-      }
-      for (const [name, server] of Object.entries(codexServers)) {
+      for (const [name, server] of Object.entries(servers)) {
         const unsupported = codexUnsupportedHeaderKeys(server);
         if (unsupported.length > 0) {
           result.warnings.push(
@@ -349,9 +331,9 @@ export async function syncMcp(
         }
       }
       const current = await readTextIfExists(configPath, "");
-      const mergedCodex = mergeCodexTomlText(current, codexServers, [...codexManagedNames, ...codexConflicts]);
+      const mergedCodex = mergeCodexTomlText(current, servers, codexManagedNames);
       writeManagedFile(configPath, mergedCodex, options.dryRun, result);
-      const fieldHashes = hashCodexManagedServers(mergedCodex, Object.keys(codexServers));
+      const fieldHashes = hashCodexManagedServers(mergedCodex, Object.keys(servers));
       if (Object.keys(fieldHashes).length > 0) {
         managedPaths.push({ path: ".codex/config.toml", kind: "managed-fields", fields: Object.keys(fieldHashes), fieldHashes });
       }
@@ -381,7 +363,8 @@ export async function syncMcp(
 
 export async function syncRepository(options: SyncOptions = {}): Promise<SyncResult> {
   const state = await buildEffectiveState(options);
-  const result: SyncResult = { changes: [], warnings: [], managedPaths: [] };
+  const ambientCollisions = assertAmbientMcpPreflight(state);
+  const result: SyncResult = { changes: [], warnings: [], managedPaths: [], ambientCollisions };
   result.optionalMcpReport = state.normalized.skillsOnly
     ? null
     : computeOptionalMcpReport({
@@ -392,6 +375,13 @@ export async function syncRepository(options: SyncOptions = {}): Promise<SyncRes
         projectServerOverrides: state.projectConfig?.mcpServers,
       });
   result.warnings.push(...state.overlayWarnings);
+  result.warnings.push(
+    ...ambientCollisions
+      .filter((collision) => collision.disposition !== "identical")
+      .map((collision) =>
+        `${collision.reasonCode}: ${collision.target} MCP server "${collision.id}" has a ${collision.disposition} ${collision.ambient.source}-scope collision at ${collision.ambient.path}. ${collision.remediation ?? ""}`.trim()
+      ),
+  );
   const cardModes: NonNullable<SyncResult["cardModes"]> = {};
   for (const [name, mode] of Object.entries(state.cardModes)) {
     cardModes[name] = {

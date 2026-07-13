@@ -118,3 +118,35 @@ test("Codex fatal transport collisions cannot be bypassed with force", async () 
   expect(result.stderr).toContain("CODEX_INCOMPATIBLE_TRANSPORTS");
   expect(existsSync(projectCodexPath)).toBe(false);
 });
+
+test("a fatal Codex collision does not block a Claude-only write", async () => {
+  const { fixture, projectDir } = await setupProject(
+    projectStdio,
+    ['url = "https://mcp.notion.com/mcp"', "enabled = true"],
+  );
+
+  const result = await runAgentsCli(["write", "--target=claude", "--json"], envFor(fixture), projectDir);
+
+  expect(result.exitCode).toBe(0);
+  expect(existsSync(join(projectDir, ".mcp.json"))).toBe(true);
+  expect(existsSync(join(projectDir, ".codex", "config.toml"))).toBe(false);
+});
+
+for (const args of [
+  ["write", "--target=codex", "--dry-run", "--json"],
+  ["write", "--target=codex", "--mcp-only", "--dry-run", "--json"],
+  ["mcp", "write", "--target=codex", "--dry-run", "--json"],
+]) {
+  test(`${args.join(" ")} reports the fatal collision without mutation`, async () => {
+    const { fixture, projectDir, projectCodexPath } = await setupProject(
+      projectStdio,
+      ['url = "https://mcp.notion.com/mcp"', "enabled = true"],
+    );
+
+    const result = await runAgentsCli(args, envFor(fixture), projectDir);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("CODEX_INCOMPATIBLE_TRANSPORTS");
+    expect(existsSync(projectCodexPath)).toBe(false);
+  });
+}

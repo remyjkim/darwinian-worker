@@ -189,6 +189,7 @@ export interface CardModeReadout {
 export interface SyncResult {
   changes: string[];
   warnings: string[];
+  ambientCollisions?: import("./ambient-policy").AmbientCollision[];
   cardModes?: Record<string, CardModeReadout>;
   managedPaths?: import("./write-record").ManagedPath[];
   optionalMcpReport?: OptionalMcpReport | null;

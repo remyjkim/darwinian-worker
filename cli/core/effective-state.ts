@@ -2,6 +2,15 @@
 // ABOUTME: Keeps project card, overlay, registry, and target resolution in one place.
 
 import { join } from "node:path";
+import {
+  AmbientMcpCollisionError,
+  classifyAmbientMcpCollisions,
+  type AmbientCollision,
+} from "./ambient-policy";
+import {
+  inspectAmbientMcpDefinitions,
+  type AmbientMcpInspectionError,
+} from "./ambient-capabilities";
 import type { CardLockEntry, ProjectLockV1, WorkerRootLockEntry } from "./card-lock";
 import { mergeCardManifestsIntoProjectConfig } from "./card-project";
 import { collectCardServerDefinitions, mergeCardServerDefinitionsIntoRegistry, type CardServerDefinition } from "./card-mcp";
@@ -12,8 +21,8 @@ import { resolveMode } from "./mode-resolution";
 import { loadConfig } from "./config";
 import { hasExplicitSkillDefaults, mergeUserMcpLibrary } from "./defaults";
 import { loadMcpLibrary } from "./mcp-library";
-import { buildActiveServers } from "./mcp";
-import { normalizeSyncPathOptions } from "./paths";
+import { buildActiveServers, renderMcpServerForTarget } from "./mcp";
+import { normalizeSyncPathOptions, resolveToolPaths } from "./paths";
 import { findProjectConfig, isServerToggle, loadProjectConfig, mergeProjectConfig, resolveProjectRootFromConfigPath } from "./project";
 import { loadRegistry } from "./registry";
 import { resolveGlobalWriteRecordPath, resolveStoreGeneratedDir } from "./store-paths";
@@ -56,6 +65,8 @@ export interface EffectiveState {
   contentRootsByCard: Record<string, string>;
   vendorEligible: Set<string>;
   overlayWarnings: string[];
+  ambientCollisions: AmbientCollision[];
+  ambientMcpErrors: AmbientMcpInspectionError[];
   skillSelection?: SkillSyncOverrides;
   recordPath: string;
   scopeRoot: string;
@@ -367,13 +378,46 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
     writeScope: projectRoot ? "project" : "machine",
     generatedDir: projectRoot ? join(projectRoot, ".agents", "drwn", "generated") : resolveStoreGeneratedDir(normalized.agentsDir),
   };
+  const activeServers = buildActiveServers(effectiveRegistry, effectiveConfig);
+  let ambientCollisions: AmbientCollision[] = [];
+  let ambientMcpErrors: AmbientMcpInspectionError[] = [];
+  if (projectRoot) {
+    const inspected = await inspectAmbientMcpDefinitions({
+      config: effectiveConfig,
+      homeDir: normalized.homeDir,
+      projectRoot,
+    });
+    ambientMcpErrors = inspected.errors;
+    const projectPaths = resolveToolPaths({ kind: "project", projectRoot });
+    const declaredPaths = {
+      claude: projectPaths.claudeMcp,
+      codex: projectPaths.codexConfig,
+      cursor: projectPaths.cursorMcp,
+    } as const;
+    ambientCollisions = classifyAmbientMcpCollisions(
+      inspected.definitions.flatMap((ambient) => {
+        const server = activeServers[ambient.id];
+        if (!server) return [];
+        return [{
+          declared: {
+            target: ambient.target,
+            id: ambient.id,
+            source: "project" as const,
+            path: declaredPaths[ambient.target],
+            value: renderMcpServerForTarget(ambient.target, server),
+          },
+          ambient,
+        }];
+      }),
+    );
+  }
 
   return {
     normalized,
     repoConfig,
     effectiveConfig,
     effectiveRegistry,
-    activeServers: buildActiveServers(effectiveRegistry, effectiveConfig),
+    activeServers,
     projectConfigPath,
     projectRoot,
     projectConfig,
@@ -390,11 +434,33 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
     contentRootsByCard,
     vendorEligible,
     overlayWarnings,
+    ambientCollisions,
+    ambientMcpErrors,
     skillSelection,
     recordPath: projectRoot ? resolveProjectWriteRecordPath(projectRoot) : resolveGlobalWriteRecordPath(normalized.agentsDir),
     scopeRoot,
     scopedOptions,
   };
+}
+
+export function selectedAmbientCollisions(
+  state: Pick<EffectiveState, "ambientCollisions" | "effectiveConfig" | "normalized">,
+): AmbientCollision[] {
+  return state.ambientCollisions.filter((collision) =>
+    state.effectiveConfig.targets[collision.target].enabled &&
+    (!state.normalized.target || state.normalized.target === collision.target)
+  );
+}
+
+export function assertAmbientMcpPreflight(
+  state: Pick<EffectiveState, "ambientCollisions" | "effectiveConfig" | "normalized">,
+): AmbientCollision[] {
+  const selected = selectedAmbientCollisions(state);
+  const fatal = state.normalized.skillsOnly
+    ? []
+    : selected.filter((collision) => collision.disposition === "fatal");
+  if (fatal.length > 0) throw new AmbientMcpCollisionError(fatal);
+  return selected;
 }
 
 export function recomputeContentRootsByCard(

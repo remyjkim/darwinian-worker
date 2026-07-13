@@ -418,4 +418,76 @@ describe("drwn write", () => {
     }
     expect(existsSync(join(drwnDir, "generated"))).toBe(false);
   });
+
+  test("fatal selected-target MCP preflight aborts every projection mutation", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const projectDir = join(fixture.root, "ambient-preflight-project");
+    await writeSupportedProjectConfig(projectDir, {
+      mcpServers: {
+        notion: {
+          description: "Project Notion",
+          transport: "stdio",
+          command: "npx",
+          args: ["-y", "@notionhq/notion-mcp-server"],
+          optional: false,
+        },
+      },
+    });
+    await writeFile(
+      fixture.codexConfig,
+      '[mcp_servers.notion]\nurl = "https://mcp.notion.com/mcp"\nenabled = true\n',
+    );
+    const configPath = join(projectDir, ".agents", "drwn", "config.json");
+    const configBefore = await readFile(configPath, "utf8");
+    const userCodexBefore = await readFile(fixture.codexConfig, "utf8");
+    const forbiddenOutputs = [
+      join(projectDir, ".gitignore"),
+      join(projectDir, ".gitattributes"),
+      join(projectDir, ".agents", "drwn", "generated", "workers.json"),
+      join(projectDir, ".agents", "drwn", "write-record.json"),
+      join(projectDir, ".mcp.json"),
+      join(projectDir, ".codex", "config.toml"),
+      join(projectDir, ".cursor", "mcp.json"),
+    ];
+
+    const result = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("CODEX_INCOMPATIBLE_TRANSPORTS");
+    expect(forbiddenOutputs.every((path) => !existsSync(path))).toBe(true);
+    expect(await readFile(configPath, "utf8")).toBe(configBefore);
+    expect(await readFile(fixture.codexConfig, "utf8")).toBe(userCodexBefore);
+  });
+
+  test("skills-only reports a fatal MCP collision but does not block or touch MCP files", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const projectDir = join(fixture.root, "skills-only-project");
+    await writeSupportedProjectConfig(projectDir, {
+      mcpServers: {
+        notion: {
+          description: "Project Notion",
+          transport: "stdio",
+          command: "npx",
+          optional: false,
+        },
+      },
+    });
+    await writeFile(fixture.codexConfig, '[mcp_servers.notion]\nurl = "https://mcp.notion.com/mcp"\n');
+
+    const result = await runAgentsCli(["write", "--skills-only", "--json"], envFor(fixture), projectDir);
+
+    expect(result.exitCode).toBe(0);
+    const output = JSON.parse(result.stdout) as {
+      ambientCollisions: Array<{ reasonCode: string; disposition: string }>;
+    };
+    expect(output.ambientCollisions).toContainEqual(expect.objectContaining({
+      disposition: "fatal",
+      reasonCode: "CODEX_INCOMPATIBLE_TRANSPORTS",
+    }));
+    expect(existsSync(join(projectDir, ".mcp.json"))).toBe(false);
+    expect(existsSync(join(projectDir, ".codex", "config.toml"))).toBe(false);
+    expect(existsSync(join(projectDir, ".cursor", "mcp.json"))).toBe(false);
+  });
 });

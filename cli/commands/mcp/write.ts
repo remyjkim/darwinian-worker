@@ -2,6 +2,7 @@
 // ABOUTME: Keeps advanced MCP users in the MCP namespace while sharing the materialization engine.
 
 import { Option, UsageError } from "clipanion";
+import { AmbientMcpCollisionError } from "../../core/ambient-policy";
 import { renderJson, renderSyncResult } from "../../core/output";
 import { syncRepository } from "../../core/sync";
 import { isTargetName } from "../../core/targets";
@@ -43,17 +44,26 @@ export class McpWriteCommand extends BaseCommand {
       throw new UsageError(`Unsupported target: ${this.target}`);
     }
 
-    const result = await syncRepository({
-      repoRoot: this.context.repoRoot,
-      agentsDir: this.context.agentsDir,
-      homeDir: this.context.homeDir,
-      cwd: this.context.cwd,
-      dryRun: this.dryRun,
-      mcpOnly: true,
-      target: this.target as "claude" | "codex" | "cursor" | undefined,
-    });
+    try {
+      const result = await syncRepository({
+        repoRoot: this.context.repoRoot,
+        agentsDir: this.context.agentsDir,
+        homeDir: this.context.homeDir,
+        cwd: this.context.cwd,
+        dryRun: this.dryRun,
+        mcpOnly: true,
+        target: this.target as "claude" | "codex" | "cursor" | undefined,
+      });
 
-    this.context.stdout.write(this.json ? renderJson(result) : renderSyncResult(result));
-    return 0;
+      this.context.stdout.write(this.json ? renderJson(result) : renderSyncResult(result));
+      return 0;
+    } catch (error) {
+      this.context.stderr.write(
+        this.json && error instanceof AmbientMcpCollisionError
+          ? renderJson(error.toJSON())
+          : `${error instanceof Error ? error.message : String(error)}\n`,
+      );
+      return 1;
+    }
   }
 }
