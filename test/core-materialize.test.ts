@@ -6,7 +6,7 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, sy
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { materializeDir, materializePointer } from "../cli/core/materialize";
-import { hashManagedDirectory, type ManagedPath } from "../cli/core/write-record";
+import { hashManagedDirectory, type ManagedPathData } from "../cli/core/write-record";
 import type { SyncResult } from "../cli/core/types";
 
 let root: string;
@@ -76,7 +76,7 @@ describe("materializeDir", () => {
     const record = materializeDir(source, dest, { dryRun: false, result, relPath: ".claude/skills/alpha" });
     expect(readFileSync(join(dest, "SKILL.md"), "utf8")).toBe("# alpha\n");
     expect(result.changes.length).toBeGreaterThan(0);
-    expect((record as Extract<ManagedPath, { kind: "managed-directory" }>).contentHash).toBe(hashManagedDirectory(dest));
+    expect((record as Extract<ManagedPathData, { kind: "managed-directory" }>).contentHash).toBe(hashManagedDirectory(dest));
   });
 
   test("should dereference a symlinked source file into a real file", () => {
@@ -99,7 +99,7 @@ describe("materializeDir", () => {
 
     expect(existsSync(dest)).toBe(false);
     expect(result.changes.length).toBeGreaterThan(0);
-    expect((record as Extract<ManagedPath, { kind: "managed-directory" }>).contentHash).toBe("sha256-dry-run");
+    expect((record as Extract<ManagedPathData, { kind: "managed-directory" }>).contentHash).toBe("sha256-dry-run");
   });
 });
 

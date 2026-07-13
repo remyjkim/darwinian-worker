@@ -16,20 +16,134 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import { z } from "zod";
+import { DrwnError } from "./errors";
 
 export interface WriteRecord {
-  writeRecordVersion: 1;
+  schema: "drwn.write-record";
+  schemaVersion: 1;
+  scope: WriteRecordScope;
   lastWriteAt: string;
   lastWriteHarnessVersion: string;
   managedPaths: ManagedPath[];
 }
 
-export type ManagedPath =
-  | { path: string; kind: "symlink"; target: string }
+export type WriteRecordScope = "project" | "machine";
+export type ProjectionSurface = "worker" | "mcp" | "skill" | "hook";
+export type ProjectionTarget = "claude" | "codex" | "cursor" | "mastra";
+
+export interface ManagedOwnership {
+  surface: ProjectionSurface;
+  target?: ProjectionTarget;
+}
+
+export type ManagedPathData =
+  | { path: string; kind: "symlink"; linkTarget: string }
   | { path: string; kind: "managed-fields"; fields: string[]; fieldHashes: Record<string, string> }
   | { path: string; kind: "generated-symlink"; generatedPath: string }
   | { path: string; kind: "managed-content"; contentHash: string }
   | { path: string; kind: "managed-directory"; contentHash: string };
+
+export type ManagedPath = ManagedPathData & ManagedOwnership;
+
+export function ownManagedPath<T extends ManagedPathData>(entry: T, ownershipValue: ManagedOwnership): T & ManagedOwnership {
+  return { ...entry, ...ownershipValue };
+}
+
+const safeRelativePath = z.string().min(1).superRefine((value, context) => {
+  const segments = value.split("/");
+  if (
+    value.startsWith("/") ||
+    value.includes("\\") ||
+    /^[A-Za-z]:/.test(value) ||
+    segments.some((segment) => segment === "" || segment === "." || segment === "..")
+  ) {
+    context.addIssue({ code: "custom", message: "path must be a normalized contained POSIX relative path" });
+  }
+});
+const hash = z.string().regex(/^sha256-[a-f0-9]{64}$/);
+const ownership = {
+  surface: z.enum(["worker", "mcp", "skill", "hook"]),
+  target: z.enum(["claude", "codex", "cursor", "mastra"]).optional(),
+};
+const managedPathSchema = z.discriminatedUnion("kind", [
+  z.object({ path: safeRelativePath, kind: z.literal("symlink"), linkTarget: z.string().min(1), ...ownership }).strict(),
+  z.object({
+    path: safeRelativePath,
+    kind: z.literal("managed-fields"),
+    fields: z.array(z.string().min(1)),
+    fieldHashes: z.record(z.string(), hash),
+    ...ownership,
+  }).strict(),
+  z.object({ path: safeRelativePath, kind: z.literal("generated-symlink"), generatedPath: z.string().min(1), ...ownership }).strict(),
+  z.object({ path: safeRelativePath, kind: z.literal("managed-content"), contentHash: hash, ...ownership }).strict(),
+  z.object({ path: safeRelativePath, kind: z.literal("managed-directory"), contentHash: hash, ...ownership }).strict(),
+]).superRefine((entry, context) => {
+  const valid = entry.surface === "worker"
+    ? entry.target === undefined
+    : entry.surface === "mcp"
+      ? entry.target === "claude" || entry.target === "codex" || entry.target === "cursor"
+      : entry.surface === "skill"
+        ? entry.target === "claude" || entry.target === "codex"
+        : entry.target === "claude" || entry.target === "codex" || entry.target === "mastra";
+  if (!valid) {
+    context.addIssue({ code: "custom", message: `invalid ${entry.surface} target ownership` });
+  }
+  if (entry.kind === "managed-fields") {
+    const fields = new Set(entry.fields);
+    if (fields.size !== entry.fields.length || Object.keys(entry.fieldHashes).some((field) => !fields.has(field))) {
+      context.addIssue({ code: "custom", message: "managed field names and hashes must be unique and exact" });
+    }
+    if (entry.fields.some((field) => !Object.hasOwn(entry.fieldHashes, field))) {
+      context.addIssue({ code: "custom", message: "every managed field must have a hash" });
+    }
+  }
+});
+const writeRecordSchema = z.object({
+  schema: z.literal("drwn.write-record"),
+  schemaVersion: z.literal(1),
+  scope: z.enum(["project", "machine"]),
+  lastWriteAt: z.string().datetime(),
+  lastWriteHarnessVersion: z.string().min(1),
+  managedPaths: z.array(managedPathSchema),
+}).strict().superRefine((record, context) => {
+  const paths = new Set<string>();
+  for (const [index, entry] of record.managedPaths.entries()) {
+    if (paths.has(entry.path)) {
+      context.addIssue({ code: "custom", path: ["managedPaths", index, "path"], message: `duplicate managed path: ${entry.path}` });
+    }
+    paths.add(entry.path);
+    if (record.scope === "machine" && entry.surface !== "mcp" && entry.surface !== "skill") {
+      context.addIssue({ code: "custom", path: ["managedPaths", index, "surface"], message: "machine records permit only skill and MCP ownership" });
+    }
+  }
+});
+
+function invalidWriteRecord(path: string, message: string, cause?: unknown) {
+  return new DrwnError(
+    "WRITE_RECORD_INVALID",
+    `${message} at ${path}`,
+    ["Remove the unsupported write record and run a full drwn write to create the first supported projection record."],
+    cause,
+  );
+}
+
+function parseWriteRecord(value: unknown, path: string, expectedScope?: WriteRecordScope): WriteRecord {
+  if (value && typeof value === "object" && "writeRecordVersion" in value) {
+    throw invalidWriteRecord(path, "Unsupported write record");
+  }
+  const parsed = writeRecordSchema.safeParse(value);
+  if (!parsed.success) {
+    const details = parsed.error.issues
+      .map((issue) => `${issue.path.length > 0 ? issue.path.join(".") : "root"}: ${issue.message}`)
+      .join("; ");
+    throw invalidWriteRecord(path, `Invalid write record (${details})`, parsed.error);
+  }
+  if (expectedScope && parsed.data.scope !== expectedScope) {
+    throw invalidWriteRecord(path, `Invalid write record scope: expected ${expectedScope}, received ${parsed.data.scope}`);
+  }
+  return parsed.data as WriteRecord;
+}
 
 export function hashManagedContent(content: string | Uint8Array) {
   return `sha256-${createHash("sha256").update(content).digest("hex")}`;
@@ -72,18 +186,15 @@ export function resolveProjectWriteRecordPath(projectRoot: string) {
   return join(projectRoot, ".agents", "drwn", "write-record.json");
 }
 
-export function loadWriteRecord(recordPath: string): WriteRecord | null {
+export function loadWriteRecord(recordPath: string, expectedScope?: WriteRecordScope): WriteRecord | null {
   if (!existsSync(recordPath)) {
     return null;
   }
   try {
-    const parsed = JSON.parse(readFileSync(recordPath, "utf8")) as WriteRecord;
-    if (parsed.writeRecordVersion !== 1 || !Array.isArray(parsed.managedPaths)) {
-      return null;
-    }
-    return parsed;
-  } catch {
-    return null;
+    return parseWriteRecord(JSON.parse(readFileSync(recordPath, "utf8")), recordPath, expectedScope);
+  } catch (error) {
+    if (error instanceof DrwnError) throw error;
+    throw invalidWriteRecord(recordPath, "Invalid JSON", error);
   }
 }
 
@@ -98,11 +209,12 @@ function bestEffortFsync(fd: number) {
 }
 
 export function saveWriteRecord(recordPath: string, record: WriteRecord) {
+  const validated = parseWriteRecord(record, recordPath, record.scope);
   mkdirSync(dirname(recordPath), { recursive: true });
   const tmp = `${recordPath}.tmp`;
   const fd = openSync(tmp, "w");
   try {
-    writeFileSync(fd, `${JSON.stringify(record, null, 2)}\n`);
+    writeFileSync(fd, `${JSON.stringify(validated, null, 2)}\n`);
     bestEffortFsync(fd);
   } finally {
     closeSync(fd);
@@ -147,9 +259,13 @@ export function diffWriteRecord(previous: WriteRecord | null, desired: ManagedPa
       if (retainedFields.length > 0) {
         toVerify.push(managedFieldsSubset(previousEntry, retainedFields));
       }
-    } else if (previousEntry.kind !== desiredEntry.kind) {
-      toRemove.push(previousEntry);
+    } else if (
+      previousEntry.kind !== desiredEntry.kind ||
+      previousEntry.surface !== desiredEntry.surface ||
+      previousEntry.target !== desiredEntry.target
+    ) {
       toAdd.push(desiredEntry);
+      toVerify.push(previousEntry);
     } else {
       toVerify.push(previousEntry);
     }
@@ -171,6 +287,8 @@ function managedFieldsSubset(
   return {
     path: entry.path,
     kind: "managed-fields",
+    surface: entry.surface,
+    ...(entry.target ? { target: entry.target } : {}),
     fields,
     fieldHashes: Object.fromEntries(fields.map((field) => [field, entry.fieldHashes[field]!])),
   };

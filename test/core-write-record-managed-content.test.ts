@@ -23,14 +23,22 @@ describe("managed-content write records", () => {
     const recordPath = join(root, "write-record.json");
 
     saveWriteRecord(recordPath, {
-      writeRecordVersion: 1,
+      schema: "drwn.write-record",
+      schemaVersion: 1,
+      scope: "project",
       lastWriteAt: "2026-06-11T00:00:00.000Z",
       lastWriteHarnessVersion: "0.1.0",
-      managedPaths: [{ path: ".codex/hooks.json", kind: "managed-content", contentHash: hashManagedContent("{}\n") }],
+      managedPaths: [{
+        path: ".codex/hooks.json",
+        kind: "managed-content",
+        surface: "hook",
+        target: "codex",
+        contentHash: hashManagedContent("{}\n"),
+      }],
     });
 
     expect(loadWriteRecord(recordPath)?.managedPaths).toEqual([
-      { path: ".codex/hooks.json", kind: "managed-content", contentHash: hashManagedContent("{}\n") },
+      { path: ".codex/hooks.json", kind: "managed-content", surface: "hook", target: "codex", contentHash: hashManagedContent("{}\n") },
     ]);
   });
 
@@ -40,7 +48,7 @@ describe("managed-content write records", () => {
     const hooksPath = join(root, ".codex", "hooks.json");
     await mkdir(dirname(hooksPath), { recursive: true });
     await writeFile(hooksPath, "{}\n");
-    const entry = { path: ".codex/hooks.json", kind: "managed-content" as const, contentHash: hashManagedContent("{}\n") };
+    const entry = { path: ".codex/hooks.json", kind: "managed-content" as const, surface: "hook" as const, target: "codex" as const, contentHash: hashManagedContent("{}\n") };
 
     verifyManagedPaths(root, [entry], { force: false });
     await writeFile(hooksPath, '{"hooks":{}}\n');
@@ -60,8 +68,8 @@ describe("managed-content write records", () => {
     const result: SyncResult = { changes: [], warnings: [], managedPaths: [] };
 
     cleanupRemovedManagedPaths(root, [
-      { path: ".codex/hooks.json", kind: "managed-content", contentHash: hashManagedContent("{}\n") },
-      { path: ".codex/edited-hooks.json", kind: "managed-content", contentHash: hashManagedContent("{}\n") },
+      { path: ".codex/hooks.json", kind: "managed-content", surface: "hook", target: "codex", contentHash: hashManagedContent("{}\n") },
+      { path: ".codex/edited-hooks.json", kind: "managed-content", surface: "hook", target: "codex", contentHash: hashManagedContent("{}\n") },
     ], false, result);
 
     expect(existsSync(stablePath)).toBe(false);

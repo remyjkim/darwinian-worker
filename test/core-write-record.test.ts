@@ -21,13 +21,13 @@ test("loadWriteRecord returns null for missing file", async () => {
   expect(loadWriteRecord(join(root, "missing.json"))).toBeNull();
 });
 
-test("loadWriteRecord returns null for malformed JSON", async () => {
+test("loadWriteRecord rejects malformed JSON", async () => {
   const root = await createTempRoot("write-record-");
   tempRoots.push(root);
   const path = join(root, "write-record.json");
   await writeFile(path, "{nope");
 
-  expect(loadWriteRecord(path)).toBeNull();
+  expect(() => loadWriteRecord(path)).toThrow("Invalid JSON");
 });
 
 test("saveWriteRecord writes the record and leaves no tmp file", async () => {
@@ -37,10 +37,18 @@ test("saveWriteRecord writes the record and leaves no tmp file", async () => {
   await mkdir(join(root, ".agents", "drwn"), { recursive: true });
 
   saveWriteRecord(path, {
-    writeRecordVersion: 1,
+    schema: "drwn.write-record",
+    schemaVersion: 1,
+    scope: "project",
     lastWriteAt: "2026-05-20T00:00:00.000Z",
     lastWriteHarnessVersion: "0.1.0",
-    managedPaths: [{ path: ".claude/skills/alpha", kind: "symlink", target: "/tmp/alpha" }],
+    managedPaths: [{
+      path: ".claude/skills/alpha",
+      kind: "symlink",
+      linkTarget: "/tmp/alpha",
+      surface: "skill",
+      target: "claude",
+    }],
   });
 
   expect(existsSync(path)).toBe(true);
@@ -51,17 +59,19 @@ test("saveWriteRecord writes the record and leaves no tmp file", async () => {
 
 test("diffWriteRecord computes additions, removals, and retained entries", () => {
   const previous = {
-    writeRecordVersion: 1 as const,
+    schema: "drwn.write-record" as const,
+    schemaVersion: 1 as const,
+    scope: "project" as const,
     lastWriteAt: "2026-05-20T00:00:00.000Z",
     lastWriteHarnessVersion: "0.1.0",
     managedPaths: [
-      { path: ".claude/skills/alpha", kind: "symlink" as const, target: "/tmp/alpha" },
-      { path: ".claude/skills/beta", kind: "symlink" as const, target: "/tmp/beta" },
+      { path: ".claude/skills/alpha", kind: "symlink" as const, linkTarget: "/tmp/alpha", surface: "skill" as const, target: "claude" as const },
+      { path: ".claude/skills/beta", kind: "symlink" as const, linkTarget: "/tmp/beta", surface: "skill" as const, target: "claude" as const },
     ],
   };
   const desired = [
-    { path: ".claude/skills/beta", kind: "symlink" as const, target: "/tmp/beta" },
-    { path: ".claude/skills/gamma", kind: "symlink" as const, target: "/tmp/gamma" },
+    { path: ".claude/skills/beta", kind: "symlink" as const, linkTarget: "/tmp/beta", surface: "skill" as const, target: "claude" as const },
+    { path: ".claude/skills/gamma", kind: "symlink" as const, linkTarget: "/tmp/gamma", surface: "skill" as const, target: "claude" as const },
   ];
 
   expect(diffWriteRecord(previous, desired)).toEqual({
@@ -73,13 +83,17 @@ test("diffWriteRecord computes additions, removals, and retained entries", () =>
 
 test("diffWriteRecord diffs managed fields as independent ownership units", () => {
   const previous = {
-    writeRecordVersion: 1 as const,
+    schema: "drwn.write-record" as const,
+    schemaVersion: 1 as const,
+    scope: "project" as const,
     lastWriteAt: "2026-05-20T00:00:00.000Z",
     lastWriteHarnessVersion: "0.1.0",
     managedPaths: [
       {
         path: ".cursor/mcp.json",
         kind: "managed-fields" as const,
+        surface: "mcp" as const,
+        target: "cursor" as const,
         fields: ["mcpServers:context7", "mcpServers:removed"],
         fieldHashes: {
           "mcpServers:context7": "sha256-context7",
@@ -92,6 +106,8 @@ test("diffWriteRecord diffs managed fields as independent ownership units", () =
     {
       path: ".cursor/mcp.json",
       kind: "managed-fields" as const,
+      surface: "mcp" as const,
+      target: "cursor" as const,
       fields: ["mcpServers:context7", "mcpServers:added"],
       fieldHashes: {
         "mcpServers:context7": "sha256-next-context7",
@@ -104,20 +120,57 @@ test("diffWriteRecord diffs managed fields as independent ownership units", () =
     toRemove: [{
       path: ".cursor/mcp.json",
       kind: "managed-fields",
+      surface: "mcp",
+      target: "cursor",
       fields: ["mcpServers:removed"],
       fieldHashes: { "mcpServers:removed": "sha256-removed" },
     }],
     toAdd: [{
       path: ".cursor/mcp.json",
       kind: "managed-fields",
+      surface: "mcp",
+      target: "cursor",
       fields: ["mcpServers:added"],
       fieldHashes: { "mcpServers:added": "sha256-added" },
     }],
     toVerify: [{
       path: ".cursor/mcp.json",
       kind: "managed-fields",
+      surface: "mcp",
+      target: "cursor",
       fields: ["mcpServers:context7"],
       fieldHashes: { "mcpServers:context7": "sha256-context7" },
     }],
+  });
+});
+
+test("diffWriteRecord hands off a still-desired path without whole-path cleanup", () => {
+  const previous = {
+    schema: "drwn.write-record" as const,
+    schemaVersion: 1 as const,
+    scope: "project" as const,
+    lastWriteAt: "2026-07-13T00:00:00.000Z",
+    lastWriteHarnessVersion: "0.8.0",
+    managedPaths: [{
+      path: ".cursor/mcp.json",
+      kind: "managed-content" as const,
+      surface: "mcp" as const,
+      target: "cursor" as const,
+      contentHash: "sha256-prior",
+    }],
+  };
+  const desired = [{
+    path: ".cursor/mcp.json",
+    kind: "managed-fields" as const,
+    surface: "mcp" as const,
+    target: "cursor" as const,
+    fields: ["mcpServers:notion"],
+    fieldHashes: { "mcpServers:notion": "sha256-notion" },
+  }];
+
+  expect(diffWriteRecord(previous, desired)).toEqual({
+    toRemove: [],
+    toAdd: desired,
+    toVerify: previous.managedPaths,
   });
 });

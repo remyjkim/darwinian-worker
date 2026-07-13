@@ -4,7 +4,7 @@
 import { cpSync, existsSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { ensureParentDir, lstatSafe } from "./fs";
-import { hashManagedContent, hashManagedDirectory, type ManagedPath } from "./write-record";
+import { hashManagedContent, hashManagedDirectory, type ManagedPathData } from "./write-record";
 import type { SyncResult } from "./types";
 
 const DRY_RUN_HASH = "sha256-dry-run";
@@ -22,7 +22,7 @@ interface MaterializeDirOptions {
  * The final rename is atomic; replacing an existing `dest` has a remove-then-rename
  * window, so drift safety is enforced separately by verifyManagedPaths.
  */
-export function materializeDir(source: string, dest: string, options: MaterializeDirOptions): ManagedPath {
+export function materializeDir(source: string, dest: string, options: MaterializeDirOptions): ManagedPathData {
   const { dryRun, result, relPath, labelSuffix = "" } = options;
 
   if (dryRun) {
@@ -87,7 +87,7 @@ interface MaterializePointerOptions {
 /**
  * Reporting wrapper around writePointerFile for sync-style callers that record a SyncResult.
  */
-export function materializePointer(dest: string, value: string, options: MaterializePointerOptions): ManagedPath {
+export function materializePointer(dest: string, value: string, options: MaterializePointerOptions): ManagedPathData {
   const { dryRun, result, relPath } = options;
   const existed = existsSync(dest);
   const contentHash = writePointerFile(dest, value, { dryRun });

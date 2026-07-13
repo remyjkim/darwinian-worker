@@ -12,7 +12,7 @@ import { type ClaudeHooksConfig, mergeClaudeSettingsText } from "../mcp";
 import { writeManagedFile } from "../managed-file";
 import { assertStoreWritable, resolveGeneratedHooksDir, resolveStoreGeneratedDir } from "../store-paths";
 import type { SyncResult, TargetName } from "../types";
-import { hashManagedContent, type ManagedPath } from "../write-record";
+import { hashManagedContent, ownManagedPath, type ManagedPath, type ProjectionTarget } from "../write-record";
 import { bundleHookComposer, type HookPolicyBundleInput } from "./bundle-composer";
 import { emitMastraComposer } from "./emit-mastra-composer";
 import { resolveHookRuntimes } from "./runtime-selection";
@@ -128,14 +128,29 @@ function codexHooksConfig(composerPath: string) {
   };
 }
 
-function recordManagedContent(scopeRoot: string, pathValue: string, contentHash: string): ManagedPath {
-  return { path: managedPath(scopeRoot, pathValue), kind: "managed-content", contentHash };
+function recordManagedContent(
+  scopeRoot: string,
+  pathValue: string,
+  contentHash: string,
+  target: ProjectionTarget,
+): ManagedPath {
+  return ownManagedPath(
+    { path: managedPath(scopeRoot, pathValue), kind: "managed-content", contentHash },
+    { surface: "hook", target },
+  );
 }
 
-function recordComposer(result: SyncResult, scopeRoot: string, composerPath: string, beforeContent: string | null, dryRun: boolean) {
+function recordComposer(
+  result: SyncResult,
+  scopeRoot: string,
+  composerPath: string,
+  beforeContent: string | null,
+  dryRun: boolean,
+  target: ProjectionTarget,
+) {
   if (dryRun) {
     result.changes.push(`write ${composerPath}`);
-    result.managedPaths?.push(recordManagedContent(scopeRoot, composerPath, "sha256-dry-run"));
+    result.managedPaths?.push(recordManagedContent(scopeRoot, composerPath, "sha256-dry-run", target));
     return;
   }
 
@@ -143,7 +158,7 @@ function recordComposer(result: SyncResult, scopeRoot: string, composerPath: str
   if (!beforeContent || hashManagedContent(beforeContent) !== hashManagedContent(nextContent)) {
     result.changes.push(`write ${composerPath}`);
   }
-  result.managedPaths?.push(recordManagedContent(scopeRoot, composerPath, hashManagedContent(nextContent)));
+  result.managedPaths?.push(recordManagedContent(scopeRoot, composerPath, hashManagedContent(nextContent), target));
 }
 
 function readExistingContent(pathValue: string) {
@@ -199,10 +214,10 @@ export async function syncHooks(state: EffectiveState): Promise<SyncResult> {
           await bundleHookComposer({ runtime, outputDir, policies });
         } else {
           result.changes.push(`write ${composerPath}`);
-          result.managedPaths?.push(recordManagedContent(state.scopeRoot, composerPath, "sha256-dry-run"));
+          result.managedPaths?.push(recordManagedContent(state.scopeRoot, composerPath, "sha256-dry-run", "claude"));
         }
         if (!state.scopedOptions.dryRun) {
-          recordComposer(result, state.scopeRoot, composerPath, beforeContent, state.scopedOptions.dryRun);
+          recordComposer(result, state.scopeRoot, composerPath, beforeContent, state.scopedOptions.dryRun, "claude");
         }
       }
 
@@ -224,6 +239,8 @@ export async function syncHooks(state: EffectiveState): Promise<SyncResult> {
       result.managedPaths?.push({
         path: ".claude/settings.json",
         kind: "managed-fields",
+        surface: "hook",
+        target: "claude",
         fields: Object.keys(next.fieldHashes),
         fieldHashes: next.fieldHashes,
       });
@@ -241,16 +258,16 @@ export async function syncHooks(state: EffectiveState): Promise<SyncResult> {
         await bundleHookComposer({ runtime, outputDir, policies });
       } else {
         result.changes.push(`write ${composerPath}`);
-        result.managedPaths?.push(recordManagedContent(state.scopeRoot, composerPath, "sha256-dry-run"));
+        result.managedPaths?.push(recordManagedContent(state.scopeRoot, composerPath, "sha256-dry-run", "codex"));
       }
       if (!state.scopedOptions.dryRun) {
-        recordComposer(result, state.scopeRoot, composerPath, beforeContent, state.scopedOptions.dryRun);
+        recordComposer(result, state.scopeRoot, composerPath, beforeContent, state.scopedOptions.dryRun, "codex");
       }
 
       const codexHooksPath = join(state.scopeRoot, ".codex", "hooks.json");
       const content = `${JSON.stringify(codexHooksConfig(composerPath), null, 2)}\n`;
       writeManagedFile(codexHooksPath, content, state.scopedOptions.dryRun, result);
-      result.managedPaths?.push(recordManagedContent(state.scopeRoot, codexHooksPath, hashManagedContent(content)));
+      result.managedPaths?.push(recordManagedContent(state.scopeRoot, codexHooksPath, hashManagedContent(content), "codex"));
       if (state.scopedOptions.writeScope === "project") {
         result.warnings.push(
           "Codex project-local hooks may require Codex /hooks review/trust before generated drwn hooks run.",
@@ -266,10 +283,10 @@ export async function syncHooks(state: EffectiveState): Promise<SyncResult> {
         await emitMastraComposer({ outputDir, policies });
       } else {
         result.changes.push(`write ${composerPath}`);
-        result.managedPaths?.push(recordManagedContent(state.scopeRoot, composerPath, "sha256-dry-run"));
+        result.managedPaths?.push(recordManagedContent(state.scopeRoot, composerPath, "sha256-dry-run", "mastra"));
       }
       if (!state.scopedOptions.dryRun) {
-        recordComposer(result, state.scopeRoot, composerPath, beforeContent, state.scopedOptions.dryRun);
+        recordComposer(result, state.scopeRoot, composerPath, beforeContent, state.scopedOptions.dryRun, "mastra");
       }
     }
   }

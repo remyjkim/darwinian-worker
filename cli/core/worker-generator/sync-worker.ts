@@ -19,7 +19,7 @@ import {
   resolveStoreGeneratedDir,
 } from "../store-paths";
 import type { RegistryServer, SyncResult } from "../types";
-import { hashManagedContent, hashManagedDirectory, type ManagedPath } from "../write-record";
+import { hashManagedContent, hashManagedDirectory, ownManagedPath, type ManagedPath } from "../write-record";
 import { assertWorkerCapabilityCompatibility } from "../card-skill-resolver";
 
 function managedPath(scopeRoot: string, absolutePath: string) {
@@ -27,19 +27,25 @@ function managedPath(scopeRoot: string, absolutePath: string) {
 }
 
 function recordManagedContent(scopeRoot: string, pathValue: string, content: string): ManagedPath {
-  return { path: managedPath(scopeRoot, pathValue), kind: "managed-content", contentHash: hashManagedContent(content) };
+  return ownManagedPath(
+    { path: managedPath(scopeRoot, pathValue), kind: "managed-content", contentHash: hashManagedContent(content) },
+    { surface: "worker" },
+  );
 }
 
 function recordManagedDirectory(scopeRoot: string, pathValue: string, dryRun: boolean): ManagedPath {
-  return {
+  return ownManagedPath({
     path: managedPath(scopeRoot, pathValue),
     kind: "managed-directory",
     contentHash: dryRun ? "sha256-dry-run" : hashManagedDirectory(pathValue),
-  };
+  }, { surface: "worker" });
 }
 
 function recordGeneratedSymlink(scopeRoot: string, linkPath: string, targetPath: string): ManagedPath {
-  return { path: managedPath(scopeRoot, linkPath), kind: "generated-symlink", generatedPath: targetPath };
+  return ownManagedPath(
+    { path: managedPath(scopeRoot, linkPath), kind: "generated-symlink", generatedPath: targetPath },
+    { surface: "worker" },
+  );
 }
 
 function ensureDirSymlink(linkPath: string, targetPath: string, dryRun: boolean, result: SyncResult) {
@@ -219,7 +225,10 @@ async function materializeWorkerHooks(
       await bundleHookComposer({ runtime, outputDir, policies });
     } else {
       result.changes.push(`write ${composerPath}`);
-      result.managedPaths?.push({ path: managedPath(state.scopeRoot, composerPath), kind: "managed-content", contentHash: "sha256-dry-run" });
+      result.managedPaths?.push(ownManagedPath(
+        { path: managedPath(state.scopeRoot, composerPath), kind: "managed-content", contentHash: "sha256-dry-run" },
+        { surface: "worker" },
+      ));
     }
   }
 }
@@ -252,12 +261,12 @@ async function materializeWorker(
       }
       if (!skillNames.includes(skill)) skillNames.push(skill);
       result.managedPaths?.push(
-        materializeDir(target, link, {
+        ownManagedPath(materializeDir(target, link, {
           dryRun: state.scopedOptions.dryRun,
           result,
           relPath: managedPath(state.scopeRoot, link),
           labelSuffix: ` ← ${card.name} skill ${skill}`,
-        }),
+        }), { surface: "worker" }),
       );
     }
   }

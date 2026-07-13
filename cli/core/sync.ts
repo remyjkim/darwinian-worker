@@ -23,6 +23,7 @@ import { syncWorkers } from "./worker-generator/sync-worker";
 import { ensureParentDir, lstatSafe, realpathSafe } from "./fs";
 import { backupExistingPath, writeManagedFile } from "./managed-file";
 import {
+  dedupeManagedPathsByPath,
   diffWriteRecord,
   hashManagedContent,
   hashManagedDirectory,
@@ -36,6 +37,7 @@ import { reconcileVendorTrees } from "./vendor-reconcile";
 import { DRWN_VERSION } from "./version";
 import { canonicalJsonHash } from "./managed-fields";
 import { DrwnError } from "./errors";
+import { retainUnselectedProjectionOwnership } from "./projection-ownership";
 import type {
   CanonicalConfig,
   NormalizedSyncOptions,
@@ -84,36 +86,6 @@ function machineMcpRecordPath(target: TargetName) {
   return ".cursor/mcp.json";
 }
 
-function managedPathTarget(pathValue: string): TargetName | null {
-  if (pathValue === ".claude.json" || pathValue.startsWith(".claude/")) return "claude";
-  if (pathValue === ".codex/config.toml" || pathValue.startsWith(".codex/")) return "codex";
-  if (pathValue === ".cursor/mcp.json" || pathValue.startsWith(".cursor/")) return "cursor";
-  return null;
-}
-
-function machineManagedCapability(pathValue: string): "mcp" | "skill" | "other" {
-  if (pathValue === ".claude.json" || pathValue === ".codex/config.toml" || pathValue === ".cursor/mcp.json") return "mcp";
-  if (pathValue.startsWith(".claude/skills/") || pathValue.startsWith(".codex/skills/")) return "skill";
-  return "other";
-}
-
-function retainUnselectedMachineOwnership(
-  state: EffectiveState,
-  previous: ManagedPath[],
-  desired: ManagedPath[],
-) {
-  if (state.scopedOptions.writeScope !== "machine") return desired;
-  const retained = previous.filter((entry) => {
-    const target = managedPathTarget(entry.path);
-    if (state.scopedOptions.target && target !== state.scopedOptions.target) return true;
-    const capability = machineManagedCapability(entry.path);
-    if (state.scopedOptions.mcpOnly && capability !== "mcp") return true;
-    if (state.scopedOptions.skillsOnly && capability !== "skill") return true;
-    return false;
-  });
-  return uniqueManagedPaths([...retained, ...desired]);
-}
-
 function selectedMachineTargets(state: EffectiveState) {
   return (Object.keys(state.effectiveConfig.targets) as TargetName[]).filter((target) => {
     if (state.scopedOptions.target && state.scopedOptions.target !== target) return false;
@@ -140,6 +112,8 @@ export function planMachineManagedPaths(state: EffectiveState): ManagedPath[] {
       planned.push({
         path: machineMcpRecordPath(target),
         kind: "managed-fields",
+        surface: "mcp",
+        target,
         fields,
         fieldHashes: Object.fromEntries(
           Object.entries(state.activeServers).map(([id, server]) => [
@@ -154,10 +128,10 @@ export function planMachineManagedPaths(state: EffectiveState): ManagedPath[] {
   if (!state.scopedOptions.mcpOnly) {
     for (const skill of state.machineCapabilities?.skills ?? []) {
       if ((!state.scopedOptions.target || state.scopedOptions.target === "claude") && (skill.scope === "shared" || skill.scope === "claude-only")) {
-        planned.push({ path: `.claude/skills/${skill.id}`, kind: "managed-directory", contentHash: "sha256-planned" });
+        planned.push({ path: `.claude/skills/${skill.id}`, kind: "managed-directory", surface: "skill", target: "claude", contentHash: "sha256-planned" });
       }
       if ((!state.scopedOptions.target || state.scopedOptions.target === "codex") && (skill.scope === "shared" || skill.scope === "codex-only")) {
-        planned.push({ path: `.codex/skills/${skill.id}`, kind: "managed-directory", contentHash: "sha256-planned" });
+        planned.push({ path: `.codex/skills/${skill.id}`, kind: "managed-directory", surface: "skill", target: "codex", contentHash: "sha256-planned" });
       }
     }
   }
@@ -397,7 +371,7 @@ export function cleanupRemovedManagedPaths(
     }
     if (entry.kind === "symlink" || entry.kind === "generated-symlink") {
       const stats = lstatSafe(absolutePath);
-      const expectedTarget = entry.kind === "symlink" ? entry.target : entry.generatedPath;
+      const expectedTarget = entry.kind === "symlink" ? entry.linkTarget : entry.generatedPath;
       const linkTarget = stats?.isSymbolicLink() ? readlinkSync(absolutePath) : null;
       if (
         stats?.isSymbolicLink() &&
@@ -545,7 +519,7 @@ export async function syncMcp(
       if (options.writeScope === "project") {
         const content = renderJsonMcpConfig(servers);
         writeManagedFile(configPath, content, options.dryRun, result);
-        managedPaths.push({ path: ".mcp.json", kind: "managed-content", contentHash: hashManagedContent(content) });
+        managedPaths.push({ path: ".mcp.json", kind: "managed-content", surface: "mcp", target: "claude", contentHash: hashManagedContent(content) });
         continue;
       }
 
@@ -562,6 +536,8 @@ export async function syncMcp(
         managedPaths.push({
           path: ".claude.json",
           kind: "managed-fields",
+          surface: "mcp",
+          target: "claude",
           fields: Object.keys(merged.fieldHashes),
           fieldHashes: merged.fieldHashes,
         });
@@ -583,7 +559,7 @@ export async function syncMcp(
       writeManagedFile(configPath, mergedCodex, options.dryRun, result);
       const fieldHashes = hashCodexManagedServers(mergedCodex, Object.keys(servers));
       if (Object.keys(fieldHashes).length > 0) {
-        managedPaths.push({ path: ".codex/config.toml", kind: "managed-fields", fields: Object.keys(fieldHashes), fieldHashes });
+        managedPaths.push({ path: ".codex/config.toml", kind: "managed-fields", surface: "mcp", target: "codex", fields: Object.keys(fieldHashes), fieldHashes });
       }
       continue;
     }
@@ -600,6 +576,8 @@ export async function syncMcp(
         managedPaths.push({
           path: ".cursor/mcp.json",
           kind: "managed-fields",
+          surface: "mcp",
+          target: "cursor",
           fields: Object.keys(merged.fieldHashes),
           fieldHashes: merged.fieldHashes,
         });
@@ -612,6 +590,7 @@ export async function syncMcp(
 
 export async function syncRepository(options: SyncOptions = {}): Promise<SyncResult> {
   const state = await buildEffectiveState(options);
+  const writeScope = state.scopedOptions.writeScope === "machine" ? "machine" : "project";
   const ambientCollisions = assertAmbientMcpPreflight(state);
   const result: SyncResult = { changes: [], warnings: [], managedPaths: [], ambientCollisions };
   result.optionalMcpReport = state.normalized.skillsOnly
@@ -641,7 +620,7 @@ export async function syncRepository(options: SyncOptions = {}): Promise<SyncRes
     };
   }
   result.cardModes = cardModes;
-  const previousRecord = loadWriteRecord(state.recordPath);
+  const previousRecord = loadWriteRecord(state.recordPath, writeScope);
   if (state.scopedOptions.writeScope === "machine") {
     assertMachineProjectionPreflight(state, previousRecord);
   } else {
@@ -700,10 +679,14 @@ export async function syncRepository(options: SyncOptions = {}): Promise<SyncRes
     result.managedPaths?.push(...(hooksResult.managedPaths ?? []));
   }
 
-  const desiredManagedPaths = retainUnselectedMachineOwnership(
-    state,
+  const desiredManagedPaths = retainUnselectedProjectionOwnership(
     previousRecord?.managedPaths ?? [],
     uniqueManagedPaths(result.managedPaths ?? []),
+    {
+      mcpOnly: state.scopedOptions.mcpOnly,
+      skillsOnly: state.scopedOptions.skillsOnly,
+      target: state.scopedOptions.target,
+    },
   );
   const { toRemove } = diffWriteRecord(previousRecord, desiredManagedPaths);
   cleanupRemovedManagedPaths(
@@ -716,7 +699,9 @@ export async function syncRepository(options: SyncOptions = {}): Promise<SyncRes
   result.managedPaths = desiredManagedPaths;
   if (!state.normalized.dryRun) {
     saveWriteRecord(state.recordPath, {
-      writeRecordVersion: 1,
+      schema: "drwn.write-record",
+      schemaVersion: 1,
+      scope: writeScope,
       lastWriteAt: new Date().toISOString(),
       lastWriteHarnessVersion: DRWN_VERSION,
       managedPaths: desiredManagedPaths,
@@ -724,4 +709,75 @@ export async function syncRepository(options: SyncOptions = {}): Promise<SyncRes
   }
 
   return result;
+}
+
+export interface RepositoryProjectionPlan {
+  current: boolean;
+  issues: string[];
+  recordPresent: boolean;
+  result: SyncResult | null;
+}
+
+function projectionFailureIssue(error: unknown) {
+  if (error instanceof DrwnError) {
+    return `${error.code}: ${error.message}`;
+  }
+  return "PROJECT_PROJECTION_PLAN_FAILED: unable to compute the project projection plan";
+}
+
+export async function planRepositoryProjection(options: SyncOptions): Promise<RepositoryProjectionPlan> {
+  let state: EffectiveState;
+  try {
+    state = await buildEffectiveState({
+      ...options,
+      dryRun: true,
+      forceMachineScope: false,
+      scope: "project",
+    });
+  } catch (error) {
+    return { current: false, issues: [projectionFailureIssue(error)], recordPresent: false, result: null };
+  }
+
+  const recordPresent = existsSync(state.recordPath);
+  let previousRecord;
+  try {
+    previousRecord = loadWriteRecord(state.recordPath, "project");
+  } catch (error) {
+    return { current: false, issues: [projectionFailureIssue(error)], recordPresent, result: null };
+  }
+
+  let result: SyncResult;
+  try {
+    result = await syncRepository({
+      ...options,
+      dryRun: true,
+      forceMachineScope: false,
+      scope: "project",
+    });
+  } catch (error) {
+    return { current: false, issues: [projectionFailureIssue(error)], recordPresent, result: null };
+  }
+
+  const issues: string[] = [];
+  if (!recordPresent) {
+    issues.push(`PROJECT_PROJECTION_RECORD_MISSING: ${state.recordPath}`);
+  }
+  for (const warning of state.overlayWarnings) {
+    issues.push(`PROJECT_PROJECTION_OVERLAY_ISSUE: ${warning}`);
+  }
+  for (const change of result.changes) {
+    issues.push(`PROJECT_PROJECTION_CHANGE: ${change}`);
+  }
+  const difference = diffWriteRecord(previousRecord, result.managedPaths ?? []);
+  const staleOwnership = dedupeManagedPathsByPath([...difference.toAdd, ...difference.toRemove]);
+  for (const entry of staleOwnership) {
+    issues.push(`PROJECT_PROJECTION_OWNERSHIP_STALE: ${entry.path}`);
+  }
+
+  return {
+    current: issues.length === 0,
+    issues: [...new Set(issues)],
+    recordPresent,
+    result,
+  };
 }

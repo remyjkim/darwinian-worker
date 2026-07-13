@@ -10,7 +10,7 @@ import { resolveSkillScopeDirs, resolveToolPaths } from "./paths";
 import { lstatSafe } from "./fs";
 import { materializeDir } from "./materialize";
 import type { NormalizedSyncOptions, SyncResult, TargetName } from "./types";
-import type { ManagedPath } from "./write-record";
+import { ownManagedPath, type ManagedPath, type ProjectionTarget } from "./write-record";
 import { listInstalledSkillBundles } from "./skill-packages";
 
 export type SkillScope = "shared" | "claude-only" | "codex-only" | "experimental";
@@ -47,6 +47,7 @@ interface MaterializeIntent {
   targetPath: string;
   relPath: string;
   layerLabel: string;
+  target: Extract<ProjectionTarget, "claude" | "codex">;
   alsoAvailable?: string[];
 }
 
@@ -292,6 +293,7 @@ export async function syncSkills(
           targetPath,
           relPath: `.claude/skills/${name}`,
           layerLabel,
+          target: "claude",
         });
       }
     }
@@ -303,6 +305,7 @@ export async function syncSkills(
           targetPath,
           relPath: `.codex/skills/${name}`,
           layerLabel,
+          target: "codex",
         });
       }
     }
@@ -318,7 +321,7 @@ export async function syncSkills(
       relPath: intent.relPath,
       labelSuffix,
     });
-    managedPaths.push(record);
+    managedPaths.push(ownManagedPath(record, { surface: "skill", target: intent.target }));
   }
 
   const staleClaude = !options.target || options.target === "claude"
