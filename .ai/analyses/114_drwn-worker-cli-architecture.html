@@ -54,7 +54,7 @@
     <p class="sub">How <code>drwn</code> is put together at 0.7.0: capability cards, worker blueprints,
     stacks, materialization, deployment — and where minds plug in. The map an engineer needs
     before touching any of it.</p>
-    <div class="meta">drwn 0.7.0 &nbsp;·&nbsp; companion: 113 (mind cards) &nbsp;·&nbsp; supersedes knowledges/10 and analyses/95·96·98 for current state &nbsp;·&nbsp; 2026-07-08</div>
+    <div class="meta">drwn 0.7.0 &nbsp;·&nbsp; companion: 113 (mind cards) &nbsp;·&nbsp; supersedes knowledges/10 and analyses/95·96·98 for current state &nbsp;·&nbsp; 2026-07-09</div>
   </div>
 </header>
 
@@ -218,8 +218,9 @@ command).</p>
 <pre><code>drwn worker deploy &lt;blueprint-ref&gt; --name chief [--secrets-file .drwn.secrets]
   <span class="c">1. CLI resolves the blueprint + members LOCALLY → pinned member set (version/integrity/treeSha)</span>
   <span class="c">2. POST /api/deployments { cardRef, name, secrets?, blueprint: { members, governance } }</span>
-  <span class="c">3. ← { deploymentId, mindId, slug }   — mindId = the STABLE worker id (legacy field name;</span>
-  <span class="c">     minted for every worker, mind or not; survives redeploys/rollbacks)</span>
+  <span class="c">3. ← { deploymentId, mindId }   — mindId = the STABLE worker id (legacy field name;</span>
+  <span class="c">     minted for every worker, mind or not; survives redeploys/rollbacks).</span>
+  <span class="c">     The slug is the client-supplied --name, not a returned field.</span>
   <span class="c">4. poll → ready; cache mind binding coordinates (never tokens) in mind-bindings.json</span></code></pre>
 <p>Design decision worth knowing: <b>the CLI resolves, the server materializes.</b> The
 server receives an immutable pinned member set — no server-side <code>composedFrom</code>

@@ -244,7 +244,7 @@ async function main() {
   if (testMode) {
     checks.push({ name: "quality gate test mode", ok: true });
   } else {
-    checks.push(await runCommand("bun test", ["bun", "test"]));
+    checks.push(await runCommand("bun test", ["bun", "run", "test"]));
     checks.push(await runCommand("typecheck", ["bun", "run", "typecheck"]));
   }
 

@@ -10,7 +10,10 @@ The package is `darwinian`. The command is `drwn`.
 
 ## Install
 
+Requires Bun 1.2+ and npm.
+
 ```bash
+curl -fsSL https://bun.sh/install | bash
 npm install -g darwinian
 drwn status
 ```

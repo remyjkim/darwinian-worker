@@ -87,9 +87,13 @@ The normal write path is conservative:
 Use the published package when you want the default config and CLI behavior:
 
 ```bash
+curl -fsSL https://bun.sh/install | bash
 npm install -g darwinian
 drwn write --dry-run
 ```
+
+The published `drwn` entrypoint requires Bun 1.2+ at runtime. npm installs the
+package and binary; Bun executes the TypeScript CLI.
 
 Keep using `drwn` as the primary command in examples and automation.
 
