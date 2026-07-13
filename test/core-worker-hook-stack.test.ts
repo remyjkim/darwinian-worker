@@ -61,8 +61,9 @@ test("one Blueprint Worker composes member hooks and preserves signals", async (
   const settings = JSON.parse(await readFile(join(projectDir, ".claude", "settings.json"), "utf8"));
 
   expect(write.exitCode).toBe(0);
-  expect(existsSync(join(projectDir, ".agents", "drwn", "generated", "workers", "@me", "base", "hooks", "claude", "composer.mjs"))).toBe(true);
-  expect(existsSync(join(projectDir, ".agents", "drwn", "generated", "workers", "@me", "overlay", "hooks", "claude", "composer.mjs"))).toBe(true);
+  expect(existsSync(join(projectDir, ".agents", "drwn", "generated", "workers", "@me", "worker", "hooks", "claude", "composer.mjs"))).toBe(true);
+  expect(existsSync(join(projectDir, ".agents", "drwn", "generated", "workers", "@me", "base"))).toBe(false);
+  expect(existsSync(join(projectDir, ".agents", "drwn", "generated", "workers", "@me", "overlay"))).toBe(false);
   const preToolMatchers = settings.hooks.PreToolUse.map((entry: { matcher?: string }) => entry.matcher);
   expect(preToolMatchers.filter((matcher: string | undefined) => matcher === ".*")).toHaveLength(1);
   expect(preToolMatchers).toContain("Skill");

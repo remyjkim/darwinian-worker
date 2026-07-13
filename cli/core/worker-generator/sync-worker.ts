@@ -20,6 +20,8 @@ import {
 } from "../store-paths";
 import type { RegistryServer, SyncResult } from "../types";
 import { hashManagedContent, hashManagedDirectory, type ManagedPath } from "../write-record";
+import type { WorkerRootLockEntry } from "../worker-graph";
+import { assertWorkerCapabilityCompatibility } from "../card-skill-resolver";
 
 function managedPath(scopeRoot: string, absolutePath: string) {
   return relative(scopeRoot, absolutePath).replace(/\\/g, "/");
@@ -120,9 +122,9 @@ function identityInstructionsForCard(card: CardLockEntry): string | null {
   return ensureTrailingNewline(text.trimEnd());
 }
 
-function aggregateSkillInstructions(state: EffectiveState) {
+function aggregateSkillInstructions(state: EffectiveState, cards: CardLockEntry[]) {
   const sections: string[] = [];
-  for (const card of state.skillApplyOrderCards) {
+  for (const card of cards) {
     const contentRoot = state.contentRootsByCard[card.name] ?? card.path;
     for (const skill of card.skills) {
       const skillPath = join(contentRoot, "skills", skill, "SKILL.md");
@@ -137,27 +139,35 @@ function aggregateSkillInstructions(state: EffectiveState) {
     }
   }
   if (sections.length === 0) {
-    return "No active card instructions declared.\n";
+    return "No Worker capability instructions declared.\n";
   }
-  return ensureTrailingNewline(`# Active Card Skill Instructions\n\n${sections.join("\n\n")}`);
+  return ensureTrailingNewline(`# Worker Capability Instructions\n\n${sections.join("\n\n")}`);
 }
 
-function buildInstructionsArtifact(state: EffectiveState) {
-  for (const card of state.skillApplyOrderCards) {
+function buildInstructionsArtifact(state: EffectiveState, cards: CardLockEntry[]) {
+  const root = cards[0];
+  if (root?.manifest.kind === "blueprint") {
+    const rootContent = state.contentRootsByCard[root.name] ?? root.path;
+    const workerInstructions = explicitInstructionsForCard(root, rootContent) ?? identityInstructionsForCard(root);
+    const capabilityInstructions = aggregateSkillInstructions(state, cards);
+    return workerInstructions
+      ? ensureTrailingNewline(`${workerInstructions.trimEnd()}\n\n${capabilityInstructions.trimEnd()}`)
+      : capabilityInstructions;
+  }
+  for (const card of cards) {
     const contentRoot = state.contentRootsByCard[card.name] ?? card.path;
     const explicit = explicitInstructionsForCard(card, contentRoot);
     if (explicit) return explicit;
   }
-  for (const card of state.skillApplyOrderCards) {
+  for (const card of cards) {
     const identity = identityInstructionsForCard(card);
     if (identity) return identity;
   }
-  return aggregateSkillInstructions(state);
+  return aggregateSkillInstructions(state, cards);
 }
 
-function writeInstructionsArtifact(generatedDir: string, state: EffectiveState, result: SyncResult) {
-  const pathValue = join(generatedDir, "instructions.md");
-  const content = buildInstructionsArtifact(state);
+function writeInstructionsArtifact(pathValue: string, state: EffectiveState, cards: CardLockEntry[], result: SyncResult) {
+  const content = buildInstructionsArtifact(state, cards);
   writeManagedFile(pathValue, content, state.scopedOptions.dryRun, result);
   result.managedPaths?.push(recordManagedContent(state.scopeRoot, pathValue, content));
 }
@@ -183,12 +193,13 @@ function hookPolicies(card: CardLockEntry, contentRoot: string): HookPolicyBundl
 
 async function materializeWorkerHooks(
   state: EffectiveState,
-  card: CardLockEntry,
-  contentRoot: string,
+  cards: CardLockEntry[],
   workerDir: string,
   result: SyncResult,
 ) {
-  const policies = hookPolicies(card, contentRoot);
+  const policies = cards.flatMap((card) =>
+    hookPolicies(card, state.contentRootsByCard[card.name] ?? card.path)
+  );
   if (policies.length === 0) {
     return;
   }
@@ -214,31 +225,45 @@ async function materializeWorkerHooks(
   }
 }
 
-async function materializeWorker(state: EffectiveState, card: CardLockEntry, result: SyncResult) {
-  const contentRoot = state.contentRootsByCard[card.name] ?? card.path;
+async function materializeWorker(
+  state: EffectiveState,
+  root: WorkerRootLockEntry,
+  cards: CardLockEntry[],
+  result: SyncResult,
+) {
+  assertWorkerCapabilityCompatibility(cards);
+  const rootCard = cards[0];
+  if (!rootCard || rootCard.name !== root.name) {
+    throw new Error(`Worker root closure for ${root.name} does not begin with its root Card`);
+  }
   const generatedDir = state.scopedOptions.generatedDir ?? resolveStoreGeneratedDir(state.scopedOptions.agentsDir);
-  const workerDir = resolveGeneratedWorkerDir(generatedDir, card.name);
+  const workerDir = resolveGeneratedWorkerDir(generatedDir, root.name);
   if (!state.scopedOptions.dryRun) {
     mkdirSync(workerDir, { recursive: true });
   }
 
-  for (const skill of card.skills) {
-    const target = join(contentRoot, "skills", skill);
-    const link = join(workerDir, "skills", skill);
-    if (!existsSync(target)) {
-      continue;
+  const skillNames: string[] = [];
+  for (const card of cards) {
+    const contentRoot = state.contentRootsByCard[card.name] ?? card.path;
+    for (const skill of card.skills) {
+      const target = join(contentRoot, "skills", skill);
+      const link = join(workerDir, "skills", skill);
+      if (!existsSync(target)) {
+        continue;
+      }
+      if (!skillNames.includes(skill)) skillNames.push(skill);
+      result.managedPaths?.push(
+        materializeDir(target, link, {
+          dryRun: state.scopedOptions.dryRun,
+          result,
+          relPath: managedPath(state.scopeRoot, link),
+          labelSuffix: ` ← ${card.name} skill ${skill}`,
+        }),
+      );
     }
-    result.managedPaths?.push(
-      materializeDir(target, link, {
-        dryRun: state.scopedOptions.dryRun,
-        result,
-        relPath: managedPath(state.scopeRoot, link),
-        labelSuffix: ` ← ${card.name} skill ${skill}`,
-      }),
-    );
   }
 
-  const servers = cardServers(card);
+  const servers = Object.assign({}, ...cards.map(cardServers)) as Record<string, RegistryServer>;
   if (Object.keys(servers).length > 0) {
     const serversPath = join(workerDir, "mcp", "servers.json");
     const content = renderJsonMcpConfig(servers);
@@ -246,15 +271,22 @@ async function materializeWorker(state: EffectiveState, card: CardLockEntry, res
     result.managedPaths?.push(recordManagedContent(state.scopeRoot, serversPath, content));
   }
 
-  await materializeWorkerHooks(state, card, contentRoot, workerDir, result);
+  await materializeWorkerHooks(state, cards, workerDir, result);
+  writeInstructionsArtifact(join(workerDir, "instructions.md"), state, cards, result);
 
   const index = {
-    name: card.name,
-    version: card.version,
-    integrity: card.integrity,
+    name: rootCard.name,
+    version: rootCard.version,
+    integrity: rootCard.integrity,
+    kind: root.kind,
     path: workerDir,
-    skills: card.skills,
-    hooks: card.hooks,
+    members: cards.slice(1).map((card) => ({
+      name: card.name,
+      version: card.version,
+      integrity: card.integrity,
+    })),
+    skills: skillNames,
+    hooks: cards.flatMap((card) => card.hooks),
     servers: Object.keys(servers),
   };
   writeJson(join(workerDir, "worker.json"), index, state, result);
@@ -266,10 +298,12 @@ async function materializeWorker(state: EffectiveState, card: CardLockEntry, res
   }
 
   return {
-    name: card.name,
-    version: card.version,
-    integrity: card.integrity,
+    name: rootCard.name,
+    version: rootCard.version,
+    integrity: rootCard.integrity,
     path: workerDir,
+    closure: cards.map((card) => ({ name: card.name, version: card.version, integrity: card.integrity })),
+    active: state.activeWorkerRoot?.name === root.name,
   };
 }
 
@@ -280,12 +314,22 @@ export async function syncWorkers(state: EffectiveState): Promise<SyncResult> {
   if (!state.scopedOptions.dryRun) {
     mkdirSync(workersRoot, { recursive: true });
   }
-  writeInstructionsArtifact(generatedDir, state, result);
   const workers = [];
-  for (const card of state.lockedCards) {
-    workers.push(await materializeWorker(state, card, result));
+  const byName = new Map(state.workerGraph.cards.map((card) => [card.name, card]));
+  for (const root of state.workerGraph.roots) {
+    const closure = [root.name, ...root.members].map((name) => {
+      const card = byName.get(name);
+      if (!card) throw new Error(`Worker root ${root.name} references missing Card ${name}`);
+      return card;
+    });
+    workers.push(await materializeWorker(state, root, closure, result));
   }
-  workers.sort((a, b) => a.name.localeCompare(b.name));
-  writeJson(join(generatedDir, "workers.json"), { version: 1, workers }, state, result);
+  writeJson(join(generatedDir, "workers.json"), { version: 2, workers }, state, result);
+  if (state.activeWorkerRoot) {
+    const active = workers.find((worker) => worker.name === state.activeWorkerRoot!.name);
+    if (!active) throw new Error(`Active Worker ${state.activeWorkerRoot.name} has no generated bundle`);
+    writeJson(join(generatedDir, "active-worker.json"), { schemaVersion: 1, ...active }, state, result);
+    writeInstructionsArtifact(join(generatedDir, "instructions.md"), state, state.activeCards, result);
+  }
   return result;
 }

@@ -8,6 +8,7 @@ import { dirname, join } from "node:path";
 import { validateCardManifest } from "../cli/core/card-manifest";
 import { syncRepository } from "../cli/core/sync";
 import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { applyProjectCardSpecs } from "../cli/core/card-project";
 
 const tempRoots: string[] = [];
 
@@ -135,4 +136,121 @@ test("syncRepository materializes isolated worker bundles and cleans removed wor
 
   expect(second.changes.some((change) => change.includes(`remove ${workerDir}`))).toBe(true);
   expect(existsSync(workerDir)).toBe(false);
+});
+
+async function publishAggregateFixture(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
+  for (const [name, skill, server, hook] of [
+    ["@me/member-a", "alpha", "server-a", "guard"],
+    ["@me/member-b", "beta", "server-b", null],
+    ["@me/other", "other", "server-other", null],
+  ] as const) {
+    expect((await runAgentsCli(["card", "new", name, "--no-git"], envFor(fixture))).exitCode).toBe(0);
+    const [, scope, cardName] = name.match(/^(@[^/]+)\/(.+)$/)!;
+    const sourceDir = join(fixture.agentsDir, "drwn", "sources", scope!, cardName!);
+    const manifestPath = join(sourceDir, "card.json");
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+    manifest.skills = { include: [skill] };
+    manifest.servers = {
+      [server]: { description: server, transport: "stdio", command: server, optional: false },
+    };
+    await mkdir(join(sourceDir, "skills", skill), { recursive: true });
+    await writeFile(join(sourceDir, "skills", skill, "SKILL.md"), `---\nname: ${skill}\ndescription: ${skill}\n---\n# ${skill}\n`);
+    if (hook) {
+      manifest.hooks = { include: [hook] };
+      await mkdir(join(sourceDir, "hooks", hook), { recursive: true });
+      await writeFile(join(sourceDir, "hooks", hook, "policy.ts"), "export default () => ({ decision: 'allow' });\n");
+    }
+    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+    expect((await runAgentsCli(["card", "publish", name], envFor(fixture))).exitCode).toBe(0);
+  }
+
+  expect((await runAgentsCli(["card", "new", "@me/aggregate", "--no-git"], envFor(fixture))).exitCode).toBe(0);
+  const blueprintPath = join(fixture.agentsDir, "drwn", "sources", "@me", "aggregate", "card.json");
+  const blueprint = JSON.parse(await readFile(blueprintPath, "utf8"));
+  blueprint.kind = "blueprint";
+  blueprint.composedFrom = ["@me/member-a@1.0.0", "@me/member-b@1.0.0"];
+  blueprint.identity = { instructions: "Coordinate the aggregate Worker." };
+  await writeFile(blueprintPath, `${JSON.stringify(blueprint, null, 2)}\n`);
+  expect((await runAgentsCli(["card", "publish", "@me/aggregate"], envFor(fixture))).exitCode).toBe(0);
+}
+
+test("syncRepository materializes one aggregate bundle per Worker root", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  await publishAggregateFixture(fixture);
+  await mkdir(join(fixture.repoRoot, "skills", "shared", "project-only"), { recursive: true });
+  await writeFile(
+    join(fixture.repoRoot, "skills", "shared", "project-only", "SKILL.md"),
+    "---\nname: project-only\ndescription: project-only\n---\n",
+  );
+  const projectDir = join(fixture.root, "aggregate-project");
+  const configPath = join(projectDir, ".agents", "drwn", "config.json");
+  await mkdir(dirname(configPath), { recursive: true });
+  await writeFile(configPath, `${JSON.stringify({
+    version: 2,
+    skills: { include: ["project-only"] },
+    servers: { "project-only": { description: "project", transport: "stdio", command: "project", optional: false } },
+  }, null, 2)}\n`);
+  await applyProjectCardSpecs(projectDir, fixture.agentsDir, ["@me/aggregate@1.0.0", "@me/other@1.0.0"]);
+  const selected = JSON.parse(await readFile(configPath, "utf8"));
+  selected.activeWorker = "@me/aggregate";
+  selected.skills = { include: ["project-only"] };
+  selected.servers = { "project-only": { description: "project", transport: "stdio", command: "project", optional: false } };
+  await writeFile(configPath, `${JSON.stringify(selected, null, 2)}\n`);
+  expect((await runAgentsCli(["card", "trust", "@me/member-a", "--hooks"], envFor(fixture), projectDir)).exitCode).toBe(0);
+
+  const syncOptions = {
+    repoRoot: fixture.repoRoot,
+    agentsDir: fixture.agentsDir,
+    homeDir: fixture.homeDir,
+    cwd: projectDir,
+  };
+  await syncRepository(syncOptions);
+
+  const generated = join(projectDir, ".agents", "drwn", "generated");
+  const aggregateDir = join(generated, "workers", "@me", "aggregate");
+  const otherDir = join(generated, "workers", "@me", "other");
+  expect(existsSync(aggregateDir)).toBe(true);
+  expect(existsSync(otherDir)).toBe(true);
+  expect(existsSync(join(generated, "workers", "@me", "member-a"))).toBe(false);
+  expect(existsSync(join(generated, "workers", "@me", "member-b"))).toBe(false);
+  expect(existsSync(join(aggregateDir, "skills", "alpha"))).toBe(true);
+  expect(existsSync(join(aggregateDir, "skills", "beta"))).toBe(true);
+  expect(existsSync(join(aggregateDir, "skills", "project-only"))).toBe(false);
+  expect(existsSync(join(otherDir, "skills", "alpha"))).toBe(false);
+  expect(existsSync(join(otherDir, "skills", "other"))).toBe(true);
+  expect(existsSync(join(aggregateDir, "hooks", "claude", "composer.mjs"))).toBe(true);
+  expect(await readFile(join(aggregateDir, "instructions.md"), "utf8")).toContain("Coordinate the aggregate Worker.");
+  const aggregateMcp = JSON.parse(await readFile(join(aggregateDir, "mcp", "servers.json"), "utf8"));
+  expect(Object.keys(aggregateMcp.mcpServers).sort()).toEqual(["server-a", "server-b"]);
+  expect(aggregateMcp.mcpServers["project-only"]).toBeUndefined();
+  const worker = JSON.parse(await readFile(join(aggregateDir, "worker.json"), "utf8"));
+  expect(worker.name).toBe("@me/aggregate");
+  expect(worker.members.map((member: { name: string }) => member.name)).toEqual(["@me/member-a", "@me/member-b"]);
+  expect(worker.members.every((member: { version?: string; integrity?: string }) => member.version && member.integrity)).toBe(true);
+  const workers = JSON.parse(await readFile(join(generated, "workers.json"), "utf8"));
+  expect(workers.workers.map((entry: { name: string }) => entry.name).sort()).toEqual(["@me/aggregate", "@me/other"]);
+  expect(workers.workers.find((entry: { name: string }) => entry.name === "@me/aggregate").active).toBe(true);
+  expect(JSON.parse(await readFile(join(generated, "active-worker.json"), "utf8")).name).toBe("@me/aggregate");
+
+  selected.activeWorker = "@me/other";
+  await writeFile(configPath, `${JSON.stringify(selected, null, 2)}\n`);
+  await syncRepository(syncOptions);
+  expect(existsSync(aggregateDir)).toBe(true);
+  expect(existsSync(otherDir)).toBe(true);
+  expect(existsSync(join(projectDir, ".claude", "skills", "other"))).toBe(true);
+  expect(existsSync(join(projectDir, ".claude", "skills", "alpha"))).toBe(false);
+
+  selected.activeWorker = null;
+  await writeFile(configPath, `${JSON.stringify(selected, null, 2)}\n`);
+  await syncRepository(syncOptions);
+  expect(existsSync(join(generated, "active-worker.json"))).toBe(false);
+  expect(existsSync(join(generated, "instructions.md"))).toBe(false);
+  expect(existsSync(aggregateDir)).toBe(true);
+  expect(existsSync(otherDir)).toBe(true);
+
+  await applyProjectCardSpecs(projectDir, fixture.agentsDir, ["@me/other@1.0.0"]);
+  await syncRepository(syncOptions);
+  expect(existsSync(aggregateDir)).toBe(false);
+  expect(existsSync(otherDir)).toBe(true);
 });
