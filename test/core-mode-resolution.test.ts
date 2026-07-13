@@ -7,6 +7,7 @@ import { join } from "node:path";
 import type { CardLockEntry } from "../cli/core/card-lock";
 import { resolveCardSourcePath, resolveMode } from "../cli/core/mode-resolution";
 import { cleanupTempRoots, createTempRoot } from "./helpers";
+import type { ProjectConfig } from "../cli/core/types";
 
 const tempRoots: string[] = [];
 
@@ -29,10 +30,18 @@ const baseCard: CardLockEntry = {
   git: { commit: "b".repeat(40) },
 };
 
+const projectConfig = (materialization: ProjectConfig["materialization"]): ProjectConfig => ({
+  schema: "drwn.project-config",
+  schemaVersion: 1,
+  workers: [],
+  activeWorker: null,
+  materialization,
+});
+
 describe("resolveMode", () => {
   test("explicit vendored wins over CARDS_SOURCE_PATH", () => {
     const mode = resolveMode(baseCard, {
-      projectConfig: { version: 1, materialization: "vendored" },
+      projectConfig: projectConfig("vendored"),
       cardsSourcePath: "/tmp/sources",
     });
     expect(mode.mode).toBe("vendored");
@@ -41,7 +50,7 @@ describe("resolveMode", () => {
 
   test("overlay override from config.local", () => {
     const mode = resolveMode(baseCard, {
-      configLocal: { overrides: { "@me/backend": "file:/tmp/dev" } },
+      configLocal: { schema: "drwn.project-local", schemaVersion: 1, sourceOverrides: { "@me/backend": "file:/tmp/dev" } },
     });
     expect(mode.mode).toBe("overlay");
     expect(mode.vendorEligible).toBe(false);
@@ -83,7 +92,7 @@ describe("resolveMode", () => {
     tempRoots.push(root);
 
     const mode = resolveMode(baseCard, {
-      projectConfig: { version: 1, materialization: "linked" },
+      projectConfig: projectConfig("linked"),
       cardsSourcePath: root,
     });
     expect(mode.mode).toBe("vendored");

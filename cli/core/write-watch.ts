@@ -49,7 +49,7 @@ export function shouldIgnoreWatchEvent(projectRoot: string, eventPath: string, l
 
 export async function loadLinkedSourceRoots(projectRoot: string, extraRoots: string[] = []) {
   const local = await loadConfigLocal(projectRoot);
-  const fromOverrides = Object.values(local?.overrides ?? {}).map((value) => normalizeWatchPath(value));
+  const fromOverrides = Object.values(local?.sourceOverrides ?? {}).map((value) => normalizeWatchPath(value));
   const roots = [...extraRoots.map((root) => normalizeWatchPath(root)), ...fromOverrides];
   return [...new Set(roots.filter((root) => root && existsSync(root)))];
 }

@@ -13,7 +13,7 @@ export async function loadProjectMindCards(projectRoot: string): Promise<CardMin
   }
   const config = readProjectConfigForWrite(projectRoot);
   const byName = new Map(lock.cards.map((card) => [card.name, card]));
-  const names = config.activeWorkers ?? lock.cards.map((card) => card.name);
+  const names = config.activeWorker === null ? [] : [config.activeWorker];
   const ordered = names.flatMap((name) => (byName.has(name) ? [byName.get(name)!] : []));
   return Promise.all(ordered.map((card) => loadCardMindContent(card, card.path)));
 }

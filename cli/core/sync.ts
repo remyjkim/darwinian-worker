@@ -389,7 +389,7 @@ export async function syncRepository(options: SyncOptions = {}): Promise<SyncRes
         activeServers: state.activeServers,
         effectiveRegistry: state.effectiveRegistry,
         projectConfigPath: state.projectConfigPath,
-        projectServerOverrides: state.projectConfig?.servers,
+        projectServerOverrides: state.projectConfig?.mcpServers,
       });
   result.warnings.push(...state.overlayWarnings);
   const cardModes: NonNullable<SyncResult["cardModes"]> = {};

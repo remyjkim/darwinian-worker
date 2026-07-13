@@ -27,7 +27,7 @@ export class InitCommand extends BaseCommand {
 
       In a TTY, runs guided setup that can configure Parallel and Beads project
       options. Outside a TTY, use --non-interactive or --minimal to write the
-      minimal { "version": 1 } config. Warns if .gitignore appears to exclude
+      minimal supported project config. Warns if .gitignore appears to exclude
       .agents.
 
       Use --force to overwrite an existing config. Use --guided to force the

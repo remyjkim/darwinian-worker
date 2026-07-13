@@ -4,6 +4,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { ProjectConfig, ProjectExtensionConfig, ServerOverride } from "./types";
+import { emptyProjectConfig, validateProjectConfig } from "./project";
 
 export function projectConfigPath(projectDir: string) {
   return join(projectDir, ".agents", "drwn", "config.json");
@@ -12,15 +13,22 @@ export function projectConfigPath(projectDir: string) {
 export function readProjectConfigForWrite(projectDir: string): ProjectConfig {
   const configPath = projectConfigPath(projectDir);
   if (!existsSync(configPath)) {
-    return { version: 1 };
+    return emptyProjectConfig();
   }
-  return JSON.parse(readFileSync(configPath, "utf8")) as ProjectConfig;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(configPath, "utf8"));
+  } catch (error) {
+    throw new Error(`Invalid project config ${configPath}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  return validateProjectConfig(parsed, configPath);
 }
 
 export function writeProjectConfigForWrite(projectDir: string, config: ProjectConfig) {
   const configPath = projectConfigPath(projectDir);
+  const validated = validateProjectConfig(config, configPath);
   mkdirSync(dirname(configPath), { recursive: true });
-  writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
+  writeFileSync(configPath, `${JSON.stringify(validated, null, 2)}\n`);
   return configPath;
 }
 
@@ -36,8 +44,8 @@ export function includeProjectSkill(projectDir: string, skillName: string) {
 
 export function setProjectServerOverride(projectDir: string, name: string, override: ServerOverride) {
   const config = readProjectConfigForWrite(projectDir);
-  config.servers ??= {};
-  config.servers[name] = override;
+  config.mcpServers ??= {};
+  config.mcpServers[name] = override;
   return writeProjectConfigForWrite(projectDir, config);
 }
 

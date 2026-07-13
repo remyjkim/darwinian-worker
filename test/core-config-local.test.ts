@@ -13,9 +13,13 @@ test("writeConfigLocal creates gitignored overlay file", async () => {
   const root = await createTempRoot("config-local-");
   tempRoots.push(root);
   const { writeConfigLocal, loadConfigLocal } = await import("../cli/core/config-local");
-  await writeConfigLocal(root, { overrides: { "@me/x": "file:/tmp/x" } });
+  await writeConfigLocal(root, {
+    schema: "drwn.project-local",
+    schemaVersion: 1,
+    sourceOverrides: { "@me/x": "file:/tmp/x" },
+  });
   const loaded = await loadConfigLocal(root);
-  expect(loaded?.overrides?.["@me/x"]).toBe("file:/tmp/x");
+  expect(loaded?.sourceOverrides?.["@me/x"]).toBe("file:/tmp/x");
   const gitignore = await readFile(join(root, ".gitignore"), "utf8");
   expect(gitignore).toContain("config.local.json");
 });

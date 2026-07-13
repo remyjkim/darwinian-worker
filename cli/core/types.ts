@@ -112,12 +112,13 @@ export type ProjectExtensionConfig = {
 };
 
 export interface ProjectConfig {
-  version: number;
+  schema: "drwn.project-config";
+  schemaVersion: 1;
+  workers: string[];
+  activeWorker: string | null;
   materialization?: "vendored" | "linked";
   committedSurfaces?: boolean;
-  cards?: string[];
-  activeWorkers?: string[];
-  servers?: Record<string, ServerOverride>;
+  mcpServers?: Record<string, ServerOverride>;
   skills?: {
     include?: string[];
     exclude?: string[];

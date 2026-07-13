@@ -165,7 +165,11 @@ test("config.local activate overrides committed active stack", async () => {
   ]);
 
   const { writeConfigLocal } = await import("../cli/core/config-local");
-  await writeConfigLocal(projectDir, { activate: ["@me/two"] });
+  await writeConfigLocal(projectDir, {
+    schema: "drwn.project-local",
+    schemaVersion: 1,
+    activeWorker: "@me/two",
+  });
 
   const state = await buildEffectiveState({ ...envFor(fixture), cwd: projectDir });
   expect(state.activeCards.map((card) => card.name)).toEqual(["@me/two"]);

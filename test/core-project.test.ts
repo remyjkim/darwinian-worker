@@ -6,8 +6,18 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { createFixtureConfig, createFixtureRegistry } from "./helpers";
+import type { ProjectConfig } from "../cli/core/types";
 
 const tempRoots: string[] = [];
+
+function projectConfig(): ProjectConfig {
+  return {
+    schema: "drwn.project-config",
+    schemaVersion: 1,
+    workers: [],
+    activeWorker: null,
+  };
+}
 
 afterEach(async () => {
   await Promise.all(
@@ -33,7 +43,7 @@ async function writeProjectConfig(projectDir: string, contents: object) {
 describe("core project", () => {
   test("findProjectConfig finds config in cwd", async () => {
     const root = await createTempRoot();
-    const configPath = await writeProjectConfig(root, { version: 1 });
+    const configPath = await writeProjectConfig(root, projectConfig());
 
     const { findProjectConfig } = await import("../cli/core/project");
     expect(findProjectConfig(root)).toBe(configPath);
@@ -43,7 +53,7 @@ describe("core project", () => {
     const root = await createTempRoot();
     const nested = join(root, "packages", "frontend");
     await mkdir(nested, { recursive: true });
-    const configPath = await writeProjectConfig(root, { version: 1 });
+    const configPath = await writeProjectConfig(root, projectConfig());
 
     const { findProjectConfig } = await import("../cli/core/project");
     expect(findProjectConfig(nested)).toBe(configPath);
@@ -53,8 +63,8 @@ describe("core project", () => {
     const root = await createTempRoot();
     const nested = join(root, "packages", "frontend");
     await mkdir(nested, { recursive: true });
-    await writeProjectConfig(root, { version: 1 });
-    const nestedConfigPath = await writeProjectConfig(nested, { version: 1 });
+    await writeProjectConfig(root, projectConfig());
+    const nestedConfigPath = await writeProjectConfig(nested, projectConfig());
 
     const { findProjectConfig } = await import("../cli/core/project");
     expect(findProjectConfig(nested)).toBe(nestedConfigPath);
@@ -71,15 +81,15 @@ describe("core project", () => {
 
   test("loadProjectConfig parses a minimal valid config", async () => {
     const root = await createTempRoot();
-    const configPath = await writeProjectConfig(root, { version: 1 });
+    const configPath = await writeProjectConfig(root, projectConfig());
 
     const { loadProjectConfig } = await import("../cli/core/project");
-    expect(await loadProjectConfig(configPath)).toEqual({ version: 1 });
+    expect(await loadProjectConfig(configPath)).toEqual(projectConfig());
   });
 
   test("loadProjectConfig throws for unknown version", async () => {
     const root = await createTempRoot();
-    const configPath = await writeProjectConfig(root, { version: 99 });
+    const configPath = await writeProjectConfig(root, { ...projectConfig(), schemaVersion: 99 });
 
     const { loadProjectConfig } = await import("../cli/core/project");
     await expect(loadProjectConfig(configPath)).rejects.toThrow(/version/i);
@@ -114,8 +124,8 @@ describe("core project", () => {
 
     const { mergeProjectConfig } = await import("../cli/core/project");
     const merged = mergeProjectConfig(config, registry, {
-      version: 1,
-      servers: {
+      ...projectConfig(),
+      mcpServers: {
         context7: { enabled: false },
         markdownify: { enabled: true },
         localdb: {
@@ -143,7 +153,7 @@ describe("core project", () => {
 
     const { mergeProjectConfig } = await import("../cli/core/project");
     const merged = mergeProjectConfig(config, registry, {
-      version: 1,
+      ...projectConfig(),
       skills: {
         include: ["alpha"],
         exclude: ["beta"],
@@ -167,7 +177,7 @@ describe("core project", () => {
 
     const { mergeProjectConfig } = await import("../cli/core/project");
     const merged = mergeProjectConfig(config, registry, {
-      version: 1,
+      ...projectConfig(),
       extensions: {
         parallel: { enabled: true, skills: true, mcp: true },
       },
@@ -194,7 +204,7 @@ describe("core project", () => {
 
     const { mergeProjectConfig } = await import("../cli/core/project");
     const merged = mergeProjectConfig(config, registry, {
-      version: 1,
+      ...projectConfig(),
       extensions: {
         parallel: { enabled: false },
       },
@@ -220,7 +230,7 @@ describe("core project", () => {
 
     const { mergeProjectConfig } = await import("../cli/core/project");
     const merged = mergeProjectConfig(config, registry, {
-      version: 1,
+      ...projectConfig(),
       extensions: {
         beads: { enabled: true, includeSkill: true },
         parallel: { enabled: true },
@@ -246,7 +256,7 @@ describe("core project", () => {
 
     const { mergeProjectConfig } = await import("../cli/core/project");
     const merged = mergeProjectConfig(config, registry, {
-      version: 1,
+      ...projectConfig(),
       extensions: {
         markitdown: { enabled: true, skills: true },
       },
@@ -265,7 +275,7 @@ describe("core project", () => {
 
     const { mergeProjectConfig } = await import("../cli/core/project");
     const merged = mergeProjectConfig(config, registry, {
-      version: 1,
+      ...projectConfig(),
       extensions: {
         markitdown: { enabled: true, skills: true },
       },
@@ -289,7 +299,7 @@ describe("core project", () => {
 
     const { mergeProjectConfig } = await import("../cli/core/project");
     const merged = mergeProjectConfig(config, registry, {
-      version: 1,
+      ...projectConfig(),
       targets: {
         claude: { enabled: false },
         codex: { enabled: true },
@@ -307,26 +317,26 @@ describe("core project", () => {
     const configPath = await scaffoldProjectConfig(root);
     const contents = await readFile(configPath, "utf8");
 
-    expect(JSON.parse(contents)).toEqual({ version: 1 });
+    expect(JSON.parse(contents)).toEqual(projectConfig());
   });
 
   test("scaffoldProjectConfig throws when file exists without force", async () => {
     const root = await createTempRoot();
-    const configPath = await writeProjectConfig(root, { version: 1, skills: { include: ["alpha"] } });
+    const configPath = await writeProjectConfig(root, { ...projectConfig(), skills: { include: ["alpha"] } });
 
     const { scaffoldProjectConfig } = await import("../cli/core/project");
     await expect(scaffoldProjectConfig(root)).rejects.toThrow(/exists/i);
-    expect(JSON.parse(await readFile(configPath, "utf8"))).toEqual({ version: 1, skills: { include: ["alpha"] } });
+    expect(JSON.parse(await readFile(configPath, "utf8"))).toEqual({ ...projectConfig(), skills: { include: ["alpha"] } });
   });
 
   test("scaffoldProjectConfig overwrites when force is true", async () => {
     const root = await createTempRoot();
-    await writeProjectConfig(root, { version: 1, skills: { include: ["alpha"] } });
+    await writeProjectConfig(root, { ...projectConfig(), skills: { include: ["alpha"] } });
 
     const { scaffoldProjectConfig } = await import("../cli/core/project");
     const configPath = await scaffoldProjectConfig(root, { force: true });
     const contents = await readFile(configPath, "utf8");
 
-    expect(JSON.parse(contents)).toEqual({ version: 1 });
+    expect(JSON.parse(contents)).toEqual(projectConfig());
   });
 });

@@ -46,7 +46,7 @@ export function resolveMode(card: CardLockEntry, ctx: ModeResolutionContext): Re
     };
   }
 
-  const overridePath = ctx.configLocal?.overrides?.[card.name];
+  const overridePath = ctx.configLocal?.sourceOverrides?.[card.name];
   if (overridePath) {
     return {
       mode: "overlay",

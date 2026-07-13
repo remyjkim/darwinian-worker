@@ -5,8 +5,18 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import type { ProjectConfig } from "../cli/core/types";
 
 const tempRoots: string[] = [];
+
+function projectConfig(): ProjectConfig {
+  return {
+    schema: "drwn.project-config",
+    schemaVersion: 1,
+    workers: [],
+    activeWorker: null,
+  };
+}
 
 afterEach(async () => {
   await Promise.all(tempRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
@@ -27,17 +37,17 @@ describe("core project writes", () => {
     const projectDir = await createTempRoot();
 
     const { readProjectConfigForWrite } = await import("../cli/core/project-writes");
-    expect(readProjectConfigForWrite(projectDir)).toEqual({ version: 1 });
+    expect(readProjectConfigForWrite(projectDir)).toEqual(projectConfig());
   });
 
   test("writes project config and creates parent directories", async () => {
     const projectDir = await createTempRoot();
 
     const { writeProjectConfigForWrite } = await import("../cli/core/project-writes");
-    const configPath = writeProjectConfigForWrite(projectDir, { version: 1, skills: { include: ["alpha"] } });
+    const configPath = writeProjectConfigForWrite(projectDir, { ...projectConfig(), skills: { include: ["alpha"] } });
 
     expect(configPath).toBe(join(projectDir, ".agents", "drwn", "config.json"));
-    expect(await readProjectConfig(projectDir)).toEqual({ version: 1, skills: { include: ["alpha"] } });
+    expect(await readProjectConfig(projectDir)).toEqual({ ...projectConfig(), skills: { include: ["alpha"] } });
   });
 
   test("includes project skills without duplicating or removing unrelated config", async () => {
@@ -46,7 +56,7 @@ describe("core project writes", () => {
     await mkdir(dirname(configPath), { recursive: true });
     await writeFile(
       configPath,
-      JSON.stringify({ version: 1, skills: { include: ["alpha"] }, extensions: { parallel: { enabled: true } } }, null, 2),
+      JSON.stringify({ ...projectConfig(), skills: { include: ["alpha"] }, extensions: { parallel: { enabled: true } } }, null, 2),
     );
 
     const { includeProjectSkill } = await import("../cli/core/project-writes");
@@ -54,7 +64,7 @@ describe("core project writes", () => {
     includeProjectSkill(projectDir, "beta");
 
     expect(await readProjectConfig(projectDir)).toEqual({
-      version: 1,
+      ...projectConfig(),
       skills: { include: ["alpha", "beta"] },
       extensions: { parallel: { enabled: true } },
     });
@@ -68,9 +78,9 @@ describe("core project writes", () => {
     setProjectServerOverride(projectDir, "context7", { enabled: true });
 
     expect(await readProjectConfig(projectDir)).toEqual({
-      version: 1,
+      ...projectConfig(),
       skills: { include: ["alpha"] },
-      servers: { context7: { enabled: true } },
+      mcpServers: { context7: { enabled: true } },
     });
   });
 
@@ -82,7 +92,7 @@ describe("core project writes", () => {
     setProjectExtensionConfig(projectDir, "parallel", { mcp: true });
 
     expect(await readProjectConfig(projectDir)).toEqual({
-      version: 1,
+      ...projectConfig(),
       extensions: { parallel: { enabled: true, skills: true, mcp: true } },
     });
   });

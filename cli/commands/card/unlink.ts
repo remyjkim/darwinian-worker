@@ -2,7 +2,7 @@
 // ABOUTME: Clears entries from config.local.json without touching committed config.
 
 import { Option, UsageError } from "clipanion";
-import { loadConfigLocal, writeConfigLocal } from "../../core/config-local";
+import { emptyConfigLocal, loadConfigLocal, writeConfigLocal } from "../../core/config-local";
 import { BaseCommand } from "../base";
 import { requireProjectRoot, runChainedWrite } from "./project-command";
 
@@ -28,15 +28,15 @@ export class CardUnlinkCommand extends BaseCommand {
 
   async execute() {
     const projectRoot = requireProjectRoot(this);
-    const local = (await loadConfigLocal(projectRoot)) ?? {};
+    const local = (await loadConfigLocal(projectRoot)) ?? emptyConfigLocal();
     if (this.all) {
-      delete local.overrides;
+      delete local.sourceOverrides;
     } else if (this.card) {
-      if (local.overrides?.[this.card]) {
-        delete local.overrides[this.card];
+      if (local.sourceOverrides?.[this.card]) {
+        delete local.sourceOverrides[this.card];
       }
-      if (local.overrides && Object.keys(local.overrides).length === 0) {
-        delete local.overrides;
+      if (local.sourceOverrides && Object.keys(local.sourceOverrides).length === 0) {
+        delete local.sourceOverrides;
       }
     } else {
       throw new UsageError("Provide a card name or --all.");

@@ -108,8 +108,8 @@ export function mergeCardManifestsIntoProjectConfig(project: ProjectConfig, mani
       skillIncludes.add(skill);
     }
     if (manifest.servers) {
-      next.servers = {
-        ...(next.servers ?? {}),
+      next.mcpServers = {
+        ...(next.mcpServers ?? {}),
         ...manifest.servers,
       };
     }
@@ -136,9 +136,9 @@ export function mergeCardManifestsIntoProjectConfig(project: ProjectConfig, mani
       exclude: project.skills?.exclude,
     };
   }
-  next.servers = {
+  next.mcpServers = {
     ...Object.assign({}, ...manifests.map((manifest) => manifest.servers ?? {})),
-    ...(project.servers ?? {}),
+    ...(project.mcpServers ?? {}),
   };
   next.extensions = {
     ...Object.assign({}, ...manifests.map((manifest) => manifest.extensions ?? {})),
@@ -159,9 +159,9 @@ export async function writeProjectCards(
 ): Promise<CardProjectMutation> {
   const config = readProjectConfigForWrite(projectRoot);
   const previousLock = await loadCardLock(projectRoot);
-  config.cards = [...specs];
+  config.workers = [...specs];
   const configPath = writeProjectConfigForWrite(projectRoot, config);
-  const resolved = await resolveProjectCards(agentsDir, config.cards, options);
+  const resolved = await resolveProjectCards(agentsDir, config.workers, options);
   const warnings: string[] = [];
   const previousByName = new Map((previousLock?.cards ?? []).map((card) => [card.name, card]));
   const locked = resolved.map((card) => {
@@ -182,13 +182,13 @@ export async function writeProjectCards(
   warnings.push(...await collectCardMetaWarnings(agentsDir, await backfillLockTreeShas(agentsDir, locked), options));
   const lockPath = await persistCardLock(projectRoot, agentsDir, locked);
   const lockedWithTreeSha = (await loadCardLock(projectRoot))?.cards ?? locked;
-  return { projectConfigPath: configPath, lockPath, cards: config.cards, locked: lockedWithTreeSha, warnings };
+  return { projectConfigPath: configPath, lockPath, cards: config.workers, locked: lockedWithTreeSha, warnings };
 }
 
 export async function getCurrentProjectCardSpecs(projectRoot: string) {
   const configPath = projectConfigPath(projectRoot);
   const config = await loadProjectConfig(configPath);
-  return [...(config.cards ?? [])];
+  return [...config.workers];
 }
 
 export async function applyProjectCardSpecs(
@@ -329,7 +329,7 @@ export async function readProjectCardStatus(
   const projectRoot = resolveProjectRootFromConfigPath(projectConfigPath);
   const config = await loadProjectConfig(projectConfigPath);
   const lock = await loadCardLock(projectRoot);
-  const specs = config.cards ?? [];
+  const specs = config.workers;
   const locked = lock?.cards ?? [];
   const outdated = await findOutdatedProjectCards(projectRoot, agentsDir);
   const state = await buildEffectiveState({

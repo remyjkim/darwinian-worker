@@ -2,7 +2,7 @@
 // ABOUTME: Writes overrides only into config.local.json, never committed config.
 
 import { Option, UsageError } from "clipanion";
-import { loadConfigLocal, writeConfigLocal, ensureCardLockLocalEntryFromSource } from "../../core/config-local";
+import { emptyConfigLocal, loadConfigLocal, writeConfigLocal, ensureCardLockLocalEntryFromSource } from "../../core/config-local";
 import { resolveCardSourceDir } from "../../core/store-paths";
 import { BaseCommand } from "../base";
 import { requireProjectRoot } from "./project-command";
@@ -29,8 +29,8 @@ export class CardLinkCommand extends BaseCommand {
 
   async execute() {
     const projectRoot = requireProjectRoot(this);
-    const local = (await loadConfigLocal(projectRoot)) ?? {};
-    local.overrides ??= {};
+    const local = (await loadConfigLocal(projectRoot)) ?? emptyConfigLocal();
+    local.sourceOverrides ??= {};
 
     if (this.allFrom) {
       const { readdir } = await import("node:fs/promises");
@@ -41,7 +41,7 @@ export class CardLinkCommand extends BaseCommand {
           if (!card.isDirectory()) continue;
           const name = `${scope.name}/${card.name}`;
           const sourcePath = join(this.allFrom, scope.name, card.name);
-          local.overrides[name] = `file:${sourcePath}`;
+          local.sourceOverrides[name] = `file:${sourcePath}`;
           await ensureCardLockLocalEntryFromSource(projectRoot, this.context.agentsDir, name, sourcePath);
         }
       }
@@ -52,7 +52,7 @@ export class CardLinkCommand extends BaseCommand {
       if (!this.source.startsWith("file:")) {
         throw new UsageError("Source must be a file: path.");
       }
-      local.overrides[this.card] = this.source;
+      local.sourceOverrides[this.card] = this.source;
       const resolved = this.source.replace(/^file:/, "");
       if (resolved !== resolveCardSourceDir(this.context.agentsDir, this.card) && !resolved) {
         // no-op validation placeholder

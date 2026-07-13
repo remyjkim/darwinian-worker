@@ -92,16 +92,16 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
   if (projectConfigPath) {
     projectConfig = await loadProjectConfig(projectConfigPath);
     const configLocal = projectRoot ? await loadConfigLocal(projectRoot) : null;
-    if (configLocal?.activate !== undefined && projectConfig.activeWorkers !== undefined) {
-      overlayWarnings.push("config.local.json activate overrides committed activeWorkers");
+    if (configLocal?.activeWorker !== undefined && configLocal.activeWorker !== projectConfig.activeWorker) {
+      overlayWarnings.push("config.local.json activeWorker overrides committed activeWorker");
     }
     projectConfig = mergeProjectWithLocal(projectConfig, configLocal);
     const cardLock = projectRoot ? await loadCardLock(projectRoot) : null;
     const committedCards =
       cardLock?.cards && cardLock.cards.length > 0
         ? cardLock.cards
-        : projectConfig.cards
-          ? await resolveProjectCards(normalized.agentsDir, projectConfig.cards)
+        : projectConfig.workers.length > 0
+          ? await resolveProjectCards(normalized.agentsDir, projectConfig.workers)
           : [];
     const localLockCards = projectRoot ? (await loadCardLockLocal(projectRoot)) ?? [] : [];
     const byName = new Map<string, CardLockEntry>();
@@ -156,8 +156,8 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
         }
       }
     }
-    activeCards = selectActiveCards(lockedCards, projectConfig.activeWorkers);
-    skillApplyOrderCards = orderCardsByApplySpecs(activeCards, projectConfig.cards ?? []);
+    activeCards = selectActiveCards(lockedCards, projectConfig.activeWorker === null ? [] : [projectConfig.activeWorker]);
+    skillApplyOrderCards = orderCardsByApplySpecs(activeCards, projectConfig.workers);
     projectConfigWithCards = mergeCardManifestsIntoProjectConfig(
       projectConfig,
       activeCards.map((card) => card.manifest),
@@ -166,7 +166,7 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
     const registryWithCards = mergeCardServerDefinitionsIntoRegistry(registry, collectCardServerDefinitions(activeCards));
     const projectOverlay: ProjectConfig = {
       ...projectConfigWithCards,
-      servers: projectConfig.servers,
+      mcpServers: projectConfig.mcpServers,
     };
     const merged = mergeProjectConfig(baseConfig, registryWithCards, projectOverlay);
     effectiveConfig = merged.config;

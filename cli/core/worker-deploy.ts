@@ -14,7 +14,7 @@ import {
   type GitLockInfo,
 } from "./card-lock";
 import { resolveProjectCards } from "./card-project";
-import type { ResolveCardOptions } from "./card-store";
+import { parseCardRef, type ResolveCardOptions } from "./card-store";
 import { DrwnError } from "./errors";
 import { readProjectConfigForWrite } from "./project-writes";
 import { resolveCardBareRepoPath, resolveExtractedPath } from "./store-paths";
@@ -130,18 +130,28 @@ function governanceFromEntry(card: CardLockEntry): WorkerDeployGovernance | null
 
 function deployProjectConfig(cardRef: string, projectRoot?: string | null): ProjectConfig {
   if (!projectRoot) {
-    return { version: 1, cards: [cardRef] };
+    return {
+      schema: "drwn.project-config",
+      schemaVersion: 1,
+      workers: [cardRef],
+      activeWorker: parseCardRef(cardRef).name,
+    };
   }
   try {
     const config = readProjectConfigForWrite(projectRoot);
-    if (config.cards?.includes(cardRef)) {
+    if (config.workers.includes(cardRef)) {
       return config;
     }
   } catch {
     // Fall through to the minimal deploy config. Deploy must not depend on a local
     // project unless it clearly selected the exact deploy ref.
   }
-  return { version: 1, cards: [cardRef] };
+  return {
+    schema: "drwn.project-config",
+    schemaVersion: 1,
+    workers: [cardRef],
+    activeWorker: parseCardRef(cardRef).name,
+  };
 }
 
 function storeExportEntries(agentsDir: string, cards: CardLockEntry[]): string[] {

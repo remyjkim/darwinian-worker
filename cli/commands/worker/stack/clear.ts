@@ -27,7 +27,7 @@ export class WorkerStackClearCommand extends BaseCommand {
   async execute() {
     const projectRoot = requireProjectRoot(this);
     const config = readProjectConfigForWrite(projectRoot);
-    config.activeWorkers = [];
+    config.activeWorker = null;
     const configPath = writeProjectConfigForWrite(projectRoot, config);
     const payload = { activeWorkers: [], configPath };
     if (this.json) {

@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { runExternalCommand } from "./commands";
 import type { ProjectConfig } from "../types";
+import { emptyProjectConfig, validateProjectConfig } from "../project";
 import { ensureProjectExtensionConfig } from "./project-config";
 
 export type BeadsTarget = "codex" | "claude" | "cursor";
@@ -90,8 +91,8 @@ export async function executeBeadsSetupPlan(plan: BeadsSetupPlan, env?: Record<s
 export function ensureProjectSkillInclude(projectDir: string, skillName = "beads-task-tracking") {
   const configPath = join(projectDir, ".agents", "drwn", "config.json");
   const config: ProjectConfig = existsSync(configPath)
-    ? JSON.parse(readFileSync(configPath, "utf8")) as ProjectConfig
-    : { version: 1 };
+    ? validateProjectConfig(JSON.parse(readFileSync(configPath, "utf8")), configPath)
+    : emptyProjectConfig();
 
   config.skills ??= {};
   config.skills.include ??= [];

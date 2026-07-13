@@ -27,7 +27,7 @@ export interface OptionalMcpReportInput {
   activeServers: Record<string, RegistryServer>;
   effectiveRegistry: CanonicalRegistry;
   projectConfigPath: string | null;
-  projectServerOverrides: ProjectConfig["servers"] | undefined;
+  projectServerOverrides: ProjectConfig["mcpServers"] | undefined;
 }
 
 function stableValue(value: unknown): unknown {

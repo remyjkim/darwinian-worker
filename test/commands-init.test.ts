@@ -8,12 +8,19 @@ import { cleanupTempRoots, runAgentsCli, scaffoldCliFixture } from "./helpers";
 
 const tempRoots: string[] = [];
 
+const emptyProject = {
+  schema: "drwn.project-config",
+  schemaVersion: 1,
+  workers: [],
+  activeWorker: null,
+};
+
 afterEach(async () => {
   await cleanupTempRoots(tempRoots);
 });
 
 describe("drwn init", () => {
-  test("creates .agents/drwn/config.json with version 1", async () => {
+  test("creates .agents/drwn/config.json with supported schema version 1", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     const projectDir = join(fixture.root, "project");
@@ -27,7 +34,7 @@ describe("drwn init", () => {
 
     expect(result.exitCode).toBe(0);
     const configPath = join(projectDir, ".agents", "drwn", "config.json");
-    expect(JSON.parse(await readFile(configPath, "utf8"))).toEqual({ version: 1 });
+    expect(JSON.parse(await readFile(configPath, "utf8"))).toEqual(emptyProject);
   });
 
   test("exits non-zero when config already exists without force", async () => {
@@ -36,7 +43,7 @@ describe("drwn init", () => {
     const projectDir = join(fixture.root, "project");
     const configPath = join(projectDir, ".agents", "drwn", "config.json");
     await mkdir(dirname(configPath), { recursive: true });
-    await writeFile(configPath, JSON.stringify({ version: 1, skills: { include: ["alpha"] } }, null, 2));
+    await writeFile(configPath, JSON.stringify({ ...emptyProject, skills: { include: ["alpha"] } }, null, 2));
 
     const result = await runAgentsCli(["init", "--non-interactive", "--no-default-catalogs"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
@@ -45,7 +52,7 @@ describe("drwn init", () => {
     }, projectDir);
 
     expect(result.exitCode).not.toBe(0);
-    expect(JSON.parse(await readFile(configPath, "utf8"))).toEqual({ version: 1, skills: { include: ["alpha"] } });
+    expect(JSON.parse(await readFile(configPath, "utf8"))).toEqual({ ...emptyProject, skills: { include: ["alpha"] } });
   });
 
   test("force overwrites existing config", async () => {
@@ -54,7 +61,7 @@ describe("drwn init", () => {
     const projectDir = join(fixture.root, "project");
     const configPath = join(projectDir, ".agents", "drwn", "config.json");
     await mkdir(dirname(configPath), { recursive: true });
-    await writeFile(configPath, JSON.stringify({ version: 1, skills: { include: ["alpha"] } }, null, 2));
+    await writeFile(configPath, JSON.stringify({ ...emptyProject, skills: { include: ["alpha"] } }, null, 2));
 
     const result = await runAgentsCli(["init", "--non-interactive", "--force", "--no-default-catalogs"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
@@ -63,7 +70,7 @@ describe("drwn init", () => {
     }, projectDir);
 
     expect(result.exitCode).toBe(0);
-    expect(JSON.parse(await readFile(configPath, "utf8"))).toEqual({ version: 1 });
+    expect(JSON.parse(await readFile(configPath, "utf8"))).toEqual(emptyProject);
   });
 
   test("ensures drwn gitignore block when .agents is broadly ignored", async () => {

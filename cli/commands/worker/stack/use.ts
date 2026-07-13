@@ -38,7 +38,7 @@ export class WorkerStackUseCommand extends BaseCommand {
     }
     const activeWorkers = [...this.names];
     const config = readProjectConfigForWrite(projectRoot);
-    config.activeWorkers = activeWorkers;
+    config.activeWorker = activeWorkers[0]!;
     const configPath = writeProjectConfigForWrite(projectRoot, config);
     const payload = { activeWorkers, configPath };
     if (this.json) {

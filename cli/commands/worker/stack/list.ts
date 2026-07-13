@@ -38,8 +38,8 @@ export class WorkerStackListCommand extends BaseCommand {
     const projectRoot = requireProjectRoot(this);
     const config = readProjectConfigForWrite(projectRoot);
     const installed = await readInstalledWorkers(projectRoot);
-    const defaultActiveWorkers = config.activeWorkers === undefined;
-    const activeWorkers = defaultActiveWorkers ? installed.map((worker) => worker.name) : config.activeWorkers ?? [];
+    const defaultActiveWorkers = false;
+    const activeWorkers = config.activeWorker === null ? [] : [config.activeWorker];
     const activeSet = new Set(activeWorkers);
     const workers: WorkerStackEntry[] = installed.map((worker) => ({
       ...worker,

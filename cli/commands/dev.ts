@@ -2,7 +2,7 @@
 // ABOUTME: Supports --off to unlink and run a one-shot vendored write.
 
 import { Option, UsageError } from "clipanion";
-import { loadConfigLocal, writeConfigLocal, ensureCardLockLocalEntryFromSource } from "../core/config-local";
+import { emptyConfigLocal, loadConfigLocal, writeConfigLocal, ensureCardLockLocalEntryFromSource } from "../core/config-local";
 import { syncRepository } from "../core/sync";
 import { normalizeWatchPath, startWriteWatch } from "../core/write-watch";
 import { renderSyncResult } from "../core/output";
@@ -35,10 +35,10 @@ export class DevCommand extends BaseCommand {
       throw new UsageError("Run drwn dev inside a project with .agents/drwn/config.json.");
     }
     const projectRoot = resolveProjectRootFromConfigPath(projectConfigPath);
-    const local = (await loadConfigLocal(projectRoot)) ?? {};
+    const local = (await loadConfigLocal(projectRoot)) ?? emptyConfigLocal();
 
     if (this.off) {
-      delete local.overrides;
+      delete local.sourceOverrides;
       await writeConfigLocal(projectRoot, local);
       const result = await syncRepository({
         repoRoot: this.context.repoRoot,
@@ -53,8 +53,8 @@ export class DevCommand extends BaseCommand {
     if (!this.card || !this.dir) {
       throw new UsageError("Provide <card> <dir>, or use --off.");
     }
-    local.overrides ??= {};
-    local.overrides[this.card] = this.sourcePath(this.dir);
+    local.sourceOverrides ??= {};
+    local.sourceOverrides[this.card] = this.sourcePath(this.dir);
     await ensureCardLockLocalEntryFromSource(projectRoot, this.context.agentsDir, this.card, this.dir);
     await writeConfigLocal(projectRoot, local);
 

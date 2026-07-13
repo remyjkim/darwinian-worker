@@ -167,7 +167,7 @@ async function loadProjectWithCards(agentsDir: string, projectConfigPath?: strin
   const projectConfig = await loadProjectConfig(projectConfigPath);
   let cardLocks: Awaited<ReturnType<typeof resolveProjectCards>> = [];
   try {
-    cardLocks = projectConfig.cards ? await resolveProjectCards(agentsDir, projectConfig.cards) : [];
+    cardLocks = projectConfig.workers.length > 0 ? await resolveProjectCards(agentsDir, projectConfig.workers) : [];
   } catch {
     cardLocks = [];
   }
@@ -226,7 +226,7 @@ export async function buildDiagnosticsSections(
   return {
     machine: { repoRoot, agentsDir, homeDir },
     project: projectConfigPath && projectRoot && projectConfig
-      ? { configPath: projectConfigPath, root: projectRoot, cardCount: projectConfig.cards?.length ?? 0 }
+      ? { configPath: projectConfigPath, root: projectRoot, cardCount: projectConfig.workers.length }
       : undefined,
     store,
     writeRecord: readWriteRecordStatus(writeRecordPath),
@@ -239,14 +239,14 @@ export async function buildDiagnosticsSections(
     },
     mcp: {
       activeServerCount: Object.keys(activeServers).length,
-      projectServers: Object.keys(projectConfig?.servers ?? {}),
+      projectServers: Object.keys(projectConfig?.mcpServers ?? {}),
       cardServers,
     },
     extensions: {
       projectExtensions: Object.keys(projectConfig?.extensions ?? {}),
     },
     cards: {
-      configuredRefs: projectConfig?.cards ?? [],
+      configuredRefs: projectConfig?.workers ?? [],
       lockedVersions: (lock?.cards ?? []).map((card) => `${card.name}@${card.version}`),
       warnings: [],
     },
@@ -315,7 +315,7 @@ async function collectWhyMatches(
   }
 
   const cardServer = cardLocks.find((card) => Object.hasOwn(card.manifest.servers ?? {}, name));
-  const projectServer = projectConfig?.servers && Object.hasOwn(projectConfig.servers, name);
+  const projectServer = projectConfig?.mcpServers && Object.hasOwn(projectConfig.mcpServers, name);
   const registryServer = effectiveRegistry.servers[name];
   if (cardServer || projectServer || registryServer) {
     const active = Object.hasOwn(buildActiveServers(effectiveRegistry, effectiveConfig), name);
@@ -699,7 +699,7 @@ export async function buildDoctorReportWithProject(
   ]);
   const issues: string[] = [];
 
-  for (const [name, override] of Object.entries(project.servers ?? {})) {
+  for (const [name, override] of Object.entries(project.mcpServers ?? {})) {
     if (isServerToggle(override)) {
       if (!registry.servers[name]) {
         issues.push(`Unknown server reference: "${name}"`);

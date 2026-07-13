@@ -46,7 +46,11 @@ test("syncRepository exposes linked/overlay cardModes and keeps absent-source wa
   await mkdir(join(sourceDir, "skills", "alpha"), { recursive: true });
   await writeFile(join(sourceDir, "card.json"), `${JSON.stringify({ name: "@me/modes", version: "1.0.0", skills: { include: ["alpha"] } }, null, 2)}\n`);
   await writeFile(join(sourceDir, "skills", "alpha", "SKILL.md"), "---\nname: alpha\ndescription: alpha\n---\n");
-  await writeConfigLocal(projectDir, { overrides: { "@me/modes": `file:${sourceDir}` } });
+  await writeConfigLocal(projectDir, {
+    schema: "drwn.project-local",
+    schemaVersion: 1,
+    sourceOverrides: { "@me/modes": `file:${sourceDir}` },
+  });
 
   const overlayState = await buildEffectiveState({
     repoRoot: fixture.repoRoot,
