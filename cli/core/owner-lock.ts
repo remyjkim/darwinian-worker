@@ -2,7 +2,7 @@
 // ABOUTME: Shares one lock protocol across inventory, machine, and project transactions.
 
 import { randomUUID } from "node:crypto";
-import { open, mkdir, readFile, rename, unlink } from "node:fs/promises";
+import { link, open, mkdir, readFile, rename, unlink } from "node:fs/promises";
 import { hostname } from "node:os";
 import { dirname } from "node:path";
 import { DrwnError } from "./errors";
@@ -82,6 +82,16 @@ async function writeExclusive(path: string, bytes: string) {
   }
 }
 
+async function publishExclusive(path: string, bytes: string, id: string) {
+  const claimPath = `${path}.claim.${id}`;
+  await writeExclusive(claimPath, bytes);
+  try {
+    await link(claimPath, path);
+  } finally {
+    await unlink(claimPath).catch(() => undefined);
+  }
+}
+
 function isCode(error: unknown, code: string) {
   return Boolean(error && typeof error === "object" && "code" in error && error.code === code);
 }
@@ -98,7 +108,8 @@ export async function acquireOwnerLock(options: OwnerLockOptions): Promise<Owner
       startedAt: new Date().toISOString(),
     };
     try {
-      await writeExclusive(options.path, `${JSON.stringify(owner, null, 2)}\n`);
+      // Publish a fully flushed inode so contenders never observe partial JSON.
+      await publishExclusive(options.path, `${JSON.stringify(owner, null, 2)}\n`, owner.id);
       await syncDirectory(parent);
       await options.checkpoint?.("acquired");
       return owner;

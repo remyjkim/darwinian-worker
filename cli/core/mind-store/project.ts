@@ -11,7 +11,7 @@ export async function loadProjectMindCards(projectRoot: string): Promise<CardMin
   if (!lock || lock.cards.length === 0) {
     throw new DrwnError("MIND_NO_CARDS", "No Cards are locked in this project; run `drwn add <ref>` first.");
   }
-  const config = readProjectConfigForWrite(projectRoot);
+  const config = await readProjectConfigForWrite(projectRoot);
   if (config.activeWorker === null) {
     throw new DrwnError("MIND_WORKER_REQUIRED", "Mind operations require one selected project Worker; run `drwn use <worker>`.");
   }

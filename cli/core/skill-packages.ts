@@ -276,6 +276,12 @@ interface SkillBundleCommitOptions {
     previous: InstalledSkillBundle | null;
     previousIntegrity: `sha256-${string}` | null;
   }) => void | Promise<void>;
+  afterCommit?: (context: {
+    installed: InstalledSkillBundle;
+    integrity: `sha256-${string}`;
+    previous: InstalledSkillBundle | null;
+    previousIntegrity: `sha256-${string}` | null;
+  }) => void | Promise<void>;
   checkpoint?: (checkpoint: SkillPackageCommitCheckpoint) => void | Promise<void>;
 }
 
@@ -379,6 +385,12 @@ async function commitSkillBundleRoot(options: SkillBundleCommitOptions, operatio
       livePackage?.activeVersion === options.version &&
       previousIntegrity === stagedIntegrity
     ) {
+      await options.afterCommit?.({
+        installed: livePackage,
+        integrity: stagedIntegrity,
+        previous: livePackage,
+        previousIntegrity,
+      });
       return livePackage;
     }
 
@@ -405,13 +417,20 @@ async function commitSkillBundleRoot(options: SkillBundleCommitOptions, operatio
     await writeAtomically(currentPath, `${options.version}\n`);
     await options.checkpoint?.("after-pointer-write");
 
-    return {
+    const installed = {
       packageName: options.packageName,
       activeVersion: options.version,
       packageRoot,
       versionRoot,
       manifest: lockedManifest,
     } satisfies InstalledSkillBundle;
+    await options.afterCommit?.({
+      installed,
+      integrity: stagedIntegrity,
+      previous: livePackage ?? null,
+      previousIntegrity,
+    });
+    return installed;
   });
 }
 
@@ -445,6 +464,7 @@ interface SkillPackageSourceOptions {
   existingSkillNames: Set<string>;
   existingSkills?: ExistingSkillRecord[];
   beforeCommit?: SkillBundleCommitOptions["beforeCommit"];
+  afterCommit?: SkillBundleCommitOptions["afterCommit"];
 }
 
 async function commitSkillPackageSource(
@@ -495,6 +515,7 @@ async function commitSkillPackageSource(
       existingSkillNames: options.existingSkillNames,
       existingSkills: options.existingSkills,
       beforeCommit: options.beforeCommit,
+      afterCommit: options.afterCommit,
     });
   } finally {
     rmSync(packDir, { recursive: true, force: true });
@@ -647,6 +668,7 @@ interface LooseSkillSourceOptions {
   packageName?: string;
   version?: string;
   beforeCommit?: SkillBundleCommitOptions["beforeCommit"];
+  afterCommit?: SkillBundleCommitOptions["afterCommit"];
 }
 
 async function commitLooseSkillSource(options: LooseSkillSourceOptions, operation: SkillPackageOperation) {
@@ -716,6 +738,7 @@ async function commitLooseSkillSource(options: LooseSkillSourceOptions, operatio
       existingSkillNames: options.existingSkillNames,
       existingSkills: options.existingSkills,
       beforeCommit: options.beforeCommit,
+      afterCommit: options.afterCommit,
     });
     return {
       ...installed,

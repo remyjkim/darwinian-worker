@@ -5,6 +5,7 @@ import { Option, UsageError } from "clipanion";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { loadConfig } from "../../core/config";
+import { findStandaloneMcpRecord } from "../../core/inventory";
 import { findLibraryMcpServer } from "../../core/library";
 import { buildEffectiveState } from "../../core/effective-state";
 import { projectConfigPath, setProjectServerOverride } from "../../core/project-writes";
@@ -66,7 +67,6 @@ export class AddMcpCommand extends BaseCommand {
     let serverDefinition = server?.server;
     let selectedId = server?.id ?? queryOrName;
     let selectedSource: "registry" | "library" | "catalog" | "card" | null = server?.source ?? null;
-    const requiredEnv = new Set<string>();
     if (!server) {
       if (this.libraryOnly) {
         throw new UsageError(`No local MCP server found: ${queryOrName}.`);
@@ -114,12 +114,26 @@ export class AddMcpCommand extends BaseCommand {
       }
     }
 
-    for (const key of Object.keys(serverDefinition?.env ?? {})) {
-      requiredEnv.add(key);
-    }
-
     const configPath = projectConfigPath(this.context.cwd);
     const id = selectedId;
+
+    if (!this.dryRun) {
+      const override = selectedSource === "card" || selectedSource === "registry"
+        ? { enabled: true as const }
+        : { ...serverDefinition!, optional: false };
+      await setProjectServerOverride(this.context.agentsDir, this.context.cwd, id, override, {
+        resolveOverride: selectedSource === "library"
+          ? async () => {
+              const current = await findStandaloneMcpRecord(this.context.agentsDir, id);
+              if (!current) throw new Error(`Standalone MCP inventory changed before project activation: ${id}`);
+              serverDefinition = current.server;
+              return { ...current.server, optional: false };
+            }
+          : undefined,
+      });
+    }
+
+    const requiredEnv = new Set(Object.keys(serverDefinition?.env ?? {}));
     const payload = {
       kind: "mcp",
       id,
@@ -129,13 +143,6 @@ export class AddMcpCommand extends BaseCommand {
       requiredEnv: [...requiredEnv],
       next: ["drwn write --dry-run"],
     };
-
-    if (!this.dryRun) {
-      const override = selectedSource === "card" || selectedSource === "registry"
-        ? { enabled: true as const }
-        : { ...serverDefinition!, optional: false };
-      setProjectServerOverride(this.context.cwd, id, override);
-    }
 
     if (this.json) {
       this.context.stdout.write(renderJson(payload));

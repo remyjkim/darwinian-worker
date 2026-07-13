@@ -96,7 +96,7 @@ export class ExtensionsAddCommand extends BaseCommand {
     };
 
     if (!this.dryRun) {
-      setProjectExtensionConfig(projectDir, this.extensionName, extensionConfig);
+      await setProjectExtensionConfig(projectDir, this.extensionName, extensionConfig);
     }
 
     if (this.json) {

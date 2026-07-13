@@ -37,14 +37,14 @@ describe("core project writes", () => {
     const projectDir = await createTempRoot();
 
     const { readProjectConfigForWrite } = await import("../cli/core/project-writes");
-    expect(readProjectConfigForWrite(projectDir)).toEqual(projectConfig());
+    expect(await readProjectConfigForWrite(projectDir)).toEqual(projectConfig());
   });
 
   test("writes project config and creates parent directories", async () => {
     const projectDir = await createTempRoot();
 
     const { writeProjectConfigForWrite } = await import("../cli/core/project-writes");
-    const configPath = writeProjectConfigForWrite(projectDir, { ...projectConfig(), skills: { include: ["alpha"] } });
+    const configPath = await writeProjectConfigForWrite(projectDir, { ...projectConfig(), skills: { include: ["alpha"] } });
 
     expect(configPath).toBe(join(projectDir, ".agents", "drwn", "config.json"));
     expect(await readProjectConfig(projectDir)).toEqual({ ...projectConfig(), skills: { include: ["alpha"] } });
@@ -60,8 +60,9 @@ describe("core project writes", () => {
     );
 
     const { includeProjectSkill } = await import("../cli/core/project-writes");
-    includeProjectSkill(projectDir, "alpha");
-    includeProjectSkill(projectDir, "beta");
+    const agentsDir = join(projectDir, "home", ".agents");
+    await includeProjectSkill(agentsDir, projectDir, "alpha");
+    await includeProjectSkill(agentsDir, projectDir, "beta");
 
     expect(await readProjectConfig(projectDir)).toEqual({
       ...projectConfig(),
@@ -72,10 +73,11 @@ describe("core project writes", () => {
 
   test("sets project server overrides without removing unrelated config", async () => {
     const projectDir = await createTempRoot();
+    const agentsDir = join(projectDir, "home", ".agents");
 
     const { includeProjectSkill, setProjectServerOverride } = await import("../cli/core/project-writes");
-    includeProjectSkill(projectDir, "alpha");
-    setProjectServerOverride(projectDir, "context7", { enabled: true });
+    await includeProjectSkill(agentsDir, projectDir, "alpha");
+    await setProjectServerOverride(agentsDir, projectDir, "context7", { enabled: true });
 
     expect(await readProjectConfig(projectDir)).toEqual({
       ...projectConfig(),
@@ -88,8 +90,8 @@ describe("core project writes", () => {
     const projectDir = await createTempRoot();
 
     const { setProjectExtensionConfig } = await import("../cli/core/project-writes");
-    setProjectExtensionConfig(projectDir, "parallel", { enabled: true, skills: true });
-    setProjectExtensionConfig(projectDir, "parallel", { mcp: true });
+    await setProjectExtensionConfig(projectDir, "parallel", { enabled: true, skills: true });
+    await setProjectExtensionConfig(projectDir, "parallel", { mcp: true });
 
     expect(await readProjectConfig(projectDir)).toEqual({
       ...projectConfig(),

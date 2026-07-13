@@ -5,8 +5,9 @@ import { Option, UsageError } from "clipanion";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { loadConfig } from "../../core/config";
+import { findStandaloneSkillPackageBySkillId } from "../../core/inventory";
 import { findLibrarySkill } from "../../core/library";
-import { includeProjectSkill, projectConfigPath } from "../../core/project-writes";
+import { includeProjectSkills, projectConfigPath } from "../../core/project-writes";
 import { buildSkillInventory } from "../../core/skills";
 import { installSkillPackage } from "../../core/skill-packages";
 import { searchSkills, type SearchResult } from "../../core/search";
@@ -20,6 +21,16 @@ function isCatalogSkillPackage(
     result.sourceGroup === "catalog" &&
     result.kind === "skill-package"
   );
+}
+
+function selectInstalledSkills(queryOrName: string, all: boolean, available: string[]) {
+  if (all) return available;
+  const exact = available.find((name) => name === queryOrName);
+  const selected = exact ? [exact] : available.length === 1 ? available : [];
+  if (selected.length === 0) {
+    throw new UsageError("Installed bundle contains multiple skills; rerun with an exact skill name or --all.");
+  }
+  return selected;
 }
 
 export class AddSkillCommand extends BaseCommand {
@@ -74,6 +85,7 @@ export class AddSkillCommand extends BaseCommand {
     let skill = await findLibrarySkill(this.context.repoRoot, this.context.agentsDir, this.context.homeDir, queryOrName);
     const libraryChanges: Array<{ kind: string; id: string; action: string }> = [];
     let skillIds: string[] = [];
+    let projectWrittenDuringInstall = false;
 
     if (!skill) {
       if (this.libraryOnly) {
@@ -106,19 +118,19 @@ export class AddSkillCommand extends BaseCommand {
         agentsDir: this.context.agentsDir,
         packageSpec: packageName,
         existingSkillNames: new Set(inventory.map((item) => item.name)),
+        afterCommit: async ({ installed: committed }) => {
+          skillIds = selectInstalledSkills(
+            queryOrName,
+            this.all,
+            committed.manifest.skills.map((entry) => entry.name),
+          );
+          if (!this.dryRun) {
+            await includeProjectSkills(this.context.agentsDir, this.context.cwd, skillIds);
+            projectWrittenDuringInstall = true;
+          }
+        },
       });
       libraryChanges.push({ kind: "skill-package", id: installed.packageName, action: "installed" });
-      const available = installed.manifest.skills.map((entry) => entry.name);
-      if (this.all) {
-        skillIds = available;
-      } else {
-        const exact = available.find((name) => name === queryOrName);
-        skillIds = exact ? [exact] : available.length === 1 ? available : [];
-      }
-      if (skillIds.length === 0) {
-        throw new UsageError(`Installed bundle contains multiple skills; rerun with an exact skill name or --all.`);
-      }
-      skill = await findLibrarySkill(this.context.repoRoot, this.context.agentsDir, this.context.homeDir, skillIds[0] ?? "");
     } else {
       skillIds = [skill.id];
     }
@@ -133,10 +145,18 @@ export class AddSkillCommand extends BaseCommand {
       next: ["drwn write --dry-run"],
     };
 
-    if (!this.dryRun) {
-      for (const id of skillIds) {
-        includeProjectSkill(this.context.cwd, id);
-      }
+    if (!this.dryRun && !projectWrittenDuringInstall) {
+      const packageName = skill?.source === "npm" ? skill.sourceId : undefined;
+      await includeProjectSkills(this.context.agentsDir, this.context.cwd, skillIds, {
+        validate: packageName
+          ? async () => {
+              const current = await findStandaloneSkillPackageBySkillId(this.context.agentsDir, skillIds[0]!);
+              if (!current || current.packageName !== packageName) {
+                throw new Error(`Standalone skill inventory changed before project activation: ${skillIds[0]}`);
+              }
+            }
+          : undefined,
+      });
     }
 
     if (this.json) {

@@ -102,10 +102,10 @@ export async function writeProjectCards(
   specs: string[],
   options: ResolveCardOptions = {},
 ): Promise<CardProjectMutation> {
-  const config = readProjectConfigForWrite(projectRoot);
+  const config = await readProjectConfigForWrite(projectRoot);
   const previousLock = await loadCardLock(projectRoot);
   config.workers = [...specs];
-  const configPath = writeProjectConfigForWrite(projectRoot, config);
+  const configPath = await writeProjectConfigForWrite(projectRoot, config);
   const graph = await resolveWorkerGraph(agentsDir, config.workers, options);
   const warnings: string[] = [];
   const previousByName = new Map((previousLock?.cards ?? []).map((card) => [card.name, card]));

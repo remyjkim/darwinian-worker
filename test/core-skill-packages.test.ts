@@ -308,6 +308,33 @@ describe("core skill packages", () => {
     expect(await readFile(join(installed.versionRoot, "skills", "shared", skillName, "SKILL.md"), "utf8")).toContain(`name: ${skillName}`);
   });
 
+  test("installSkillBundleRoot retains the inventory lock through the post-commit callback", async () => {
+    const root = await createTempRoot();
+    const agentsDir = join(root, "home", ".agents");
+    const projectRoot = join(root, "project");
+    const { bundleRoot, packageName, version, skillName } = await createBundleFixture(root);
+    const { currentInventoryLockPaths } = await import("../cli/core/inventory-lock");
+    const { includeProjectSkill } = await import("../cli/core/project-writes");
+    const { resolveInventoryLockPath } = await import("../cli/core/store-paths");
+    const { installSkillBundleRoot } = await import("../cli/core/skill-packages");
+
+    await installSkillBundleRoot({
+      agentsDir,
+      bundleRoot,
+      packageName,
+      version,
+      existingSkillNames: new Set(),
+      afterCommit: async ({ installed }) => {
+        expect(installed.manifest.skills.map((skill) => skill.name)).toEqual([skillName]);
+        expect(currentInventoryLockPaths()).toEqual([resolveInventoryLockPath(agentsDir)]);
+        await includeProjectSkill(agentsDir, projectRoot, skillName);
+      },
+    });
+
+    const project = JSON.parse(await readFile(join(projectRoot, ".agents", "drwn", "config.json"), "utf8"));
+    expect(project.skills.include).toEqual([skillName]);
+  });
+
   test("install and update enforce distinct absent and existing package identities", async () => {
     const root = await createTempRoot();
     const agentsDir = join(root, "home", ".agents");

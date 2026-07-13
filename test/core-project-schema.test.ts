@@ -97,7 +97,7 @@ test("project mutation helpers reject prototype config without rewriting it", as
   const { path, bytes } = await writeProject(root, { version: 1, skills: { include: ["alpha"] } });
   const { includeProjectSkill } = await import("../cli/core/project-writes");
 
-  expect(() => includeProjectSkill(root, "beta")).toThrow();
+  await expect(includeProjectSkill(join(root, "home", ".agents"), root, "beta")).rejects.toThrow();
   expect(await readFile(path, "utf8")).toBe(bytes);
 });
 

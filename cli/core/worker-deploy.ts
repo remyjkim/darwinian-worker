@@ -175,7 +175,7 @@ async function resolveDeployClosure(options: BuildWorkerDeployPayloadOptions): P
     };
   }
 
-  const config = readProjectConfigForWrite(options.projectRoot);
+  const config = await readProjectConfigForWrite(options.projectRoot);
   const lock = await loadCardLock(options.projectRoot);
   if (!lock) {
     throw new DrwnError("WORKER_DEPLOY_PROJECT_LOCK_REQUIRED", "Worker deploy requires a valid project card.lock");

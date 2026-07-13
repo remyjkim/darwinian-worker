@@ -178,4 +178,28 @@ describe("drwn add skill", () => {
     };
     expect(config.skills?.include).toEqual(["hello-skill"]);
   });
+
+  test("keeps a committed catalog bundle inactive when the project write fails", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const { bundleRoot, packageName } = await createSkillBundleFixture(fixture.root, { skillName: "hello-skill" });
+    const binDir = join(fixture.root, "bin");
+    const realNpm = Bun.which("npm") ?? "npm";
+    await createExecutable(binDir, "npm", `if [ "$1" = "search" ]; then printf "%s" '[{"name":"${bundleRoot}","version":"1.0.0"}]'; else "${realNpm}" "$@"; fi`);
+    const projectDir = join(fixture.root, "invalid-project");
+    const configPath = join(projectDir, ".agents", "drwn", "config.json");
+    await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
+    await writeFile(configPath, '{"version":1}\n');
+
+    const result = await runAgentsCli(
+      ["add", "skill", "hello", "--yes"],
+      envFor(fixture, { PATH: `${binDir}:${process.env.PATH ?? ""}` }),
+      projectDir,
+    );
+
+    expect(result.exitCode).not.toBe(0);
+    const { findStandaloneSkillPackageByName } = await import("../cli/core/inventory");
+    expect(await findStandaloneSkillPackageByName(fixture.agentsDir, packageName)).not.toBeNull();
+    expect(await readFile(configPath, "utf8")).toBe('{"version":1}\n');
+  });
 });
