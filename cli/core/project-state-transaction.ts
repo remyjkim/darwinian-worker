@@ -1,7 +1,7 @@
 // ABOUTME: Commits project config and lock bytes through a recoverable local transaction.
 // ABOUTME: Uses retained immutable sources, hash-authoritative roll-forward, and exclusive owner locks.
 
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import {
   copyFile,
@@ -13,9 +13,10 @@ import {
   rm,
   unlink,
 } from "node:fs/promises";
-import { hostname } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { DrwnError } from "./errors";
+import { withOrderedProjectOwnerLock } from "./inventory-lock";
+import type { OwnerLockRecord } from "./owner-lock";
 
 export type ProjectStateCheckpoint =
   | "after-source-flush"
@@ -42,14 +43,6 @@ export interface ProjectStateTransactionOptions {
 export interface ProjectStateSnapshot {
   configBytes: string | null;
   lockBytes: string | null;
-}
-
-interface LockOwner {
-  version: 1;
-  id: string;
-  hostname: string;
-  pid: number;
-  startedAt: string;
 }
 
 interface JournalTarget {
@@ -116,97 +109,6 @@ async function atomicWriteJson(path: string, value: unknown, stateDir: string, i
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function parseLockOwner(bytes: string): LockOwner | null {
-  try {
-    const value = JSON.parse(bytes) as unknown;
-    if (
-      !isObject(value) ||
-      value.version !== 1 ||
-      typeof value.id !== "string" ||
-      typeof value.hostname !== "string" ||
-      typeof value.pid !== "number" ||
-      !Number.isInteger(value.pid) ||
-      value.pid <= 0 ||
-      typeof value.startedAt !== "string" ||
-      Number.isNaN(Date.parse(value.startedAt))
-    ) return null;
-    return value as unknown as LockOwner;
-  } catch {
-    return null;
-  }
-}
-
-function processIsAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return Boolean(error && typeof error === "object" && "code" in error && error.code === "EPERM");
-  }
-}
-
-async function acquireLock(projectRoot: string, id: string): Promise<LockOwner> {
-  const paths = transactionPaths(projectRoot);
-  await mkdir(paths.stateDir, { recursive: true });
-  while (true) {
-    const owner: LockOwner = {
-      version: 1,
-      id,
-      hostname: hostname(),
-      pid: process.pid,
-      startedAt: new Date().toISOString(),
-    };
-    try {
-      await writeExclusive(paths.lock, `${JSON.stringify(owner, null, 2)}\n`);
-      await syncDirectory(paths.stateDir);
-      return owner;
-    } catch (error) {
-      if (!(error && typeof error === "object" && "code" in error && error.code === "EEXIST")) throw error;
-    }
-
-    let existing: LockOwner | null;
-    try {
-      existing = parseLockOwner(await readFile(paths.lock, "utf8"));
-    } catch (error) {
-      if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") continue;
-      throw error;
-    }
-    if (!existing || existing.hostname !== hostname()) {
-      throw new DrwnError(
-        "PROJECT_STATE_TRANSACTION_LOCK_UNRECOVERABLE",
-        `Project state transaction lock is malformed or owned by another host: ${paths.lock}`,
-      );
-    }
-    if (processIsAlive(existing.pid)) {
-      throw new DrwnError(
-        "PROJECT_STATE_TRANSACTION_BUSY",
-        `Project state is being mutated by PID ${existing.pid} on ${existing.hostname}`,
-      );
-    }
-    const quarantine = `${paths.lock}.stale.${existing.id}.${randomUUID()}`;
-    try {
-      await rename(paths.lock, quarantine);
-      await syncDirectory(paths.stateDir);
-    } catch (error) {
-      if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") continue;
-      throw error;
-    }
-  }
-}
-
-async function releaseLock(projectRoot: string, owner: LockOwner) {
-  const paths = transactionPaths(projectRoot);
-  const current = parseLockOwner(await readFile(paths.lock, "utf8"));
-  if (!current || current.id !== owner.id) {
-    throw new DrwnError(
-      "PROJECT_STATE_TRANSACTION_LOCK_UNRECOVERABLE",
-      `Refusing to release project state lock not owned by transaction ${owner.id}`,
-    );
-  }
-  await unlink(paths.lock);
-  await syncDirectory(paths.stateDir);
 }
 
 function resolveJournalPath(stateDir: string, pathValue: unknown, label: string): string {
@@ -351,15 +253,17 @@ async function removeAbandonedTransactions(projectRoot: string) {
   await syncDirectory(paths.transactionsDir);
 }
 
-async function withProjectStateLock<T>(projectRoot: string, operation: (owner: LockOwner) => Promise<T>): Promise<T> {
-  const owner = await acquireLock(projectRoot, randomUUID());
-  try {
+export async function withProjectStateLock<T>(
+  projectRoot: string,
+  operation: (owner: OwnerLockRecord) => Promise<T>,
+): Promise<T> {
+  const paths = transactionPaths(projectRoot);
+  await mkdir(paths.stateDir, { recursive: true });
+  return withOrderedProjectOwnerLock(paths.lock, async (owner) => {
     await recoverUnderLock(projectRoot);
     await removeAbandonedTransactions(projectRoot);
     return await operation(owner);
-  } finally {
-    await releaseLock(projectRoot, owner);
-  }
+  });
 }
 
 async function readSnapshotUnlocked(projectRoot: string): Promise<ProjectStateSnapshot> {
@@ -380,7 +284,7 @@ async function readSnapshotUnlocked(projectRoot: string): Promise<ProjectStateSn
 
 async function commitUnderLock(
   projectRoot: string,
-  owner: LockOwner,
+  owner: OwnerLockRecord,
   bytes: ProjectStateBytes,
   options: ProjectStateTransactionOptions,
 ) {

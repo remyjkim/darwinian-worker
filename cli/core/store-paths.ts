@@ -36,6 +36,14 @@ export function resolveMachineConfigPath(agentsDir: string) {
   return join(resolveStoreRoot(agentsDir), "machine.json");
 }
 
+export function resolveInventoryLockPath(agentsDir: string) {
+  return join(resolveStoreRoot(agentsDir), ".inventory-transaction.lock");
+}
+
+export function resolveMachineLockPath(agentsDir: string) {
+  return join(resolveStoreRoot(agentsDir), ".machine-transaction.lock");
+}
+
 export function resolveCardsRoot(agentsDir: string) {
   return join(resolveStoreRoot(agentsDir), "cards");
 }
