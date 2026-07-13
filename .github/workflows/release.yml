@@ -141,7 +141,18 @@ jobs:
 
       - name: Smoke install (ubuntu)
         run: |
-          npm install -g "darwinian@${{ needs.validate.outputs.version }}"
+          VERSION="${{ needs.validate.outputs.version }}"
+          for attempt in $(seq 1 12); do
+            if npm install -g "darwinian@$VERSION"; then
+              break
+            fi
+            if [ "$attempt" -eq 12 ]; then
+              echo "darwinian@$VERSION did not propagate to npm within two minutes" >&2
+              exit 1
+            fi
+            echo "Waiting for darwinian@$VERSION to propagate to npm (attempt $attempt/12)" >&2
+            sleep 10
+          done
           drwn --version
           test "$(drwn --version | tr -d '[:space:]')" = "${{ needs.validate.outputs.version }}"
 
@@ -184,7 +195,18 @@ jobs:
 
       - name: Smoke install (macos)
         run: |
-          npm install -g "darwinian@${{ needs.validate.outputs.version }}"
+          VERSION="${{ needs.validate.outputs.version }}"
+          for attempt in $(seq 1 12); do
+            if npm install -g "darwinian@$VERSION"; then
+              break
+            fi
+            if [ "$attempt" -eq 12 ]; then
+              echo "darwinian@$VERSION did not propagate to npm within two minutes" >&2
+              exit 1
+            fi
+            echo "Waiting for darwinian@$VERSION to propagate to npm (attempt $attempt/12)" >&2
+            sleep 10
+          done
           drwn --version
           test "$(drwn --version | tr -d '[:space:]')" = "${{ needs.validate.outputs.version }}"
 

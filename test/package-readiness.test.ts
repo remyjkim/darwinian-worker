@@ -127,7 +127,9 @@ describe("package readiness", () => {
     expect(workflow).toContain("if: ${{ github.event_name == 'push' || inputs.dry_run == false }}");
     expect(workflow).toContain("name: Dry run complete");
     expect(workflow).toContain("if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true }}");
-    expect(workflow).toContain("npm install -g \"darwinian@${{ needs.validate.outputs.version }}\"");
+    expect(workflow).toContain("for attempt in $(seq 1 12); do");
+    expect(workflow).toContain("npm install -g \"darwinian@$VERSION\"");
+    expect(workflow).toContain("did not propagate to npm within two minutes");
     expect(workflow).toContain("runs-on: macos-latest");
     expect(workflow).toContain("gh release create \"$TAG\"");
     expect(workflow).toContain("--generate-notes");
