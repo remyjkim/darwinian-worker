@@ -213,11 +213,11 @@ an external ephemeral directory, but it must remove that directory before exit.
 
 Network fetch, npm packing, archive extraction, and source copying happen in an
 external staging directory before lock acquisition. Staging resolves a concrete
-source snapshot and computes its manifest identity and payload digest. The command then acquires
-the inventory lock and revalidates the staged snapshot plus mutable package
-identity, package version, global skill-ID uniqueness, existing inventory, and
-references before committing. It never re-fetches or contacts a remote source
-while holding a managed lock.
+source snapshot and computes its manifest identity and payload digest. The
+command then acquires the inventory lock and revalidates the staged snapshot
+plus mutable package identity, package version, global skill-ID uniqueness,
+existing inventory, and references before committing. It never re-fetches or
+contacts a remote source while holding a managed lock.
 
 ### 0.5 Persistence and recovery
 
