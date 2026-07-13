@@ -111,9 +111,12 @@ export type ProjectExtensionConfig = {
   [key: string]: unknown;
 };
 
-export interface ProjectConfigBase {
+export interface ProjectConfig {
+  version: number;
   materialization?: "vendored" | "linked";
   committedSurfaces?: boolean;
+  cards?: string[];
+  activeWorkers?: string[];
   servers?: Record<string, ServerOverride>;
   skills?: {
     include?: string[];
@@ -134,14 +137,6 @@ export interface ProjectConfigBase {
   targets?: Partial<Record<TargetName, { enabled: boolean }>>;
   trustedSources?: TrustedSourcesPolicy;
 }
-
-export interface ProjectConfigV2 extends ProjectConfigBase {
-  version: 2;
-  workers?: string[];
-  activeWorker?: string | null;
-}
-
-export type ProjectConfig = ProjectConfigV2;
 
 export type SkillSourceType = "repo" | "npm";
 

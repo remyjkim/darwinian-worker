@@ -2,8 +2,9 @@
 // ABOUTME: Rewrites the lockfile after removal to avoid stale locked cards.
 
 import { Option } from "clipanion";
+import { removeProjectCard } from "../../core/card-project";
 import { BaseCommand } from "../base";
-import { commandMoved } from "./project-command";
+import { renderCardMutation, requireProjectRoot, runChainedWrite } from "./project-command";
 
 export class CardRemoveCommand extends BaseCommand {
   static override paths = [["card", "remove"]];
@@ -26,6 +27,11 @@ export class CardRemoveCommand extends BaseCommand {
   });
 
   async execute() {
-    return commandMoved(this, "drwn remove <name>");
+    const result = await removeProjectCard(requireProjectRoot(this), this.context.agentsDir, this.refOrName);
+    this.context.stdout.write(renderCardMutation(result));
+    if (this.write) {
+      return await runChainedWrite(this);
+    }
+    return 0;
   }
 }

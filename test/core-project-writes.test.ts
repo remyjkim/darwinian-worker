@@ -27,17 +27,17 @@ describe("core project writes", () => {
     const projectDir = await createTempRoot();
 
     const { readProjectConfigForWrite } = await import("../cli/core/project-writes");
-    expect(readProjectConfigForWrite(projectDir)).toEqual({ version: 2 });
+    expect(readProjectConfigForWrite(projectDir)).toEqual({ version: 1 });
   });
 
   test("writes project config and creates parent directories", async () => {
     const projectDir = await createTempRoot();
 
     const { writeProjectConfigForWrite } = await import("../cli/core/project-writes");
-    const configPath = writeProjectConfigForWrite(projectDir, { version: 2, skills: { include: ["alpha"] } });
+    const configPath = writeProjectConfigForWrite(projectDir, { version: 1, skills: { include: ["alpha"] } });
 
     expect(configPath).toBe(join(projectDir, ".agents", "drwn", "config.json"));
-    expect(await readProjectConfig(projectDir)).toEqual({ version: 2, workers: [], skills: { include: ["alpha"] } });
+    expect(await readProjectConfig(projectDir)).toEqual({ version: 1, skills: { include: ["alpha"] } });
   });
 
   test("includes project skills without duplicating or removing unrelated config", async () => {
@@ -54,8 +54,7 @@ describe("core project writes", () => {
     includeProjectSkill(projectDir, "beta");
 
     expect(await readProjectConfig(projectDir)).toEqual({
-      version: 2,
-      workers: [],
+      version: 1,
       skills: { include: ["alpha", "beta"] },
       extensions: { parallel: { enabled: true } },
     });
@@ -69,8 +68,7 @@ describe("core project writes", () => {
     setProjectServerOverride(projectDir, "context7", { enabled: true });
 
     expect(await readProjectConfig(projectDir)).toEqual({
-      version: 2,
-      workers: [],
+      version: 1,
       skills: { include: ["alpha"] },
       servers: { context7: { enabled: true } },
     });
@@ -84,8 +82,7 @@ describe("core project writes", () => {
     setProjectExtensionConfig(projectDir, "parallel", { mcp: true });
 
     expect(await readProjectConfig(projectDir)).toEqual({
-      version: 2,
-      workers: [],
+      version: 1,
       extensions: { parallel: { enabled: true, skills: true, mcp: true } },
     });
   });

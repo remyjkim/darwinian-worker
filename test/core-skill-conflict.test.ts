@@ -8,60 +8,11 @@ import { syncSkills } from "../cli/core/skills";
 import { normalizeSyncPathOptions } from "../cli/core/paths";
 import { applyProjectCardSpecs } from "../cli/core/card-project";
 import { cleanupTempRoots, scaffoldCliFixture } from "./helpers";
-import { assertWorkerCapabilityCompatibility } from "../cli/core/card-skill-resolver";
 
 const tempRoots: string[] = [];
 
 afterEach(async () => {
   await cleanupTempRoots(tempRoots);
-});
-
-test("incompatible duplicate skills inside one Worker closure fail with provenance", async () => {
-  const root = await import("./helpers").then(({ createTempRoot }) => createTempRoot("worker-skill-conflict-"));
-  tempRoots.push(root);
-  const cards = ["first", "second"].map((name) => ({
-    name: `@me/${name}`,
-    requested: `@me/${name}@1.0.0`,
-    version: "1.0.0",
-    path: join(root, name),
-    integrity: `sha256-${name}`,
-    manifest: { name: `@me/${name}`, version: "1.0.0", skills: { include: ["shared"] } },
-    skills: ["shared"],
-    hooks: [],
-    registry: null as null,
-    origin: "file" as const,
-  }));
-  for (const [index, card] of cards.entries()) {
-    await mkdir(join(card.path, "skills", "shared"), { recursive: true });
-    await writeFile(join(card.path, "skills", "shared", "SKILL.md"), `content-${index}\n`);
-  }
-
-  expect(() => assertWorkerCapabilityCompatibility(cards)).toThrow(
-    expect.objectContaining({ code: "WORKER_CAPABILITY_CONFLICT" }),
-  );
-});
-
-test("incompatible duplicate MCP definitions inside one Worker closure fail", () => {
-  const cards = ["first", "second"].map((name, index) => ({
-    name: `@me/${name}`,
-    requested: `@me/${name}@1.0.0`,
-    version: "1.0.0",
-    path: `/tmp/${name}`,
-    integrity: `sha256-${name}`,
-    manifest: {
-      name: `@me/${name}`,
-      version: "1.0.0",
-      servers: { shared: { description: "shared", transport: "stdio" as const, command: `server-${index}`, optional: false } },
-    },
-    skills: [],
-    hooks: [],
-    registry: null as null,
-    origin: "file" as const,
-  }));
-
-  expect(() => assertWorkerCapabilityCompatibility(cards)).toThrow(
-    expect.objectContaining({ code: "WORKER_CAPABILITY_CONFLICT" }),
-  );
 });
 
 async function publishCardWithSharedSkill(

@@ -116,11 +116,6 @@ test("drwn write materializes from committed vendor with an empty machine store"
   await rm(join(agentsDir, "drwn", "cards"), { recursive: true, force: true });
   await rm(join(agentsDir, "drwn", "extracted"), { recursive: true, force: true });
 
-  const configPath = join(projectDir, ".agents", "drwn", "config.json");
-  const lockPath = join(projectDir, ".agents", "drwn", "card.lock");
-  const configBytes = await readFile(configPath, "utf8");
-  const lockBytes = await readFile(lockPath, "utf8");
-
   const result = await syncRepository({
     repoRoot,
     agentsDir,
@@ -130,8 +125,6 @@ test("drwn write materializes from committed vendor with an empty machine store"
 
   expect(result.changes.some((change) => change.startsWith("vendor "))).toBe(false);
   expect(existsSync(join(projectDir, ".claude", "skills", "alpha", "SKILL.md"))).toBe(true);
-  expect(await readFile(configPath, "utf8")).toBe(configBytes);
-  expect(await readFile(lockPath, "utf8")).toBe(lockBytes);
 });
 
 test("missing vendor and missing store fails with a repair signpost", async () => {

@@ -2,8 +2,11 @@
 // ABOUTME: Also exposes the top-level `drwn apply` alias.
 
 import { Option } from "clipanion";
+import { applyProjectCardSpecs } from "../../core/card-project";
+import { buildApplySummaries } from "../../core/card-apply-summary";
+import { loadCardLock } from "../../core/card-lock";
 import { BaseCommand } from "../base";
-import { commandMoved } from "./project-command";
+import { renderCardMutation, requireProjectRoot, runChainedWrite } from "./project-command";
 
 export class CardApplyCommand extends BaseCommand {
   static override paths = [["card", "apply"]];
@@ -34,6 +37,29 @@ export class CardApplyCommand extends BaseCommand {
   });
 
   async execute() {
-    return commandMoved(this, "drwn apply <refs...>");
+    if (this.allowUntrustedSource) {
+      this.context.stderr.write(`Warning: --allow-untrusted-source used for card apply\n`);
+    }
+    const projectRoot = requireProjectRoot(this);
+    const previousLock = await loadCardLock(projectRoot);
+    const result = await applyProjectCardSpecs(projectRoot, this.context.agentsDir, this.specs, {
+      allowUntrustedSource: this.allowUntrustedSource,
+      acceptSuccessor: this.acceptSuccessor,
+      repoRoot: this.context.repoRoot,
+      cwd: this.context.cwd,
+    });
+    const summaries = buildApplySummaries(result.locked, previousLock?.cards ?? []);
+    this.context.stdout.write(renderCardMutation(result));
+    if (summaries.length > 0) {
+      this.context.stdout.write(`${summaries.join("\n\n")}\n`);
+    }
+    if (this.write) {
+      return await runChainedWrite(this);
+    }
+    return 0;
   }
+}
+
+export class ApplyCommand extends CardApplyCommand {
+  static override paths = [["apply"]];
 }

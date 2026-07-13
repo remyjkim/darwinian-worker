@@ -4,7 +4,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { ProjectConfig, ProjectExtensionConfig, ServerOverride } from "./types";
-import { normalizeProjectConfig } from "./project-config-migration";
 
 export function projectConfigPath(projectDir: string) {
   return join(projectDir, ".agents", "drwn", "config.json");
@@ -13,16 +12,15 @@ export function projectConfigPath(projectDir: string) {
 export function readProjectConfigForWrite(projectDir: string): ProjectConfig {
   const configPath = projectConfigPath(projectDir);
   if (!existsSync(configPath)) {
-    return { version: 2 };
+    return { version: 1 };
   }
-  return normalizeProjectConfig(JSON.parse(readFileSync(configPath, "utf8"))).config;
+  return JSON.parse(readFileSync(configPath, "utf8")) as ProjectConfig;
 }
 
 export function writeProjectConfigForWrite(projectDir: string, config: ProjectConfig) {
   const configPath = projectConfigPath(projectDir);
   mkdirSync(dirname(configPath), { recursive: true });
-  const normalized = normalizeProjectConfig(config).config;
-  writeFileSync(configPath, `${JSON.stringify(normalized, null, 2)}\n`);
+  writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
   return configPath;
 }
 

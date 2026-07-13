@@ -13,15 +13,17 @@ import {
   isNewerVersion,
   listCards,
   parseCardRef,
+  resolveCard,
   type ResolveCardOptions,
 } from "./card-store";
 import { loadProjectConfig, resolveProjectRootFromConfigPath } from "./project";
+import { orderCardsByApplySpecs } from "./effective-state";
+import { DrwnError } from "./errors";
 import { projectConfigPath, readProjectConfigForWrite, writeProjectConfigForWrite } from "./project-writes";
 import { resolveCardBareRepoPath } from "./store-paths";
 import type { CardManifest } from "./card-manifest";
 import type { ProjectConfig } from "./types";
 import { satisfies, validRange } from "./semver-utils";
-import { resolveWorkerGraph, type ResolvedWorkerGraph } from "./worker-graph";
 
 export interface CardProjectMutation {
   projectConfigPath: string;
@@ -36,12 +38,65 @@ export interface CardTrustMutation {
   card: CardLockEntry;
 }
 
+type ResolvedCard = Awaited<ReturnType<typeof resolveCard>>;
+
+function toCardLockEntry(card: ResolvedCard): CardLockEntry {
+  return {
+    name: card.name,
+    requested: card.requested,
+    version: card.version,
+    path: card.dir,
+    integrity: card.integrity,
+    ...(card.treeSha ? { treeSha: card.treeSha } : {}),
+    manifest: card.manifest,
+    skills: card.manifest.skills?.include ?? [],
+    hooks: card.manifest.hooks?.include ?? [],
+    registry: null as null,
+    origin: card.origin,
+    ...(card.git ? { git: card.git } : {}),
+  };
+}
+
+// Expands each blueprint's composedFrom into member entries spliced after the blueprint
+// (which itself remains, carrying its governance). Cards-only: a blueprint member is refused.
+// Deduplicated by name, first occurrence wins so declared apply order is preserved.
+async function expandBlueprints(
+  agentsDir: string,
+  entries: CardLockEntry[],
+  options: ResolveCardOptions,
+): Promise<CardLockEntry[]> {
+  const out: CardLockEntry[] = [];
+  const seen = new Set<string>();
+  const push = (entry: CardLockEntry) => {
+    if (seen.has(entry.name)) return;
+    seen.add(entry.name);
+    out.push(entry);
+  };
+  for (const entry of entries) {
+    push(entry);
+    if (entry.manifest.kind !== "blueprint") continue;
+    for (const memberSpec of entry.manifest.composedFrom ?? []) {
+      const member = toCardLockEntry(await resolveCard(agentsDir, memberSpec, options));
+      if (member.manifest.kind === "blueprint") {
+        throw new DrwnError(
+          "BLUEPRINT_RECURSION",
+          `blueprint ${entry.name} cannot compose another blueprint ${member.name} (blueprint recursion is not supported)`,
+        );
+      }
+      push(member);
+    }
+  }
+  return out;
+}
+
 export async function resolveProjectCards(
   agentsDir: string,
   specs: string[],
   options: ResolveCardOptions = {},
 ): Promise<CardLockEntry[]> {
-  return (await resolveWorkerGraph(agentsDir, specs, options)).cards;
+  const resolved = await Promise.all(specs.map((spec) => resolveCard(agentsDir, spec, options)));
+  const ordered = orderCardsByApplySpecs(resolved.map(toCardLockEntry), specs);
+  return expandBlueprints(agentsDir, ordered, options);
 }
 
 export function mergeCardManifestsIntoProjectConfig(project: ProjectConfig, manifests: CardManifest[]): ProjectConfig {
@@ -104,12 +159,12 @@ export async function writeProjectCards(
 ): Promise<CardProjectMutation> {
   const config = readProjectConfigForWrite(projectRoot);
   const previousLock = await loadCardLock(projectRoot);
-  config.workers = [...specs];
+  config.cards = [...specs];
   const configPath = writeProjectConfigForWrite(projectRoot, config);
-  const graph = await resolveWorkerGraph(agentsDir, config.workers, options);
+  const resolved = await resolveProjectCards(agentsDir, config.cards, options);
   const warnings: string[] = [];
   const previousByName = new Map((previousLock?.cards ?? []).map((card) => [card.name, card]));
-  const locked = graph.cards.map((card) => {
+  const locked = resolved.map((card) => {
     const previous = previousByName.get(card.name);
     if (!previous?.hookConsent) {
       return card;
@@ -125,16 +180,15 @@ export async function writeProjectCards(
     return card;
   });
   warnings.push(...await collectCardMetaWarnings(agentsDir, await backfillLockTreeShas(agentsDir, locked), options));
-  const lockGraph: ResolvedWorkerGraph = { roots: graph.roots, cards: locked };
-  const lockPath = await persistCardLock(projectRoot, agentsDir, lockGraph);
+  const lockPath = await persistCardLock(projectRoot, agentsDir, locked);
   const lockedWithTreeSha = (await loadCardLock(projectRoot))?.cards ?? locked;
-  return { projectConfigPath: configPath, lockPath, cards: config.workers, locked: lockedWithTreeSha, warnings };
+  return { projectConfigPath: configPath, lockPath, cards: config.cards, locked: lockedWithTreeSha, warnings };
 }
 
 export async function getCurrentProjectCardSpecs(projectRoot: string) {
   const configPath = projectConfigPath(projectRoot);
   const config = await loadProjectConfig(configPath);
-  return [...(config.workers ?? [])];
+  return [...(config.cards ?? [])];
 }
 
 export async function applyProjectCardSpecs(
@@ -232,11 +286,7 @@ export async function setHookConsent(
         }
       : card,
   );
-  await persistCardLock(
-    projectRoot,
-    agentsDir,
-    lock.lockfileVersion === 6 ? { roots: lock.workerRoots, cards: nextCards } : nextCards,
-  );
+  await persistCardLock(projectRoot, agentsDir, nextCards);
   return {
     lockPath: cardLockPath(projectRoot),
     card: nextCards.find((card) => cardNamesEqual(card.name, target.name))!,
@@ -264,11 +314,7 @@ export async function clearHookConsent(
     void hookConsent;
     return rest;
   });
-  await persistCardLock(
-    projectRoot,
-    agentsDir,
-    lock.lockfileVersion === 6 ? { roots: lock.workerRoots, cards: nextCards } : nextCards,
-  );
+  await persistCardLock(projectRoot, agentsDir, nextCards);
   return {
     lockPath: cardLockPath(projectRoot),
     card: nextCards.find((card) => cardNamesEqual(card.name, target.name))!,
@@ -283,7 +329,7 @@ export async function readProjectCardStatus(
   const projectRoot = resolveProjectRootFromConfigPath(projectConfigPath);
   const config = await loadProjectConfig(projectConfigPath);
   const lock = await loadCardLock(projectRoot);
-  const specs = config.workers ?? [];
+  const specs = config.cards ?? [];
   const locked = lock?.cards ?? [];
   const outdated = await findOutdatedProjectCards(projectRoot, agentsDir);
   const state = await buildEffectiveState({

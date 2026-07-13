@@ -4,7 +4,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { applyProjectWorkerRoots } from "../cli/core/worker-project";
+import { applyProjectCardSpecs } from "../cli/core/card-project";
 import { buildApplyContentSummary } from "../cli/core/card-apply-summary";
 import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture } from "./helpers";
 
@@ -17,7 +17,6 @@ afterEach(async () => {
 async function createProjectDir(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
   const projectDir = join(fixture.root, "project");
   await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), '{\n  "version": 2\n}\n');
   return projectDir;
 }
 
@@ -32,7 +31,7 @@ test("buildApplyContentSummary lists skills, MCP servers, and hook consent", asy
     },
   });
   const projectDir = await createProjectDir(fixture);
-  const mutation = await applyProjectWorkerRoots(projectDir, fixture.agentsDir, ["@me/backend@1.0.0"], {
+  const mutation = await applyProjectCardSpecs(projectDir, fixture.agentsDir, ["@me/backend@1.0.0"], {
     repoRoot: fixture.repoRoot,
     cwd: projectDir,
   });
@@ -43,25 +42,27 @@ test("buildApplyContentSummary lists skills, MCP servers, and hook consent", asy
   expect(summary).toContain("context7");
 });
 
-test("project apply prints a content summary on first apply", async () => {
+test("card apply prints a content summary on first apply", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   await publishCardWithSkills(fixture, { name: "@me/backend", skills: ["alpha"] });
   const projectDir = await createProjectDir(fixture);
-  const result = await runAgentsCli(["apply", "@me/backend@1.0.0"], envFor(fixture), projectDir);
+  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1 }, null, 2) + "\n");
+  const result = await runAgentsCli(["card", "apply", "@me/backend@1.0.0"], envFor(fixture), projectDir);
   expect(result.exitCode).toBe(0);
   expect(result.stdout).toContain("Content summary:");
   expect(result.stdout).toContain("alpha");
 });
 
-test("project apply update path mentions changed skills via diff", async () => {
+test("card apply update path mentions changed skills via diff", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   await publishCardWithSkills(fixture, { name: "@me/backend", version: "1.0.0", skills: ["alpha"] });
   const projectDir = await createProjectDir(fixture);
-  await runAgentsCli(["apply", "@me/backend@1.0.0"], envFor(fixture), projectDir);
+  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1 }, null, 2) + "\n");
+  await runAgentsCli(["card", "apply", "@me/backend@1.0.0"], envFor(fixture), projectDir);
   await publishCardWithSkills(fixture, { name: "@me/backend", version: "1.1.0", skills: ["alpha", "beta"] });
-  const update = await runAgentsCli(["apply", "@me/backend@1.1.0"], envFor(fixture), projectDir);
+  const update = await runAgentsCli(["card", "apply", "@me/backend@1.1.0"], envFor(fixture), projectDir);
   expect(update.exitCode).toBe(0);
   expect(update.stdout).toContain("Content summary:");
   expect(update.stdout).toContain("beta");

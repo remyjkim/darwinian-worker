@@ -2,8 +2,9 @@
 // ABOUTME: Also exposes a top-level `drwn update` alias.
 
 import { Option } from "clipanion";
+import { updateProjectCardLock } from "../../core/card-project";
 import { BaseCommand } from "../base";
-import { commandMoved } from "./project-command";
+import { renderCardMutation, requireProjectRoot, runChainedWrite } from "./project-command";
 
 export class CardUpdateCommand extends BaseCommand {
   static override paths = [["card", "update"]];
@@ -28,6 +29,22 @@ export class CardUpdateCommand extends BaseCommand {
   });
 
   async execute() {
-    return commandMoved(this, "drwn update [name]");
+    if (this.allowUntrustedSource) {
+      this.context.stderr.write(`Warning: --allow-untrusted-source used for card update\n`);
+    }
+    const result = await updateProjectCardLock(requireProjectRoot(this), this.context.agentsDir, {
+      allowUntrustedSource: this.allowUntrustedSource,
+      repoRoot: this.context.repoRoot,
+      cwd: this.context.cwd,
+    });
+    this.context.stdout.write(renderCardMutation(result));
+    if (this.write) {
+      return await runChainedWrite(this);
+    }
+    return 0;
   }
+}
+
+export class UpdateCommand extends CardUpdateCommand {
+  static override paths = [["update"]];
 }

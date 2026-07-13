@@ -167,7 +167,7 @@ async function loadProjectWithCards(agentsDir: string, projectConfigPath?: strin
   const projectConfig = await loadProjectConfig(projectConfigPath);
   let cardLocks: Awaited<ReturnType<typeof resolveProjectCards>> = [];
   try {
-    cardLocks = projectConfig.workers ? await resolveProjectCards(agentsDir, projectConfig.workers) : [];
+    cardLocks = projectConfig.cards ? await resolveProjectCards(agentsDir, projectConfig.cards) : [];
   } catch {
     cardLocks = [];
   }
@@ -226,7 +226,7 @@ export async function buildDiagnosticsSections(
   return {
     machine: { repoRoot, agentsDir, homeDir },
     project: projectConfigPath && projectRoot && projectConfig
-      ? { configPath: projectConfigPath, root: projectRoot, cardCount: projectConfig.workers?.length ?? 0 }
+      ? { configPath: projectConfigPath, root: projectRoot, cardCount: projectConfig.cards?.length ?? 0 }
       : undefined,
     store,
     writeRecord: readWriteRecordStatus(writeRecordPath),
@@ -246,7 +246,7 @@ export async function buildDiagnosticsSections(
       projectExtensions: Object.keys(projectConfig?.extensions ?? {}),
     },
     cards: {
-      configuredRefs: projectConfig?.workers ?? [],
+      configuredRefs: projectConfig?.cards ?? [],
       lockedVersions: (lock?.cards ?? []).map((card) => `${card.name}@${card.version}`),
       warnings: [],
     },

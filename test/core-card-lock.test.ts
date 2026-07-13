@@ -24,13 +24,12 @@ afterEach(async () => {
 
 const TREE_SHA = "a".repeat(40);
 
-test("writeCardLock creates a v6 project lockfile with explicit Worker roots", async () => {
+test("writeCardLock creates a v5 project lockfile and loadCardLock reads it", async () => {
   const root = await createTempRoot("card-lock-");
   tempRoots.push(root);
 
-  const path = await writeCardLock(root, {
-    roots: [{ name: "@me/backend", requested: "@me/backend@^1.0.0", kind: "card", members: [] }],
-    cards: [{
+  const path = await writeCardLock(root, [
+    {
       name: "@me/backend",
       requested: "@me/backend@^1.0.0",
       version: "1.0.0",
@@ -43,72 +42,18 @@ test("writeCardLock creates a v6 project lockfile with explicit Worker roots", a
       registry: null,
       origin: "store",
       git: { commit: "a".repeat(40) },
-    }],
-  });
+    },
+  ]);
 
   expect(path).toBe(cardLockPath(root));
   expect(existsSync(path)).toBe(true);
   const loaded = await loadCardLock(root);
-  expect(loaded?.lockfileVersion).toBe(6);
-  expect(loaded?.lockfileVersion === 6 ? loaded.workerRoots : []).toEqual([
-    { name: "@me/backend", requested: "@me/backend@^1.0.0", kind: "card", members: [] },
-  ]);
+  expect(loaded?.lockfileVersion).toBe(5);
   expect(loaded?.store?.minDrwnVersion).toBeDefined();
   expect(loaded?.cards[0]?.name).toBe("@me/backend");
   expect(loaded?.cards[0]?.origin).toBe("store");
   expect(loaded?.cards[0]?.git?.commit).toBe("a".repeat(40));
   expect(loaded?.cards[0]?.treeSha).toBe(TREE_SHA);
-});
-
-test("validateCardLockfile rejects dangling, mismatched, and unreachable v6 graph entries", () => {
-  const card = {
-    name: "@me/backend",
-    requested: "@me/backend@^1.0.0",
-    version: "1.0.0",
-    path: "/cards/@me/backend/1.0.0",
-    integrity: "sha256-test",
-    treeSha: TREE_SHA,
-    manifest: { name: "@me/backend", version: "1.0.0" },
-    skills: [],
-    hooks: [],
-    registry: null,
-    origin: "store",
-    git: { commit: "a".repeat(40) },
-  };
-  const base = {
-    lockfileVersion: 6,
-    workerRoots: [{ name: card.name, requested: card.requested, kind: "card", members: [] }],
-    cards: [card],
-  };
-
-  expect(() => validateCardLockfile({ ...base, workerRoots: [{ ...base.workerRoots[0], name: "@me/missing" }] }))
-    .toThrow(/root Card.*missing/i);
-  expect(() => validateCardLockfile({ ...base, workerRoots: [{ ...base.workerRoots[0], kind: "blueprint" }] }))
-    .toThrow(/kind/i);
-  expect(() => validateCardLockfile({ ...base, workerRoots: [] })).toThrow(/unreachable/i);
-});
-
-test("validateCardLockfile keeps v2-v5 fixtures readable", () => {
-  for (const lockfileVersion of [2, 3, 4, 5] as const) {
-    const lock = validateCardLockfile({
-      lockfileVersion,
-      cards: [{
-        name: "@me/backend",
-        requested: "@me/backend@^1.0.0",
-        version: "1.0.0",
-        path: "/cards/@me/backend/1.0.0",
-        integrity: "sha256-test",
-        ...(lockfileVersion >= 5 ? { treeSha: TREE_SHA } : {}),
-        manifest: { name: "@me/backend", version: "1.0.0" },
-        skills: [],
-        ...(lockfileVersion >= 3 ? { hooks: [] } : {}),
-        registry: null,
-        origin: "store",
-        git: { commit: "a".repeat(40) },
-      }],
-    });
-    expect(lock.lockfileVersion).toBe(lockfileVersion);
-  }
 });
 
 test("writeCardLock persists the skills[] attribution field per card entry", async () => {
@@ -163,7 +108,7 @@ test("validateCardLockfile reads v2 entries with empty hooks", () => {
   expect(lock.cards[0]?.hookConsent).toBeUndefined();
 });
 
-test("writeCardLock preserves hooks and consent in v6", async () => {
+test("writeCardLock preserves hooks and consent in v3", async () => {
   const root = await createTempRoot("card-lock-");
   tempRoots.push(root);
 
@@ -188,7 +133,7 @@ test("writeCardLock preserves hooks and consent in v6", async () => {
   const raw = JSON.parse(await readFile(cardLockPath(root), "utf8"));
   const loaded = await loadCardLock(root);
 
-  expect(raw.lockfileVersion).toBe(6);
+  expect(raw.lockfileVersion).toBe(5);
   expect(loaded?.cards[0]?.hooks).toEqual(["audit"]);
   expect(loaded?.cards[0]?.hookConsent?.consentedRange).toBe("^1.0.0");
 });
@@ -306,7 +251,7 @@ test("loadCardLock rejects v1 lockfiles", async () => {
   await mkdir(dirname(cardLockPath(root)), { recursive: true });
   await writeFile(cardLockPath(root), JSON.stringify(v1Payload, null, 2));
 
-  await expect(loadCardLock(root)).rejects.toThrow("lockfileVersion: 2, 3, 4, 5, or 6");
+  await expect(loadCardLock(root)).rejects.toThrow("lockfileVersion: 2, 3, 4, or 5");
 });
 
 test("loadCardLock returns null when no lockfile exists", async () => {
@@ -316,7 +261,7 @@ test("loadCardLock returns null when no lockfile exists", async () => {
   expect(await loadCardLock(root)).toBeNull();
 });
 
-test("persistCardLock backfills treeSha before writing v6 lock", async () => {
+test("persistCardLock backfills treeSha before writing v5 lock", async () => {
   const { scaffoldCliFixture, cleanupTempRoots: _cleanup } = await import("./helpers");
   const { createLocalCardRepo } = await import("./fixtures/git-helpers");
   const { persistCardLock, loadCardLock } = await import("../cli/core/card-lock");
@@ -402,7 +347,7 @@ test("writeCardLock preserves mind content metadata and raises the version floor
   const raw = JSON.parse(await readFile(cardLockPath(root), "utf8"));
   const loaded = await loadCardLock(root);
 
-  expect(raw.lockfileVersion).toBe(6);
+  expect(raw.lockfileVersion).toBe(5);
   expect(raw.store.minDrwnVersion).toBe(MINDS_MIN_DRWN_VERSION);
   expect(loaded?.cards[0]?.persona).toEqual({ include: ["voice"], visibility: "internal" });
   expect(loaded?.cards[0]?.beliefs).toEqual({ include: ["engineering"], visibility: "public" });

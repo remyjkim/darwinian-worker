@@ -112,32 +112,6 @@ export class WriteCommand extends BaseCommand {
       throw new UsageError("--scope project cannot be combined with --root/--user.");
     }
 
-    let preflightState: Awaited<ReturnType<typeof buildEffectiveState>>;
-    try {
-      preflightState = await buildEffectiveState({
-        repoRoot: this.context.repoRoot,
-        agentsDir: this.context.agentsDir,
-        homeDir: this.context.homeDir,
-        cwd: this.context.cwd,
-        dryRun: this.dryRun,
-        mcpOnly: this.mcpOnly,
-        skillsOnly: this.skillsOnly,
-        target: this.target as "claude" | "codex" | "cursor" | undefined,
-        force: this.force,
-        strictHooks: this.strictHooks,
-        forceMachineScope: this.root || this.user || this.scope === "machine",
-        scope: this.scope as "machine" | "project" | undefined,
-      });
-      assertMachineWriteScopeAllowed({
-        writeScope: preflightState.scopedOptions.writeScope,
-        forceMachineScope: preflightState.normalized.forceMachineScope,
-        scope: this.scope as "machine" | "project" | undefined,
-      });
-    } catch (error) {
-      this.context.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-      return 1;
-    }
-
     if (!(this.root || this.user)) {
       const projectConfigPath = findProjectConfig(this.context.cwd);
       const projectRoot = projectConfigPath ? resolveProjectRootFromConfigPath(projectConfigPath) : null;
@@ -165,7 +139,12 @@ export class WriteCommand extends BaseCommand {
               );
             }
           }
-          const consentState = preflightState;
+          const consentState = await buildEffectiveState({
+            repoRoot: this.context.repoRoot,
+            agentsDir: this.context.agentsDir,
+            homeDir: this.context.homeDir,
+            cwd: this.context.cwd,
+          });
           const consentScratch = { changes: [] as string[], warnings: [] as string[], managedPaths: [] as [] };
           await reconcileVendorTrees(consentState, consentScratch);
           consentState.contentRootsByCard = recomputeContentRootsByCard(consentState, { allowPlanningFallback: false });

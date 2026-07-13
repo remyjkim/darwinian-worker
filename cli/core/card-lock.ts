@@ -12,7 +12,6 @@ import * as git from "./git";
 import { resolveCardBareRepoPath } from "./store-paths";
 import { gte } from "./semver-utils";
 import { DRWN_VERSION } from "./version";
-import { graphFromCards, type ResolvedWorkerGraph, type WorkerRootLockEntry } from "./worker-graph";
 
 export type CardOrigin = "store" | "git" | "file" | "npm";
 
@@ -44,20 +43,11 @@ export interface CardLockEntry {
   git?: GitLockInfo;
 }
 
-export interface LegacyCardLockfile {
+export interface CardLockfile {
   lockfileVersion: 2 | 3 | 4 | 5;
   store?: { minDrwnVersion?: string };
   cards: CardLockEntry[];
 }
-
-export interface CardLockfileV6 {
-  lockfileVersion: 6;
-  store?: { minDrwnVersion?: string };
-  workerRoots: WorkerRootLockEntry[];
-  cards: CardLockEntry[];
-}
-
-export type CardLockfile = LegacyCardLockfile | CardLockfileV6;
 
 export const HOOKS_MIN_DRWN_VERSION = "0.3.0";
 export const MINDS_MIN_DRWN_VERSION = "0.7.0";
@@ -96,16 +86,8 @@ export async function loadCardLock(projectRoot: string): Promise<CardLockfile | 
   return validateCardLockfile(JSON.parse(await readFile(path, "utf8")), path);
 }
 
-export async function writeCardLock(projectRoot: string, graphOrCards: ResolvedWorkerGraph | CardLockEntry[]) {
+export async function writeCardLock(projectRoot: string, cards: CardLockEntry[]) {
   const path = cardLockPath(projectRoot);
-  const lockfile = createCardLockfile(graphOrCards);
-  await writeAtomically(path, `${JSON.stringify(lockfile, null, 2)}\n`);
-  return path;
-}
-
-export function createCardLockfile(graphOrCards: ResolvedWorkerGraph | CardLockEntry[]): CardLockfileV6 {
-  const graph = Array.isArray(graphOrCards) ? graphFromCards(graphOrCards) : graphOrCards;
-  const cards = graph.cards;
   const normalizedCards = cards.map((card) => ({
     ...card,
     ...(card.persona ?? card.manifest.persona ? { persona: card.persona ?? card.manifest.persona } : {}),
@@ -121,31 +103,19 @@ export function createCardLockfile(graphOrCards: ResolvedWorkerGraph | CardLockE
     }
   }
   const hasMindContent = normalizedCards.some((card) => card.persona || card.beliefs || card.memory);
-  const lockfileVersion = 6;
+  const lockfileVersion = 5;
   const lockfile = validateCardLockfile({
     lockfileVersion,
     store: { minDrwnVersion: hasMindContent ? MINDS_MIN_DRWN_VERSION : HOOKS_MIN_DRWN_VERSION },
-    workerRoots: graph.roots,
     cards: normalizedCards,
   });
-  if (lockfile.lockfileVersion !== 6) {
-    throw new Error("Internal error: project Card graph did not produce lockfile V6");
-  }
-  return lockfile;
+  await writeAtomically(path, `${JSON.stringify(lockfile, null, 2)}\n`);
+  return path;
 }
 
-export function serializeCardLock(graphOrCards: ResolvedWorkerGraph | CardLockEntry[]): string {
-  return `${JSON.stringify(createCardLockfile(graphOrCards), null, 2)}\n`;
-}
-
-export async function persistCardLock(
-  projectRoot: string,
-  agentsDir: string,
-  graphOrCards: ResolvedWorkerGraph | CardLockEntry[],
-) {
-  const graph = Array.isArray(graphOrCards) ? graphFromCards(graphOrCards) : graphOrCards;
-  const backfilled = await backfillLockTreeShas(agentsDir, graph.cards);
-  return writeCardLock(projectRoot, { roots: graph.roots, cards: backfilled });
+export async function persistCardLock(projectRoot: string, agentsDir: string, cards: CardLockEntry[]) {
+  const backfilled = await backfillLockTreeShas(agentsDir, cards);
+  return writeCardLock(projectRoot, backfilled);
 }
 
 export async function backfillLockTreeShas(agentsDir: string, cards: CardLockEntry[]): Promise<CardLockEntry[]> {
@@ -176,94 +146,17 @@ export function validateCardLockfile(input: unknown, source = "card lockfile"): 
     (input.lockfileVersion !== 2 &&
       input.lockfileVersion !== 3 &&
       input.lockfileVersion !== 4 &&
-      input.lockfileVersion !== 5 &&
-      input.lockfileVersion !== 6) ||
+      input.lockfileVersion !== 5) ||
     !Array.isArray(input.cards)
   ) {
-    throw new Error(`Invalid card lockfile ${source}: expected lockfileVersion: 2, 3, 4, 5, or 6`);
+    throw new Error(`Invalid card lockfile ${source}: expected lockfileVersion: 2, 3, 4, or 5`);
   }
   const lockfileVersion = input.lockfileVersion as CardLockfile["lockfileVersion"];
   const cards = input.cards.map((entry, index) =>
     validateCardLockEntry(entry, `${source} cards[${index}]`, lockfileVersion),
   );
   const store = isObject(input.store) ? { minDrwnVersion: stringOrUndefined(input.store.minDrwnVersion) } : undefined;
-  if (lockfileVersion !== 6) {
-    return store ? { lockfileVersion, store, cards } : { lockfileVersion, cards };
-  }
-  const workerRoots = validateWorkerRoots(input.workerRoots, cards, source);
-  return store
-    ? { lockfileVersion, store, workerRoots, cards }
-    : { lockfileVersion, workerRoots, cards };
-}
-
-function validateWorkerRoots(input: unknown, cards: CardLockEntry[], source: string): WorkerRootLockEntry[] {
-  if (!Array.isArray(input)) {
-    throw new Error(`Invalid card lockfile ${source}: workerRoots must be an array`);
-  }
-  const cardsByName = new Map<string, CardLockEntry>();
-  for (const card of cards) {
-    if (cardsByName.has(card.name)) {
-      throw new Error(`Invalid card lockfile ${source}: duplicate Card entry ${card.name}`);
-    }
-    if (card.manifest.name !== card.name || card.manifest.version !== card.version) {
-      throw new Error(`Invalid card lockfile ${source}: Card entry ${card.name} disagrees with its manifest identity`);
-    }
-    cardsByName.set(card.name, card);
-  }
-
-  const roots: WorkerRootLockEntry[] = [];
-  const rootNames = new Set<string>();
-  const reachable = new Set<string>();
-  for (const [index, value] of input.entries()) {
-    if (!isObject(value)) {
-      throw new Error(`Invalid card lockfile ${source}: workerRoots[${index}] must be an object`);
-    }
-    assertString(value.name, `${source}.workerRoots[${index}].name`);
-    assertString(value.requested, `${source}.workerRoots[${index}].requested`);
-    if (value.kind !== "card" && value.kind !== "blueprint") {
-      throw new Error(`Invalid card lockfile ${source}: workerRoots[${index}].kind must be card or blueprint`);
-    }
-    if (!Array.isArray(value.members) || !value.members.every((member) => typeof member === "string" && member.length > 0)) {
-      throw new Error(`Invalid card lockfile ${source}: workerRoots[${index}].members must be string[]`);
-    }
-    if (rootNames.has(value.name)) {
-      throw new Error(`Invalid card lockfile ${source}: duplicate Worker root ${value.name}`);
-    }
-    rootNames.add(value.name);
-    const rootCard = cardsByName.get(value.name);
-    if (!rootCard) {
-      throw new Error(`Invalid card lockfile ${source}: root Card ${value.name} is missing`);
-    }
-    const manifestKind = rootCard.manifest.kind === "blueprint" ? "blueprint" : "card";
-    if (manifestKind !== value.kind) {
-      throw new Error(`Invalid card lockfile ${source}: root ${value.name} kind disagrees with its manifest`);
-    }
-    if (value.requested !== rootCard.requested) {
-      throw new Error(`Invalid card lockfile ${source}: root ${value.name} requested spec disagrees with its Card entry`);
-    }
-    const memberNames = new Set<string>();
-    for (const memberName of value.members) {
-      if (memberNames.has(memberName)) {
-        throw new Error(`Invalid card lockfile ${source}: root ${value.name} repeats member ${memberName}`);
-      }
-      memberNames.add(memberName);
-      const member = cardsByName.get(memberName);
-      if (!member) {
-        throw new Error(`Invalid card lockfile ${source}: root ${value.name} member Card ${memberName} is missing`);
-      }
-      if (member.manifest.kind === "blueprint") {
-        throw new Error(`Invalid card lockfile ${source}: root ${value.name} member ${memberName} is a Blueprint`);
-      }
-      reachable.add(memberName);
-    }
-    reachable.add(value.name);
-    roots.push({ name: value.name, requested: value.requested, kind: value.kind, members: [...value.members] });
-  }
-  const unreachable = cards.filter((card) => !reachable.has(card.name));
-  if (unreachable.length > 0) {
-    throw new Error(`Invalid card lockfile ${source}: unreachable Card entries: ${unreachable.map((card) => card.name).join(", ")}`);
-  }
-  return roots;
+  return store ? { lockfileVersion, store, cards } : { lockfileVersion, cards };
 }
 
 function validateCardLockEntry(input: unknown, source: string, lockfileVersion: CardLockfile["lockfileVersion"]): CardLockEntry {

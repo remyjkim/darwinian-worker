@@ -91,7 +91,7 @@ export function ensureProjectSkillInclude(projectDir: string, skillName = "beads
   const configPath = join(projectDir, ".agents", "drwn", "config.json");
   const config: ProjectConfig = existsSync(configPath)
     ? JSON.parse(readFileSync(configPath, "utf8")) as ProjectConfig
-    : { version: 2 };
+    : { version: 1 };
 
   config.skills ??= {};
   config.skills.include ??= [];
