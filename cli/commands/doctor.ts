@@ -2,7 +2,8 @@
 // ABOUTME: Surfaces broken links, stale state, MCP drift, and missing generated files without mutating anything.
 
 import { Option } from "clipanion";
-import { buildDoctorReportWithProject } from "../core/diagnostics";
+import { buildDoctorReportWithProject, buildProjectStatusV1 } from "../core/diagnostics";
+import { DrwnError } from "../core/errors";
 import { renderDoctorReport, renderJson } from "../core/output";
 import { BaseCommand } from "./base";
 
@@ -32,6 +33,20 @@ export class DoctorCommand extends BaseCommand {
   });
 
   async execute() {
+    try {
+      return await this.executeReport();
+    } catch (error) {
+      if (!(error instanceof DrwnError)) throw error;
+      if (this.json) {
+        this.context.stdout.write(renderJson(error.toJSON()));
+      } else {
+        this.context.stderr.write(`${error.code}: ${error.message}\n`);
+      }
+      return 1;
+    }
+  }
+
+  private async executeReport() {
     const report = await buildDoctorReportWithProject(
       this.context.repoRoot,
       this.context.agentsDir,
@@ -40,7 +55,13 @@ export class DoctorCommand extends BaseCommand {
     );
 
     if (this.json) {
-      this.context.stdout.write(renderJson(report));
+      const projectStatus = await buildProjectStatusV1({
+        repoRoot: this.context.repoRoot,
+        agentsDir: this.context.agentsDir,
+        homeDir: this.context.homeDir,
+        projectConfigPath: this.context.projectConfigPath,
+      });
+      this.context.stdout.write(renderJson({ ...report, ...(projectStatus ?? {}) }));
       return 0;
     }
 

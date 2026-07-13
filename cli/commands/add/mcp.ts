@@ -5,7 +5,6 @@ import { Option, UsageError } from "clipanion";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { loadConfig } from "../../core/config";
-import { loadEffectiveConfig } from "../../core/user-config";
 import { findLibraryMcpServer } from "../../core/library";
 import { buildEffectiveState } from "../../core/effective-state";
 import { projectConfigPath, setProjectServerOverride } from "../../core/project-writes";
@@ -19,7 +18,7 @@ export class AddMcpCommand extends BaseCommand {
 
   static override usage = BaseCommand.Usage({
     category: "Add",
-    description: "Add an MCP server to the current project. Prompts in a TTY when no name is given; re-adding an already-default server is a safe no-op.",
+    description: "Add an MCP server to the current project. Prompts in a TTY when no name is given.",
     details: `
       Activates a known MCP server in the current project without mutating
       machine-wide defaults. Looks up the server in the local library first;
@@ -27,9 +26,8 @@ export class AddMcpCommand extends BaseCommand {
       the current project has locked cards that declare optional MCP servers,
       those card-local definitions can also be enabled by name.
 
-      Prompts in a TTY when no query or name is given. Re-adding a server that
-      is already active by global default is a safe no-op and does not write a
-      project override.
+      Prompts in a TTY when no query or name is given. Project intent is always
+      explicit, even when the same server is active in machine scope.
     `,
     examples: [
       ["Add a registry server to this project", "drwn add mcp context7"],
@@ -65,7 +63,7 @@ export class AddMcpCommand extends BaseCommand {
     const server = await findLibraryMcpServer(this.context.repoRoot, queryOrName, this.context.agentsDir);
     let serverDefinition = server?.server;
     let selectedId = server?.id ?? queryOrName;
-    let selectedSource: "library" | "catalog" | "card" | null = server ? "library" : null;
+    let selectedSource: "registry" | "library" | "catalog" | "card" | null = server?.source ?? null;
     const requiredEnv = new Set<string>();
     if (!server) {
       if (this.libraryOnly) {
@@ -120,20 +118,21 @@ export class AddMcpCommand extends BaseCommand {
 
     const configPath = projectConfigPath(this.context.cwd);
     const id = selectedId;
-    const effective = await loadEffectiveConfig(await loadConfig(this.context.repoRoot), this.context.agentsDir);
-    const alreadyDefault = effective.config.defaults?.mcpServers?.includes(id) === true;
     const payload = {
       kind: "mcp",
       id,
-      action: alreadyDefault ? "already-active" : "enabled",
+      action: "enabled",
       projectConfigPath: configPath,
-      projectChanges: alreadyDefault ? [] : [{ kind: "mcp", id, action: "enabled" }],
+      projectChanges: [{ kind: "mcp", id, action: "enabled" }],
       requiredEnv: [...requiredEnv],
       next: ["drwn write --dry-run"],
     };
 
-    if (!this.dryRun && !alreadyDefault) {
-      setProjectServerOverride(this.context.cwd, id, selectedSource === "catalog" ? serverDefinition! : { enabled: true });
+    if (!this.dryRun) {
+      const override = selectedSource === "card" || selectedSource === "registry"
+        ? { enabled: true as const }
+        : { ...serverDefinition!, optional: false };
+      setProjectServerOverride(this.context.cwd, id, override);
     }
 
     if (this.json) {
@@ -142,22 +141,14 @@ export class AddMcpCommand extends BaseCommand {
     }
 
     this.context.stdout.write(
-      alreadyDefault
-        ? [
-            `${id} is already active by global default.`,
-            "No project override needed.",
-            "",
-            "Next:",
-            "  drwn write --dry-run",
-          ].join("\n") + "\n"
-        : [
-            `Added ${id} to this project.`,
-            ...(this.dryRun ? [`Would update ${configPath}`] : [`Updated ${configPath}`]),
-            ...([...requiredEnv].length > 0 ? [`Required environment: ${[...requiredEnv].join(", ")}`] : []),
-            "",
-            "Next:",
-            "  drwn write --dry-run",
-          ].join("\n") + "\n",
+      [
+        `Added ${id} to this project.`,
+        ...(this.dryRun ? [`Would update ${configPath}`] : [`Updated ${configPath}`]),
+        ...([...requiredEnv].length > 0 ? [`Required environment: ${[...requiredEnv].join(", ")}`] : []),
+        "",
+        "Next:",
+        "  drwn write --dry-run",
+      ].join("\n") + "\n",
     );
     return 0;
   }
@@ -195,5 +186,15 @@ async function findCardOptionalMcpServer(input: {
     (definition) => definition.serverName === input.name && definition.server.optional === true,
   );
   const match = matches.at(-1);
-  return match ? { id: match.serverName, server: match.server } : null;
+  if (match) return { id: match.serverName, server: match.server };
+  const inactive = state.inactiveCardServerDefinitions.find((definition) => definition.serverName === input.name);
+  if (inactive) {
+    const root = state.workerSelection?.installedRoots.find((entry) =>
+      entry.name === inactive.cardName || entry.members.includes(inactive.cardName)
+    );
+    throw new UsageError(
+      `MCP_DEFINITION_NOT_EFFECTIVE: ${input.name} is declared by inactive Worker root ${root?.name ?? inactive.cardName}`,
+    );
+  }
+  return null;
 }

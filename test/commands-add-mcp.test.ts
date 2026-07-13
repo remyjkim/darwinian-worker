@@ -129,7 +129,7 @@ describe("drwn add mcp", () => {
     expect(projectConfig.mcpServers?.github?.env?.GITHUB_TOKEN).toBe("${GITHUB_TOKEN}");
   });
 
-  test("does not write a project override for an already global default MCP", async () => {
+  test("writes explicit project intent even when the MCP is a machine default", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     await mkdir(join(fixture.agentsDir, "drwn"), { recursive: true });
@@ -143,12 +143,13 @@ describe("drwn add mcp", () => {
 
     expect(result.exitCode).toBe(0);
     const parsed = JSON.parse(result.stdout) as { action: string; projectChanges: unknown[] };
-    expect(parsed.action).toBe("already-active");
-    expect(parsed.projectChanges).toEqual([]);
-    expect(existsSync(join(projectDir, ".agents", "drwn", "config.json"))).toBe(false);
+    expect(parsed.action).toBe("enabled");
+    expect(parsed.projectChanges).toHaveLength(1);
+    const project = JSON.parse(await readFile(join(projectDir, ".agents", "drwn", "config.json"), "utf8"));
+    expect(project.mcpServers.context7).toEqual({ enabled: true });
   });
 
-  test("adds a user library MCP server toggle to project config", async () => {
+  test("adds a user library MCP server as an explicit project definition", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     const { saveMcpLibrary } = await import("../cli/core/mcp-library");
@@ -170,9 +171,9 @@ describe("drwn add mcp", () => {
 
     expect(result.exitCode).toBe(0);
     const config = JSON.parse(await readFile(join(projectDir, ".agents", "drwn", "config.json"), "utf8")) as {
-      mcpServers?: Record<string, { enabled?: boolean }>;
+      mcpServers?: Record<string, { enabled?: boolean; command?: string; optional?: boolean }>;
     };
-    expect(config.mcpServers?.github).toEqual({ enabled: true });
+    expect(config.mcpServers?.github).toEqual(expect.objectContaining({ command: "npx", optional: false }));
   });
 
   test("adds a card-local optional MCP server toggle to project config", async () => {
@@ -206,5 +207,38 @@ describe("drwn add mcp", () => {
       mcpServers?: Record<string, { enabled?: boolean; command?: string }>;
     };
     expect(config.mcpServers?.["card-local"]).toEqual({ enabled: true });
+  });
+
+  test("refuses an MCP definition that exists only on an inactive Worker root", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    await publishCardWithSkills(fixture, { name: "@me/active", skills: [] });
+    await publishCardWithSkills(fixture, {
+      name: "@me/inactive",
+      skills: [],
+      servers: {
+        "inactive-mcp": {
+          description: "Inactive MCP",
+          transport: "stdio",
+          command: "inactive-mcp",
+          optional: true,
+        },
+      },
+    });
+    const projectDir = join(fixture.root, "inactive-root-project");
+    await installProjectWorkers(
+      projectDir,
+      fixture.agentsDir,
+      ["@me/active@1.0.0", "@me/inactive@1.0.0"],
+      "@me/active",
+    );
+    const configBefore = await readFile(join(projectDir, ".agents", "drwn", "config.json"), "utf8");
+
+    const result = await runAgentsCli(["add", "mcp", "inactive-mcp"], envFor(fixture), projectDir);
+
+    expect(result.exitCode).not.toBe(0);
+    expect(`${result.stdout}\n${result.stderr}`).toContain("MCP_DEFINITION_NOT_EFFECTIVE");
+    expect(`${result.stdout}\n${result.stderr}`).toContain("@me/inactive");
+    expect(await readFile(join(projectDir, ".agents", "drwn", "config.json"), "utf8")).toBe(configBefore);
   });
 });

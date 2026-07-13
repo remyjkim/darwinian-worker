@@ -4,7 +4,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -13,6 +13,22 @@ afterEach(async () => {
 });
 
 describe("drwn doctor", () => {
+  test("reports the supported error code for an invalid project schema", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const projectDir = join(fixture.root, "project");
+    const configPath = join(projectDir, ".agents", "drwn", "config.json");
+    await mkdir(dirname(configPath), { recursive: true });
+    await writeFile(configPath, `${JSON.stringify({ version: 1, cards: [] }, null, 2)}\n`);
+
+    const result = await runAgentsCli(["doctor", "--json"], envFor(fixture), projectDir);
+    const output = `${result.stdout}\n${result.stderr}`;
+
+    expect(result.exitCode).not.toBe(0);
+    expect(output).toContain("PROJECT_CONFIG_INVALID");
+    expect(output.toLowerCase()).not.toContain("migrat");
+  });
+
   test("surfaces the Cowork annotation and platform checks when claude is enabled", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
@@ -145,13 +161,8 @@ describe("drwn doctor", () => {
     tempRoots.push(fixture.root);
     const projectDir = join(fixture.root, "project");
     const projectConfigPath = join(projectDir, ".agents", "drwn", "config.json");
-    await mkdir(dirname(projectConfigPath), { recursive: true });
-    await writeFile(
-      projectConfigPath,
-      JSON.stringify(
-        {
-          version: 1,
-          servers: {
+    await writeSupportedProjectConfig(projectDir, {
+          mcpServers: {
             missingServer: { enabled: true },
             "parallel-search": { enabled: false },
           },
@@ -161,11 +172,7 @@ describe("drwn doctor", () => {
           targets: {
             codex: { enabled: true },
           },
-        },
-        null,
-        2,
-      ),
-    );
+        });
 
     const result = await runAgentsCli(["doctor"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
@@ -206,12 +213,8 @@ describe("drwn doctor", () => {
     await publishCardWithSkills(fixture, { name: "@me/frontend", skills: ["polish"] });
     const projectDir = join(fixture.root, "project");
     const projectConfigPath = join(projectDir, ".agents", "drwn", "config.json");
-    await mkdir(dirname(projectConfigPath), { recursive: true });
-    await writeFile(
-      projectConfigPath,
-      JSON.stringify({ version: 1, cards: ["@me/frontend@^1.0.0"] }, null, 2),
-    );
-    expect((await runAgentsCli(["card", "update"], envFor(fixture), projectDir)).exitCode).toBe(0);
+    await writeSupportedProjectConfig(projectDir);
+    expect((await runAgentsCli(["apply", "@me/frontend@^1.0.0"], envFor(fixture), projectDir)).exitCode).toBe(0);
 
     const result = await runAgentsCli(["doctor", "--json"], envFor(fixture), projectDir);
 
@@ -232,9 +235,8 @@ describe("drwn doctor", () => {
     expect((await runAgentsCli(["card", "publish", "@me/policy"], envFor(fixture))).exitCode).toBe(0);
     const manifest = JSON.parse(await readFile(join(fixture.agentsDir, "drwn", "sources", "@me", "policy", "card.json"), "utf8"));
     const projectDir = join(fixture.root, "project");
-    await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-    await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1, cards: [] }, null, 2));
-    expect((await runAgentsCli(["card", "add", `@me/policy@${manifest.version}`], envFor(fixture), projectDir)).exitCode).toBe(0);
+    await writeSupportedProjectConfig(projectDir);
+    expect((await runAgentsCli(["add", `@me/policy@${manifest.version}`], envFor(fixture), projectDir)).exitCode).toBe(0);
 
     const result = await runAgentsCli(["doctor", "--json"], envFor(fixture), projectDir);
 
@@ -259,10 +261,8 @@ describe("drwn doctor", () => {
     expect((await runAgentsCli(["card", "publish", "@me/policy"], envFor(fixture))).exitCode).toBe(0);
     const manifest = JSON.parse(await readFile(join(sourceDir, "card.json"), "utf8"));
     const projectDir = join(fixture.root, "project");
-    await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-    await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1, cards: [] }, null, 2));
-    expect((await runAgentsCli(["card", "add", `@me/policy@${manifest.version}`], envFor(fixture), projectDir)).exitCode).toBe(0);
-    expect((await runAgentsCli(["worker", "stack", "use", "@me/policy"], envFor(fixture), projectDir)).exitCode).toBe(0);
+    await writeSupportedProjectConfig(projectDir);
+    expect((await runAgentsCli(["add", `@me/policy@${manifest.version}`], envFor(fixture), projectDir)).exitCode).toBe(0);
     expect((await runAgentsCli(["card", "trust", "@me/policy", "--hooks"], envFor(fixture), projectDir)).exitCode).toBe(0);
     expect((await runAgentsCli(["write"], envFor(fixture), projectDir)).exitCode).toBe(0);
 
@@ -286,9 +286,8 @@ describe("drwn doctor", () => {
     expect((await runAgentsCli(["card", "publish", "@me/policy"], envFor(fixture))).exitCode).toBe(0);
     const manifest = JSON.parse(await readFile(join(sourceDir, "card.json"), "utf8"));
     const projectDir = join(fixture.root, "project");
-    await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-    await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1, cards: [] }, null, 2));
-    expect((await runAgentsCli(["card", "add", `@me/policy@${manifest.version}`], envFor(fixture), projectDir)).exitCode).toBe(0);
+    await writeSupportedProjectConfig(projectDir);
+    expect((await runAgentsCli(["add", `@me/policy@${manifest.version}`], envFor(fixture), projectDir)).exitCode).toBe(0);
     expect((await runAgentsCli(["card", "trust", "@me/policy", "--hooks"], envFor(fixture), projectDir)).exitCode).toBe(0);
     expect((await runAgentsCli(["write"], envFor(fixture), projectDir)).exitCode).toBe(0);
     const composerPath = join(projectDir, ".agents", "drwn", "generated", "workers", "@me", "policy", "hooks", "claude", "composer.mjs");

@@ -45,6 +45,7 @@ export interface EffectiveState {
   projectConfigWithCards: ProjectConfig | null;
   workerSelection: EffectiveWorkerSelection | null;
   cardServerDefinitions: CardServerDefinition[];
+  inactiveCardServerDefinitions: CardServerDefinition[];
   lockedCards: CardLockEntry[];
   activeCards: CardLockEntry[];
   skillApplyOrderCards: CardLockEntry[];
@@ -68,6 +69,7 @@ export interface EffectiveWorkerSelection {
   activeCards: CardLockEntry[];
   selectionSource: "project" | "local";
   localOverrides: {
+    activeWorker: string | null;
     cardReplacements: string[];
     localOnlyRoots: string[];
     sourceOverrides: string[];
@@ -167,6 +169,7 @@ export function selectProjectWorker(options: SelectProjectWorkerOptions): Effect
       activeCards: [],
       selectionSource,
       localOverrides: {
+        activeWorker: configLocal?.activeWorker ?? null,
         cardReplacements: replacementNames,
         localOnlyRoots: localOnlyNames,
         sourceOverrides: Object.keys(configLocal?.sourceOverrides ?? {}),
@@ -192,6 +195,7 @@ export function selectProjectWorker(options: SelectProjectWorkerOptions): Effect
     activeCards,
     selectionSource,
     localOverrides: {
+      activeWorker: configLocal?.activeWorker ?? null,
       cardReplacements: replacementNames,
       localOnlyRoots: localOnlyNames,
       sourceOverrides: Object.keys(configLocal?.sourceOverrides ?? {}),
@@ -203,13 +207,13 @@ export function selectProjectWorker(options: SelectProjectWorkerOptions): Effect
 export async function buildEffectiveState(options: SyncOptions = {}): Promise<EffectiveState> {
   const normalized = normalizeSyncPathOptions(options, options.repoRoot ? undefined : import.meta.path);
   const repoConfig = await loadConfig(normalized.repoRoot);
-  const registry = mergeUserMcpLibrary(
-    await loadRegistry(normalized.repoRoot),
-    await loadMcpLibrary(normalized.agentsDir),
-  );
-  const { config: machineConfig } = await loadEffectiveConfig(repoConfig, normalized.agentsDir);
   const projectConfigPath = normalized.forceMachineScope ? null : findProjectConfig(normalized.cwd ?? process.cwd());
   const projectRoot = projectConfigPath ? resolveProjectRootFromConfigPath(projectConfigPath) : null;
+  const builtInRegistry = await loadRegistry(normalized.repoRoot);
+  const registry = projectConfigPath
+    ? builtInRegistry
+    : mergeUserMcpLibrary(builtInRegistry, await loadMcpLibrary(normalized.agentsDir));
+  const { config: machineConfig } = await loadEffectiveConfig(repoConfig, normalized.agentsDir);
   const baseConfig = projectConfigPath ? repoConfig : machineConfig;
   let effectiveConfig = baseConfig;
   let effectiveRegistry = registry;
@@ -224,6 +228,7 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
   let projectConfigWithCards: ProjectConfig | null = null;
   let workerSelection: EffectiveWorkerSelection | null = null;
   let cardServerDefinitions: CardServerDefinition[] = [];
+  let inactiveCardServerDefinitions: CardServerDefinition[] = [];
   let overlayCards: CardLockEntry[] = [];
   const cardModes: Record<string, ResolvedCardMode> = {};
   const cardLanes: Record<string, "committed" | "localOverlay"> = {};
@@ -294,8 +299,12 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
       projectConfig,
       activeCards.map((card) => card.manifest),
     );
-    cardServerDefinitions = collectCardServerDefinitions(lockedCards);
-    const registryWithCards = mergeCardServerDefinitionsIntoRegistry(registry, collectCardServerDefinitions(activeCards));
+    cardServerDefinitions = collectCardServerDefinitions(activeCards);
+    const activeNames = new Set(activeCards.map((card) => card.name));
+    inactiveCardServerDefinitions = collectCardServerDefinitions(
+      lockedCards.filter((card) => !activeNames.has(card.name)),
+    );
+    const registryWithCards = mergeCardServerDefinitionsIntoRegistry(registry, cardServerDefinitions);
     const projectOverlay: ProjectConfig = {
       ...projectConfigWithCards,
       mcpServers: projectConfig.mcpServers,
@@ -332,6 +341,7 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
     projectConfigWithCards,
     workerSelection,
     cardServerDefinitions,
+    inactiveCardServerDefinitions,
     lockedCards,
     activeCards,
     skillApplyOrderCards,

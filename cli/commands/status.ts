@@ -2,8 +2,9 @@
 // ABOUTME: Provides both human-readable and JSON output for operators and automation.
 
 import { Option } from "clipanion";
-import { answerWhy, buildDiagnosticsSections, buildStatusReport, explainStatus } from "../core/diagnostics";
+import { answerWhy, buildDiagnosticsSections, buildProjectStatusV1, buildStatusReport, explainStatus } from "../core/diagnostics";
 import { buildEffectiveState } from "../core/effective-state";
+import { DrwnError } from "../core/errors";
 import { resolveProjectRootFromConfigPath } from "../core/project";
 import { renderJson, renderTable } from "../core/output";
 import { BaseCommand } from "./base";
@@ -41,6 +42,20 @@ export class StatusCommand extends BaseCommand {
   });
 
   async execute() {
+    try {
+      return await this.executeStatus();
+    } catch (error) {
+      if (!(error instanceof DrwnError)) throw error;
+      if (this.json) {
+        this.context.stdout.write(renderJson(error.toJSON()));
+      } else {
+        this.context.stderr.write(`${error.code}: ${error.message}\n`);
+      }
+      return 1;
+    }
+  }
+
+  private async executeStatus() {
     if (this.why) {
       const answer = await answerWhy(
         this.context.repoRoot,
@@ -106,7 +121,18 @@ export class StatusCommand extends BaseCommand {
           };
         }
       }
-      this.context.stdout.write(renderJson({ ...status, sections, ...(cardModes ? { cardModes } : {}) }));
+      const projectStatus = await buildProjectStatusV1({
+        repoRoot: this.context.repoRoot,
+        agentsDir: this.context.agentsDir,
+        homeDir: this.context.homeDir,
+        projectConfigPath: this.context.projectConfigPath,
+      });
+      this.context.stdout.write(renderJson({
+        ...status,
+        sections,
+        ...(cardModes ? { cardModes } : {}),
+        ...(projectStatus ?? {}),
+      }));
       return 0;
     }
 
@@ -135,6 +161,7 @@ export class StatusCommand extends BaseCommand {
         homeDir: this.context.homeDir,
         cwd: projectRoot,
       });
+      output += `  Active Worker:      ${state.workerSelection?.activeWorker ?? "none"}\n`;
       if (state.lockedCards.length > 0) {
         output += "\nCard modes:\n";
         for (const card of state.lockedCards) {

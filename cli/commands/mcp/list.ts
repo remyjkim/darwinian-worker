@@ -2,14 +2,8 @@
 // ABOUTME: Surfaces whether each canonical server is active under the current config and target setup.
 
 import { Option } from "clipanion";
-import { loadConfig } from "../../../cli/core/config";
-import { mergeUserMcpLibrary } from "../../../cli/core/defaults";
-import { loadMcpLibrary } from "../../../cli/core/mcp-library";
-import { buildActiveServers } from "../../../cli/core/mcp";
+import { buildEffectiveState } from "../../../cli/core/effective-state";
 import { renderJson, renderTable } from "../../../cli/core/output";
-import { loadProjectConfig, mergeProjectConfig } from "../../../cli/core/project";
-import { loadRegistry } from "../../../cli/core/registry";
-import { loadEffectiveConfig } from "../../../cli/core/user-config";
 import { BaseCommand } from "../base";
 
 export class McpListCommand extends BaseCommand {
@@ -37,34 +31,24 @@ export class McpListCommand extends BaseCommand {
   });
 
   async execute() {
-    const [repoConfig, builtInRegistry, userMcpLibrary] = await Promise.all([
-      loadConfig(this.context.repoRoot),
-      loadRegistry(this.context.repoRoot),
-      loadMcpLibrary(this.context.agentsDir),
-    ]);
-    const registry = mergeUserMcpLibrary(builtInRegistry, userMcpLibrary);
-    const { config } = await loadEffectiveConfig(repoConfig, this.context.agentsDir);
-    let effectiveConfig = config;
-    let effectiveRegistry = registry;
-    if (this.context.projectConfigPath) {
-      const merged = mergeProjectConfig(config, registry, await loadProjectConfig(this.context.projectConfigPath));
-      effectiveConfig = merged.config;
-      effectiveRegistry = merged.registry;
-    }
-
-    const active = buildActiveServers(effectiveRegistry, effectiveConfig);
-    const targetSummary = Object.entries(effectiveConfig.targets)
+    const state = await buildEffectiveState({
+      repoRoot: this.context.repoRoot,
+      agentsDir: this.context.agentsDir,
+      homeDir: this.context.homeDir,
+      cwd: this.context.cwd,
+    });
+    const targetSummary = Object.entries(state.effectiveConfig.targets)
       .filter(([, target]) => target.enabled)
       .map(([name]) => name)
       .join(",");
 
-    const rows = Object.entries(effectiveRegistry.servers)
+    const rows = Object.entries(state.effectiveRegistry.servers)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([name, server]) => ({
         name,
         transport: server.transport,
-        active: Object.hasOwn(active, name),
-        targets: Object.hasOwn(active, name) ? targetSummary : "",
+        active: Object.hasOwn(state.activeServers, name),
+        targets: Object.hasOwn(state.activeServers, name) ? targetSummary : "",
       }));
 
     if (this.json) {

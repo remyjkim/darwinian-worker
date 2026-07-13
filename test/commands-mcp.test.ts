@@ -4,7 +4,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { cleanupTempRoots, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -47,12 +47,7 @@ describe("drwn mcp", () => {
     const fixture = await scaffoldCliFixture({ parallelMcpEnabled: false });
     tempRoots.push(fixture.root);
     const projectDir = join(fixture.root, "project");
-    const projectConfigPath = join(projectDir, ".agents", "drwn", "config.json");
-    await mkdir(dirname(projectConfigPath), { recursive: true });
-    await writeFile(
-      projectConfigPath,
-      JSON.stringify({ version: 1, extensions: { parallel: { enabled: true, skills: true, mcp: true } } }, null, 2),
-    );
+    await writeSupportedProjectConfig(projectDir, { extensions: { parallel: { enabled: true, skills: true, mcp: true } } });
 
     const result = await runAgentsCli(["mcp", "list", "--json"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
@@ -115,12 +110,7 @@ describe("drwn mcp", () => {
     const fixture = await scaffoldCliFixture({ parallelMcpEnabled: false });
     tempRoots.push(fixture.root);
     const projectDir = join(fixture.root, "project");
-    const projectConfigPath = join(projectDir, ".agents", "drwn", "config.json");
-    await mkdir(dirname(projectConfigPath), { recursive: true });
-    await writeFile(
-      projectConfigPath,
-      JSON.stringify({ version: 1, extensions: { parallel: { enabled: true, skills: true, mcp: true } } }, null, 2),
-    );
+    await writeSupportedProjectConfig(projectDir, { extensions: { parallel: { enabled: true, skills: true, mcp: true } } });
 
     const result = await runAgentsCli(["mcp", "write"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
@@ -196,5 +186,33 @@ describe("drwn mcp", () => {
     expect(result.exitCode).toBe(0);
     const parsed = JSON.parse(result.stdout) as Array<{ name: string; active: boolean }>;
     expect(parsed.some((item) => item.name === "github" && item.active)).toBe(true);
+  });
+
+  test("project list excludes machine-only MCP library definitions", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const { saveMcpLibrary } = await import("../cli/core/mcp-library");
+    await saveMcpLibrary(fixture.agentsDir, {
+      version: 1,
+      servers: {
+        "machine-only": {
+          description: "Machine only",
+          transport: "stdio",
+          command: "machine-only",
+          optional: false,
+        },
+      },
+    });
+    const projectDir = join(fixture.root, "isolated-project");
+    await writeSupportedProjectConfig(projectDir);
+
+    const result = await runAgentsCli(["mcp", "list", "--json"], {
+      AGENTS_REPO_ROOT: fixture.repoRoot,
+      AGENTS_HOME_DIR: fixture.homeDir,
+      AGENTS_DIR: fixture.agentsDir,
+    }, projectDir);
+
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout).map((entry: { name: string }) => entry.name)).not.toContain("machine-only");
   });
 });

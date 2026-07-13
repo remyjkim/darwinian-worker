@@ -4,7 +4,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -33,9 +33,8 @@ test("status --why answers typed and unique bare queries", async () => {
   await publishDiagnosticCard(fixture);
   const projectDir = join(fixture.root, "project");
   const configPath = join(projectDir, ".agents", "drwn", "config.json");
-  await mkdir(dirname(configPath), { recursive: true });
-  await writeFile(configPath, JSON.stringify({ version: 1, cards: ["@me/backend@^1.0.0"] }, null, 2));
-  expect((await runAgentsCli(["card", "update"], envFor(fixture), projectDir)).exitCode).toBe(0);
+  await writeSupportedProjectConfig(projectDir);
+  expect((await runAgentsCli(["apply", "@me/backend@^1.0.0"], envFor(fixture), projectDir)).exitCode).toBe(0);
 
   const skill = await runAgentsCli(["status", "--why", "skill:alpha"], envFor(fixture), projectDir);
   const server = await runAgentsCli(["status", "--why", "card-server"], envFor(fixture), projectDir);
@@ -51,11 +50,10 @@ test("status --why bare query fails when ambiguous and --explain includes proven
   tempRoots.push(fixture.root);
   const projectDir = join(fixture.root, "project");
   const configPath = join(projectDir, ".agents", "drwn", "config.json");
-  await mkdir(dirname(configPath), { recursive: true });
-  await writeFile(
-    configPath,
-    JSON.stringify({ version: 1, skills: { include: ["alpha"] }, servers: { alpha: { enabled: true } } }, null, 2),
-  );
+  await writeSupportedProjectConfig(projectDir, {
+    skills: { include: ["alpha"] },
+    mcpServers: { alpha: { enabled: true } },
+  });
 
   const ambiguous = await runAgentsCli(["status", "--why", "alpha"], envFor(fixture), projectDir);
   const explain = await runAgentsCli(["status", "--explain"], envFor(fixture), projectDir);

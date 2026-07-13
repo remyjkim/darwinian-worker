@@ -12,6 +12,7 @@ import {
   createSkillBundleFixture,
   runAgentsCli,
   scaffoldCliFixture,
+  writeSupportedProjectConfig,
 } from "./helpers";
 
 const tempRoots: string[] = [];
@@ -30,6 +31,30 @@ function envFor(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>, extra?:
 }
 
 describe("drwn add skill", () => {
+  test("an active Card skill remains authoritative over a same-ID project include", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const cardSkill = "---\nname: alpha\ndescription: authoritative Card bytes\n---\n";
+    const cardSkillPath = join(fixture.root, "card-alpha", "SKILL.md");
+    await mkdir(join(fixture.root, "card-alpha"), { recursive: true });
+    await writeFile(cardSkillPath, cardSkill);
+    expect((await runAgentsCli(["card", "new", "@me/operator", "--no-git"], envFor(fixture))).exitCode).toBe(0);
+    expect((await runAgentsCli([
+      "card", "source", "add-skill", "@me/operator", "alpha", "--from", cardSkillPath,
+    ], envFor(fixture))).exitCode).toBe(0);
+    expect((await runAgentsCli(["card", "publish", "@me/operator"], envFor(fixture))).exitCode).toBe(0);
+    const projectDir = join(fixture.root, "project");
+    await writeSupportedProjectConfig(projectDir);
+    expect((await runAgentsCli(["add", "@me/operator@1.0.0"], envFor(fixture), projectDir)).exitCode).toBe(0);
+    expect((await runAgentsCli(["add", "skill", "alpha"], envFor(fixture), projectDir)).exitCode).toBe(0);
+
+    const written = await runAgentsCli(["write", "--skills-only"], envFor(fixture), projectDir);
+
+    expect(written.exitCode).toBe(0);
+    expect(await readFile(join(projectDir, ".claude", "skills", "alpha", "SKILL.md"), "utf8")).toBe(cardSkill);
+    expect(await readFile(join(projectDir, ".codex", "skills", "alpha", "SKILL.md"), "utf8")).toBe(cardSkill);
+  });
+
   test("adds a repo-native skill to project config", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);

@@ -5,9 +5,8 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { evaluateVersionFloor, loadCardLock, type CardLockEntry, type VersionFloorStatus } from "./card-lock";
 import { resolveSkillSource } from "./card-skill-resolver";
-import { mergeCardManifestsIntoProjectConfig } from "./card-project";
-import { loadConfigLocal, loadCardLockLocal, mergeProjectWithLocal } from "./config-local";
-import { selectProjectWorker } from "./effective-state";
+import { buildEffectiveState } from "./effective-state";
+import { inspectAmbientCapabilities } from "./ambient-capabilities";
 import { loadConfig } from "./config";
 import { buildActiveServers, hashCodexManagedServers, mergeClaudeSettingsText, mergeCodexTomlText, renderCursorConfig, renderJsonMcpConfig } from "./mcp";
 import { hasExplicitSkillDefaults, mergeUserMcpLibrary, validateDefaultReferences } from "./defaults";
@@ -24,7 +23,7 @@ import {
   listSkillsByScope,
 } from "./skills";
 import { lstatSafe } from "./fs";
-import { loadProjectConfig, mergeProjectConfig, resolveProjectRootFromConfigPath, summarizeProjectConfig, isServerToggle } from "./project";
+import { resolveProjectRootFromConfigPath, summarizeProjectConfig, isServerToggle } from "./project";
 import { loadEffectiveConfig } from "./user-config";
 import { getExtension } from "./extensions/registry";
 import { getStoreStatus } from "./migration";
@@ -32,7 +31,7 @@ import { resolveGlobalWriteRecordPath, resolveStoreGeneratedDir } from "./store-
 import { loadWriteRecord, resolveProjectWriteRecordPath, type ManagedPath } from "./write-record";
 import { isHookConsentValid } from "./hook-consent";
 import { DRWN_VERSION } from "./version";
-import type { CanonicalConfig, ProjectConfig, RegistryServer } from "./types";
+import type { CanonicalConfig, RegistryServer } from "./types";
 
 export interface PlatformCheck {
   name: string;
@@ -110,6 +109,167 @@ export interface DiagnosticsSections {
   };
 }
 
+export interface ProjectStatusItem {
+  id: string;
+  sourceKind: "worker-root" | "card" | "project-overlay" | "local-overlay";
+  sourceId: string;
+  sourcePath: string;
+  target: string;
+  health: "installed" | "active" | "declared";
+}
+
+export interface ProjectStatusV1 {
+  schema: "drwn.project-status";
+  schemaVersion: 1;
+  installedWorkers: ProjectStatusItem[];
+  activeWorker: string | null;
+  activeCards: ProjectStatusItem[];
+  selectionSource: "project" | "local";
+  localOverrides: {
+    activeWorker: string | null;
+    cardReplacements: string[];
+    localOnlyRoots: string[];
+    sourceOverrides: string[];
+  };
+  projectOverlays: {
+    skills: ProjectStatusItem[];
+    mcp: ProjectStatusItem[];
+    extensions: ProjectStatusItem[];
+    targets: ProjectStatusItem[];
+    hookControls: ProjectStatusItem[];
+  };
+  declaredCapabilities: {
+    skills: ProjectStatusItem[];
+    mcp: ProjectStatusItem[];
+    hooks: ProjectStatusItem[];
+  };
+  ambientCapabilities: {
+    observations: Awaited<ReturnType<typeof inspectAmbientCapabilities>>;
+    enforcement: "diagnostic-only";
+  };
+  projection: { current: boolean; issues: string[] };
+}
+
+function projectItem(
+  id: string,
+  sourceKind: ProjectStatusItem["sourceKind"],
+  sourceId: string,
+  sourcePath: string,
+  target: string,
+  health: ProjectStatusItem["health"] = "declared",
+): ProjectStatusItem {
+  return { id, sourceKind, sourceId, sourcePath, target, health };
+}
+
+export async function buildProjectStatusV1(options: {
+  repoRoot: string;
+  agentsDir: string;
+  homeDir: string;
+  projectConfigPath?: string | null;
+}): Promise<ProjectStatusV1 | null> {
+  if (!options.projectConfigPath) return null;
+  const projectRoot = resolveProjectRootFromConfigPath(options.projectConfigPath);
+  const state = await buildEffectiveState({
+    repoRoot: options.repoRoot,
+    agentsDir: options.agentsDir,
+    homeDir: options.homeDir,
+    cwd: projectRoot,
+  });
+  if (!state.projectConfig || !state.workerSelection) return null;
+  const configPath = state.projectConfigPath!;
+  const cardByName = new Map(state.lockedCards.map((card) => [card.name, card]));
+  const installedWorkers = state.workerSelection.installedRoots.map((root) => {
+    const card = cardByName.get(root.name);
+    const sourceKind = state.cardLanes[root.name] === "localOverlay" ? "local-overlay" : "worker-root";
+    return projectItem(root.name, sourceKind, root.requested, card?.path ?? configPath, "project", "installed");
+  });
+  const activeCards = state.activeCards.map((card) => {
+    const sourceKind = state.cardLanes[card.name] === "localOverlay" ? "local-overlay" : "card";
+    return projectItem(
+      card.name,
+      sourceKind,
+      `${card.name}@${card.version}`,
+      state.contentRootsByCard[card.name] ?? card.path,
+      "project",
+      "active",
+    );
+  });
+  const overlayItem = (id: string, target: string) => projectItem(id, "project-overlay", id, configPath, target);
+  const projectOverlays = {
+    skills: [
+      ...(state.projectConfig.skills?.include ?? []).map((id) => overlayItem(id, "skills:include")),
+      ...(state.projectConfig.skills?.exclude ?? []).map((id) => overlayItem(id, "skills:exclude")),
+    ],
+    mcp: Object.keys(state.projectConfig.mcpServers ?? {}).sort().map((id) => overlayItem(id, "mcp")),
+    extensions: Object.keys(state.projectConfig.extensions ?? {}).sort().map((id) => overlayItem(id, "extension")),
+    targets: Object.keys(state.projectConfig.targets ?? {}).sort().map((id) => overlayItem(id, "target")),
+    hookControls: Object.keys(state.projectConfig.hooks ?? {}).sort().map((id) => overlayItem(id, "hooks")),
+  };
+  const skillItems = state.activeCards.flatMap((card) =>
+    card.skills.map((id) => projectItem(
+      id,
+      "card",
+      `${card.name}@${card.version}`,
+      state.contentRootsByCard[card.name] ?? card.path,
+      "skills",
+      "active",
+    )),
+  );
+  for (const id of state.projectConfig.skills?.include ?? []) {
+    if (!skillItems.some((entry) => entry.id === id)) skillItems.push(overlayItem(id, "skills"));
+  }
+  const mcpItems = state.cardServerDefinitions
+    .filter((definition) => Object.hasOwn(state.activeServers, definition.serverName))
+    .map((definition) => {
+      const card = cardByName.get(definition.cardName);
+      return projectItem(
+        definition.serverName,
+        "card",
+        `${definition.cardName}@${definition.cardVersion}`,
+        card ? (state.contentRootsByCard[card.name] ?? card.path) : configPath,
+        "mcp",
+        "active",
+      );
+    });
+  for (const id of Object.keys(state.projectConfig.mcpServers ?? {})) {
+    if (Object.hasOwn(state.activeServers, id) && !mcpItems.some((entry) => entry.id === id)) {
+      mcpItems.push(overlayItem(id, "mcp"));
+    }
+  }
+  const hookItems = state.activeCards.flatMap((card) =>
+    card.hooks.map((id) => projectItem(
+      id,
+      "card",
+      `${card.name}@${card.version}`,
+      state.contentRootsByCard[card.name] ?? card.path,
+      "hooks",
+      "active",
+    )),
+  );
+  const ambient = await inspectAmbientCapabilities({
+    config: state.repoConfig,
+    homeDir: options.homeDir,
+    declaredSkillIds: skillItems.map((entry) => entry.id),
+    declaredMcpIds: mcpItems.map((entry) => entry.id),
+  });
+  return {
+    schema: "drwn.project-status",
+    schemaVersion: 1,
+    installedWorkers,
+    activeWorker: state.workerSelection.activeWorker,
+    activeCards,
+    selectionSource: state.workerSelection.selectionSource,
+    localOverrides: { ...state.workerSelection.localOverrides },
+    projectOverlays,
+    declaredCapabilities: { skills: skillItems, mcp: mcpItems, hooks: hookItems },
+    ambientCapabilities: { observations: ambient, enforcement: "diagnostic-only" },
+    projection: {
+      current: existsSync(state.recordPath) && state.overlayWarnings.length === 0,
+      issues: [...state.overlayWarnings],
+    },
+  };
+}
+
 export async function buildStatusReport(repoRoot: string, agentsDir: string, homeDir: string, projectConfigPath?: string | null) {
   const [config, registry, curatedSkills, repoSkills] = await Promise.all([
     loadConfig(repoRoot),
@@ -125,11 +285,15 @@ export async function buildStatusReport(repoRoot: string, agentsDir: string, hom
   let projectSummary: ReturnType<typeof summarizeProjectConfig> | undefined;
 
   if (projectConfigPath) {
-    const projectConfig = await loadProjectConfig(projectConfigPath);
-    const merged = mergeProjectConfig(effectiveConfig, mergedRegistry, projectConfig);
-    effectiveConfig = merged.config;
-    effectiveRegistry = merged.registry;
-    projectSummary = summarizeProjectConfig(projectConfig);
+    const state = await buildEffectiveState({
+      repoRoot,
+      agentsDir,
+      homeDir,
+      cwd: resolveProjectRootFromConfigPath(projectConfigPath),
+    });
+    effectiveConfig = state.effectiveConfig;
+    effectiveRegistry = state.effectiveRegistry;
+    projectSummary = state.projectConfig ? summarizeProjectConfig(state.projectConfig) : undefined;
   }
 
   const activeServers = buildActiveServers(effectiveRegistry, effectiveConfig);
@@ -144,8 +308,8 @@ export async function buildStatusReport(repoRoot: string, agentsDir: string, hom
     curatedSkillCount: curatedSkills.length,
     repoSkillCount: repoSkills.length,
     activeMcpServerCount: Object.keys(activeServers).length,
-    globalDefaultSkillCount: effectiveConfig.defaults?.skills?.length ?? 0,
-    globalDefaultMcpServerCount: effectiveConfig.defaults?.mcpServers?.length ?? 0,
+    globalDefaultSkillCount: loadedConfig.config.defaults?.skills?.length ?? 0,
+    globalDefaultMcpServerCount: loadedConfig.config.defaults?.mcpServers?.length ?? 0,
     userLibraryMcpServerCount: Object.keys(userMcpLibrary.servers).length,
     project: projectSummary && projectConfigPath
       ? {
@@ -154,37 +318,6 @@ export async function buildStatusReport(repoRoot: string, agentsDir: string, hom
         }
       : undefined,
   };
-}
-
-async function loadProjectWithCards(agentsDir: string, projectConfigPath?: string | null) {
-  if (!projectConfigPath) {
-    return {
-      projectRoot: null as string | null,
-      projectConfig: null as ProjectConfig | null,
-      cardLocks: [] as CardLockEntry[],
-      projectWithCards: null as ProjectConfig | null,
-    };
-  }
-  const projectRoot = resolveProjectRootFromConfigPath(projectConfigPath);
-  const committedConfig = await loadProjectConfig(projectConfigPath);
-  const [committedLock, configLocal, localLock] = await Promise.all([
-    loadCardLock(projectRoot),
-    loadConfigLocal(projectRoot),
-    loadCardLockLocal(projectRoot),
-  ]);
-  const selection = selectProjectWorker({
-    projectConfig: committedConfig,
-    committedLock,
-    configLocal,
-    localLock,
-  });
-  const projectConfig = mergeProjectWithLocal(committedConfig, configLocal);
-  const cardLocks = selection.activeCards;
-  const projectWithCards = mergeCardManifestsIntoProjectConfig(
-    projectConfig,
-    cardLocks.map((card) => card.manifest),
-  );
-  return { projectRoot, projectConfig, cardLocks, projectWithCards };
 }
 
 function readWriteRecordStatus(path: string): DiagnosticsSections["writeRecord"] {
@@ -215,13 +348,20 @@ export async function buildDiagnosticsSections(
   ]);
   const userMcpLibrary = await loadMcpLibrary(agentsDir);
   const loadedConfig = await loadEffectiveConfig(repoConfig, agentsDir);
-  const { projectRoot, projectConfig, cardLocks, projectWithCards } = await loadProjectWithCards(agentsDir, projectConfigPath);
   const baseRegistry = mergeUserMcpLibrary(registry, userMcpLibrary);
-  const baseConfig = projectConfigPath ? repoConfig : loadedConfig.config;
-  const merged = projectWithCards ? mergeProjectConfig(baseConfig, baseRegistry, projectWithCards) : null;
-  const effectiveConfig = merged?.config ?? baseConfig;
-  const effectiveRegistry = merged?.registry ?? baseRegistry;
-  const activeServers = buildActiveServers(effectiveRegistry, effectiveConfig);
+  const projectState = projectConfigPath
+    ? await buildEffectiveState({
+        repoRoot,
+        agentsDir,
+        homeDir,
+        cwd: resolveProjectRootFromConfigPath(projectConfigPath),
+      })
+    : null;
+  const projectRoot = projectState?.projectRoot ?? null;
+  const projectConfig = projectState?.projectConfig ?? null;
+  const cardLocks = projectState?.activeCards ?? [];
+  const effectiveConfig = projectState?.effectiveConfig ?? loadedConfig.config;
+  const activeServers = projectState?.activeServers ?? buildActiveServers(baseRegistry, effectiveConfig);
   const lock = projectRoot ? await loadCardLock(projectRoot) : null;
   const writeRecordPath = projectRoot ? resolveProjectWriteRecordPath(projectRoot) : resolveGlobalWriteRecordPath(agentsDir);
 
@@ -301,13 +441,21 @@ async function collectWhyMatches(
     buildSkillInventory(repoRoot, agentsDir, homeDir),
   ]);
   const userMcpLibrary = await loadMcpLibrary(agentsDir);
-  const { projectConfig, cardLocks, projectWithCards } = await loadProjectWithCards(agentsDir, projectConfigPath);
   const baseRegistry = mergeUserMcpLibrary(registry, userMcpLibrary);
   const loadedConfig = await loadEffectiveConfig(repoConfig, agentsDir);
-  const baseConfig = projectConfigPath ? repoConfig : loadedConfig.config;
-  const merged = projectWithCards ? mergeProjectConfig(baseConfig, baseRegistry, projectWithCards) : null;
-  const effectiveConfig = merged?.config ?? baseConfig;
-  const effectiveRegistry = merged?.registry ?? baseRegistry;
+  const projectState = projectConfigPath
+    ? await buildEffectiveState({
+        repoRoot,
+        agentsDir,
+        homeDir,
+        cwd: resolveProjectRootFromConfigPath(projectConfigPath),
+      })
+    : null;
+  const projectConfig = projectState?.projectConfig ?? null;
+  const cardLocks = projectState?.activeCards ?? [];
+  const effectiveConfig = projectState?.effectiveConfig ?? loadedConfig.config;
+  const effectiveRegistry = projectState?.effectiveRegistry ?? baseRegistry;
+  const activeServers = projectState?.activeServers ?? buildActiveServers(effectiveRegistry, effectiveConfig);
 
   const cardSkill = cardLocks.find((card) => card.manifest.skills?.include?.includes(name));
   const projectSkill = projectConfig?.skills?.include?.includes(name);
@@ -327,7 +475,7 @@ async function collectWhyMatches(
   const projectServer = projectConfig?.mcpServers && Object.hasOwn(projectConfig.mcpServers, name);
   const registryServer = effectiveRegistry.servers[name];
   if (cardServer || projectServer || registryServer) {
-    const active = Object.hasOwn(buildActiveServers(effectiveRegistry, effectiveConfig), name);
+    const active = Object.hasOwn(activeServers, name);
     const source = cardServer
       ? `card ${cardServer.name}@${cardServer.version}`
       : projectServer
@@ -688,20 +836,29 @@ export async function buildDoctorReportWithProject(
     return report;
   }
 
-  const [repoConfig, builtInRegistry, skillInventory, userMcpLibrary] = await Promise.all([
+  const [repoConfig, builtInRegistry, skillInventory] = await Promise.all([
     loadConfig(repoRoot),
     loadRegistry(repoRoot),
     buildSkillInventory(repoRoot, agentsDir, homeDir),
-    loadMcpLibrary(agentsDir),
   ]);
-  const registry = mergeUserMcpLibrary(builtInRegistry, userMcpLibrary);
-  const { config } = await loadEffectiveConfig(repoConfig, agentsDir);
-  const { projectRoot, projectConfig: project, cardLocks, projectWithCards } = await loadProjectWithCards(agentsDir, projectConfigPath);
+  const state = await buildEffectiveState({
+    repoRoot,
+    agentsDir,
+    homeDir,
+    cwd: resolveProjectRootFromConfigPath(projectConfigPath),
+  });
+  const projectRoot = state.projectRoot;
+  const project = state.projectConfig;
+  const projectWithCards = state.projectConfigWithCards;
+  const cardLocks = state.activeCards;
   if (!project || !projectWithCards || !projectRoot) {
     return report;
   }
-  const merged = mergeProjectConfig(repoConfig, registry, projectWithCards);
-  const activeServers = buildActiveServers(registry, repoConfig);
+  const centrallyActiveServers = buildActiveServers(builtInRegistry, repoConfig);
+  const knownServerNames = new Set([
+    ...Object.keys(builtInRegistry.servers),
+    ...state.cardServerDefinitions.map((definition) => definition.serverName),
+  ]);
   const availableSkillNames = new Set([
     ...skillInventory.map((skill) => skill.name),
     ...cardLocks.flatMap((card) => card.skills),
@@ -710,11 +867,11 @@ export async function buildDoctorReportWithProject(
 
   for (const [name, override] of Object.entries(project.mcpServers ?? {})) {
     if (isServerToggle(override)) {
-      if (!registry.servers[name]) {
+      if (!knownServerNames.has(name)) {
         issues.push(`Unknown server reference: "${name}"`);
         continue;
       }
-      const centrallyActive = Boolean(activeServers[name]);
+      const centrallyActive = Boolean(centrallyActiveServers[name]);
       if (centrallyActive === override.enabled) {
         issues.push(`Stale override: server "${name}" is already ${centrallyActive ? "enabled" : "disabled"} centrally`);
       }
@@ -742,16 +899,16 @@ export async function buildDoctorReportWithProject(
   const generatedDir = join(projectRoot, ".agents", "drwn", "generated");
   const scopedReport = {
     ...report,
-    staleSkillSymlinks: await detectStaleSkillSymlinks(repoRoot, agentsDir, projectRoot, merged.skills, cardLocks),
+    staleSkillSymlinks: await detectStaleSkillSymlinks(repoRoot, agentsDir, projectRoot, state.skillSelection, cardLocks),
     mcpDrift: await detectMcpDrift(
-      merged.config,
-      buildActiveServers(merged.registry, merged.config),
+      state.effectiveConfig,
+      state.activeServers,
       homeDir,
       projectRoot,
       generatedDir,
       "project",
     ),
-    missingGeneratedFiles: await detectMissingGeneratedFiles(merged.config, generatedDir),
+    missingGeneratedFiles: await detectMissingGeneratedFiles(state.effectiveConfig, generatedDir),
     hookIssues: detectHookIssues(cardLocks, generatedDir),
     projectConfigIssues: [...report.projectConfigIssues, ...issues],
   };

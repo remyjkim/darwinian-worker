@@ -4,7 +4,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { cleanupTempRoots, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -13,6 +13,59 @@ afterEach(async () => {
 });
 
 describe("drwn status", () => {
+  test("project JSON reports the supported declared-state and diagnostic ambient contract", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    await publishCardWithSkills(fixture, {
+      name: "@me/worker",
+      skills: ["worker-skill"],
+      servers: {
+        "worker-mcp": {
+          description: "Worker MCP",
+          transport: "stdio",
+          command: "worker-mcp",
+          optional: false,
+        },
+      },
+    });
+    const { saveMcpLibrary } = await import("../cli/core/mcp-library");
+    await saveMcpLibrary(fixture.agentsDir, {
+      version: 1,
+      servers: {
+        "machine-only": {
+          description: "Machine only",
+          transport: "stdio",
+          command: "machine-only",
+          optional: false,
+        },
+      },
+    });
+    await writeFile(fixture.codexConfig, '[mcp_servers.ambient-only]\ncommand = "ambient"\n');
+    const projectDir = join(fixture.root, "project-contract");
+    await writeSupportedProjectConfig(projectDir);
+    expect((await runAgentsCli(["apply", "@me/worker@1.0.0"], envFor(fixture), projectDir)).exitCode).toBe(0);
+
+    const result = await runAgentsCli(["status", "--json"], envFor(fixture), projectDir);
+
+    expect(result.exitCode, result.stderr).toBe(0);
+    const status = JSON.parse(result.stdout);
+    expect(status).toMatchObject({
+      schema: "drwn.project-status",
+      schemaVersion: 1,
+      activeWorker: "@me/worker",
+      selectionSource: "project",
+      ambientCapabilities: { enforcement: "diagnostic-only" },
+    });
+    expect(status.installedWorkers.map((entry: { id: string }) => entry.id)).toEqual(["@me/worker"]);
+    expect(status.activeCards.map((entry: { id: string }) => entry.id)).toEqual(["@me/worker"]);
+    expect(status.declaredCapabilities.skills.map((entry: { id: string }) => entry.id)).toContain("worker-skill");
+    expect(status.declaredCapabilities.mcp.map((entry: { id: string }) => entry.id)).toContain("worker-mcp");
+    expect(status.declaredCapabilities.mcp.map((entry: { id: string }) => entry.id)).not.toContain("machine-only");
+    expect(status.ambientCapabilities.observations).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "ambient-only", target: "codex" }),
+    ]));
+  });
+
   test("reports repo root, agents dir, and counts", async () => {
     const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
     tempRoots.push(fixture.root);
@@ -87,8 +140,7 @@ describe("drwn status", () => {
     tempRoots.push(fixture.root);
     const projectDir = join(fixture.root, "project");
     const projectConfigPath = join(projectDir, ".agents", "drwn", "config.json");
-    await mkdir(dirname(projectConfigPath), { recursive: true });
-    await writeFile(projectConfigPath, JSON.stringify({ version: 1, skills: { include: ["beta"], exclude: ["alpha"] } }, null, 2));
+    await writeSupportedProjectConfig(projectDir, { skills: { include: ["beta"], exclude: ["alpha"] } });
 
     const result = await runAgentsCli(["status"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
@@ -106,11 +158,7 @@ describe("drwn status", () => {
     tempRoots.push(fixture.root);
     const projectDir = join(fixture.root, "project");
     const projectConfigPath = join(projectDir, ".agents", "drwn", "config.json");
-    await mkdir(dirname(projectConfigPath), { recursive: true });
-    await writeFile(
-      projectConfigPath,
-      JSON.stringify({ version: 1, extensions: { parallel: { enabled: true, skills: true, mcp: false } } }, null, 2),
-    );
+    await writeSupportedProjectConfig(projectDir, { extensions: { parallel: { enabled: true, skills: true, mcp: false } } });
 
     const result = await runAgentsCli(["status"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
@@ -128,8 +176,7 @@ describe("drwn status", () => {
     tempRoots.push(fixture.root);
     const projectDir = join(fixture.root, "project");
     const projectConfigPath = join(projectDir, ".agents", "drwn", "config.json");
-    await mkdir(dirname(projectConfigPath), { recursive: true });
-    await writeFile(projectConfigPath, JSON.stringify({ version: 1, targets: { codex: { enabled: false } } }, null, 2));
+    await writeSupportedProjectConfig(projectDir, { targets: { codex: { enabled: false } } });
 
     const result = await runAgentsCli(["status", "--json"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
