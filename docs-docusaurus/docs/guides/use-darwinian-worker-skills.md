@@ -17,16 +17,16 @@ repo. This page covers installation, activation, and choosing the right skill.
 Install from GitHub:
 
 ```bash
-drwn library add skill github:remyjkim/darwinian-worker-skills
-drwn skills packages show darwinian-worker-skills
+drwn machine skill install github:remyjkim/darwinian-worker-skills
+drwn machine skill show --package darwinian-worker-skills
 ```
 
 For local development, install from a checkout:
 
 ```bash
 git clone git@github.com:remyjkim/darwinian-worker-skills.git
-drwn library add skill ./darwinian-worker-skills
-drwn skills packages show darwinian-worker-skills
+drwn machine skill install ./darwinian-worker-skills
+drwn machine skill show --package darwinian-worker-skills
 ```
 
 Installing a bundle makes its skills available. It does not activate them in a
@@ -51,8 +51,8 @@ Use a machine selection only when machine sessions should expose the skill.
 Projects remain independent from this selection:
 
 ```bash
-drwn library defaults add skill inspect-harness --dry-run --json
-drwn library defaults add skill inspect-harness
+drwn machine skill enable inspect-harness --dry-run --json
+drwn machine skill enable inspect-harness
 drwn write --scope machine --dry-run
 drwn write --scope machine
 ```
@@ -82,11 +82,11 @@ selection.
 | Add a skill or MCP server to this project | `materialize-harness` |
 | Write generated Claude, Codex, or Cursor state | `materialize-harness` |
 | Install a bundle, MCP definition, or card catalog | `manage-harness-library` |
-| Make a skill or MCP server active by default | `manage-defaults` |
+| Select a skill or MCP server for machine scope | `manage-defaults` |
 | Explain current state or provenance | `inspect-harness` |
-| Fix drift or legacy layout | `repair-harness` |
+| Fix projection drift or inventory-reference issues | `repair-harness` |
 | Recommend what to add | `recommend-harness` |
-| Export sessions or run store support checks | `support-harness` |
+| Export sessions or run support diagnostics | `support-harness` |
 
 `organize-workspace` is experimental and should not be treated as a stable
 workflow until `drwn scan` is implemented.

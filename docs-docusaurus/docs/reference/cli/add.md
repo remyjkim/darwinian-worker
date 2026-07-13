@@ -4,7 +4,7 @@ sidebar_position: 2
 
 # Add
 
-`drwn add` is the project-mutation surface for Worker roots, skills, and MCP servers. Each path edits `<project>/.agents/drwn/config.json` (and `card.lock` for roots) without touching machine-wide defaults.
+`drwn add` is the project-mutation surface for Worker roots, skills, and MCP servers. Each path edits `<project>/.agents/drwn/config.json` (and `card.lock` for roots) without touching machine intent.
 
 ## drwn add &lt;root-ref&gt;
 
@@ -29,7 +29,7 @@ drwn add skill reviewer --dry-run
 drwn add skill brainstorm --json
 ```
 
-By default, `add skill` searches the local library first and adds the matching skill to `skills.include`. Guided mode prompts for a query when run in a TTY without arguments.
+By default, `add skill` searches the standalone inventory first and adds the matching skill to `skills.include`. Guided mode prompts for a query when run in a TTY without arguments.
 
 Restrict the lookup to local inventory:
 
@@ -88,4 +88,4 @@ drwn add mcp github --yes
 
 - [Search](./search) — discover candidates before adding
 - [Write](./write) — materialize the new project overlay into downstream targets
-- [Library](./library) — manage what is locally available to add
+- [Machine inventory](./machine) — manage what is locally available to add

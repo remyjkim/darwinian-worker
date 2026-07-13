@@ -4,7 +4,7 @@ sidebar_position: 2
 
 # Using `status --why`
 
-`drwn status --why <query>` answers a provenance question: which Card, project overlay, machine profile/explicit selection, Library source, or registry entry explains the item.
+`drwn status --why <query>` answers a provenance question: which Card, project overlay, machine profile/explicit selection, inventory source, or registry entry explains the item.
 
 The query is either `kind:name` (typed) or a bare `name` (untyped, ambiguous-resolution allowed).
 
@@ -33,10 +33,10 @@ Possible answers:
 - `skill:reviewer is active or available from project config.`
 - `skill:reviewer is active from machine profile.`
 - `skill:reviewer is active from explicit machine selection.`
-- `skill:reviewer is active or available from repo or installed skill library.`
+- `skill:reviewer is active or available from repo or installed skill inventory.`
 - `not found: skill:reviewer`
 
-For project writes, Card-bundled skills in the selected Worker closure win over project-safe Library sources. For machine writes, profile attribution wins over an overlapping explicit selection.
+For project writes, Card-bundled skills in the selected Worker closure win over project-safe inventory sources. For machine writes, profile attribution wins over an overlapping explicit selection.
 
 ### `--why server:<name>`
 
@@ -48,7 +48,7 @@ Possible answers:
 
 - `server:context7 is active from card @your-handle/backend@0.2.0.`
 - `server:context7 is available from project config.`
-- `server:context7 is active from registry or machine library.`
+- `server:context7 is active from registry or standalone machine inventory.`
 
 `active` means the server is included in the effective `mcpServers` after merging toggles. `available` means it is registered somewhere but currently disabled.
 

@@ -12,7 +12,7 @@ function renderSearchResults(results: Awaited<ReturnType<typeof searchMcp>>, que
   const catalog = results.results.filter((item) => item.sourceGroup === "catalog");
   const sections: string[] = [];
 
-  sections.push("Local library");
+  sections.push("Local inventory");
   sections.push(...(local.length > 0 ? local.map((item, index) => `${index + 1}. ${item.id} (${item.kind})`) : ["  No matches."]));
   sections.push("");
   sections.push("Online catalogs");
@@ -34,7 +34,7 @@ export class SearchMcpCommand extends BaseCommand {
     category: "Search",
     description: "Search local and configured catalog MCP servers.",
     details: `
-      Searches the local MCP library and configured trusted MCP catalogs. Use
+      Searches local MCP inventory and configured trusted MCP catalogs. Use
       --library or --catalog to restrict the source; those flags are mutually
       exclusive.
 
@@ -43,7 +43,7 @@ export class SearchMcpCommand extends BaseCommand {
     `,
     examples: [
       ["Search all MCP sources", "drwn search mcp github"],
-      ["Search only the local MCP library", "drwn search mcp github --library"],
+      ["Search only local MCP inventory", "drwn search mcp github --library"],
       ["Return JSON results", "drwn search mcp postgres --json"],
     ],
   });
@@ -51,7 +51,7 @@ export class SearchMcpCommand extends BaseCommand {
   query = Option.String({ required: true });
 
   libraryOnly = Option.Boolean("--library", false, {
-    description: "Only search the local library.",
+    description: "Only search local inventory.",
   });
 
   catalogOnly = Option.Boolean("--catalog", false, {

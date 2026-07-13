@@ -46,8 +46,7 @@ describe("documentation readiness", () => {
       readFile(new URL("../docs-docusaurus/docs/guides/authoring-multi-skill-cards.md", import.meta.url), "utf8"),
       readFile(new URL("../docs-docusaurus/docs/guides/sharing-with-a-team.md", import.meta.url), "utf8"),
       readFile(new URL("../docs-docusaurus/docs/reference/cli/card.md", import.meta.url), "utf8"),
-      readFile(new URL("../docs-docusaurus/docs/reference/cli/library.md", import.meta.url), "utf8"),
-      readFile(new URL("../docs-docusaurus/docs/reference/cli/store.md", import.meta.url), "utf8"),
+      readFile(new URL("../docs-docusaurus/docs/reference/cli/machine.md", import.meta.url), "utf8"),
       readFile(new URL("../docs-docusaurus/docs/reference/cli/extensions.md", import.meta.url), "utf8"),
       readFile(new URL("../docs-docusaurus/docs/reference/cli/status.md", import.meta.url), "utf8"),
       readFile(new URL("../docs-docusaurus/docs/reference/cli/write.md", import.meta.url), "utf8"),
@@ -72,7 +71,7 @@ describe("documentation readiness", () => {
       "drwn extensions",
       "drwn extensions setup parallel",
       "drwn extensions setup markitdown",
-      "drwn skills packages",
+      "drwn machine skill list",
       "drwn card catalog publish",
     ]) {
       expect(quickref).toContain(command);
@@ -101,7 +100,7 @@ describe("documentation readiness", () => {
     expect(readme).toContain("drwn status");
     expect(readme).toContain("concepts/disciplines");
     expect(readme).toContain("concepts/safety-model");
-    expect(readme).toContain("Whole-store export is disabled");
+    expect(readme).toContain("Whole-Store export is unavailable");
 
     // cli-quickref carries the usage-pattern content the slim README points to.
     expect(quickref).toContain("Usage modes");
@@ -111,26 +110,27 @@ describe("documentation readiness", () => {
     expect(quickref).toContain("Optional extensions");
     expect(quickref).toContain("How write works");
     expect(quickref).toContain("How export works");
-    expect(quickref).toContain("drwn library defaults remove skill");
-    expect(quickref).toContain("drwn library defaults remove mcp");
+    expect(quickref).toContain("drwn machine skill disable");
+    expect(quickref).toContain("drwn machine mcp disable");
+    expect(quickref).toContain("drwn machine inventory gc");
     expect(quickref).toContain("--mode direct");
     expect(quickref).toContain("https://github.com/curation-labs/dm-cards-catalog-v1.git");
     expect(quickref).toContain("@community");
     expect(quickref).toContain("registry/config.json");
     expect(quickref).toContain("registry/mcp-servers.json");
     expect(quickref).toContain("drwn apply");
-    expect(quickref).toContain("STORE_EXPORT_DISABLED_UNSAFE");
+    expect(quickref).toContain("No public command archives the whole");
 
     expect(repoOperatorDocs).toContain("drwn apply");
-    expect(usageGuide).toContain("STORE_EXPORT_DISABLED_UNSAFE");
+    expect(usageGuide).toContain("No public command creates a broad archive");
     expect(usageGuide).toContain("<project>/.agents/drwn/config.json");
     expect(usageGuide).toContain("~/.agents/drwn/machine.json");
     expect(usageGuide).toContain("~/.agents/drwn/mcp-servers");
     expect(usageGuide).toContain("~/.agents/drwn/skills");
-    expect(usageGuide).toContain("drwn store migrate");
     expect(usageGuide).toContain("drwn write --force");
     expect(usageGuide).toContain("drwn status --why");
-    expect(usageGuide).toContain("drwn library defaults add");
+    expect(usageGuide).toContain("drwn machine skill install");
+    expect(usageGuide).toContain("drwn machine mcp add");
     expect(usageGuide).toContain("drwn card catalog publish");
     expect(usageGuide).toContain("catalog refresh");
     expect(usageGuide).toContain("https://github.com/curation-labs/dm-cards-catalog-v1.git");
@@ -153,16 +153,16 @@ describe("documentation readiness", () => {
     expect(bundleGuide).toContain("explicit selection");
     expect(bundleGuide).toContain("~/.agents/drwn/skills");
     expect(bundleGuide).toContain("~/.agents/drwn/machine.json");
-    expect(brewGuide).toContain("drwn store status --json");
+    expect(brewGuide).toContain("drwn machine inventory gc --json");
     expect(brewGuide).toContain("drwn card list --json");
     expect(docsDocusaurus).toContain("Cards");
-    expect(docsDocusaurus).toContain("Local Store");
+    expect(docsDocusaurus).toContain("Machine Inventory");
     expect(docsDocusaurus).toContain("drwn extensions add");
     expect(docsDocusaurus).toContain("drwn card");
     expect(docsDocusaurus).toContain("drwn card catalog publish");
     expect(docsDocusaurus).toContain("https://github.com/curation-labs/dm-cards-catalog-v1.git");
     expect(docsDocusaurus).toContain("@community");
-    expect(docsDocusaurus).toContain("drwn store");
+    expect(docsDocusaurus).toContain("drwn machine inventory gc");
     expect(docsDocusaurus).toContain("drwn apply");
     expect(docsDocusaurus).toContain("drwn update");
     expect(docsDocusaurus).toContain("drwn write --force");
@@ -170,7 +170,7 @@ describe("documentation readiness", () => {
     expect(docsDocusaurus).toContain("~/.agents/drwn/machine.json");
     expect(docsDocusaurus).toContain("~/.agents/drwn/skills");
     expect(docsDocusaurus).toContain("~/.agents/drwn/mcp-servers");
-    expect(docsDocusaurus).toContain("STORE_EXPORT_DISABLED_UNSAFE");
+    expect(docsDocusaurus).toContain("Whole-Store archive creation is unavailable");
     for (const command of [
       "drwn card source list",
       "drwn card source show",
@@ -210,8 +210,10 @@ describe("documentation readiness", () => {
       '"schemaVersion": 1',
       "Recommended Darwinian Operator",
       "@darwinian/operator@1.0.2",
-      "drwn library defaults add skill",
-      "drwn library defaults add mcp",
+      "drwn machine skill enable",
+      "drwn machine mcp enable",
+      "drwn machine skill references",
+      "drwn machine mcp references",
       "drwn write --scope machine",
       "MACHINE_PROJECTION_CONFLICT",
       "operator-owned runtime state",
@@ -220,6 +222,8 @@ describe("documentation readiness", () => {
     }
     for (const stale of [
       /drwn skills (?:curate|uncurate)/,
+      /drwn (?:library|store)(?:\s|`)/,
+      /drwn skills (?:list|packages)/,
       /future Task 80/i,
       /"defaults"\s*:/,
       /defaults\.(?:skills|mcpServers)/,
@@ -262,7 +266,8 @@ describe("documentation readiness", () => {
     expect(contract).toContain("declared");
     expect(contract).toContain("ambient");
     expect(contract).toContain("OAuth");
-    expect(contract).toContain("STORE_EXPORT_DISABLED_UNSAFE");
+    expect(contract).toContain("No public command creates a whole-Store archive");
+    expect(contract).toContain("Task 82");
     expect(contract).toContain("@darwinian/operator@1.0.2");
     expect(contract).toContain("Recommended Darwinian Operator");
     expect(reset).toContain("controlled prelaunch reset");

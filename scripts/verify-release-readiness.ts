@@ -239,6 +239,216 @@ function sourceSlice(content: string, startToken: string, endToken?: string) {
   return content.slice(start, end === -1 ? undefined : end);
 }
 
+export function verifyMachineInventoryContract(root = repoRoot, overrides: SourceOverrides = {}): CheckResult {
+  const issues: string[] = [];
+  const exists = (pathValue: string) => Object.hasOwn(overrides, pathValue)
+    ? overrides[pathValue]!.length > 0
+    : existsSync(join(root, pathValue));
+  const source = (pathValue: string) => {
+    if (Object.hasOwn(overrides, pathValue)) return overrides[pathValue]!;
+    const absolutePath = join(root, pathValue);
+    if (!existsSync(absolutePath)) {
+      issues.push(`missing machine inventory source ${pathValue}`);
+      return "";
+    }
+    return readFileSync(absolutePath, "utf8");
+  };
+  const requireTokens = (pathValue: string, tokens: Array<[string, string]>) => {
+    const content = source(pathValue);
+    for (const [token, label] of tokens) {
+      if (!content.includes(token)) issues.push(label);
+    }
+  };
+
+  const index = source("cli/index.ts");
+  for (const namespace of ["library", "store", "skills"] as const) {
+    const pattern = new RegExp(`(?:commands/${namespace}|${namespace[0]!.toUpperCase()}${namespace.slice(1)}[A-Za-z]*Command|\\[\\[\\\"${namespace}\\\")`);
+    if (pattern.test(index)) issues.push(`obsolete ${namespace} command namespace remains registered`);
+  }
+  const obsoleteCommandFiles = [
+    "cli/commands/library/index.ts",
+    "cli/commands/library/list.ts",
+    "cli/commands/store/export.ts",
+    "cli/commands/store/status.ts",
+    "cli/commands/skills/list.ts",
+    "cli/commands/skills/packages.ts",
+  ];
+  for (const pathValue of obsoleteCommandFiles) {
+    if (exists(pathValue)) {
+      issues.push(pathValue.includes("/skills/")
+        ? `obsolete top-level skills command file remains: ${pathValue}`
+        : `obsolete ${pathValue.includes("/store/") ? "store" : "library"} command file remains: ${pathValue}`);
+    }
+  }
+  for (const pathValue of ["cli/core/migration.ts", "cli/core/store-gc.ts", "cli/core/store-migrate.ts"]) {
+    if (exists(pathValue)) issues.push(`prototype inventory adapter remains: ${pathValue}`);
+  }
+
+  const inventoryOutputSources = [
+    "cli/commands/scan.ts",
+    "cli/commands/add/skill.ts",
+    "cli/commands/add/mcp.ts",
+    "cli/commands/search/skill.ts",
+    "cli/commands/search/mcp.ts",
+    "cli/commands/write.ts",
+    "cli/commands/mcp/list.ts",
+    "cli/commands/card/source/add-skill.ts",
+    "cli/commands/card/source/add-mcp.ts",
+    "cli/core/defaults.ts",
+    "cli/core/diagnostics.ts",
+  ].map(source).join("\n");
+  if (!source("cli/commands/scan.ts").includes("machine inventory, explicit machine selection, and project config") ||
+      /library, defaults|library\/default\/project|Local library|local (?:skill|MCP)? ?library|user MCP library|installed skill library|machine library|machine-wide defaults|machine defaults/i.test(inventoryOutputSources)) {
+    issues.push("scan command or operator output retains retired Library terminology");
+  }
+
+  const mcpLibrary = source("cli/core/mcp-library.ts");
+  if (/\b(?:write|save|replace)McpLibrary\b/.test(mcpLibrary)) {
+    issues.push("whole-MCP inventory rewrite API remains");
+  }
+  if (/withOwnerLock|recordMutationLock|mcpRecordLock/.test(mcpLibrary)) {
+    issues.push("per-record mutation lock remains in MCP inventory");
+  }
+  requireTokens("cli/core/mcp-library.ts", [
+    ["writeMcpRecordUnlocked", "MCP inventory is missing atomic record-level persistence"],
+    ["withInventoryLock", "MCP inventory mutations do not use the global inventory lock"],
+    ["tombstoneInventoryPath", "MCP removal is missing tombstone recovery"],
+  ]);
+
+  const skillPackages = source("cli/core/skill-packages.ts");
+  if (!skillPackages.includes("if (existingIntegrity !== stagedIntegrity)") ||
+      !skillPackages.includes("INVENTORY_IMMUTABLE_VERSION_CONFLICT")) {
+    issues.push("immutable version digest comparison is incomplete");
+  }
+  if (!skillPackages.includes("await writeAtomically(currentPath") || /\bsymlink(?:Sync)?\s*\([^)]*currentPath/.test(skillPackages)) {
+    issues.push("skill packages do not use a regular atomic current pointer");
+  }
+  if (/withOwnerLock|packageMutationLock|skillRecordLock/.test(skillPackages)) {
+    issues.push("per-record mutation lock remains in skill inventory");
+  }
+
+  const inventorySources = [
+    source("cli/commands/machine/skill.ts"),
+    source("cli/commands/machine/mcp.ts"),
+    source("cli/core/inventory-references.ts"),
+  ].join("\n");
+  if (/force-unresolved|forceUnresolved/.test(inventorySources)) {
+    issues.push("force-unresolved inventory removal remains available");
+  }
+  for (const [pathValue, tokens] of [
+    ["cli/commands/machine/skill.ts", [
+      '["machine", "skill", "list"]',
+      '["machine", "skill", "show"]',
+      '["machine", "skill", "references"]',
+      '["machine", "skill", "install"]',
+      '["machine", "skill", "update"]',
+      '["machine", "skill", "uninstall"]',
+      '["machine", "skill", "enable"]',
+      '["machine", "skill", "disable"]',
+    ]],
+    ["cli/commands/machine/mcp.ts", [
+      '["machine", "mcp", "list"]',
+      '["machine", "mcp", "show"]',
+      '["machine", "mcp", "references"]',
+      '["machine", "mcp", "add"]',
+      '["machine", "mcp", "update"]',
+      '["machine", "mcp", "remove"]',
+      '["machine", "mcp", "enable"]',
+      '["machine", "mcp", "disable"]',
+    ]],
+  ] as const) {
+    const content = source(pathValue);
+    for (const token of tokens) {
+      if (!content.includes(token)) {
+        const label = token.includes('"references"')
+          ? `${token.includes('"skill"') ? "machine skill" : "machine MCP"} references command is missing`
+          : `machine inventory lifecycle command is missing: ${token}`;
+        issues.push(label);
+      }
+    }
+  }
+
+  const registry = source("cli/core/project-registry.ts");
+  if (!registry.includes("withInventoryLock(") || !registry.includes("withProjectStateLock(")) {
+    issues.push("project registry writers do not retain inventory lock ordering");
+  }
+  const projectWrites = source("cli/core/project-writes.ts");
+  if (!projectWrites.includes("withInventoryLock(") || !projectWrites.includes("withProjectStateLock(")) {
+    issues.push("project reference writers do not retain inventory lock ordering");
+  }
+  if (!source("cli/commands/add/skill.ts").includes("afterCommit:")) {
+    issues.push("automatic skill install does not retain the inventory lock through project intent commit");
+  }
+
+  requireTokens("cli/core/inventory-tombstones.ts", [
+    ["recoverInventoryTombstones", "inventory tombstone recovery is missing"],
+    ["inspectInventoryTombstones", "inventory tombstone validation is missing"],
+  ]);
+  const gc = source("cli/core/inventory-gc.ts");
+  if ((gc.match(/current-package-version/g)?.length ?? 0) < 2 ||
+      (gc.match(/current-mcp-record/g)?.length ?? 0) < 2) {
+    issues.push("current inventory is not explicitly protected from GC");
+  }
+  requireTokens("cli/commands/machine/inventory.ts", [
+    ['["machine", "inventory", "gc"]', "machine inventory GC command is missing"],
+    ["Option.Boolean(\"--prune\"", "machine inventory GC is not dry-run by default with explicit prune"],
+  ]);
+
+  const shapeTests = source("test/commands-machine-inventory-shape.test.ts");
+  if (!["drwn library ", "drwn store ", "drwn skills "].every((token) => shapeTests.includes(token))) {
+    issues.push("old-path negative tests are incomplete");
+  }
+
+  const deploy = source("cli/core/worker-deploy.ts");
+  if (!deploy.includes('new Set<string>(["drwn/store.json"])') || /new Set<string>\(\["drwn"\]\)/.test(deploy)) {
+    issues.push("Store root archive creation is not prohibited");
+  }
+
+  const contractDocPaths = [
+    "README.md",
+    "docs/cli-quickref.md",
+    "docs/contracts/project-worker-v1.md",
+    ".ai/analyses/116_drwn-cli-card-worker-target-architecture.md",
+    ".ai/knowledges/01_agents-cli-usage-guide.md",
+    ".ai/knowledges/03_npm-skill-bundles-guide.md",
+    ".ai/knowledges/04_homebrew-release-checklist.md",
+    ".ai/knowledges/09_cards-manual-test-guide.md",
+    ".ai/knowledges/10_drwn-cli-architecture.md",
+    ...Array.from(new Bun.Glob("**/*.{md,mdx}").scanSync({ cwd: join(root, "docs-docusaurus", "docs") }))
+      .map((pathValue) => `docs-docusaurus/docs/${pathValue}`),
+  ];
+  const contractDocs = contractDocPaths.map(source).join("\n");
+  for (const [token, label] of [
+    ["drwn-managed standalone", "inventory ownership"],
+    ["inactive until", "inactive inventory"],
+    ["package-scoped", "package-scoped skill lifecycle"],
+    ["drwn machine skill references", "skill reference inspection"],
+    ["drwn machine mcp references", "MCP reference inspection"],
+    ["inventory -> machine -> project", "global lock order"],
+    ["drwn projects unregister", "stale project registration repair"],
+    ["immutable package versions", "immutable package versions"],
+    ["secret references", "MCP secret-reference policy"],
+    ["record-level", "record-level MCP persistence"],
+    ["tombstone recovery", "tombstone recovery"],
+    ["dry-run by default", "dry-run inventory GC"],
+    ["Task 82", "portable transfer boundary"],
+  ] as const) {
+    if (!contractDocs.includes(token)) issues.push(`machine inventory docs are missing ${label}`);
+  }
+  const staleInventoryCommand = /drwn (?:library|store)(?:\s|`)|drwn skills (?:list|packages)/;
+  for (const pathValue of contractDocPaths) {
+    if (staleInventoryCommand.test(source(pathValue))) {
+      issues.push(`obsolete inventory command documentation remains in ${pathValue}`);
+    }
+  }
+
+  return {
+    name: "machine inventory contract",
+    ok: issues.length === 0,
+    details: issues.join("; ") || undefined,
+  };
+}
+
 export function verifyMachineContract(root = repoRoot, overrides: SourceOverrides = {}): CheckResult {
   const issues: string[] = [];
   const source = (pathValue: string) => {
@@ -397,8 +607,8 @@ export function verifyMachineContract(root = repoRoot, overrides: SourceOverride
     '"schemaVersion": 1',
     "Recommended Darwinian Operator",
     "@darwinian/operator@1.0.2",
-    "drwn library defaults add skill",
-    "drwn library defaults add mcp",
+    "drwn machine skill enable",
+    "drwn machine mcp enable",
     "drwn write --scope machine",
     "MACHINE_PROJECTION_CONFLICT",
     "operator-owned runtime state",
@@ -407,6 +617,7 @@ export function verifyMachineContract(root = repoRoot, overrides: SourceOverride
   }
   const staleMachineDocPatterns = [
     /drwn skills (?:curate|uncurate)/,
+    /drwn (?:library|store)(?:\s|`)/,
     /future Task 80/i,
     /"defaults"\s*:/,
     /defaults\.(?:skills|mcpServers)/,
@@ -773,6 +984,7 @@ async function main() {
   checks.push(verifyDocsPresence());
   checks.push(verifyWorkerContract());
   checks.push(verifyMachineContract());
+  checks.push(verifyMachineInventoryContract());
   checks.push(verifyAmbientMcpPolicy());
   checks.push(verifyStoreExportSecurity());
   checks.push(await verifySchemaPackageReachable());

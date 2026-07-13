@@ -14,7 +14,7 @@ export class CardSourceAddSkillCommand extends BaseCommand {
     description: "Copy a skill into an editable card source.",
     details: `
       Resolves a skill from an explicit --from path, repo-native skills, or the
-      local reusable library, then copies it into the card source under skills/
+      local reusable inventory, then copies it into the Card source under skills/
       and appends the name to card.json skills.include. Existing bundled copies
       require --replace.
     `,

@@ -10,7 +10,7 @@ The recommended first-run sequence inspects state before mutating it. Every step
 
 ```bash
 drwn status
-drwn skills list
+drwn machine skill list
 drwn mcp list
 drwn write --dry-run
 ```

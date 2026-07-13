@@ -42,23 +42,26 @@ Skill bundles are npm-distributable skill content. The unit of distribution is a
 
 ```text
 ~/.agents/drwn/skills/<package>/<version>/
-~/.agents/drwn/skills/<package>/current   # symlink to active version
+~/.agents/drwn/skills/<package>/current   # regular file containing active version
 ```
 
 Typical lifecycle:
 
 ```bash
-drwn library add skill <npm-package-or-local-path>
-drwn library list skills
-drwn library show <skill-name>
+drwn machine skill install <npm-package-or-local-path>
+drwn machine skill list
+drwn machine skill show --package <package-name>
+drwn machine skill update <package-name> --from <source>
+drwn machine skill uninstall <package-name>
 drwn add skill <skill-name>
 drwn write --dry-run
 drwn write
 ```
 
-Update and remove lifecycle commands for bundles are intentionally not part of the first implementation. The supported surface today is add, list, show, inventory, explicit selection, and downstream write.
+Update and uninstall are package-scoped, disclose exported skill IDs and known
+references, and never replace immutable version bytes.
 
-See [reference/cli/skills](../reference/cli/skills) for skill commands.
+See [Machine Inventory](../reference/cli/machine) for skill commands.
 
 ## Cards
 
@@ -87,8 +90,8 @@ The three verbs do not mean the same thing. Keep them straight:
 Each step is a separate command so package installation never silently changes every agent on the machine:
 
 ```bash
-drwn library add skill <pkg>              # available
-drwn library defaults add skill <name>    # machine-selected
+drwn machine skill install <pkg>              # available
+drwn machine skill enable <name>    # machine-selected
 drwn write --scope machine                # written to user-home targets
 ```
 
@@ -99,4 +102,4 @@ Cards declare project capability content directly. The selected Worker closure a
 - [Skills](./skills) for the skill resolution layers
 - [Cards](./cards) for the card lifecycle
 - [Materialization](./materialization) for how all three reach the filesystem
-- [reference/cli/extensions](../reference/cli/extensions), [reference/cli/skills](../reference/cli/skills), [reference/cli/card](../reference/cli/card)
+- [reference/cli/extensions](../reference/cli/extensions), [reference/cli/machine](../reference/cli/machine), [reference/cli/card](../reference/cli/card)

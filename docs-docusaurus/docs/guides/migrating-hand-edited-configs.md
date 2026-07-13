@@ -12,8 +12,9 @@ without losing your existing MCP servers or custom skills.
 
 `drwn scan` is the planned non-mutating discovery surface for exactly this
 problem. It is currently a placeholder: the command runs and is intended to
-report local agent tool config it finds and suggest library, defaults, and
-project-config candidates. Until the implementation lands, inventory manually:
+report local agent tool config it finds and suggest machine inventory, explicit
+machine selection, and project-config candidates. Until the implementation
+lands, inventory manually:
 
 ```bash
 cat ~/.claude/settings.json
@@ -26,17 +27,18 @@ hand-edited target setting.
 ## Register Existing MCP Servers
 
 For each MCP server in your hand-edited config, write a small JSON definition
-and add it to the local library:
+and add it to the standalone inventory:
 
 ```bash
-drwn library add mcp ./github-mcp.json --as github
-drwn library list mcp
+drwn machine mcp add ./github-mcp.json --as github
+drwn machine mcp list
 ```
 
-If the server should apply to every project, promote it to a default:
+If the server should be selected for machine-scope sessions, enable it in
+explicit machine intent:
 
 ```bash
-drwn library defaults add mcp github
+drwn machine mcp enable github
 ```
 
 If the server only applies to one project, scope it there instead:
@@ -53,15 +55,15 @@ Inventory any custom skill directories the agent tools were already reading
 from. For each one:
 
 ```bash
-drwn skills packages add <npm-package-or-local-path>
-drwn library add skill <local-path>
-drwn skills list
+drwn machine skill install <npm-package-or-local-path>
+drwn machine skill install <local-path>
+drwn machine skill list
 ```
 
 If the skill should be available globally:
 
 ```bash
-drwn library defaults add skill <skill-name>
+drwn machine skill enable <skill-name>
 drwn write --scope machine --skills-only --dry-run
 ```
 
@@ -83,8 +85,9 @@ Compare the planned changes against your hand-edited files. `drwn` will:
 
 ## Iterate
 
-Repeat `library add`, `library defaults add`, `add skill`, and
-`write --dry-run` until the dry run matches what you want. Then run:
+Repeat `machine skill|mcp` inventory operations, machine `enable` commands,
+project `add` commands, and `write --dry-run` until the dry run matches what you
+want. Then run:
 
 ```bash
 drwn write
@@ -103,5 +106,5 @@ stale links, and unresolved references.
 
 ## See Also
 
-- [library CLI reference](../reference/cli/library)
+- [Machine inventory CLI reference](../reference/cli/machine)
 - [Ownership conflicts](../troubleshooting/ownership-conflicts)

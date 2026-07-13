@@ -52,8 +52,8 @@ When `drwn write` aborts, ask one question: was the edit inside the managed regi
 Somebody (often you) hand-edited `mcpServers` to add or change a server. The right resolution is to move the intent into a layer drwn understands so that the change survives future writes:
 
 ```bash
-drwn library add mcp ./my-server.json --as my-server
-drwn library defaults add mcp my-server
+drwn machine mcp add ./my-server.json --as my-server
+drwn machine mcp enable my-server
 drwn write --dry-run
 drwn write
 ```

@@ -7,7 +7,7 @@ import { BaseCommand } from "./base";
 
 const plannedRole = [
   "inspect existing local agent tool config",
-  "report import candidates for library, defaults, and project config",
+  "report import candidates for machine inventory, explicit machine selection, and project config",
   "avoid writing files unless a future explicit import/write step is added",
 ];
 
@@ -20,7 +20,8 @@ export class ScanCommand extends BaseCommand {
     details: `
       This command is intentionally a no-op today. Its planned role is to
       inspect existing local agent tool config, report import candidates for
-      library/default/project promotion, and avoid writing files unless a
+      machine inventory, explicit machine selection, or project configuration,
+      and avoid writing files unless a
       future explicit import step is added.
     `,
     examples: [

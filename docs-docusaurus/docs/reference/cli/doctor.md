@@ -23,7 +23,7 @@ drwn doctor --json
 | Stale skill entries | prior-owned downstream skill entries that no longer correspond to selected machine or project skills |
 | MCP drift | Per-target managed-content drift across Claude / Codex / Cursor, comparing recorded vs recomputed hashes for each managed field |
 | Hook issues | A locked card declares hook policies but no hook consent has been recorded via `drwn card trust` |
-| Project config — unknown server | `serverOverrides` references a server that is neither in the registry nor the user MCP library |
+| Project config — unknown server | `mcpServers` references a server that is neither in the registry, standalone MCP inventory, nor the selected Worker closure |
 | Project config — unknown skill | `skills.include` (or `extensions.<name>` derivations) references a skill that does not resolve in any layer |
 | Project config — unknown extension | `extensions.<name>` references an extension drwn does not know |
 | Project config — stale target override | `targets.<name>` references a target drwn does not know |
@@ -48,4 +48,4 @@ The unresolved `skills.include` case is split across two surfaces:
 - [Status](./status) — effective harness summary (use `--why` to trace why something is active)
 - [Write](./write) — the mutating counterpart; `--dry-run` previews the same writes doctor reports drift against
 - [Extensions doctor](./extensions) — extension-specific diagnostics (Parallel, Beads, MarkItDown)
-- [Store status / verify](./store) — store-layer health
+- [Machine Inventory](./machine) — standalone package, MCP record, reference, and GC behavior

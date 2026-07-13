@@ -274,4 +274,4 @@ MCP runtimes should be version-pinned in their command args when reproducibility
 
 ## Safety
 
-Whole-Store export remains disabled with `STORE_EXPORT_DISABLED_UNSAFE`. Project and deploy flows never use a broad Store archive. For an unsupported development project, follow [`docs/prelaunch-project-reset.md`](../../docs/prelaunch-project-reset.md); do not ask the supported CLI to interpret old files.
+There is no public whole-Store archive command. Project and deploy flows never use a broad Store archive. For an unsupported development project, follow [`docs/prelaunch-project-reset.md`](../../docs/prelaunch-project-reset.md); do not ask the supported CLI to interpret old files. Portable machine inventory transfer remains a separate Task 82 contract.

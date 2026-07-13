@@ -64,3 +64,18 @@ test("status --why bare query fails when ambiguous and --explain includes proven
   expect(explain.stdout).toContain("Skills");
   expect(explain.stdout).toContain("Targets");
 });
+
+test("status --why uses machine inventory provenance terminology", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+
+  const skill = await runAgentsCli(["status", "--why", "skill:alpha"], envFor(fixture));
+  const server = await runAgentsCli(["status", "--why", "server:context7"], envFor(fixture));
+
+  expect(skill.exitCode).toBe(0);
+  expect(skill.stdout).toContain("repo or installed skill inventory");
+  expect(skill.stdout).not.toContain("library");
+  expect(server.exitCode).toBe(0);
+  expect(server.stdout).toContain("registry or standalone machine inventory");
+  expect(server.stdout).not.toContain("library");
+});

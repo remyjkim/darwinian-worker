@@ -37,8 +37,14 @@ describe("drwn scan", () => {
     });
 
     expect(result.exitCode).toBe(0);
-    const parsed = JSON.parse(result.stdout) as { implemented: boolean; changes: string[] };
+    const parsed = JSON.parse(result.stdout) as {
+      implemented: boolean;
+      changes: string[];
+      plannedRole: string[];
+    };
     expect(parsed.implemented).toBe(false);
     expect(parsed.changes).toEqual([]);
+    expect(parsed.plannedRole).toContain("report import candidates for machine inventory, explicit machine selection, and project config");
+    expect(parsed.plannedRole.join("\n")).not.toMatch(/library|defaults/);
   });
 });

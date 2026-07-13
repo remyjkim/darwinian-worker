@@ -1,5 +1,5 @@
 // ABOUTME: Implements project-first MCP activation through `drwn add mcp`.
-// ABOUTME: Adds known MCP servers to project config without mutating global defaults.
+// ABOUTME: Adds known MCP servers to project config without mutating machine intent.
 
 import { Option, UsageError } from "clipanion";
 import { createInterface } from "node:readline/promises";
@@ -22,7 +22,7 @@ export class AddMcpCommand extends BaseCommand {
     description: "Add an MCP server to the current project. Prompts in a TTY when no name is given.",
     details: `
       Activates a known MCP server in the current project without mutating
-      machine-wide defaults. Looks up the server in the local library first;
+      machine intent. Looks up the server in local inventory first;
       with --yes, falls back to an unambiguous configured catalog match. If
       the current project has locked cards that declare optional MCP servers,
       those card-local definitions can also be enabled by name.
@@ -42,7 +42,7 @@ export class AddMcpCommand extends BaseCommand {
   queryOrName = Option.String({ required: false });
 
   libraryOnly = Option.Boolean("--library", false, {
-    description: "Only search the local library.",
+    description: "Only search local inventory.",
   });
 
   dryRun = Option.Boolean("--dry-run", false, {

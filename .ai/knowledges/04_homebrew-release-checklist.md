@@ -59,8 +59,10 @@ After a future Homebrew install, verify:
 - `drwn init --force`
 - `drwn write --dry-run`
 - `drwn scan --json` (currently a planned-surface placeholder; confirms the binary is reachable and JSON output renders)
-- `drwn skills packages list --json`
-- `drwn store status --json`
+- `drwn machine skill list --json`
+- `drwn machine mcp list --json`
+- `drwn machine inventory gc --json` (dry-run)
+- `drwn status --machine --json`
 - `drwn card list --json`
 - `drwn status --explain`
 

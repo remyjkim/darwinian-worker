@@ -3,7 +3,7 @@
 
 # Analysis 116: drwn CLI Card and Worker Target Architecture
 
-**Status**: Implemented by Task 77 on 2026-07-13
+**Status**: Implemented through Task 81 on 2026-07-13
 
 **Date**: 2026-07-13
 
@@ -14,8 +14,10 @@
 **Related work**:
 
 - Task 79 Store export security remediation is complete.
-- Task 80 must be revised around the machine-profile decisions recorded in section 10.
-- Tasks 81-83 remain separate Library lifecycle, portable transfer, and ambient-policy proposals.
+- Task 80 machine schema/profile implementation is complete.
+- Task 81 standalone machine inventory lifecycle is complete.
+- Task 82 portable transfer remains separate.
+- Task 83 target-native ambient policy is complete.
 
 **Supersedes**: Prototype project config, lockfile, generated-state, Worker-stack, and project-mutation contracts described in analyses 68/100/101/114 and Task 69. Those artifacts were development scaffolding, not a supported public contract.
 
@@ -69,7 +71,7 @@ The model has four separate concerns:
 
 | Concern | Authority | Purpose |
 |---|---|---|
-| Inventory | Library, Catalog, Store | Discover and retain available artifacts |
+| Inventory | Machine inventory and catalogs | Discover and retain available artifacts |
 | Project intent | Project config and lock | Declare roots, one selection, overlays, and immutable Card closure |
 | Machine intent | Namespaced machine config | Declare a profile and explicit machine-safe capabilities |
 | Projection | Generated state and downstream tool files | Materialize intent; never become intent |
@@ -102,9 +104,14 @@ project -> active root -> pinned Card -> capability bytes -> target projection
 
 ## 3. Canonical Terms
 
-### 3.1 Library
+### 3.1 Machine Inventory
 
-The Library is machine inventory. It answers what artifacts are available, where they came from, and what references depend on them. Presence in the Library does not activate an artifact in a project or at machine scope.
+Machine inventory contains drwn-managed standalone skill packages and MCP
+records. It answers what artifacts are available, where they came from, and
+what declared references depend on them. Repository skills and bundled registry
+MCP definitions are immutable discovery inputs; Card-owned copies remain owned
+by their Card source. Inventory is inactive until explicit machine or project
+intent selects it.
 
 ### 3.2 Card
 
@@ -141,7 +148,7 @@ An ambient capability is visible through a downstream tool's user-home behavior 
 The supported direction is one-way:
 
 ```text
-sources/catalogs -> Store/Library -> project requirements -> lock -> effective state
+sources/catalogs -> machine inventory -> project requirements -> lock -> effective state
 -> generated aggregate -> downstream project files
 ```
 
@@ -303,7 +310,7 @@ Project overlays are explicit and remain outside the Blueprint. Their precedence
 selected root closure -> committed project overlay -> local project overlay
 ```
 
-Every override must retain provenance. A project MCP enable toggle may select a definition from the active closure or Library only when the project overlay explicitly references that Library definition. It cannot reach into an inactive root by ID.
+Every override must retain provenance. A project MCP enable toggle may select a definition from the active closure or standalone inventory only when the project overlay explicitly references that inventory definition. It cannot reach into an inactive root by ID.
 
 ---
 
@@ -468,7 +475,7 @@ Machine activation comes only from:
 1. one selected pinned machine profile; and
 2. explicit machine skill/MCP selections.
 
-Library presence remains inventory. `skills curate` and `skills uncurate` are removed. Compatibility directories are projection outputs or foreign ambient state, never activation authority.
+Inventory presence is not activation. `skills curate` and `skills uncurate` are removed. Compatibility directories are projection outputs or foreign ambient state, never activation authority.
 
 ### 10.4 Project Relationship
 
@@ -476,19 +483,31 @@ A project does not inherit the machine profile into its declaration or lock. If 
 
 ---
 
-## 11. Library and Store Boundaries
+## 11. Machine Inventory Boundaries
 
-The Library remains valuable as inventory shared across projects:
+Standalone machine inventory is shared across projects:
 
-- resolves installed skill, MCP, Card, and profile artifacts;
-- records provenance, version, and integrity;
+- resolves drwn-managed skill packages and MCP records;
+- records package identity, exported skill IDs, provenance, version, and integrity;
 - supports explicit references from machine or project intent;
 - reports references before removal;
 - never activates content merely because it is present.
 
-Task 77 needs only read paths required for explicit project overlays. Full remove/update/reference/GC behavior remains Task 81.
+Skill update and uninstall are package-scoped. Package versions are immutable,
+and `current` is an atomic regular pointer. MCP definitions use record-level
+atomic persistence and store secret references rather than resolved values.
+Removal blocks on explicit references without a force bypass and uses validated
+tombstone recovery. Reference-sensitive operations follow
+`inventory -> machine -> project`. Invalid registered roots fail closed and are
+repaired explicitly with `drwn projects unregister`.
 
-Task 79 established the immediate Store export boundary: whole-store export is fail-closed because operational Store state contains credentials and machine-specific records. A later portable export format remains Task 82 and must allowlist inventory content rather than archive the Store directory.
+`drwn machine inventory gc` is a dry-run by default. It prunes only abandoned
+temporaries, completed tombstones, and sufficiently old inactive package
+versions; zero known references never make current inventory garbage.
+
+No public command creates a whole-Store archive because machine state contains
+credentials and operational records. A portable format remains Task 82 and
+must allowlist inventory content rather than archive the Store directory.
 
 Secrets remain operator state. Lockfiles, generated Workers, status JSON, deployment fixtures, and export artifacts contain secret references only.
 
@@ -554,7 +573,7 @@ Stable target errors describe current supported state, not migration history:
 | `WORKER_CARD_VERSION_CONFLICT` | Roots resolve one Card name to incompatible artifacts |
 | `BLUEPRINT_MEMBER_IS_BLUEPRINT` | A Blueprint directly contains another Blueprint |
 | `WORKER_CAPABILITY_CONFLICT` | Selected closure contains incompatible same-ID capabilities |
-| `MCP_DEFINITION_NOT_EFFECTIVE` | A project toggle references no active-closure or explicit Library definition |
+| `MCP_DEFINITION_NOT_EFFECTIVE` | A project toggle references no active-closure or explicit standalone inventory definition |
 | `PROJECT_STATE_TRANSACTION_BUSY` | Another live project mutation owns the transaction lock |
 | `PROJECT_STATE_TRANSACTION_RECOVERY_FAILED` | Prepared config/lock bytes cannot be safely recovered |
 
@@ -584,7 +603,7 @@ Task 77 is complete only when all of these hold.
 14. Card capture includes one active closure plus explicit project overlays, never inactive or machine capabilities.
 15. Mind and deploy consumers receive one root plus closure.
 16. The remote deploy fixture remains byte-contract compatible.
-17. Whole-store export remains fail-closed and no credential-bearing archive path is reintroduced.
+17. Whole-Store archive creation is absent and no credential-bearing archive path is introduced.
 18. `darwinian-cards` rollout preserves its three Card sources and selects one published aggregate Blueprint.
 19. Unit, integration, shell smoke, E2E where available, release, bridge, and documentation checks pass.
 
@@ -596,10 +615,7 @@ Task 77 does not implement:
 
 - compatibility with any prototype project or lock format;
 - an automated project migration or adoption command;
-- the Task 80 machine schema/profile implementation;
-- complete Library remove/update/reference/GC behavior;
-- portable Store export/seed;
-- Store-wide transaction infrastructure beyond project config/lock needs;
+- portable machine inventory transfer from Task 82;
 - universal ambient collision enforcement;
 - nested Blueprints;
 - a new remote deploy payload contract;
@@ -609,11 +625,11 @@ Task allocation:
 
 | Task | Scope | Decision state |
 |---|---|---|
-| 79 | Disable credential-bearing whole-Store export | complete |
-| 80 | Clean machine schema V1, empty non-interactive setup, guided Operator profile, explicit selections, curation removal | selected direction; plan revision required |
-| 81 | Complete Library lifecycle and persistence | proposed |
+| 79 | Remove credential-bearing whole-Store export | complete |
+| 80 | Clean machine schema V1, empty non-interactive setup, guided Operator profile, explicit selections, curation removal | complete |
+| 81 | Standalone machine inventory lifecycle and persistence | complete |
 | 82 | Portable allowlisted inventory transfer | proposed |
-| 83 | Per-target ambient collision policy | proposed |
+| 83 | Per-target ambient collision policy | complete |
 
 ---
 
@@ -621,11 +637,11 @@ Task allocation:
 
 The architecture is based on:
 
-- direct review of current project config, lock validation, effective-state, skill/MCP evaluation, generated Worker, write, Store export, and command registration code;
+- direct review of current project config, lock validation, effective-state, skill/MCP evaluation, generated Worker, write, scoped deploy payload, and command registration code;
 - focused baseline tests for defaults, skill sync, effective state, MCP add/list, Codex collision behavior, and root-scope projection;
 - a read-only inventory of `/Users/pureicis/dev/darwinian-cards` and its three current materialized Cards;
 - prior analyses 13, 43, 66, 68, 90, 99, 100, 101, and 114;
-- coworker review that separated ratified Worker decisions from unapproved Library/ambient/export additions;
+- coworker review that separated ratified Worker decisions from inventory, ambient, and transfer follow-ups;
 - the 2026-07-13 mentor directive that the prelaunch target is the first supported public contract.
 
 Revision 4 was compatibility-oriented: project config V2, lock V6, prototype readers, migration diagnostics, moved-command shims, and a bounded `--no-apply` alias. Those choices are superseded by this revision.

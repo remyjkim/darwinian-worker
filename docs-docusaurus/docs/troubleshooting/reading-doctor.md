@@ -34,7 +34,7 @@ This is deliberate. The doctor and the write pipeline share one diagnostics engi
   "platformChecks": [],
   "projectConfigIssues": [],
   "cards": { "configuredRefs": [], "lockedVersions": [], "warnings": [] },
-  "store": { "path": "...", "initialized": true, "schemaVersion": 1, "cardCount": 0, "sourceCount": 0, "skillBundleCount": 0, "mcpServerCount": 0, "legacyLayoutDetected": false },
+  "store": { "path": "...", "initialized": true, "schemaVersion": 1, "cardCount": 0, "sourceCount": 0, "skillBundleCount": 0, "mcpServerCount": 0 },
   "writeRecord": { "path": "...", "present": true, "corrupt": false, "managedPathCount": 0, "lastWriteAt": "...", "lastWriteHarnessVersion": "..." }
 }
 ```
@@ -52,7 +52,7 @@ drwn doctor --json
 drwn write --dry-run
 ```
 
-Re-running `drwn write` re-points drwn-owned links to the correct source if the underlying skill is still resolved. If the skill itself is gone, remove it with `drwn library defaults remove skill` (machine) or from `skills.include` (project).
+Re-running `drwn write` re-points drwn-owned links to the correct source if the underlying skill is still resolved. If the skill itself is gone, remove it with `drwn machine skill disable` (machine) or from `skills.include` (project).
 
 ### Stale skill symlinks
 
@@ -63,7 +63,7 @@ drwn doctor --json
 drwn write
 ```
 
-See [Stale Symlinks](./stale-symlinks) for the ownership distinction and the `store migrate --cleanup-legacy-orphans` escape hatch.
+See [Stale Symlinks](./stale-symlinks) for the ownership distinction and safe manual inspection steps.
 
 ### MCP drift
 
@@ -80,7 +80,7 @@ drwn write --force
 
 ### Missing generated files
 
-This category is retained for output-shape stability but is no longer triggered by Cursor. Cursor's `mcp.json` is written directly as `managed-content` rather than via a generated sidecar file, so there is no generated file that can go missing. If `missingGeneratedFiles` is non-empty in a report, it indicates a pre-migration write record; re-running `drwn write` clears it.
+This category is retained for output-shape stability but is no longer triggered by Cursor. Cursor's `mcp.json` is written directly as `managed-content` rather than via a generated sidecar file, so there is no generated file that can go missing. If `missingGeneratedFiles` is non-empty in a report, it indicates an earlier generated-sidecar write record; re-running `drwn write` clears it.
 
 ### Hook issues
 
@@ -111,12 +111,12 @@ Currently checked:
 
 A single category that aggregates problems with `<project>/.agents/drwn/config.json` and the resolved card lock:
 
-- **Unknown server reference** — `mcpServers["<name>"]` toggles a server that is not in the registry, user MCP library, or selected Worker closure.
+- **Unknown server reference** — `mcpServers["<name>"]` toggles a server that is not in the registry, standalone MCP inventory, or selected Worker closure.
 - **Unknown skill reference** — `skills.include` or `skills.exclude` names a skill that no repo-native source, package-backed bundle, or selected Worker closure provides.
 - **Unknown extension reference** — `extensions["<name>"]` references an extension the registry does not know about.
 - **Stale target override** — `targets["<name>"].enabled` matches packaged project policy; the override is a no-op.
 - **Card references unavailable skills** — a Card in the selected root closure lists a skill name the project's available inventory cannot satisfy.
-- **Unresolved machine capability** — an explicit machine skill or MCP ID is unavailable in the local Library.
+- **Unresolved machine capability** — an explicit machine skill or MCP ID is unavailable in machine inventory.
 - **Invalid profile bytes** — the pinned profile extraction is missing or no longer matches its recorded integrity.
 - **Machine projection conflict** — a destination is foreign or prior-owned state has drifted. Doctor reports it without repair.
 
@@ -128,7 +128,9 @@ drwn status --why skill:<name>
 drwn status --why server:<name>
 ```
 
-Fix by editing the offending config file, removing the reference, or installing the missing inventory (`drwn library add ...`).
+Fix by editing the offending config file, removing the reference, or installing
+the missing package/record with `drwn machine skill install` or `drwn machine
+mcp add`.
 
 ## Cross-References
 

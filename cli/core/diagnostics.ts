@@ -278,10 +278,10 @@ export async function buildMachineStatusV1(
       }),
   ];
   for (const skill of skills.filter((entry) => entry.status === "missing" && entry.provenance === "explicit")) {
-    issues.push(`MACHINE_CAPABILITY_NOT_FOUND: Explicit machine skill is not available in the local Library: ${skill.id}`);
+    issues.push(`MACHINE_CAPABILITY_NOT_FOUND: Explicit machine skill is not available in machine inventory: ${skill.id}`);
   }
   for (const server of mcpServers.filter((entry) => entry.status === "missing" && entry.provenance === "explicit")) {
-    issues.push(`MACHINE_CAPABILITY_NOT_FOUND: Explicit machine MCP server is not available in the local Library: ${server.id}`);
+    issues.push(`MACHINE_CAPABILITY_NOT_FOUND: Explicit machine MCP server is not available in machine inventory: ${server.id}`);
   }
 
   const record = loadWriteRecord(resolveGlobalWriteRecordPath(agentsDir));
@@ -658,7 +658,7 @@ async function collectWhyMatches(
         ? "project config"
         : machineSkill
           ? machineSkill.provenance === "profile" ? "machine profile" : "explicit machine selection"
-          : "repo or installed skill library";
+          : "repo or installed skill inventory";
     const state = cardSkill || projectSkill || (machineSkill?.status === "resolved") ? "active" : "available";
     matches.push({ kind: "skill", name, message: `skill:${name} is ${state} from ${source}.\n` });
   }
@@ -675,7 +675,7 @@ async function collectWhyMatches(
         ? "project config"
         : machineServer
           ? machineServer.provenance === "profile" ? "machine profile" : "explicit machine selection"
-          : "registry or machine library";
+          : "registry or standalone machine inventory";
     matches.push({ kind: "server", name, message: `server:${name} is ${active ? "active" : "available"} from ${source}.\n` });
   }
 

@@ -20,25 +20,31 @@ See [Ownership and Write Records](./concepts/ownership-and-write-records).
 
 Because the right fix depends on intent that `drwn` does not have. A stale skill symlink might mean "remove this skill from defaults" or "the underlying bundle moved, point me at the new path." A managed-field hash mismatch might mean "publish over the drift" or "migrate the manual edit into config." `doctor` enumerates the conditions and lets the operator (or an agent following a skill) decide. The write pipeline and doctor share the same engine — see [Diagnostics Model](./concepts/diagnostics-model).
 
-## Why are bundle update and remove not implemented?
+## How do bundle update and uninstall work?
 
-The first wave of package-backed skill bundles intentionally ships add, list,
-show, explicit selection, and downstream write only. Update and remove were left
-out because their semantics need more design before they ship. For now, remove a
-bundle by deleting its directory only after removing project and machine
-references; upgrade by re-adding the new version.
+Both are package-scoped. They enumerate exported skill IDs and known machine or
+project references. Uninstall is blocked while references remain, and there is
+no force bypass. Update writes an immutable version and atomically changes the
+regular `current` pointer only after complete-tree digest validation.
 
-See the [extension skill bundles section](./reference/cli/library) and [npm skill bundles guide](https://github.com/remyjkim/darwinian-worker/blob/main/.ai/knowledges/03_npm-skill-bundles-guide.md) for the current surface.
+See [Machine Inventory](./reference/cli/machine) and the [npm skill bundles guide](https://github.com/remyjkim/darwinian-worker/blob/main/.ai/knowledges/03_npm-skill-bundles-guide.md).
 
 ## Can I run `drwn` without writing anything?
 
-Yes. Every write command supports `--dry-run` and prints the exact planned changes. Inspection commands (`status`, `doctor`, `library list`, `mcp list`, `skills list`, `card show`) never write. For a stricter guarantee against any store mutation, set `DRWN_STORE_READONLY=1`.
+Yes. Every write command supports `--dry-run` and prints the exact planned
+changes. Inspection commands such as `status`, `doctor`, `machine skill list`,
+`machine mcp list`, and `card show` never write. Inventory GC is a dry-run by
+default. For a stricter guarantee against machine-state mutation, set
+`DRWN_STORE_READONLY=1`.
 
 ## What does `DRWN_STORE_READONLY=1` actually block?
 
-It blocks every write under `~/.agents/drwn/` — published card mutations, source mutations, machine-config edits, catalog updates, URL-card-map updates, and store migration. Inspection, dry runs, and source `doctor` continue to work. The check is enforced at the resolver boundary (`assertStoreWritable` in `cli/core/store-paths.ts`), so individual commands cannot bypass it. The downstream tool config (`~/.claude`, `~/.codex`, `~/.cursor`) is not under the store and is governed separately.
+It blocks every write under `~/.agents/drwn/` — published Card mutations,
+source mutations, machine-config edits, inventory lifecycle, catalog updates,
+and URL-card-map updates. Inspection, dry runs, and source `doctor` continue to
+work. Downstream tool config is governed separately.
 
-See [Local Store](./concepts/local-store) for the store boundary.
+See [Machine State](./concepts/local-store) for the boundary.
 
 ## How does the URL-to-card-name cache work?
 
@@ -50,7 +56,10 @@ Yes — that is the recommended setup for shared projects. `config.json` and `ca
 
 ## What does `drwn scan` do today vs in the future?
 
-Today `drwn scan` is a verified placeholder. It emits a fixed JSON payload describing its planned role and exits without touching disk. The planned role is to inspect existing local agent tool config, report which entries could be lifted into the local library, defaults, or project config, and stop short of any write. Until that is implemented, the command is safe to run but has no effect.
+Today `drwn scan` is a verified placeholder. It emits a fixed JSON payload and
+exits without touching disk. Its planned role is to report candidates for
+standalone inventory, explicit machine intent, or project config, and stop short
+of any write.
 
 ## How is this different from Docker, Flox, or Nix?
 

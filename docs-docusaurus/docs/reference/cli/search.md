@@ -8,7 +8,7 @@ sidebar_position: 3
 
 ## drwn search skill
 
-Search the local skill library and configured npm-skill catalogs.
+Search local skill inventory and configured npm-skill catalogs.
 
 ```bash
 drwn search skill debug
@@ -17,7 +17,9 @@ drwn search skill alpha --library
 drwn search skill research --json
 ```
 
-Results are grouped by source — `Local library` (what you already have) and `Online catalogs` (what you could install through `drwn add skill --yes` or `drwn library add skill`).
+Results are grouped by source: `Local inventory` is already available and
+`Online catalogs` can be installed through `drwn add skill --yes` or
+`drwn machine skill install`.
 
 `--library` and `--catalog` are mutually exclusive. Pass one to restrict to a single source group.
 
@@ -25,7 +27,7 @@ The catalog source is `catalogs.npmSkills` from the effective config; it is enab
 
 ## drwn search mcp
 
-Search the local MCP library and configured trusted MCP catalogs.
+Search local MCP inventory and configured trusted MCP catalogs.
 
 ```bash
 drwn search mcp github
@@ -48,7 +50,7 @@ drwn search card backend --scope @team
 drwn search card backend --json
 ```
 
-Card search reads `catalog.json` entries inside catalogs registered via `drwn library catalog add`. `drwn init` registers the Curation Labs `@community` catalog (`https://github.com/curation-labs/dm-cards-catalog-v1.git`) unless `--no-default-catalogs` is passed. Producers add entries with `drwn card catalog publish <cardRef> --catalog <scope|git-url|path> --mode <local|direct>`.
+Card search reads `catalog.json` entries inside catalogs registered via `drwn catalog add`. `drwn init` registers the Curation Labs `@community` catalog (`https://github.com/curation-labs/dm-cards-catalog-v1.git`) unless `--no-default-catalogs` is passed. Producers add entries with `drwn card catalog publish <cardRef> --catalog <scope|git-url|path> --mode <local|direct>`.
 
 `--scope` limits results to a single catalog scope (e.g. `@team`).
 
@@ -63,4 +65,4 @@ Unlike skill and MCP search, card search has no `--library`/`--catalog` split: c
 ## Related
 
 - [Add](./add) — add the result of a search to the current project
-- [Library](./library) — list everything available locally without search
+- [Machine inventory](./machine) — list everything available locally without search

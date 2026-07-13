@@ -4,7 +4,7 @@ sidebar_position: 3
 
 # Set Up Your Machine
 
-Set up `drwn` once per machine. After this path you will have an installed CLI, a local Store under `~/.agents/drwn`, explicit machine capability intent, and a reviewed first projection into downstream tool config.
+Set up `drwn` once per machine. After this path you will have an installed CLI, a machine state root under `~/.agents/drwn`, explicit machine capability intent, and a reviewed first projection into downstream tool config.
 
 ## Prerequisites
 
@@ -33,20 +33,21 @@ drwn status --json
 
 You should see the resolved store path under `~/.agents/drwn`, the list of enabled targets (`claude`, `codex`, `cursor`), and counts for skills and MCP servers. If `store.initialized` is false, the first store-mutating command will initialize it; nothing is broken.
 
-## Inspect the built-in inventory
+## Inspect machine inventory
 
-The built-in library is the catalog of skills and MCP servers the packaged harness knows about. Listing it tells you what is available before you decide what to activate.
+Repository skills and bundled registry MCP definitions are immutable discovery
+inputs. Installed packages and MCP records are standalone inventory. Listing
+them shows what is available before you decide what to activate.
 
 ```bash
-drwn library list
-drwn library list skills
-drwn library list mcp
+drwn machine skill list
+drwn machine mcp list
 ```
 
 Drill into a single entry to see what it does:
 
 ```bash
-drwn library show <name>
+drwn machine skill show <name>
 ```
 
 ## Initialize Machine Intent
@@ -55,7 +56,8 @@ Prompt-free setup creates strict empty `drwn.machine` V1 intent:
 
 ```bash
 drwn init --non-interactive
-drwn library defaults list
+drwn machine skill list
+drwn machine mcp list
 ```
 
 Interactive `drwn init` offers the opt-out Recommended Darwinian Operator
@@ -64,26 +66,27 @@ machine-safe skills and zero MCP servers.
 
 ## Add Explicit Machine Capabilities
 
-Decide which skills and MCP servers should be visible in machine sessions. Skills go through `library defaults add skill`; MCP servers through `library defaults add mcp`:
+Decide which skills and MCP servers should be visible in machine sessions:
 
 ```bash
-drwn library defaults add skill <skill-name>
-drwn library defaults add mcp <server-name>
+drwn machine skill enable <skill-name>
+drwn machine mcp enable <server-name>
 ```
 
 For example, to select a code reviewer skill and the `context7` documentation MCP server:
 
 ```bash
-drwn library defaults add skill reviewer
-drwn library defaults add mcp context7
-drwn library defaults list
+drwn machine skill enable reviewer
+drwn machine mcp enable context7
+drwn machine skill list
+drwn machine mcp list
 ```
 
 You can remove a default the same way:
 
 ```bash
-drwn library defaults remove skill <skill-name>
-drwn library defaults remove mcp <server-name>
+drwn machine skill disable <skill-name>
+drwn machine mcp disable <server-name>
 ```
 
 ## Preview, then write
@@ -115,7 +118,7 @@ drift in prior drwn-owned output.
 
 ## Cross-References
 
-- [Local Store](../../concepts/local-store) for the layout under `~/.agents/drwn`
+- [Machine State](../../concepts/local-store) for the layout under `~/.agents/drwn`
 - [MCP Servers](../../concepts/mcp-servers) for how MCP server definitions flow through the layers
 - [Override for One Project](./override-one-project) when one project needs a different effective harness
 - [Reading Doctor](../../troubleshooting/reading-doctor) when the first write surfaces issues

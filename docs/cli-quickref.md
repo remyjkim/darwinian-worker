@@ -13,7 +13,7 @@ For project framing and install, see the [root README](../README.md).
 - [How write works](#how-write-works)
 - [How export works](#how-export-works)
 - [MCP registry](#mcp-registry)
-- [Skill library](#skill-library)
+- [Machine inventory](#machine-inventory)
 - [Extension skill bundles](#extension-skill-bundles)
 - [Extensions](#extensions)
 - [Per-project configuration](#per-project-configuration)
@@ -27,7 +27,7 @@ Start by inspecting before writing:
 
 ```bash
 drwn status
-drwn skills list
+drwn machine skill list
 drwn mcp list
 drwn write --dry-run
 ```
@@ -94,13 +94,13 @@ records commit, tree SHA, and content integrity. It projects an approved subset
 of 17 machine-safe skills and zero MCP servers. It never projects Worker
 identity, instructions, hooks, permissions, governance, or project state.
 
-Available Library items become explicit machine selections only through:
+Available machine inventory becomes active only through explicit selections:
 
 ```bash
-drwn library defaults add skill <skillName>
-drwn library defaults add mcp <serverName>
-drwn library defaults remove skill <skillName>
-drwn library defaults remove mcp <serverName>
+drwn machine skill enable <skillName>
+drwn machine mcp enable <serverName>
+drwn machine skill disable <skillName>
+drwn machine mcp disable <serverName>
 drwn write --scope machine --dry-run
 drwn write --scope machine
 ```
@@ -117,7 +117,7 @@ only unchanged prior-owned bytes or fields; foreign and drifted state is
 preserved and reported by `drwn doctor`.
 
 For a controlled prelaunch reset, record non-secret selections, back up
-`machine.json` and `global-write-record.json` outside the Store, remove the
+`machine.json` and `global-write-record.json` outside the state root, remove the
 unsupported prototype files, run setup, reselect capabilities, preview with
 `drwn write --scope machine --dry-run`, and resolve ownership findings without
 claiming foreign paths.
@@ -190,15 +190,24 @@ General commands:
 - `drwn add mcp [name-or-query]`
 - `drwn search skill <query>`
 - `drwn search mcp <query>`
-- `drwn library list [skills|mcp|tools]`
-- `drwn library show <id>`
-- `drwn library add skill <packageSpec|SKILL.md|skillDir>`
-- `drwn library add mcp <jsonFile> --as <serverId>`
-- `drwn library defaults list`
-- `drwn library defaults add skill <skillName>`
-- `drwn library defaults add mcp <serverName>`
-- `drwn library defaults remove skill <skillName>`
-- `drwn library defaults remove mcp <serverName>`
+- `drwn machine skill list`
+- `drwn machine skill show <skillId>`
+- `drwn machine skill show --package <packageName>`
+- `drwn machine skill references <skillId>|--package <packageName> [--project <root>]`
+- `drwn machine skill install <packageSpec|SKILL.md|skillDir>`
+- `drwn machine skill update <packageName> --from <source>`
+- `drwn machine skill uninstall <packageName>`
+- `drwn machine skill enable <skillName>`
+- `drwn machine skill disable <skillName>`
+- `drwn machine mcp list`
+- `drwn machine mcp show <serverName>`
+- `drwn machine mcp references <serverName> [--project <root>]`
+- `drwn machine mcp add <jsonFile> --as <serverName>`
+- `drwn machine mcp update <serverName> --from <jsonFile>`
+- `drwn machine mcp remove <serverName>`
+- `drwn machine mcp enable <serverName>`
+- `drwn machine mcp disable <serverName>`
+- `drwn machine inventory gc [--prune] [--json]`
 - `drwn write`
 - `drwn extensions list`
 - `drwn extensions show <extensionName>`
@@ -285,7 +294,7 @@ Publish a card to a shared Git catalog after pushing the card repo:
 ```bash
 drwn card remote add @team/backend <card-git-url>
 drwn card push @team/backend
-drwn library catalog add <catalog-git-url>
+drwn catalog add <catalog-git-url>
 drwn card catalog publish @team/backend@0.1.0 --catalog <catalog-checkout-or-ssh-url> --mode direct --tag backend
 drwn search card backend --scope <scope>
 ```
@@ -306,12 +315,18 @@ MCP commands:
 - `drwn mcp list`
 - `drwn mcp write`
 
-Skill commands:
+Machine inventory commands:
 
-- `drwn skills list`
-- `drwn skills packages add <packageSpec|SKILL.md|skillDir>`
-- `drwn skills packages list`
-- `drwn skills packages show <packageName>`
+- `drwn machine skill list`
+- `drwn machine skill install <packageSpec|SKILL.md|skillDir>`
+- `drwn machine skill show --package <packageName>`
+- `drwn machine skill update <packageName> --from <source>`
+- `drwn machine skill uninstall <packageName>`
+- `drwn machine mcp list`
+- `drwn machine mcp add <jsonFile> --as <serverName>`
+- `drwn machine mcp update <serverName> --from <jsonFile>`
+- `drwn machine mcp remove <serverName>`
+- `drwn machine inventory gc [--prune] [--json]`
 
 Auth commands:
 
@@ -319,17 +334,17 @@ Auth commands:
 - `drwn whoami [--json]`
 - `drwn logout [--json]`
 
-Store maintenance commands:
+Machine state inspection and inventory maintenance:
 
-- `drwn store status [--json]`
-- `drwn store verify [--json]`
-- `drwn store migrate [--yes]`
-- `drwn store migrate-to-git [--dry-run] [--json]`
-- `drwn store gc`
-- `drwn store seed --from <legacy-snapshot-or-directory> [--force]`
-- `drwn store export --out <path>` (registered but disabled)
+- `drwn status --machine [--json]`
+- `drwn doctor [--json]`
+- `drwn machine inventory gc [--prune] [--json]`
 
-`drwn store export` fails with `STORE_EXPORT_DISABLED_UNSAFE` before creating an output directory. Whole-store archives can contain credentials, machine intent, project registrations, write history, generated state, and caches. There is no unrestricted override. Treat archives produced by earlier releases as sensitive. Deploy's scoped Card payload export and legacy Store seed inputs are separate paths and remain supported.
+No public command archives the whole `~/.agents/drwn` root. Such an archive can
+contain credentials, machine intent, project registrations, write history,
+generated state, and caches. Treat broad archives produced by prototype
+releases as sensitive. Remote deploy uses a separate allowlisted Card payload;
+portable inventory transfer is deferred to Task 82.
 
 Export commands:
 
@@ -348,10 +363,10 @@ drwn --help
 drwn write --help
 drwn scan --help
 drwn add skill --help
-drwn library list --help
+drwn machine skill list --help
 drwn search skill --help
 drwn extensions setup beads --help
-drwn skills packages add --help
+drwn machine skill install --help
 drwn login --help
 drwn analyze sessions --help
 ```
@@ -361,7 +376,7 @@ drwn analyze sessions --help
 The core model has five layers:
 
 - packaged harness policy and available built-in skill/MCP definitions
-- local library: package-backed skills, synthetic local skill snapshots, and user MCP definitions under `~/.agents/drwn/skills` and `~/.agents/drwn/mcp-servers`
+- standalone machine inventory: package-backed skills, synthetic local skill snapshots, and user MCP records under `~/.agents/drwn/skills` and `~/.agents/drwn/mcp-servers`
 - explicit machine intent: one pinned profile plus explicit skill and MCP selections under `~/.agents/drwn/machine.json`
 - project overlay: current-project overrides under `<project>/.agents/drwn/config.json`
 - downstream state: Claude, Codex, Cursor, and generated MCP config files
@@ -508,9 +523,12 @@ drwn analyze sessions --archive /tmp/sessions.tar.gz --json
 
 Reusable MCP servers are defined in [`registry/mcp-servers.json`](../registry/mcp-servers.json). Target config and optional toggles live in [`registry/config.json`](../registry/config.json).
 
-User-registered MCP servers live under `~/.agents/drwn/mcp-servers`. They become active at machine scope only when selected under `capabilities.mcpServers` through `drwn library defaults add mcp`.
+User-registered MCP servers live as record-level atomic files under
+`~/.agents/drwn/mcp-servers`. Stored environment and header values remain
+secret references. Records become active at machine scope only when selected
+under `capabilities.mcpServers` through `drwn machine mcp enable`.
 
-Card-declared MCP definitions are merged into the effective registry for projects that consume those cards. They do not need to exist in the reusable registry or user library. If a card-declared server has `optional: true`, it is off by default and can be enabled in that project with:
+Card-declared MCP definitions are merged into the effective registry for projects that consume those cards. They do not need to exist in bundled registry or standalone inventory. If a card-declared server has `optional: true`, it is off by default and can be enabled in that project with:
 
 ```bash
 drwn add mcp <server-name>
@@ -563,7 +581,7 @@ approved skills and zero MCP servers. Machine capabilities remain ambient to
 project sessions and are never project declarations. A reproducible project
 that depends on Operator includes the Operator Card in its selected Blueprint.
 
-## Skill library
+## Machine inventory
 
 Built-in skills live in:
 
@@ -575,14 +593,14 @@ Built-in skills live in:
 Typical machine skill flow:
 
 ```bash
-drwn skills list
-drwn library defaults add skill <skillName>
+drwn machine skill list
+drwn machine skill enable <skillName>
 drwn write --scope machine --skills-only --dry-run
 drwn write --scope machine --skills-only
 ```
 
 The explicit selection resolves from repo-native or installed package-backed
-Library inventory. Ambient compatibility directories do not activate a skill.
+inventory. Ambient compatibility directories do not activate a skill.
 
 ## Extension skill bundles
 
@@ -591,18 +609,19 @@ Library inventory. Ambient compatibility directories do not activate a skill.
 Typical flow:
 
 ```bash
-drwn library add skill <npm-package-or-local-path>
-drwn library list skills
-drwn library show <skillName>
+drwn machine skill install <npm-package-or-local-path>
+drwn machine skill list
+drwn machine skill show <skillName>
 drwn add skill <skillName>
 drwn write --dry-run
 drwn write
 ```
 
-Loose local skills can be imported directly. The import is a snapshot into the managed local library, not a live link to the source file:
+Loose local skills can be imported directly. The import is a snapshot into
+drwn-managed standalone inventory, not a live link to the source file:
 
 ```bash
-drwn library add skill ./SKILL.md --as import-mcp-from-claude
+drwn machine skill install ./SKILL.md --as import-mcp-from-claude
 drwn add skill import-mcp-from-claude
 drwn write --dry-run
 ```
@@ -610,12 +629,13 @@ drwn write --dry-run
 To make an installed shared skill available in machine sessions:
 
 ```bash
-drwn skills packages add <npm-package-or-local-path>
-drwn library defaults add skill <skillName>
+drwn machine skill install <npm-package-or-local-path>
+drwn machine skill enable <skillName>
 drwn write --scope machine --skills-only
 ```
 
-For editable card sources, copy the same loose skill into the card source instead of importing it into the reusable library:
+For editable Card sources, copy the same loose skill into the Card source
+instead of importing it into standalone inventory:
 
 ```bash
 drwn card source add-skill @your-handle/backend import-mcp-from-claude --from ./SKILL.md
@@ -630,11 +650,13 @@ The distinction matters:
 - **machine-selected** means its ID is explicit machine intent
 - **written** means selected bytes are copied into owned downstream tool directories
 
-Current bundle support includes add, list, show, inventory, explicit selection,
-loose-skill normalization, and downstream write. Update and remove lifecycle
-commands are intentionally not part of the first implementation. JSON inventory
-currently reports synthetic local skill bundles with `sourceType: "npm"` and
-`sourceId: "@local/<skillName>"`.
+Skill update and uninstall are package-scoped. They enumerate every exported
+skill ID and disclose known machine and project references. Package versions
+are immutable; `current` is an atomic regular pointer. Referenced inventory
+cannot be removed with a force bypass. Removal and GC use tombstone recovery,
+and GC is a dry-run by default. Reference-sensitive writes follow
+`inventory -> machine -> project`; stale registered roots are repaired with
+`drwn projects unregister <root>`.
 
 ## Extensions
 

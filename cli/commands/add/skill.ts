@@ -1,5 +1,5 @@
 // ABOUTME: Implements project-first skill activation through `drwn add skill`.
-// ABOUTME: Adds local library skills to project config without global curation.
+// ABOUTME: Adds locally available skills to explicit project config.
 
 import { Option, UsageError } from "clipanion";
 import { createInterface } from "node:readline/promises";
@@ -40,7 +40,7 @@ export class AddSkillCommand extends BaseCommand {
     category: "Add",
     description: "Add a skill to the current project. Prompts in a TTY when no name is given; --yes can install an unambiguous catalog bundle.",
     details: `
-      Adds one skill to the current project overlay. Looks in the local library
+      Adds one skill to the current project overlay. Looks in local inventory
       first; with --yes, can install a missing skill bundle from the configured
       npm-skill catalog before activating the requested skill.
 
@@ -57,7 +57,7 @@ export class AddSkillCommand extends BaseCommand {
   queryOrName = Option.String({ required: false });
 
   libraryOnly = Option.Boolean("--library", false, {
-    description: "Only search the local library.",
+    description: "Only search local inventory.",
   });
 
   dryRun = Option.Boolean("--dry-run", false, {

@@ -1,4 +1,4 @@
-// ABOUTME: Verifies user-facing search commands for local library and configured catalogs.
+// ABOUTME: Verifies user-facing search commands for local inventory and configured catalogs.
 // ABOUTME: Protects source labeling and JSON contracts for discovery workflows.
 
 import { afterEach, describe, expect, test } from "bun:test";
@@ -51,7 +51,7 @@ describe("drwn search", () => {
     await expect(readFile(logPath, "utf8")).rejects.toThrow();
   });
 
-  test("human skill search labels local library and online catalogs", async () => {
+  test("human skill search labels local inventory and online catalogs", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     const binDir = join(fixture.root, "bin");
@@ -60,7 +60,8 @@ describe("drwn search", () => {
     const result = await runAgentsCli(["search", "skill", "alpha"], envFor(fixture, { PATH: binDir }));
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("Local library");
+    expect(result.stdout).toContain("Local inventory");
+    expect(result.stdout).not.toContain("Local library");
     expect(result.stdout).toContain("Online catalogs");
   });
 
@@ -93,7 +94,7 @@ describe("drwn search", () => {
     expect(parsed.results.some((item) => item.id === "github" && item.sourceGroup === "catalog")).toBe(true);
   });
 
-  test("search mcp --library includes user MCP library entries", async () => {
+  test("search mcp --library includes standalone MCP inventory entries", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     const { seedMcpInventory } = await import("./mcp-inventory-fixture");

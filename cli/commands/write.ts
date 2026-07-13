@@ -34,13 +34,13 @@ export class WriteCommand extends BaseCommand {
     category: "General",
     description: "Write effective drwn config to downstream local agent tools.",
     details: `
-      Reads the effective config from machine defaults, project overlays, and
+      Reads effective machine intent or project overlays plus
       extension-derived settings, then materializes it into enabled downstream
       targets such as Claude, Codex, and Cursor.
 
       Use --dry-run to preview planned changes. Use --mcp-only or --skills-only
       to limit materialization to one surface. Use --target to write one target.
-      Use --root to write machine defaults to user-scope tool configs even when
+      Use --root to write machine intent to user-scope tool configs even when
       running from inside a drwn-managed project.
     `,
     examples: [
@@ -76,7 +76,7 @@ export class WriteCommand extends BaseCommand {
   });
 
   root = Option.Boolean("--root", false, {
-    description: "Write machine defaults to user-scope tool configs and ignore project config.",
+    description: "Write machine intent to user-scope tool configs and ignore project config.",
   });
 
   scope = Option.String("--scope", {

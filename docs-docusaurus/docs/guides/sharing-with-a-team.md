@@ -29,7 +29,7 @@ drwn card push @team/backend
 Publish the card entry into a shared catalog:
 
 ```bash
-drwn library catalog add <catalog-git-url>
+drwn catalog add <catalog-git-url>
 drwn card catalog publish @team/backend@1.0.0 --catalog @team --mode direct --tag backend --json
 ```
 
@@ -41,12 +41,16 @@ Use a dry run before mutating the catalog:
 drwn card catalog publish @team/backend@1.0.0 --catalog @team --mode direct --dry-run --json
 ```
 
+The default public community catalog is
+`https://github.com/curation-labs/dm-cards-catalog-v1.git` with scope
+`@community`. Team catalogs use their own registered scope and Git remote.
+
 ## Consumer Flow
 
 Register the same catalog and search it:
 
 ```bash
-drwn library catalog add <catalog-git-url>
+drwn catalog add <catalog-git-url>
 drwn search card backend --scope @team --json
 ```
 

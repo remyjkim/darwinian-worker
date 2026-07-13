@@ -2,94 +2,63 @@
 sidebar_position: 6
 ---
 
-# Credential Errors
+# Credential And Runtime Errors
 
-`drwn` uses a local secret store for credentials (login tokens, catalog auth). The store is encrypted at rest using AES-256-GCM. The encryption key is protected by the platform's native secret management:
+Credentials and external executable readiness are operator-owned runtime state.
+They are not Card, Blueprint, project config, lock, or machine inventory content.
 
-- **macOS:** macOS Keychain
-- **Linux:** `secret-tool` (libsecret / GNOME keyring)
-- **Windows (partial):** DPAPI — native Windows support is in development; use WSL2 in the meantime.
-
-## Diagnosing store errors
+## CLI Login
 
 ```bash
-drwn store verify
-drwn store verify --json
+drwn whoami --json
+drwn login
+drwn logout
+drwn doctor --json
 ```
 
-`drwn store verify` checks store integrity and exits non-zero on failure. JSON output includes a `reason` field.
+Use `drwn login` only for services authenticated by the CLI. Do not place access
+tokens in machine inventory records or project files.
+
+## MCP Secret References
+
+Standalone MCP records store references such as `${GITHUB_TOKEN}`, not resolved
+values. Add and inspect records without printing secret-bearing environment
+values:
 
 ```bash
-drwn doctor --json | jq '.platformChecks'
+drwn machine mcp add ./server.json --as server-id --dry-run
+drwn machine mcp show server-id --json
+drwn machine mcp references server-id --json
 ```
 
-`platformChecks` includes a check for whether `node` is on `PATH` (required for MCP servers) and whether the home directory resolves correctly. Other platform blockers appear here as `ok: false` entries.
+Provide referenced variables through the operator environment or an external
+secret manager. A missing environment value is runtime readiness failure.
 
-## Common errors
+## OAuth And External Tools
 
-### Keychain unavailable (Linux headless)
+- Hosted Notion MCP requires OAuth authorization in each downstream client.
+- An `ntn` API token belongs in operator environment or secret storage.
+- Momentic and other stdio tools must be installed and authenticated separately.
+- A closed initialize handshake usually means the executable exited, failed
+  authentication, or emitted an invalid MCP response.
 
-On headless Linux (CI, containers), `secret-tool` may not be installed or a D-Bus session may be absent.
+Use the downstream client's login flow and invoke the executable directly when
+debugging startup. `drwn doctor` can diagnose definitions and projection state;
+it cannot authorize OAuth or install third-party binaries.
 
-**Resolution:** Use the seed-path workflow to supply credentials without a live keychain:
+## Readonly Validation
 
 ```bash
-export DRWN_STORE_SEED_PATH=/run/secrets/drwn-credentials
-drwn store verify
+DRWN_STORE_READONLY=1 drwn doctor --json
+DRWN_STORE_READONLY=1 drwn machine skill list --json
+DRWN_STORE_READONLY=1 drwn machine mcp list --json
 ```
 
-`DRWN_STORE_SEED_PATH` points to a pre-seeded credential archive. The archive is typically injected as a CI secret file.
+Readonly mode blocks mutations under `~/.agents/drwn`. It does not make an MCP
+server authenticated or ready.
 
-### Store corrupt or schema mismatch
+## See Also
 
-```bash
-drwn store verify --json
-```
-
-If `ok` is `false` and `reason` contains "schema mismatch" or "corrupt", run the migration command:
-
-```bash
-drwn store migrate
-drwn store verify
-```
-
-### Credentials not persisting between sessions
-
-If `drwn whoami` shows logged-out after each terminal session, the platform keychain is not persisting the encryption key. On macOS, this usually means the Keychain item was not allowed to persist across login sessions.
-
-**Resolution:** Re-run `drwn login` and when macOS prompts for keychain access, select "Always Allow".
-
-### `secret-tool` not found (Linux)
-
-Install the `libsecret-tools` package:
-
-```bash
-# Ubuntu / Debian
-sudo apt-get install libsecret-tools
-
-# Fedora
-sudo dnf install libsecret
-```
-
-Then verify:
-
-```bash
-drwn store verify
-```
-
-## Store readonly mode
-
-If you only need to read from the store in CI:
-
-```bash
-export DRWN_STORE_READONLY=1
-drwn store verify
-```
-
-With `DRWN_STORE_READONLY=1`, writes to the store fail immediately; reads and verification succeed. See [Run drwn doctor in CI](../guides/doctor-in-ci) for the full CI setup.
-
-## See also
-
-- [`drwn store`](../reference/cli/store) — store command reference
-- [Environment Variables](../reference/env-vars) — `DRWN_STORE_SEED_PATH`, `DRWN_STORE_READONLY`
-- [Run drwn doctor in CI](../guides/doctor-in-ci) — CI credential strategy
+- [Machine Inventory](../reference/cli/machine)
+- [Environment Variables](../reference/env-vars)
+- [Run doctor in CI](../guides/doctor-in-ci)

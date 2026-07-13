@@ -14,7 +14,7 @@ export class McpListCommand extends BaseCommand {
     description: "List harness MCP servers and their current active state. Project-aware when run inside a configured repo.",
     details: `
       Lists MCP servers from the built-in registry merged with the local user
-      MCP library, then marks which servers are active in the effective config.
+      standalone MCP inventory, then marks which servers are active in the effective config.
       Project-aware output includes project overlay and extension-derived MCP
       state when run inside a configured repo.
 

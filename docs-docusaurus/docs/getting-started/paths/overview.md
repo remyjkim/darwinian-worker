@@ -16,7 +16,7 @@ See [Use a Team's Harness](./use-team-harness).
 
 You are installing `drwn` for the first time and want explicit machine intent
 before project work. This path covers empty versus guided initialization, the
-pinned Recommended profile, explicit Library selections, and an
+pinned Recommended profile, explicit machine inventory selections, and an
 ownership-checked machine projection.
 
 See [Set Up Your Machine](./setup-your-machine).

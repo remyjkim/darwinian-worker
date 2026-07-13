@@ -1,5 +1,5 @@
 # ABOUTME: Comprehensive CLI usage reference for drwn — commands, flags, workflows, and examples.
-# ABOUTME: Covers skills, cards, MCP servers, extensions, library, store, auth, and diagnostic commands.
+# ABOUTME: Covers skills, cards, MCP servers, extensions, machine inventory, auth, and diagnostics.
 
 # DRWN CLI Usage Guide
 
@@ -30,10 +30,10 @@ For focused subsystem docs, see:
 It operates on this model:
 
 - the packaged or checkout harness source provides policy and available built-in capabilities
-- `~/.agents/drwn` is the Git-backed local store
+- `~/.agents/drwn` is the machine state root
 - `~/.agents/drwn/machine.json` stores strict `drwn.machine` V1 intent
 - `<project>/.agents/drwn/config.json` stores strict project Worker V1 intent
-- package-backed skill bundles and MCP definitions are reusable Library inventory
+- package-backed skill bundles and MCP definitions are drwn-managed standalone inventory
 - Claude/Codex/Cursor state is an explicit projection of machine or project intent
 
 The CLI is intentionally conservative:
@@ -54,7 +54,7 @@ Use this while developing inside the repo:
 bun run drwn -- --help
 bun run drwn -- status
 bun run drwn -- write --dry-run
-bun run drwn -- skills list
+bun run drwn -- machine skill list
 bun run drwn -- mcp list
 ```
 
@@ -72,7 +72,7 @@ Then use:
 drwn --help
 drwn status
 drwn write --dry-run
-drwn skills list
+drwn machine skill list
 drwn mcp write --dry-run
 ```
 
@@ -94,6 +94,7 @@ Important directories:
 
 - built-in shared skills: `skills/shared`
 - package-backed skill bundles: `~/.agents/drwn/skills`
+- standalone MCP records: `~/.agents/drwn/mcp-servers`
 - card bare repositories: `~/.agents/drwn/cards/@scope/name.git`
 - card extracted trees: `~/.agents/drwn/extracted/<tree-sha>`
 - card catalogs: `~/.agents/drwn/catalogs`
@@ -106,7 +107,7 @@ Important directories:
 
 ```bash
 drwn status
-drwn skills list
+drwn machine skill list
 drwn mcp list
 drwn write --dry-run
 drwn write
@@ -127,16 +128,15 @@ Implemented groups:
 - `add`
 - `install`
 - `search`
-- `library`
+- `machine`
 - `write`
 - `scan`
-- `skills`
 - `mcp`
 - `worker`
 - `extensions`
 - `card`
 - `catalog`
-- `store`
+- `projects`
 - `analyze`
 - `export`
 - `status`
@@ -208,13 +208,13 @@ approved capabilities from the selected immutable profile
 + explicit capabilities.mcpServers
 ```
 
-Available Library items are selected explicitly with:
+Available machine inventory is selected explicitly with:
 
 ```bash
-drwn library defaults add skill <skill-name>
-drwn library defaults remove skill <skill-name>
-drwn library defaults add mcp <server-name>
-drwn library defaults remove mcp <server-name>
+drwn machine skill enable <skill-name>
+drwn machine skill disable <skill-name>
+drwn machine mcp enable <server-name>
+drwn machine mcp disable <server-name>
 ```
 
 These commands mutate machine intent only. They do not project target files.
@@ -229,7 +229,7 @@ Removal deletes only unchanged prior-owned bytes or fields; foreign and drifted
 state remains untouched and reportable through status and doctor.
 
 For a controlled prelaunch reset, record only non-secret current intent, back
-up `machine.json` and `global-write-record.json` outside the Store, remove the
+up `machine.json` and `global-write-record.json` outside the state root, remove the
 unsupported prototype state, rerun setup, and reselect capabilities. Resolve
 foreign ownership findings explicitly; never use force to claim foreign paths.
 
@@ -263,7 +263,7 @@ Published cards are stored as per-card bare Git repositories under
 `~/.agents/drwn/cards/@scope/name.git`. Version tags identify releases, and
 materialized content is extracted under `~/.agents/drwn/extracted/<tree-sha>`.
 The project lock is `drwn.project-lock` V1. Its `workerRoots` records roots and
-ordered members; `cards` stores the deduplicated immutable artifacts. Store and
+ordered members; `cards` stores the deduplicated immutable artifacts. Local and
 Git-origin entries include tree SHA, integrity, and Git commit provenance.
 
 Authoring and publishing:
@@ -498,7 +498,7 @@ Behavior:
 
 ## Search Commands
 
-`search` discovers candidates from the local library and configured catalogs by default.
+`search` discovers candidates from standalone inventory and configured catalogs by default.
 
 ```bash
 drwn search skill <query>
@@ -511,7 +511,8 @@ drwn search card <query>
 drwn search card <query> --json
 ```
 
-`--library` means the user's local inventory only. Online sources are catalogs, not the local library.
+`--library` is a search filter meaning the user's local inventory only. Online
+sources are catalogs, not standalone inventory.
 
 `search card` searches registered Git-backed card catalogs. Catalog repos expose
 cards through a `catalog.json` file and must be registered locally before their
@@ -522,45 +523,58 @@ by default:
 https://github.com/curation-labs/dm-cards-catalog-v1.git
 ```
 
-## Library Commands
+## Machine Inventory Commands
 
-`library` manages and inspects local reusable inventory. `library defaults` manages explicit machine capability selections.
+Machine inventory contains drwn-managed standalone skill packages and MCP
+records. Repository skills and bundled registry MCP definitions are immutable
+discovery inputs. Inventory is inactive until explicit machine or project
+intent selects it.
 
 ```bash
-drwn library list
-drwn library list skills
-drwn library list mcp
-drwn library show <id>
-drwn library add skill <npm-package-or-local-path>
-drwn library add mcp <json-file> --as <server-id>
-drwn library catalog list
-drwn library catalog add <git-url>
-drwn library catalog refresh [@scope]
-drwn library catalog remove <scope-or-url>
-drwn library defaults list
-drwn library defaults add skill <skill-name>
-drwn library defaults remove skill <skill-name>
-drwn library defaults add mcp <server-name>
-drwn library defaults remove mcp <server-name>
+drwn machine skill list
+drwn machine mcp list
+drwn machine skill show <skill-id>
+drwn machine skill show --package <package-name>
+drwn machine skill references --package <package-name> --project <root>
+drwn machine skill install <npm-package-or-local-path>
+drwn machine skill update <package-name> --from <source>
+drwn machine skill uninstall <package-name>
+drwn machine mcp show <server-id>
+drwn machine mcp references <server-id> --project <root>
+drwn machine mcp add <json-file> --as <server-id>
+drwn machine mcp update <server-id> --from <json-file>
+drwn machine mcp remove <server-id>
+drwn catalog list
+drwn catalog add <git-url>
+drwn catalog refresh [@scope]
+drwn catalog remove <scope-or-url>
+drwn machine skill enable <skill-name>
+drwn machine skill disable <skill-name>
+drwn machine mcp enable <server-name>
+drwn machine mcp disable <server-name>
+drwn machine inventory gc --json
 ```
 
-`library add skill` installs a package-backed skill bundle under the active store (`~/.agents/drwn/skills`). It does not add the skill to the current project; use `drwn add skill <skill-name>` for that.
+Skill update and uninstall are package-scoped and enumerate all exported skill
+IDs. Package versions are immutable and `current` is changed atomically. MCP
+definitions use record-level atomic files and retain secret references instead
+of resolved credentials. Referenced inventory cannot be removed through a force
+bypass.
 
-`library add mcp` registers a reusable MCP definition in the active MCP library (`~/.agents/drwn/mcp-servers/<id>.json`). It does not activate the MCP globally or for a project.
-
-`library catalog` manages Git-backed card catalogs used by `drwn search card`.
-The default community catalog is
+`drwn catalog` manages Git-backed Card catalogs used by `drwn search card`. The default community catalog is
 `https://github.com/curation-labs/dm-cards-catalog-v1.git` with scope
 `@community`. `drwn init` pre-registers and shallow-clones it when reachable
 unless `--no-default-catalogs` is passed.
-`library catalog add` clones the catalog and records it in
-`~/.agents/drwn/catalogs.json`; `library catalog refresh` fetches registered
-catalog remotes and updates card counts; `library catalog remove` removes
+`catalog add` clones the catalog and records it in
+`~/.agents/drwn/catalogs.json`; `catalog refresh` fetches registered
+catalog remotes and updates Card counts; `catalog remove` removes
 catalog registrations and local clones by scope or URL.
 
-`library defaults add` records an available skill or MCP server under machine
-`capabilities`. It does not write downstream files. Use project `drwn add ...`
-when only the current project should declare something.
+Reference-sensitive mutations follow `inventory -> machine -> project`.
+Registered roots that are missing or unreadable fail closed; repair stale
+entries explicitly with `drwn projects unregister <root>`. Inventory GC is a
+dry-run by default and uses tombstone recovery. Current inventory is never
+garbage merely because known references are zero.
 
 ## Write Command
 
@@ -597,7 +611,7 @@ Write records make cleanup explicit:
 - `--strict-hooks` fails when card hooks are present but missing valid hook consent
 - `--strict` fails when this project's `card.lock` requires a newer drwn than you are running
 
-## Store Commands
+## Machine State And Safety
 
 The local store lives under `~/.agents/drwn`. Card content is Git-backed:
 
@@ -607,68 +621,27 @@ The local store lives under `~/.agents/drwn`. Card content is Git-backed:
 - machine config: `~/.agents/drwn/machine.json`
 - Git URL name cache: `~/.agents/drwn/url-card-map.json`
 
-Inspect store state:
+Inspect machine state:
 
 ```bash
-drwn store status
-drwn store status --json
-drwn store verify
-drwn store verify --json
+drwn status --machine
+drwn status --machine --json
+drwn doctor
+drwn doctor --json
 ```
-
-Migrate a pre-card-store layout:
-
-```bash
-drwn store migrate
-drwn store migrate --json
-drwn store migrate --yes
-```
-
-`store migrate` is explicit. Ordinary commands warn when they detect a
-pre-card-store layout, but they do not silently migrate it. Migration stages the new
-store, validates it, archives the old layout, then activates
-`~/.agents/drwn`.
-
-Migrate legacy per-version card directories to Git-backed card repos:
-
-```bash
-drwn store migrate-to-git
-drwn store migrate-to-git --dry-run --json
-```
-
-`store migrate-to-git` converts `cards/<scope>/<name>/<version>/` directories
-into one bare Git repo per card with version tags. It verifies each legacy
-version's `.integrity` when present, removes stale temporary repos before retry,
-and is idempotent after a successful migration.
-
-Populate an empty store from a snapshot:
-
-```bash
-drwn store seed --from /seed/drwn-store.tar
-drwn store seed --from /seed/drwn-store
-drwn store seed --from /seed/drwn-store.tar --force
-```
-
-`store seed` unpacks a legacy drwn store snapshot or prepared directory into
-`~/.agents/drwn`. It accepts a tarball or directory via `--from` (required).
-It refuses to overwrite a non-empty store unless `--force` is passed. Designed
-for CI base images and airgapped deployments.
 
 Maintenance:
 
 ```bash
-drwn store gc
-drwn store export --out /tmp/drwn-store.tar
+drwn machine inventory gc --json
+drwn machine inventory gc --prune --json
 DRWN_STORE_READONLY=1 drwn card publish @me/backend
 ```
 
-`store gc` runs `git gc` in each local card repo. `store export` is retained as
-a fail-closed command and returns `STORE_EXPORT_DISABLED_UNSAFE` before creating
-an output directory. A broad `~/.agents/drwn` archive can contain credentials
-and operational state, so there is no unrestricted override and archives from
-earlier releases must be treated as sensitive. `DRWN_STORE_READONLY=1` refuses
-store mutations, which is useful for validation workflows against mounted or
-unpacked legacy snapshots.
+No public command creates a broad archive of `~/.agents/drwn`; that root may
+contain credentials and operational state. Remote deploy uses an unchanged,
+allowlisted Card payload. Portable inventory transfer is a separate Task 82
+contract. `DRWN_STORE_READONLY=1` refuses machine-state mutations.
 
 ## Scan Command
 
@@ -679,7 +652,10 @@ drwn scan
 drwn scan --json
 ```
 
-`scan` is currently a placeholder. Its planned role is non-mutating local harness discovery: inspect existing local agent tool config, report candidates for library/default/project config, and avoid writing files unless a future explicit import/write step is added.
+`scan` is currently a placeholder. Its planned role is non-mutating local
+harness discovery: inspect existing local agent tool config, report candidates
+for standalone inventory, machine intent, or project config, and avoid writing
+files unless a future explicit import/write step is added.
 
 ## Skills Commands
 
@@ -688,13 +664,13 @@ drwn scan --json
 Human-readable:
 
 ```bash
-drwn skills list
+drwn machine skill list
 ```
 
 JSON:
 
 ```bash
-drwn skills list --json
+drwn machine skill list --json
 ```
 
 What it shows:
@@ -711,35 +687,36 @@ What it shows:
 Add a bundle:
 
 ```bash
-drwn skills packages add <npm-package-or-local-path>
+drwn machine skill install <npm-package-or-local-path>
 ```
 
 List installed bundles:
 
 ```bash
-drwn skills packages list
-drwn skills packages list --json
+drwn machine skill list
+drwn machine skill list --json
 ```
 
 Inspect one installed bundle:
 
 ```bash
-drwn skills packages show <package-name>
-drwn skills packages show <package-name> --json
+drwn machine skill show --package <package-name>
+drwn machine skill show --package <package-name> --json
 ```
 
 Behavior:
 
-- a bundle is ingested into the active managed cache (`~/.agents/drwn/skills`)
+- a bundle is ingested into immutable versioned inventory (`~/.agents/drwn/skills`)
 - adding a bundle does not select or write any skill automatically
 - bundles are content sources; `drwn` remains the only supported selection and write surface
+- update and uninstall operate on the package and enumerate every exported skill ID and known reference
 
 See [03_npm-skill-bundles-guide.md](./03_npm-skill-bundles-guide.md) for the full bundle model.
 
 ### Select a machine skill
 
 ```bash
-drwn library defaults add skill <name>
+drwn machine skill enable <name>
 ```
 
 This records the skill ID as explicit machine intent after resolving it from
@@ -754,7 +731,7 @@ Important:
 Remove the explicit selection with:
 
 ```bash
-drwn library defaults remove skill <name>
+drwn machine skill disable <name>
 ```
 
 The next machine write removes only unchanged prior-owned output. A profile may
@@ -1023,7 +1000,7 @@ What it reports:
 - strict machine schema and selected profile pin
 - profile/explicit capability provenance and resolved/missing counts
 - machine projection health, currentness, conflicts, and write-record presence
-- user MCP Library counts without definition or secret-bearing values
+- standalone MCP inventory counts without definition or secret-bearing values
 - installed package-backed bundle counts
 - active project config path when one is in scope
 - project override summary when one is active
@@ -1125,10 +1102,10 @@ drwn write --scope machine
 ### Add reusable inventory and make it global
 
 ```bash
-drwn library add skill <bundle>
-drwn library defaults add skill <skill-name>
-drwn library add mcp ./github-mcp.json --as github
-drwn library defaults add mcp github
+drwn machine skill install <bundle>
+drwn machine skill enable <skill-name>
+drwn machine mcp add ./github-mcp.json --as github
+drwn machine mcp enable github
 drwn write --scope machine --dry-run
 drwn write --scope machine
 ```
@@ -1151,8 +1128,8 @@ drwn write --dry-run
 ### Add extension skill bundle and expose one skill
 
 ```bash
-drwn skills packages add <bundle>
-drwn skills packages show <package-name>
+drwn machine skill install <bundle>
+drwn machine skill show --package <package-name>
 drwn add skill <skill-name>
 drwn write
 ```
@@ -1186,7 +1163,7 @@ drwn card new @team/backend --no-git
 drwn card publish @team/backend
 drwn card remote add @team/backend <git-url>
 drwn card push @team/backend
-drwn library catalog add <catalog-git-url>
+drwn catalog add <catalog-git-url>
 drwn card catalog publish @team/backend@1.0.0 --catalog @team --mode direct
 ```
 
@@ -1201,8 +1178,8 @@ drwn install
 ### Discover cards from a catalog
 
 ```bash
-drwn library catalog list
-drwn library catalog add <catalog-git-url>
+drwn catalog list
+drwn catalog add <catalog-git-url>
 drwn search card backend
 drwn add git+<card-git-url>#v1.0.0
 ```
@@ -1222,7 +1199,7 @@ These are optional and machine-dependent. Their absence should not block the bas
 - `doctor` is report-only
 - live hosted Git authentication, credential prompts, and slow-network behavior depend on the user's Git configuration and should be smoke-tested against disposable remotes before release
 - card catalogs are Git-backed local clones; there is no registry service
-- package-backed bundle update/remove lifecycle is not implemented yet
+- portable machine inventory transfer remains deferred to the separate Task 82 contract
 - package-backed bundles are extension sources, not authoritative write CLIs
 - per-project `skills.include` requires skill names to resolve across the active card set and non-card sources; unresolved names fail write before mutation and are also surfaced by doctor
 

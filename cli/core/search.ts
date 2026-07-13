@@ -1,4 +1,4 @@
-// ABOUTME: Composes local library and configured catalog results for discovery commands.
+// ABOUTME: Composes local inventory and configured catalog results for discovery commands.
 // ABOUTME: Keeps add/search commands aligned on source ordering and filtering semantics.
 
 import { searchMcpCatalog, searchNpmSkillCatalog, type CatalogSearchResult } from "./catalogs";

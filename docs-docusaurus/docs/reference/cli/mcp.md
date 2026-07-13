@@ -15,7 +15,12 @@ drwn mcp list
 drwn mcp list --json
 ```
 
-The merged registry is the built-in `registry/mcp-servers.json` unioned with the user MCP library at `~/.agents/drwn/mcp-servers/` and any MCP definitions declared by locked cards in the current project. User entries override built-in entries; card-declared definitions participate before project activation toggles are interpreted. Output columns are `name`, `transport`, `active`, `targets`.
+The merged registry is the built-in `registry/mcp-servers.json` unioned with
+standalone MCP inventory at `~/.agents/drwn/mcp-servers/` and definitions
+declared by locked Cards in the current project. Standalone records override
+built-in entries; Card definitions participate before project activation
+toggles are interpreted. Output columns are `name`, `transport`, `active`, and
+`targets`.
 
 `drwn mcp list` is project-aware: when run inside a configured project, the active set reflects the project overlay (`<project>/.agents/drwn/config.json`) and any extension-derived MCP state (e.g. `extensions.parallel.mcp`).
 
@@ -40,7 +45,7 @@ drwn mcp write --json
 | Source | Path | Owner |
 |---|---|---|
 | Built-in registry | `registry/mcp-servers.json` | packaged harness |
-| User MCP library | `~/.agents/drwn/mcp-servers/<id>.json` | machine-local additions |
+| Standalone MCP inventory | `~/.agents/drwn/mcp-servers/<id>.json` | drwn-managed machine-local records |
 | Card-declared definitions | locked card manifests and card store content | card authors |
 | Registry/target config | `registry/config.json` | packaged harness |
 | Machine selections | `~/.agents/drwn/machine.json` under `capabilities.mcpServers` | machine-local |

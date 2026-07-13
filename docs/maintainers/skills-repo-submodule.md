@@ -4,7 +4,7 @@ This repo embeds `darwinian-worker-skills` as a shallow git submodule at `darwin
 
 ## Why it exists
 
-The skills repo at [`github.com/remyjkim/darwinian-worker-skills`](https://github.com/remyjkim/darwinian-worker-skills) is the canonical authoring source for the broader skill catalog and mind cards that the `drwn` CLI consumes (`drwn library add skill`, `drwn add card`, the package-backed bundle flow). It is a separately published artifact — distributed via the Claude Code plugin marketplace, Codex, Vercel `npx skills add`, and as a `drwn` bundle — but lives in lockstep with this CLI repo.
+The skills repo at [`github.com/remyjkim/darwinian-worker-skills`](https://github.com/remyjkim/darwinian-worker-skills) is the canonical authoring source for the broader skill catalog and mind cards that the `drwn` CLI consumes (`drwn machine skill install`, `drwn add card`, the package-backed bundle flow). It is a separately published artifact — distributed via the Claude Code plugin marketplace, Codex, Vercel `npx skills add`, and as a `drwn` bundle — but lives in lockstep with this CLI repo.
 
 Adding it as a submodule means a contributor's `git clone --recurse-submodules` of `darwinian-minds` gives them both checkouts in one tree, with no separate sibling-repo setup required. It also makes the skill content discoverable from inside this repo without forcing every contributor to remember a second URL.
 

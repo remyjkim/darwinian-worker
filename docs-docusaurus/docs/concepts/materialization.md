@@ -11,7 +11,7 @@ Materialization is the second half of `drwn write`: resolving the effective harn
 Every materialization run composes effective harness state from up to five surfaces, in precedence order:
 
 - packaged policy and available built-in skills/MCP definitions
-- local library: package-backed skill bundles under `~/.agents/drwn/skills` and user MCP definitions under `~/.agents/drwn/mcp-servers`
+- standalone inventory: package-backed skill bundles under `~/.agents/drwn/skills` and user MCP definitions under `~/.agents/drwn/mcp-servers`
 - explicit machine intent: one pinned profile plus explicit skill/MCP IDs in strict `drwn.machine` V1
 - project intent: one selected Worker closure plus explicit overlays in strict project V1
 - downstream state: Claude, Codex, Cursor config files plus generated MCP configs
@@ -71,7 +71,7 @@ See [reference/cli/write](../reference/cli/write) for the full flag surface.
 
 Card-bundled skill content is authoritative inside the selected Worker closure. A selected Card's extracted copy wins over any same-named repo-native or package-backed source. There is no merge semantic: the returned path is single-source.
 
-`drwn write --dry-run` annotates each planned skill copy with the winning resolution layer. When another Library source could have provided the same skill, the dry run records it as `also available:`:
+`drwn write --dry-run` annotates each planned skill copy with the winning resolution layer. When another inventory source could have provided the same skill, the dry run records it as `also available:`:
 
 ```text
 skills/inspect-harness from card foo@1.0.0 (also available: user-default)

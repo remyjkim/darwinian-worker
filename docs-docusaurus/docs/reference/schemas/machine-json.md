@@ -76,15 +76,16 @@ approved subset of the selected immutable profile
 Use the supported mutators:
 
 ```bash
-drwn library defaults list
-drwn library defaults add skill <skill-id>
-drwn library defaults remove skill <skill-id>
-drwn library defaults add mcp <server-id>
-drwn library defaults remove mcp <server-id>
+drwn machine skill list
+drwn machine mcp list
+drwn machine skill enable <skill-id>
+drwn machine skill disable <skill-id>
+drwn machine mcp enable <server-id>
+drwn machine mcp disable <server-id>
 ```
 
 These commands edit machine intent only. Run `drwn write --scope machine` to
-project it. Library availability, packaged optional flags, Parallel flags,
+project it. Inventory availability, packaged optional flags, Parallel flags,
 ambient directories, and existing downstream files do not activate anything.
 
 ## Initialization

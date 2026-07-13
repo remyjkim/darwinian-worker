@@ -115,7 +115,7 @@ Declared project capabilities come only from the selected root closure and expli
 
 ## Pure Projection
 
-`drwn write` is a pure projection of committed project state plus an explicit local overlay. Dry-run, target selection, skills-only, MCP-only, and full writes do not change config, lock, requirements, or selection. Project writes do not read machine defaults or machine Library activation as project capabilities.
+`drwn write` is a pure projection of committed project state plus an explicit local overlay. Dry-run, target selection, skills-only, MCP-only, and full writes do not change config, lock, requirements, or selection. Project writes do not read machine capability selections as project capabilities.
 
 ## Runtime And Authentication State
 
@@ -135,6 +135,9 @@ explicit empty machine intent. The profile projects only 17 approved
 machine-safe skills and zero MCP servers. It does not project Worker identity,
 instructions, hooks, permissions, governance, or project intent.
 
-## Store Safety
+## Machine State Safety
 
-Whole-Store export remains fail-closed. `drwn store export` returns `STORE_EXPORT_DISABLED_UNSAFE`, creates no archive, and has no unrestricted override. Deploy uses a separate allowlisted export containing only the pinned closure needed by the unchanged remote deploy contract.
+No public command creates a whole-Store archive. Deploy uses a separate
+allowlisted export containing only the pinned closure needed by the unchanged
+remote deploy contract. Portable machine inventory transfer remains a separate
+Task 82 contract.

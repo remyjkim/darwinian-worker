@@ -15,7 +15,7 @@ drwn status --explain
 drwn doctor
 ```
 
-`--explain` adds a human-readable explanation of every active item and its provenance — which layer (card, project overlay, machine default, packaged registry) is making each skill, server, extension, or card active. That is useful before a write:
+`--explain` adds a human-readable explanation of every active item and its provenance — which layer (Card, project overlay, machine profile or explicit selection, packaged registry) is making each skill, server, extension, or Card active. That is useful before a write:
 
 ```bash
 drwn status --explain

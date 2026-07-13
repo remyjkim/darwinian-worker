@@ -54,21 +54,8 @@ rm ~/.codex/skills/<name>
 
 drwn never deletes user-owned content. If you want the link, leave it. If you do not, you remove it.
 
-### Legacy-store orphans
-
-Pre-Wave-1 stores left symlinks pointing at the old `~/.agents/drwn/cards/<version>/...` layout. The migration archives that layout under `~/.agents/drwn/drwn.archive-<timestamp>/`, but the downstream symlinks may still point at the archived paths.
-
-These are technically drwn-owned (their targets fall under drwn-managed prefixes), but the write record from the new layout no longer mentions them. The migration path has a dedicated escape hatch:
-
-```bash
-drwn store migrate --cleanup-legacy-orphans --dry-run
-drwn store migrate --cleanup-legacy-orphans
-```
-
-`cleanupLegacyOrphans` in `cli/core/migration.ts` walks `~/.claude/skills/` and `~/.codex/skills/`, removes symlinks whose targets fall under known drwn-owned legacy prefixes (`packages/`, the harness `skills/` source, the current store, the archive), and explicitly skips everything else. Non-owned symlinks are not candidates.
-
 ## Cross-References
 
 - [Ownership and Write Records](../concepts/ownership-and-write-records) for the write-record schema and lifecycle
 - [Reading Doctor](./reading-doctor) for the rest of the doctor categories
-- [Common Drift](./common-drift) for related patterns (hand-edited settings, legacy store)
+- [Common Drift](./common-drift) for related ownership and registration patterns

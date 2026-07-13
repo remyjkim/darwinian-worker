@@ -69,6 +69,6 @@ When the target is a remote URL, `drwn` performs a shallow bare clone into a tem
 
 ## See also
 
-- [`drwn library catalog`](./library) — adding and refreshing catalog registrations
+- `drwn catalog list|add|refresh|remove` — managing catalog registrations
 - [`drwn card catalog publish`](./card) — publishing a card entry into a catalog
 - [Trusted Sources](../../concepts/trusted-sources) — how `trustedSources.strict` interacts with `--allow-untrusted-source`

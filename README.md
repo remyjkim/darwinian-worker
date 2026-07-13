@@ -67,8 +67,8 @@ Add other machine capabilities explicitly, then project them in a separate
 step:
 
 ```bash
-drwn library defaults add skill <skill-id>
-drwn library defaults add mcp <server-id>
+drwn machine skill enable <skill-id>
+drwn machine mcp enable <server-id>
 drwn write --scope machine --dry-run
 drwn write --scope machine
 ```
@@ -77,12 +77,20 @@ Machine writes claim only paths or MCP fields they create and record. Foreign
 destinations fail with `MACHINE_PROJECTION_CONFLICT`, including under
 `--force`; force can repair only drift in prior drwn-owned state. For a
 controlled prelaunch reset, back up the non-secret machine intent and global
-write record outside the Store, remove unsupported prototype state, rerun
+write record outside the machine state root, remove unsupported prototype state, rerun
 setup, and reselect capabilities explicitly.
 
-## Store Export Safety
+Standalone machine inventory is inactive until explicitly selected. Manage
+package-scoped skills and record-level MCP definitions with `drwn machine
+skill|mcp`; inspect references before removal and use `drwn machine inventory
+gc` for dry-run garbage collection.
 
-Whole-store export is disabled because `~/.agents/drwn` can contain credentials and operational machine state. `drwn store export` exits with `STORE_EXPORT_DISABLED_UNSAFE`, creates no archive, and has no unrestricted override. Treat any broad Store archives created by earlier releases as sensitive.
+## Whole-Store Safety
+
+Whole-Store export is unavailable because `~/.agents/drwn` can contain
+credentials and operational machine state. No public command creates that
+archive. Treat broad Store archives created by prototype releases as sensitive;
+remote deploy uses a separate allowlisted Card payload.
 
 ## Claude Session Signals Beta
 

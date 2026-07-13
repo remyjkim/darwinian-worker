@@ -19,10 +19,10 @@ drwn doctor
 Register and activate reusable servers:
 
 ```bash
-drwn library add mcp ./context7.json --as context7
-drwn library list mcp
-drwn library defaults add mcp context7
-drwn library defaults remove mcp context7
+drwn machine mcp add ./context7.json --as context7
+drwn machine mcp list
+drwn machine mcp enable context7
+drwn machine mcp disable context7
 ```
 
 Attach MCP servers to a card source:
@@ -34,7 +34,7 @@ drwn card source remove-mcp @your-handle/backend context7
 drwn card source doctor @your-handle/backend
 ```
 
-Card-local MCP definitions do not have to be reusable library entries. If a card ships a definition with `optional: true`, consuming the card does not activate that server immediately. `drwn write` reports the skipped optional MCP, and the project can opt in with:
+Card-local MCP definitions do not have to be standalone inventory records. If a Card ships a definition with `optional: true`, consuming the Card does not activate that server immediately. `drwn write` reports the skipped optional MCP, and the project can opt in with:
 
 ```bash
 drwn add mcp context7

@@ -114,7 +114,7 @@ export interface ResolvedMachineCapabilities {
 function capabilityNotFound(kind: "skill" | "MCP server", id: string): never {
   throw new DrwnError(
     "MACHINE_CAPABILITY_NOT_FOUND",
-    `Explicit machine ${kind} is not available in the local Library: ${id}`,
+    `Explicit machine ${kind} is not available in machine inventory: ${id}`,
   );
 }
 

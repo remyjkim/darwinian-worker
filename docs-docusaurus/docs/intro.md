@@ -16,7 +16,7 @@ Agents are only as reliable as the harness around them. `darwinian` makes that h
 - **Skills and instructions** that guide agent behavior
 - **MCP servers and tool definitions** that control capability access
 - **Extensions** such as Parallel, Beads, and MarkItDown that bundle project-level setup and diagnostics
-- **Machine-wide defaults** for reusable local capabilities
+- **Explicit machine intent** for reusable local capabilities
 - **Project overlays** for repository-specific agent behavior
 - **Downstream state** for Claude Code, Codex, Cursor, and `~/.agents`
 - **Diagnostics** that report drift before mutating local files
@@ -41,7 +41,7 @@ If you only need a single MCP config file for one tool, this project is probably
 
 If you want to understand how drwn thinks before installing it:
 
-- [The Layered Model](./concepts/layered-model) — how packaged policy, Library inventory, strict machine intent, and project Workers resolve into separate projections.
+- [The Layered Model](./concepts/layered-model) — how packaged policy, machine inventory, strict machine intent, and project Workers resolve into separate projections.
 - [Cards](./concepts/cards) — versioned harness bundles you can author, share, and lock.
 - [Local Store](./concepts/local-store) — the durable shape of `~/.agents/drwn/`.
 - [Disciplines](./concepts/disciplines) — the six load-bearing commitments that shape every command.

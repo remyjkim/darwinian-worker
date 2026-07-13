@@ -30,7 +30,7 @@ interface ExtensionDefinition {
 |---|---|
 | `id` | Stable lowercase identifier. Used as the key in project config `extensions.<id>` and CLI subcommands. |
 | `displayName` | Human-readable label for status/doctor output. |
-| `description` | One-line summary surfaced by `drwn library extensions list`. |
+| `description` | One-line summary surfaced by `drwn extensions list`. |
 | `scopes` | Where the extension is meaningful. `global` = machine-wide; `project` = per-project; both = "mixed" (surfaced as `scope: "mixed"` in `ExtensionStatus`). |
 | `defaultModes` | The surface area the extension contributes by default: `cli` (a CLI exists), `skills` (ships repo skills), `mcp` (declares MCP servers), `hooks` (wants harness hooks). |
 | `commands` | Required and optional executables the extension expects on PATH. See below. |

@@ -8,7 +8,7 @@ Darwinian Minds composes effective harness state from a fixed stack of layers, t
 
 ```mermaid
 flowchart TB
-    A[Packaged Policy and Library] --> B[Machine Intent<br/>drwn.machine V1]
+    A[Packaged Policy and Machine Inventory] --> B[Machine Intent<br/>drwn.machine V1]
     B --> C[User-home Projection]
     D[Cards and Blueprints] --> E[Project Intent<br/>drwn.project-config V1]
     E --> F[Project Projection]
@@ -17,7 +17,7 @@ flowchart TB
 
 ## Composition layers
 
-1. **Packaged source.** `registry/config.json`, `registry/mcp-servers.json`, repo-native skills, and installed Library content provide policy and available definitions. Availability is not activation.
+1. **Packaged source.** `registry/config.json`, `registry/mcp-servers.json`, repo-native skills, and installed inventory content provide policy and available definitions. Availability is not activation.
 2. **Machine intent.** Strict `drwn.machine` V1 selects an immutable profile plus explicit skill and MCP IDs. Only approved policy fields merge into packaged policy.
 3. **Project roots.** Cards compose into one Blueprint; a project installs root alternatives and selects at most one active Worker closure.
 4. **Project overlays.** Strict `drwn.project-config` V1 may add explicit skills, MCP definitions, extensions, targets, and hook controls. Excludes win last.
@@ -30,7 +30,7 @@ Effective state is computed by `buildEffectiveState`. Inside a configured projec
 When `drwn write` resolves a skill name to a filesystem path, it consults three layers in fixed order:
 
 1. **Locked card** — any entry in `card.lock` whose manifest declares the skill name. Resolves to the immutable card store path.
-2. **Available Library source** — repo-native scope dirs (`skills/{shared,claude-only,codex-only,experimental}`) then installed bundles.
+2. **Available inventory source** — repo-native scope dirs (`skills/{shared,claude-only,codex-only,experimental}`) then installed bundles.
 3. **Missing** — surfaces as a typed write-time hard fail; no downstream mutation.
 
 **Cards win over other available sources at project write time.** A Card that declares a skill in the selected closure shadows any same-named repo-native or package-backed source. The alternative source is announced as `also available:` in dry-run output but never written.

@@ -130,13 +130,14 @@ In the cards-era store, installed bundles live under:
 ```
 
 There is also a `current` pointer file at the package root indicating the
-version exposed by Library inventory. This pointer does not activate any skill.
+version exposed by standalone inventory. This regular pointer does not activate
+any skill.
 
 Example:
 
 ```text
 ~/.agents/drwn/skills/@scope/example-bundle/
-  current -> 1.2.3
+  current                  # contains: 1.2.3
   1.2.3/
     bundle.json
     skills/
@@ -150,28 +151,41 @@ This storage model is intentionally separate from:
 
 ## Supported Commands
 
-Add a bundle:
+Install a bundle:
 
 ```bash
-drwn skills packages add <npm-package-or-local-path>
-drwn skills packages add <npm-package-or-local-path> --replace
+drwn machine skill install <npm-package-or-local-path>
 ```
 
-`--replace` allows overwriting an existing installed skill when it came from the same package (e.g., upgrading a bundle version).
+Installation creates inactive inventory. It never enables exported skills.
 
 List installed bundles:
 
 ```bash
-drwn skills packages list
-drwn skills packages list --json
+drwn machine skill list
+drwn machine skill list --json
 ```
 
 Show a bundle:
 
 ```bash
-drwn skills packages show <package-name>
-drwn skills packages show <package-name> --json
+drwn machine skill show --package <package-name>
+drwn machine skill show --package <package-name> --json
 ```
+
+Update or uninstall the complete package:
+
+```bash
+drwn machine skill update <package-name> --from <source> --dry-run
+drwn machine skill update <package-name> --from <source>
+drwn machine skill uninstall <package-name> --dry-run
+drwn machine skill uninstall <package-name>
+```
+
+These operations are package-scoped. They enumerate every exported skill ID and
+report known machine and project references. Package versions are immutable;
+update compares complete-tree digests before atomically changing `current`.
+Referenced inventory cannot be uninstalled through a force bypass.
 
 ## Availability, Selection, And Projection
 
@@ -180,8 +194,8 @@ Adding a bundle makes its skills available. It does not expose them automaticall
 Typical flow:
 
 ```bash
-drwn skills packages add <bundle>
-drwn skills packages show <package-name>
+drwn machine skill install <bundle>
+drwn machine skill show --package <package-name>
 drwn add skill <skill-name>
 drwn write
 ```
@@ -196,7 +210,7 @@ Important distinction:
 Machine selection and projection are separate:
 
 ```bash
-drwn library defaults add skill <skill-name>
+drwn machine skill enable <skill-name>
 drwn write --scope machine --skills-only --dry-run
 drwn write --scope machine --skills-only
 ```
@@ -235,21 +249,14 @@ The current v1 model assumes package-backed shared skills do not collide with ex
 
 If a bundle introduces a colliding skill name, ingestion should fail.
 
-### No update/remove lifecycle yet
+### Reference And Recovery Contract
 
-Implemented now:
-
-- add
-- list
-- show
-- inventory
-- explicit selection
-- downstream write
-
-Deferred:
-
-- update
-- remove
+Use `drwn machine skill references <skill-id>` or `--package <package-name>`
+before lifecycle changes. Repeated `--project` roots widen the known scan scope.
+Reference-sensitive operations use `inventory -> machine -> project` locking.
+Interrupted removal uses tombstone recovery. `drwn machine inventory gc` is a
+dry-run by default and never removes a current package because it has zero known
+references.
 
 ### Project include supports package-backed skills
 
@@ -263,7 +270,7 @@ In addition to npm bundles, `drwn` supports adding individual skill directories 
 
 ```bash
 drwn add skill /path/to/skill-directory
-drwn library add skill /path/to/skill-directory
+drwn machine skill install /path/to/skill-directory
 ```
 
 A loose skill directory must contain a `SKILL.md` file. The skill is copied into
@@ -278,8 +285,8 @@ This is useful for:
 
 Related commands:
 
-- `drwn library defaults add skill <name>` — select an available skill for machine scope
-- `drwn library defaults remove skill <name>` — remove the explicit machine selection
+- `drwn machine skill enable <name>` — select an available skill for machine scope
+- `drwn machine skill disable <name>` — remove the explicit machine selection
 - `drwn add skill <name>` — declare an available skill in the current project
 - `drwn search skill <query>` — search available skills by name or keyword
 
@@ -309,9 +316,9 @@ Common failures include:
 The safest first debug steps are:
 
 ```bash
-drwn skills packages list --json
-drwn skills packages show <package-name> --json
-drwn skills list --json
+drwn machine skill list --json
+drwn machine skill show --package <package-name> --json
+drwn machine skill list --json
 ```
 
 ## Non-Goals

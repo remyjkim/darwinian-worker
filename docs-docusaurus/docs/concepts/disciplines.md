@@ -12,26 +12,46 @@ No daemon, no IPC, no socket. State lives at fixed paths under `~/.agents/drwn/`
 
 ## 2. The lockfile is the contract
 
-`card.lock` (v2) records exact card resolutions with sha256 integrity hashes. Cross-machine reproducibility holds **if and only if** the lockfile is honored. The lockfile encodes which version satisfied a range and what the bundled content hashed to at resolve time. A `drwn install` that ignores the lockfile is not reproducible — it is by definition a fresh resolution.
+`card.lock` is the namespaced `drwn.project-lock` V1 contract. It records exact
+Card resolutions with sha256 integrity hashes. Cross-machine reproducibility
+holds **if and only if** the lockfile is honored. The lockfile encodes which
+version satisfied a range and what the bundled content hashed to at resolve
+time. A `drwn install` that ignores the lockfile is not reproducible; it is a
+fresh resolution.
 
-## 3. Single chokepoint for store mutation
+## 3. Guarded machine-state mutation
 
-Every write under `~/.agents/drwn/` flows through `assertStoreWritable()` and `writeAtomically()`. This is why `DRWN_STORE_READONLY=1` works — it is enforced at the chokepoint, not opted into per command. New commands that mutate the store inherit this guarantee for free if they go through the chokepoint, and silently break it if they bypass it.
+Every managed write under `~/.agents/drwn/` checks `DRWN_STORE_READONLY` through
+the shared writable guard. File replacement uses atomic persistence, while
+multi-record inventory and reference-sensitive changes also participate in the
+global lock order. A new mutation path must preserve both contracts.
 
 ## 4. Atomic mutations everywhere
 
-Temp-then-rename for files. Staging-then-rename for migrations. `fsync` on the parent directory for the write record. A drwn process that crashes mid-operation should leave the store in either the pre-state or the post-state, never in a partial state that subsequent reads have to reason about. Atomicity is the reason we can `kill -9` drwn and trust the next invocation.
+Temp-then-rename for files, immutable directories for package versions, atomic
+regular pointer replacement, and validated tombstones for recoverable removal.
+`fsync` completes required file and parent-directory durability. A crash should
+leave either the prior committed state or a state the next invocation can
+validate and recover.
 
 ## 5. Doctor is report-only
 
 `drwn doctor` reports drift, missing generated files, stale symlinks, and ownership conflicts. It does not auto-fix any of them. The user decides what to do with each finding. This deliberately splits "what is wrong" from "what to change," because auto-fix at scale corrupts more state than it heals.
 
-## 6. One process per invocation, bounded local concurrency
+## 6. One process per invocation, ordered cross-process locks
 
-drwn does not coordinate across processes. There is no lockfile mutex, no IPC supervisor. Concurrency safety is achieved by the atomic-rename discipline (#4) plus the read-only store flag (#3). Two simultaneous `drwn write` invocations against the same store can race, but neither can leave it half-written.
+drwn has no daemon or IPC supervisor, but mutating invocations coordinate with
+owner locks. Inventory-sensitive work follows `inventory -> machine -> project`,
+and multiple project roots are locked in normalized lexical order. Atomic
+replacement still protects independent projection files; locks protect
+cross-file invariants and reference decisions.
 
 ## Why these six together
 
-The disciplines compose. The filesystem-as-API rule means commands compose by reading and writing files; the lockfile and atomic-write rules mean those reads and writes are durable and reproducible; the chokepoint rule means new commands inherit the durability without thinking about it; doctor-is-report-only means the system never silently rewrites state out from under the operator; and the per-invocation model means the operational surface stays as simple as `drwn <verb>`.
+The disciplines compose. The filesystem-as-API rule means commands compose by
+reading and writing files; lockfiles, owner locks, and atomic persistence make
+those operations reproducible and durable; the writable guard enforces readonly
+operation; doctor remains report-only; and the per-invocation model keeps the
+operational surface at `drwn <verb>`.
 
 Each of these is also a constraint on contributions. A PR that adds a daemon, a non-lockfile-honoring install path, a non-atomic write, a bypass of the chokepoint, an auto-fix in doctor, or a cross-process coordinator is not just a feature — it is a change to the discipline. Such changes should be explicit in the PR description and reviewed against the discipline they affect.

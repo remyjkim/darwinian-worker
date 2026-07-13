@@ -14,7 +14,7 @@ export class CardSourceAddMcpCommand extends BaseCommand {
     description: "Add an MCP server definition to an editable card source.",
     details: `
       Resolves an MCP server from an explicit --from JSON file or the reusable
-      library, writes mcp-servers/<id>.json, and mirrors the definition into
+      inventory, writes mcp-servers/<id>.json, and mirrors the definition into
       card.json.servers so current consumers can use the published card.
     `,
     examples: [

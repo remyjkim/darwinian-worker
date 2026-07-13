@@ -21,69 +21,63 @@ ls -la ~/.claude/settings.json.bak*
 
 **Resolution.** Restore the user-owned field from your own versioned config or
 backup. Machine MCP selection belongs in `capabilities.mcpServers` through
-`drwn library defaults add mcp`; project MCP intent belongs in project
+`drwn machine mcp enable`; project MCP intent belongs in project
 `mcpServers`. drwn preserves unrelated siblings but does not own their backup
 lifecycle.
 
 ## Installed bundles that are not selected
 
-**Symptom.** A skill bundle is present in the local store but never shows up under `~/.claude/skills/` or `~/.codex/skills/` after `drwn write`. `drwn library list skills` shows it.
+**Symptom.** A skill bundle is present in the local store but never shows up under `~/.claude/skills/` or `~/.codex/skills/` after `drwn write`. `drwn machine skill list` shows it.
 
 **Likely cause.** The bundle is available but not selected by machine intent or any project's `skills.include`. Availability and activation are separate steps by design.
 
 **Diagnostic.**
 
 ```bash
-drwn library list skills
-drwn library defaults list
+drwn machine skill list
 drwn status --why skill:<name>
 ```
 
-If the `--why` query returns `not found`, the skill is available but not selected anywhere. If it returns `available from repo or installed skill library` without `active`, the same.
+If the `--why` query returns `not found`, the skill is unavailable. If it
+returns `available from repo or installed skill inventory` without `active`, it
+is available but not selected.
 
 **Resolution.** Add it to the layer that should own it.
 
 ```bash
-drwn library defaults add skill <name>
+drwn machine skill enable <name>
 drwn add skill <name>
 drwn write --scope machine --dry-run  # machine selection
 drwn write                            # project selection, from the project
 ```
 
-## Old `cards/` directories from pre-Wave-1 store
+## Stale project registrations block inventory removal
 
-**Symptom.** `drwn doctor` reports `legacyLayoutDetected: true` in the `store` section, or store commands warn about an unmigrated layout.
+**Symptom.** A package uninstall or MCP removal fails because a registered
+project root is missing or unreadable.
 
-**Likely cause.** The store was initialized before Wave 1's Git-backed cards layout. Per-version directories under `~/.agents/drwn/cards/` are still present alongside (or instead of) per-card bare Git repositories.
+**Likely cause.** `~/.agents/drwn/projects.json` contains a checkout that was
+moved or deleted. Reference scans fail closed so stale registration cannot hide
+live project intent.
 
 **Diagnostic.**
 
 ```bash
-drwn store status
-drwn store status --json
+drwn projects list
+drwn projects unregister /absolute/stale/root --dry-run
 ```
 
-The JSON output's `legacyLayoutDetected` flag is the canonical signal.
-
-**Resolution.** Migrate in two steps. The first reorganizes the store; the second converts per-version dirs into per-card bare Git repos.
+**Resolution.** Verify the exact path is stale, then unregister it explicitly.
 
 ```bash
-drwn store migrate --dry-run
-drwn store migrate
-drwn store migrate-to-git --dry-run
-drwn store migrate-to-git
+drwn projects unregister /absolute/stale/root
 ```
 
-If the migration leaves stray symlinks pointing at the archived old layout (under `~/.claude/skills/` or `~/.codex/skills/`), pass `--cleanup-legacy-orphans`:
-
-```bash
-drwn store migrate --cleanup-legacy-orphans
-```
-
-That flag removes only symlinks whose targets fall under drwn-owned legacy prefixes. Non-owned symlinks are preserved. See [Stale Symlinks](./stale-symlinks) for the ownership rules.
+Unregister refuses a valid project that still declares standalone inventory
+references. Remove those declarations in the project first.
 
 ## Cross-References
 
 - [Ownership and Write Records](../concepts/ownership-and-write-records) for the meta-block and ledger model
 - [Ownership Conflicts](./ownership-conflicts) when `drwn write` aborts on a managed-field hash mismatch
-- [Stale Symlinks](./stale-symlinks) for the symlink-cleanup rules referenced above
+- [Machine Inventory](../reference/cli/machine) for reference and removal rules

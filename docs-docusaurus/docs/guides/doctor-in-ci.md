@@ -15,7 +15,7 @@ CI-friendly read-only commands:
 - `drwn status --json` for a structured snapshot of effective state
 - `drwn doctor --json` for report-only diagnostics
 - `drwn card outdated --check` to fail when project cards have newer versions
-- `drwn store verify` for store integrity
+- `drwn doctor` for store integrity
 - `drwn card validate <ref>` for a single card
 
 `doctor` is report-only and does not mutate state.
@@ -26,7 +26,7 @@ Set the read-only guard to refuse any store mutation in CI:
 
 ```bash
 export DRWN_STORE_READONLY=1
-drwn store verify
+drwn doctor
 drwn doctor
 ```
 
@@ -36,7 +36,7 @@ mutations fail before writing.
 ## Exit-Code Semantics
 
 - `drwn doctor` exits non-zero when it finds at least one issue
-- `drwn store verify` exits non-zero when integrity checks fail
+- `drwn doctor` exits non-zero when integrity checks fail
 - `drwn card validate <ref>` exits non-zero on integrity or schema failures
 - `drwn card outdated --check` exits non-zero when any project card has a newer locked version available
 
@@ -50,7 +50,7 @@ fields:
 ```bash
 drwn doctor --json | jq '.issues | length == 0'
 drwn card outdated --check --json | jq '.outdated | length == 0'
-drwn store verify --json | jq '.ok == true'
+drwn doctor --json | jq '.ok == true'
 drwn status --json | jq '.project.config != null'
 ```
 
@@ -77,7 +77,7 @@ jobs:
       - run: drwn install --frozen  # resolves card.lock; exits non-zero if lock is stale
       - run: drwn doctor --json
       - run: drwn card outdated --check --json
-      - run: drwn store verify --json
+      - run: drwn doctor --json
 ```
 
 `drwn install --frozen` refuses to clone or rewrite `card.lock` in CI, so a

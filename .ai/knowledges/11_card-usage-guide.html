@@ -91,7 +91,7 @@ drwn use --none</code></pre>
   <p>A Blueprint root receives one aggregate generated directory. Its member Cards do not receive sibling Worker directories unless they were separately installed as roots.</p>
 
   <h2>Project Capabilities</h2>
-  <p>Project declarations come from the selected closure and explicit project overlays. Machine defaults are a separate machine-write authority. User-home skills and MCP entries may still be visible to downstream tools; status and doctor report those as ambient, never as project declarations.</p>
+  <p>Project declarations come from the selected closure and explicit project overlays. The machine profile and explicit machine inventory selections are a separate machine-write authority. User-home skills and MCP entries may still be visible to downstream tools; status and doctor report those as ambient, never as project declarations.</p>
   <pre><code>drwn status --json
 drwn status --why skill:notion-knowledge
 drwn doctor --json</code></pre>
@@ -114,7 +114,7 @@ drwn worker deploy @team/operator@1.0.0 --name team-operator</code></pre>
 
   <h2>Safety</h2>
   <p><code>drwn write</code> is a pure projection and supports <code>--dry-run</code>. It never changes project root requirements, selection, or lock state.</p>
-  <p>Whole-Store export remains disabled with <code>STORE_EXPORT_DISABLED_UNSAFE</code>. Use the controlled reset runbook for unsupported development project state; there is no automated migration.</p>
+  <p>There is no public whole-Store archive command. Use the controlled reset runbook for unsupported development project state; there is no automated migration. Portable machine inventory transfer remains a separate Task 82 contract.</p>
 
   <h2>Future Machine Profile</h2>
   <p>The Recommended Darwinian Operator profile is an immutable <code>@darwinian/operator@1.0.2</code> machine capability pin selected by opt-out guided setup. It projects 17 approved machine-safe skills and zero MCP servers, and it never creates Worker identity, hooks, permissions, governance, or project intent.</p>

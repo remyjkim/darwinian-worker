@@ -23,7 +23,7 @@ Scope limits projection targets. It does not activate a skill.
 
 1. **Selected Card closure** — a Card in the active project Worker whose manifest declares the skill. Card-bundled skills always win at project write time.
 2. **Repo-native** — the four scope directories above, in order `shared` → `claude-only` → `codex-only` → `experimental`.
-3. **Package-backed bundles** — installed via `drwn library add skill` or `drwn skills packages add`; live under `~/.agents/drwn/skills/<package>/<version>/` with a `current` symlink to the active version.
+3. **Package-backed bundles** — installed via `drwn machine skill install`; live under `~/.agents/drwn/skills/<package>/<version>/` with a regular `current` pointer file naming the active version.
 4. **Missing** — surfaces as a typed write-time hard fail before any downstream mutation.
 
 There is no scope-based promotion between repo-native and bundle sources; first match wins. Cards are the only layer that can shadow other sources at write time.
@@ -33,7 +33,7 @@ There is no scope-based promotion between repo-native and bundle sources; first 
 Machine activation comes only from the selected immutable profile plus explicit `capabilities.skills` IDs in strict `drwn.machine` V1. Select an available skill with:
 
 ```bash
-drwn library defaults add skill <name>
+drwn machine skill enable <name>
 drwn write --scope machine --skills-only --dry-run
 drwn write --scope machine --skills-only
 ```
@@ -52,6 +52,5 @@ Per-write-record cleanup applies: drwn-owned stale skill directories (recorded i
 
 - [Materialization](./materialization) — the write-time pipeline
 - [Extensions, bundles, and cards](./extensions-bundles-cards) — the add vs select vs write model
-- [`reference/cli/skills`](../reference/cli/skills) — command-by-command surface
-- [`reference/cli/library`](../reference/cli/library) — the inventory and defaults commands
+- [Machine Inventory](../reference/cli/machine) — lifecycle and selection commands
 - `.ai/knowledges/10_drwn-cli-architecture.md` §4 — full architectural reference

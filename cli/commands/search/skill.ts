@@ -1,4 +1,4 @@
-// ABOUTME: Implements `drwn search skill` across local library and configured catalogs.
+// ABOUTME: Implements `drwn search skill` across local inventory and configured catalogs.
 // ABOUTME: Labels sources clearly so users distinguish owned inventory from online discovery.
 
 import { Option, UsageError } from "clipanion";
@@ -12,7 +12,7 @@ function renderSearchResults(results: Awaited<ReturnType<typeof searchSkills>>, 
   const catalog = results.results.filter((item) => item.sourceGroup === "catalog");
   const sections: string[] = [];
 
-  sections.push("Local library");
+  sections.push("Local inventory");
   sections.push(...(local.length > 0 ? local.map((item, index) => `${index + 1}. ${item.id} (${item.kind})`) : ["  No matches."]));
   sections.push("");
   sections.push("Online catalogs");
@@ -34,7 +34,7 @@ export class SearchSkillCommand extends BaseCommand {
     category: "Search",
     description: "Search local and configured catalog skills.",
     details: `
-      Searches the local skill library and configured npm-skill catalogs. Use
+      Searches local skill inventory and configured npm-skill catalogs. Use
       --library or --catalog to restrict the source; those flags are mutually
       exclusive.
 
@@ -51,7 +51,7 @@ export class SearchSkillCommand extends BaseCommand {
   query = Option.String({ required: true });
 
   libraryOnly = Option.Boolean("--library", false, {
-    description: "Only search the local library.",
+    description: "Only search local inventory.",
   });
 
   catalogOnly = Option.Boolean("--catalog", false, {

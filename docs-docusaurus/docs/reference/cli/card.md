@@ -178,7 +178,7 @@ Publish to a card catalog after the card has been pushed to an installable Git r
 ```bash
 drwn card remote add @team/backend <card-git-url>
 drwn card push @team/backend
-drwn library catalog add <catalog-git-url>
+drwn catalog add <catalog-git-url>
 drwn card catalog publish @team/backend@1.0.0 --catalog @team --mode direct --tag backend --json
 drwn search card backend --scope @team
 ```

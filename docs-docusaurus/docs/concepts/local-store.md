@@ -2,13 +2,16 @@
 sidebar_position: 3
 ---
 
-# Local Store
+# Machine State
 
-The local Store is `~/.agents/drwn`. It is the durable state for strict machine intent, reusable Library content, Card sources, published Cards, catalogs, extracted Card trees, and write records.
+The machine state root is `~/.agents/drwn`. It contains strict machine intent,
+standalone inventory, Card sources, published Cards, catalogs, extracted Card
+trees, registrations, write records, and credentials. Those categories do not
+share one portability policy.
 
 Important paths:
 
-- `~/.agents/drwn/machine.json`: machine-wide active defaults
+- `~/.agents/drwn/machine.json`: explicit machine capability intent
 - `~/.agents/drwn/skills`: installed package-backed skill bundles
 - `~/.agents/drwn/mcp-servers`: user-registered MCP server definitions
 - `~/.agents/drwn/sources`: editable card sources
@@ -16,24 +19,24 @@ Important paths:
 - `~/.agents/drwn/extracted`: immutable extracted card trees
 - `~/.agents/drwn/catalogs`: local card catalog clones
 
-Inspect and maintain the store:
+Inspect state and plan scoped inventory cleanup:
 
 ```bash
-drwn store status
-drwn store status --json
-drwn store verify
-drwn store migrate
-drwn store migrate-to-git --dry-run --json
-drwn store gc
+drwn status --machine
+drwn status --machine --json
+drwn doctor
+drwn machine inventory gc
 ```
 
-Whole-store export is disabled with `STORE_EXPORT_DISABLED_UNSAFE` because this directory can contain credentials and operational state. There is no unrestricted override. Treat broad Store archives produced by earlier releases as sensitive.
+No public command archives this root wholesale. Treat broad archives produced
+by prototype releases as sensitive. Remote deploy uses a separate allowlisted
+Card payload, and portable inventory transfer remains Task 82.
 
 Readonly mode is useful for validation against mounted or unpacked snapshots:
 
 ```bash
-DRWN_STORE_READONLY=1 drwn store status
+DRWN_STORE_READONLY=1 drwn status --machine
 DRWN_STORE_READONLY=1 drwn card source doctor
 ```
 
-Commands that mutate store state refuse to write when readonly mode is enabled.
+Commands that mutate machine state refuse to write when readonly mode is enabled.

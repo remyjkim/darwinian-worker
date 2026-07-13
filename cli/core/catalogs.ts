@@ -1,5 +1,5 @@
 // ABOUTME: Implements configured online/external catalog adapters for discovery.
-// ABOUTME: Keeps catalog policy separate from local library inventory.
+// ABOUTME: Keeps catalog policy separate from standalone machine inventory.
 
 import { existsSync, readFileSync } from "node:fs";
 import { npmCommand } from "./process";
