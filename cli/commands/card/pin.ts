@@ -2,9 +2,8 @@
 // ABOUTME: Useful for locking a project to an exact card version.
 
 import { Option } from "clipanion";
-import { pinProjectCardSpec } from "../../core/card-project";
 import { BaseCommand } from "../base";
-import { renderCardMutation, requireProjectRoot, runChainedWrite } from "./project-command";
+import { commandMoved } from "./project-command";
 
 export class CardPinCommand extends BaseCommand {
   static override paths = [["card", "pin"]];
@@ -31,18 +30,6 @@ export class CardPinCommand extends BaseCommand {
   });
 
   async execute() {
-    if (this.allowUntrustedSource) {
-      this.context.stderr.write(`Warning: --allow-untrusted-source used for ${this.spec}\n`);
-    }
-    const result = await pinProjectCardSpec(requireProjectRoot(this), this.context.agentsDir, this.spec, {
-      allowUntrustedSource: this.allowUntrustedSource,
-      repoRoot: this.context.repoRoot,
-      cwd: this.context.cwd,
-    });
-    this.context.stdout.write(renderCardMutation(result));
-    if (this.write) {
-      return await runChainedWrite(this);
-    }
-    return 0;
+    return commandMoved(this, "drwn pin <ref>");
   }
 }

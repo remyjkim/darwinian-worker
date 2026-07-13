@@ -98,6 +98,12 @@ export async function loadCardLock(projectRoot: string): Promise<CardLockfile | 
 
 export async function writeCardLock(projectRoot: string, graphOrCards: ResolvedWorkerGraph | CardLockEntry[]) {
   const path = cardLockPath(projectRoot);
+  const lockfile = createCardLockfile(graphOrCards);
+  await writeAtomically(path, `${JSON.stringify(lockfile, null, 2)}\n`);
+  return path;
+}
+
+export function createCardLockfile(graphOrCards: ResolvedWorkerGraph | CardLockEntry[]): CardLockfileV6 {
   const graph = Array.isArray(graphOrCards) ? graphFromCards(graphOrCards) : graphOrCards;
   const cards = graph.cards;
   const normalizedCards = cards.map((card) => ({
@@ -122,8 +128,14 @@ export async function writeCardLock(projectRoot: string, graphOrCards: ResolvedW
     workerRoots: graph.roots,
     cards: normalizedCards,
   });
-  await writeAtomically(path, `${JSON.stringify(lockfile, null, 2)}\n`);
-  return path;
+  if (lockfile.lockfileVersion !== 6) {
+    throw new Error("Internal error: project Card graph did not produce lockfile V6");
+  }
+  return lockfile;
+}
+
+export function serializeCardLock(graphOrCards: ResolvedWorkerGraph | CardLockEntry[]): string {
+  return `${JSON.stringify(createCardLockfile(graphOrCards), null, 2)}\n`;
 }
 
 export async function persistCardLock(

@@ -2,9 +2,8 @@
 // ABOUTME: Resolves immediately so card.lock stays aligned with config changes.
 
 import { Option } from "clipanion";
-import { addProjectCardSpec } from "../../core/card-project";
 import { BaseCommand } from "../base";
-import { renderCardMutation, requireProjectRoot, runChainedWrite } from "./project-command";
+import { commandMoved } from "./project-command";
 
 export class CardAddCommand extends BaseCommand {
   static override paths = [["card", "add"]];
@@ -31,29 +30,6 @@ export class CardAddCommand extends BaseCommand {
   });
 
   async execute() {
-    if (this.allowUntrustedSource) {
-      this.context.stderr.write(`Warning: --allow-untrusted-source used for ${this.spec}\n`);
-    }
-    const result = await addProjectCardSpec(requireProjectRoot(this), this.context.agentsDir, this.spec, {
-      allowUntrustedSource: this.allowUntrustedSource,
-      repoRoot: this.context.repoRoot,
-      cwd: this.context.cwd,
-    });
-    for (const card of result.locked) {
-      if (card.hooks.length > 0 && !card.hookConsent) {
-        this.context.stderr.write(
-          `Warning: ${card.name}@${card.version} declares hooks but has no hook consent. Run drwn card trust ${card.name} --hooks before drwn write materializes them.\n`,
-        );
-      }
-    }
-    this.context.stdout.write(renderCardMutation(result));
-    if (this.write) {
-      return await runChainedWrite(this);
-    }
-    return 0;
+    return commandMoved(this, "drwn add <ref>");
   }
-}
-
-export class AddCardCommand extends CardAddCommand {
-  static override paths = [["add"]];
 }
