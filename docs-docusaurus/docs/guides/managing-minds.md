@@ -4,118 +4,76 @@ sidebar_position: 11
 
 # Managing Minds
 
-This guide covers the day-to-day workflow for managing the active mind stack in a project — inspecting installed minds, activating a subset, changing order, and removing activation.
+## Select A Worker
 
-## Install a mind card
-
-Mind cards are installed the same way as regular harness cards:
+Mind operations require one selected project Worker:
 
 ```bash
-drwn card add @team/base@^1.0.0
-drwn install
+drwn apply @team/operator@^1.0.0
+drwn use @team/operator --no-write
 ```
 
-`drwn install` fetches the card from the store and runs `drwn write` to materialize its contributions. If the card declares hooks, grant trust before writing:
+A Blueprint root contributes its root Card followed by ordered members. There is no separate Mind selection surface.
+
+## Configure BeginningDB
+
+Provide binding coordinates through deployment binding state or environment:
 
 ```bash
-drwn card trust @team/base --hooks
-drwn write
+export BGDB_BASE_URL=<url>
+export BGDB_TOKEN=<token>
+export BGDB_PATH_PREFIX=minds/<mind-id>
 ```
 
-## Inspect installed minds
+Tokens remain operator state and are never stored in project config/lock.
+
+## Provision
 
 ```bash
-drwn mind list
-drwn mind list --json
+drwn worker mind provision
+drwn worker mind provision --mind-id <mind-id> --json
 ```
 
-The table shows each installed mind, its version, and whether it is currently active. When no explicit stack has been set, all installed minds are active and a note indicates the default mode:
+Provision is idempotent. Once `mind.json` exists, rerunning provision does not overwrite live state.
 
-```
-mind            version  active
-@team/base      1.0.0    yes
-@team/frontend  2.1.0    yes
-
-Default: all installed minds are active. Run `drwn mind use` to pin an explicit stack.
-```
-
-## Set an explicit active stack
-
-To control which minds are active and in what order:
+## Inspect Drift
 
 ```bash
-drwn mind use @team/base
-drwn mind use @team/base @team/frontend
+drwn worker mind status --json
+drwn worker mind doctor --json
+drwn worker mind diff --json
 ```
 
-Order matters for content composition — earlier cards take precedence. After setting the stack, run `drwn write` to apply it:
+Drift states distinguish in-sync content, DB edits, newer Card content, and missing files.
+
+## Sync
 
 ```bash
-drwn mind use @team/base @team/frontend
-drwn write
+drwn worker mind sync --dry-run --json
+drwn worker mind sync
+drwn worker mind sync --force
 ```
 
-The active stack is persisted to `.agents/drwn/config.json` under `activeMinds`:
+Normal sync preserves DB-edited files. `--force` makes Card content win for seeded files after deliberate review.
 
-```json
-{
-  "version": 1,
-  "activeMinds": ["@team/base", "@team/frontend"]
-}
-```
-
-## Change the active order
-
-Pass a new ordered list to replace the current stack:
+## Checkpoint
 
 ```bash
-drwn mind use @team/frontend @team/base
-drwn write
+drwn worker mind checkpoint --json
 ```
 
-## Remove all mind activation
+Checkpoint writes DB edits into local Card source persona/belief files. Review, version, and publish those source changes. Unattributed persona content fails closed.
 
-`drwn mind clear` resets to an empty stack without uninstalling the cards:
+## Pool Retirement
 
 ```bash
-drwn mind clear
-drwn write
+drwn worker mind pool retire <pool-path> --yes
 ```
 
-After clearing, no mind-card content is projected into downstream tool state. The card bundles remain in the store and can be reactivated with `drwn mind use`.
+Retirement is destructive and requires explicit confirmation.
 
-## Remove a mind card entirely
+## Related
 
-```bash
-drwn card remove @team/base
-drwn write
-```
-
-This removes the card from `card.lock` and cleans up its materialized content.
-
-## Team-shared mind configuration
-
-Commit the project config to share the active stack across the team:
-
-```bash
-# config.json is at .agents/drwn/config.json
-git add .agents/drwn/config.json
-git commit -m "activate team mind cards"
-```
-
-When a teammate runs `drwn install` after pulling, they get the same stack automatically.
-
-## Verify the active configuration
-
-```bash
-drwn status
-drwn doctor
-```
-
-`drwn doctor` reports `hookIssues` for any installed mind card that declares hooks but has not been trusted by the current user.
-
-## See also
-
-- [Minds](../concepts/minds) — the active stack model and default behavior
-- [`drwn mind`](../reference/cli/mind) — CLI reference
-- [Authoring Mind Cards](./authoring-mind-cards) — creating a mind card from scratch
+- [Minds](../concepts/minds)
+- [Beliefs, Personas, and Memory](../concepts/beliefs-memories-personas)
+- [Mind CLI](../reference/cli/mind)

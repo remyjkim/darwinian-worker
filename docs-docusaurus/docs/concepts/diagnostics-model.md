@@ -21,9 +21,9 @@ The categories surfaced:
 - **Stale downstream skill entries** — drwn-owned skill entries that no longer correspond to any active skill
 - **MCP drift** in Claude `settings.json`, Codex `config.toml`, or Cursor `mcp.json` — the managed content has been modified outside drwn
 - **Hook issues** — a locked card declares hook policies but no hook consent has been recorded via `drwn card trust`. `drwn write` will not materialize hooks until consent is granted.
-- **Project config issues** — unknown servers in `project.servers`, unknown skills in `skills.include`, unknown extensions, stale target overrides, unavailable card skills, and dangling `defaults` references
+- **Project config issues** — invalid Worker roots or selection, unknown `mcpServers`, unknown skills in `skills.include`, unknown extensions, stale target overrides, and unavailable selected-closure skills
 
-`doctor` reports issues. It never fixes them. The intent is that an operator (or an agent following a skill) reads doctor output, decides what to do, and then runs the right command (`drwn write`, `drwn card update`, `drwn library defaults remove`, and so on).
+`doctor` reports issues. It never fixes them. The intent is that an operator (or an agent following a skill) reads doctor output, decides what to do, and then runs the right command (`drwn write`, `drwn update`, `drwn library defaults remove`, and so on).
 
 See [reference/cli/doctor](../reference/cli/doctor) for the command surface and [troubleshooting/reading-doctor](../troubleshooting/reading-doctor) for how to triage common output.
 

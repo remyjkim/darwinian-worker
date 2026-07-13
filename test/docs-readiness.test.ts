@@ -2,7 +2,16 @@
 // ABOUTME: Protects operator docs from drifting behind the actual command surface and distribution plans.
 
 import { describe, expect, test } from "bun:test";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+async function readDocsTree(relativeRoot: string) {
+  const root = fileURLToPath(new URL(relativeRoot, import.meta.url));
+  const paths = (await readdir(root, { recursive: true }))
+    .filter((path) => path.endsWith(".md") || path.endsWith(".mdx") || path.endsWith(".html"));
+  return (await Promise.all(paths.map((path) => readFile(join(root, path), "utf8")))).join("\n");
+}
 
 describe("documentation readiness", () => {
   test("README, usage guide, and Homebrew checklist cover key scenarios", async () => {
@@ -130,7 +139,8 @@ describe("documentation readiness", () => {
     expect(usageGuide).toContain("local harness");
     expect(usageGuide).toContain("drwn apply");
     expect(projectGuide).toContain("Discovery walks upward");
-    expect(projectGuide).toContain("\"version\": 1");
+    expect(projectGuide).toContain("\"schema\": \"drwn.project-config\"");
+    expect(projectGuide).toContain("\"schemaVersion\": 1");
     expect(projectGuide).toContain("skills.include");
     expect(projectGuide).toContain("skills.exclude");
     expect(projectGuide).toContain("extensions.parallel");
@@ -193,5 +203,61 @@ describe("documentation readiness", () => {
     expect(releaseProcess).toContain("drwn-command-bridge");
     expect(releaseProcess).toContain("native macOS");
     expect(releaseProcess).toContain("npm publish --access public");
+  });
+
+  test("forward docs publish only the first supported project Worker contract", async () => {
+    const [contract, reset, readme, install, quickref, workerHelp, docusaurus] = await Promise.all([
+      readFile(new URL("../docs/contracts/project-worker-v1.md", import.meta.url), "utf8"),
+      readFile(new URL("../docs/prelaunch-project-reset.md", import.meta.url), "utf8"),
+      readFile(new URL("../README.md", import.meta.url), "utf8"),
+      readFile(new URL("../INSTALL.md", import.meta.url), "utf8"),
+      readFile(new URL("../docs/cli-quickref.md", import.meta.url), "utf8"),
+      readFile(new URL("../cli/commands/worker/worker.ts", import.meta.url), "utf8"),
+      readDocsTree("../docs-docusaurus/docs"),
+    ]);
+    const knowledge = (await Promise.all([
+      "01_agents-cli-usage-guide.md",
+      "02_per-project-config-guide.md",
+      "09_cards-manual-test-guide.md",
+      "10_drwn-cli-architecture.md",
+      "11_card-usage-guide.html",
+    ].map((name) => readFile(new URL(`../.ai/knowledges/${name}`, import.meta.url), "utf8")))).join("\n");
+    const forwardDocs = [readme, install, quickref, workerHelp, knowledge, docusaurus].join("\n");
+
+    for (const schema of ["drwn.project-config", "drwn.project-lock", "drwn.project-local", "drwn.generated-worker"]) {
+      expect(contract).toContain(schema);
+    }
+    for (const command of ["drwn add", "drwn apply", "drwn use", "drwn write"]) {
+      expect(contract).toContain(command);
+      expect(forwardDocs).toContain(command);
+    }
+    expect(contract).toContain("activeWorker");
+    expect(contract).toContain("null");
+    expect(contract).toContain("one aggregate");
+    expect(contract).toContain("declared");
+    expect(contract).toContain("ambient");
+    expect(contract).toContain("OAuth");
+    expect(contract).toContain("STORE_EXPORT_DISABLED_UNSAFE");
+    expect(contract).toContain("future");
+    expect(contract).toContain("Recommended Darwinian Operator");
+    expect(reset).toContain("controlled prelaunch reset");
+    expect(reset).toContain("no automated migration");
+
+    for (const stale of [
+      /activeWorkers/,
+      /drwn worker stack/,
+      /active worker stack/i,
+      /all installed workers are active/i,
+      /drwn card (?:add|apply|remove|pin|update|detach)/,
+      /--no-apply/,
+      /COMMAND_MOVED/,
+      /config\.json\.cards/,
+      /"lockfileVersion"/,
+      /activeMinds/,
+      /active mind stack/i,
+      /drwn mind (?:list|use|clear)/,
+    ]) {
+      expect(forwardDocs).not.toMatch(stale);
+    }
   });
 });

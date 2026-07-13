@@ -30,11 +30,17 @@ bun run drwn -- status
 ## First run
 
 ```bash
+drwn init --non-interactive
+drwn apply <worker-blueprint-ref>
+drwn use <worker-name> --no-write
 drwn write --dry-run
 drwn write
 ```
 
-For a project-local harness, run `drwn init` in the project root, then `drwn add skill <name>` and `drwn write`.
+Cards compose capabilities into one Blueprint. A project may install alternative
+Worker roots but selects at most one; `drwn write` projects only the selected
+root closure plus explicit project overlays. Project declarations do not inherit
+machine default selections.
 
 ## Store Export Safety
 
@@ -50,7 +56,10 @@ Enable it in the project you want to observe:
 
 ```json
 {
-  "version": 1,
+  "schema": "drwn.project-config",
+  "schemaVersion": 1,
+  "workers": [],
+  "activeWorker": null,
   "hooks": {
     "signals": { "enabled": true }
   }
@@ -70,6 +79,8 @@ sessions.
 - **Disciplines that shape the design:** [`concepts/disciplines`](https://docs.darwiniantools.com/concepts/disciplines)
 - **Safety model:** [`concepts/safety-model`](https://docs.darwiniantools.com/concepts/safety-model)
 - **CLI quick reference:** [`docs/cli-quickref.md`](./docs/cli-quickref.md)
+- **Project Worker V1 contract:** [`docs/contracts/project-worker-v1.md`](./docs/contracts/project-worker-v1.md)
+- **Prelaunch project reset:** [`docs/prelaunch-project-reset.md`](./docs/prelaunch-project-reset.md)
 - **Architecture (contributors):** [`.ai/knowledges/10_drwn-cli-architecture.md`](./.ai/knowledges/10_drwn-cli-architecture.md)
 - **Maintainers:** [`docs/maintainers/`](./docs/maintainers/)
 
@@ -79,6 +90,10 @@ Local docs workflow:
 bun run docs:dev
 bun run docs:build
 ```
+
+Notion OAuth, `ntn` API keys, and external stdio tools such as Momentic remain
+operator-owned runtime state. Definitions may be carried by Cards, but secrets
+and machine installation state are never project or Blueprint content.
 
 ## Contributing
 

@@ -8,7 +8,16 @@ import { renderWorkerMutation, requireProjectRoot, runChainedWrite } from "../ca
 
 export class ProjectPinCommand extends BaseCommand {
   static override paths = [["pin"]];
-  static override usage = BaseCommand.Usage({ category: "Project", description: "Pin one installed Worker root." });
+  static override usage = BaseCommand.Usage({
+    category: "Project",
+    description: "Pin one installed Worker root.",
+    details: `
+      Replaces the requirement for one installed root and resolves its complete
+      Card closure. Selection is preserved by canonical root name, and config
+      plus lock commit atomically.
+    `,
+    examples: [["Pin an installed root", "drwn pin @team/operator@1.2.3"]],
+  });
   spec = Option.String({ required: true });
   write = Option.Boolean("--write", false);
   dryRun = Option.Boolean("--dry-run", false);

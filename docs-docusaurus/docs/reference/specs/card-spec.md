@@ -4,156 +4,142 @@ sidebar_position: 1
 
 # Card Spec
 
-The Card is drwn's unit of distributable harness intent. A card declares a versioned bundle of skills, MCP servers, extension intent, and target defaults that a project can consume with a single ref. This page describes the producer/consumer contract: what shapes producers must emit, and what consumers (drwn or any compatible tool) must honor.
+A Card is drwn's independently versioned capability unit. A Blueprint is a Card that composes ordered plain Cards into one Worker root.
 
-For the on-disk manifest shape, see [Card Manifest](../schemas/card-manifest). For the lockfile shape, see below — the lockfile contract lives here because it is part of the cross-tool interoperability surface.
+## States
 
-## Three States
-
-A card exists in one of three states. Each state has its own location and on-disk shape.
-
-| State | Location | Shape |
-|---|---|---|
-| **Source** | `~/.agents/drwn/sources/<scope>/<name>/` | Working tree with editable `card.json`, `skills/`, `mcp-servers/`. Authored with `drwn card source` commands. |
-| **Published** | `~/.agents/drwn/cards/<scope>/<name>.git/` | Immutable bare git repo. Versions are git tags `vX.Y.Z`. Trees are extracted to `~/.agents/drwn/extracted/<sha>/` on demand. |
-| **Consumed** | `<project>/.agents/drwn/card.lock` (entries) and an extracted dir | A `CardLockEntry` in the lockfile plus the extracted tree. |
-
-State transitions are implemented in `cli/core/card-store.ts`: `createCardSource` (`:223-263`), `publishCard` (`:620-672`), and `resolveCard` (`:682-709`).
+| State | Location | Meaning |
+| --- | --- | --- |
+| Source | `~/.agents/drwn/sources/<scope>/<name>/` | Mutable authoring tree. |
+| Published | `~/.agents/drwn/cards/<scope>/<name>.git/` | Immutable Git-backed versions. |
+| Extracted | `~/.agents/drwn/extracted/<tree-sha>/` | Content-addressed materialization. |
+| Consumed | `<project>/.agents/drwn/card.lock` | Exact root graph and Card provenance. |
 
 ## Card Refs
 
-A card ref names a card and a version selector. Three canonical forms plus two shorthands. Grammar implemented in `parseCardRef` (`cli/core/card-store.ts:136-204`).
+| Form | Example |
+| --- | --- |
+| Store range | `@your-handle/backend@^1.0.0` |
+| Store exact | `@your-handle/backend@1.2.3` |
+| File | `file:./cards/backend` |
+| Git ref | `git+https://github.com/me/card.git#v1.2.0` |
+| Git range | `git+https://github.com/me/card.git@^1.0.0` |
+| GitHub | `github:me/card@^1.0.0` |
+| GitLab | `gitlab:me/card#v1.2.0` |
 
-| Form | Shape | Example |
-|---|---|---|
-| Store | `@scope/name@<range>` or `name@<range>` | `@your-handle/backend@^1.0.0` |
-| File | `file:<path>` | `file:./vendor/local-card` |
-| Git (ref) | `git+<url>#<ref>` | `git+https://github.com/me/card.git#v1.2.0` |
-| Git (range) | `git+<url>@<range>` | `git+https://github.com/me/card.git@^1.0.0` |
-| GitHub shorthand | `github:owner/repo#<ref>` or `github:owner/repo@<range>` | `github:me/card@^1.0.0` |
-| GitLab shorthand | `gitlab:owner/repo#<ref>` or `gitlab:owner/repo@<range>` | `gitlab:me/card#main` |
+Git URLs without a ref/range fail. GitHub/GitLab shorthands expand to HTTPS Git URLs. Git authentication remains owned by Git.
 
-A ref with no `@range` is treated as range `*`. Ranges use `validRange` semantics from `cli/core/semver-utils.ts`; exact versions match `isStrictSemver`.
+## Card Manifest
 
-The shorthands `github:` and `gitlab:` expand to `https://github.com/<owner>/<repo>.git` and `https://gitlab.com/<owner>/<repo>.git` respectively (`card-store.ts:185-204`).
-
-## Lockfile Contract
-
-On disk: `<project>/.agents/drwn/card.lock`. Type: `CardLockfile` (`cli/core/card-lock.ts`).
-
-Producers must emit exactly this shape; consumers must reject anything else. The validator is `validateCardLockfile`. The lockfile version gates which fields are valid:
-
-- **v2** — base shape
-- **v3** — adds `hooks: string[]` to each `CardLockEntry`
-- **v4** — adds `persona`, `beliefs`, `memory` fields to each `CardLockEntry`
+Every Card has a validated `card.json` containing at least:
 
 ```json
 {
-  "lockfileVersion": 2,
-  "store": { "minDrwnVersion": "0.1.0" },
-  "cards": [
-    {
-      "origin": "store",
-      "name": "@your-handle/backend",
-      "requested": "@your-handle/backend@^1.0.0",
-      "version": "1.2.0",
-      "path": "/Users/me/.agents/drwn/extracted/abc123.../",
-      "integrity": "sha256-deadbeef...",
-      "manifest": { "name": "@your-handle/backend", "version": "1.2.0" },
-      "skills": ["reviewer", "release-notes"],
-      "registry": null,
-      "git": {
-        "url": "https://github.com/me/backend.git",
-        "ref": "v1.2.0",
-        "commit": "0123456789abcdef0123456789abcdef01234567"
-      }
-    }
+  "name": "@your-handle/backend",
+  "version": "1.2.0"
+}
+```
+
+Cards may include skills, MCP definitions, hook policies, persona, beliefs, memory, instructions, extensions, target intent, governance, and quality metadata.
+
+A Blueprint adds:
+
+```json
+{
+  "kind": "blueprint",
+  "composedFrom": [
+    "@your-handle/review@^1.0.0",
+    "@your-handle/testing@^1.0.0"
   ]
 }
 ```
 
-### Top-level fields
+Blueprint members are ordered plain Cards. Nested Blueprints are rejected in the first supported contract.
 
-| Field | Type | Required | Meaning |
-|---|---|---|---|
-| `lockfileVersion` | `2`, `3`, or `4` | yes | Schema gate. Any other value throws. |
-| `store.minDrwnVersion` | string | no | Minimum drwn version a consumer needs to honor this lockfile. |
-| `cards` | `CardLockEntry[]` | yes | One entry per locked card. Must be an array. |
+## Project Lock V1
 
-### `CardLockEntry`
+`<project>/.agents/drwn/card.lock` is self-identifying:
 
-Required for every entry (`card-lock.ts:19-30`, validator at `:66-100`):
+```json
+{
+  "schema": "drwn.project-lock",
+  "schemaVersion": 1,
+  "store": { "minDrwnVersion": "0.8.0" },
+  "workerRoots": [
+    {
+      "name": "@your-handle/operator",
+      "requested": "@your-handle/operator@^1.0.0",
+      "kind": "blueprint",
+      "members": ["@your-handle/review", "@your-handle/testing"]
+    }
+  ],
+  "cards": []
+}
+```
 
-| Field | Type | Meaning |
-|---|---|---|
-| `origin` | `"store" \| "git" \| "file" \| "npm"` | Where the card came from. Validator rejects any other value. |
-| `name` | non-empty string | Resolved card name. |
-| `requested` | non-empty string | The original ref the project asked for. |
-| `version` | non-empty string | The resolved semver. |
-| `path` | non-empty string | Absolute path to the extracted card tree on this machine. |
-| `integrity` | non-empty string | `sha256-<hex>` over the canonical card tree. See below. |
-| `manifest` | `CardManifest` | The full validated manifest as carried by the card. |
-| `skills` | `string[]` | The exact skill list the card contributed. |
-| `hooks` | `string[]` | **(v3+)** Hook composer names declared by the card. Empty array for cards with no hooks. |
-| `persona` | `{ include?: string[]; visibility?: string }` | **(v4+)** Persona content declaration carried from the card manifest. Omitted when the card declares no persona. |
-| `beliefs` | `{ include?: string[]; visibility?: string }` | **(v4+)** Beliefs content declaration carried from the card manifest. Omitted when the card declares no beliefs. |
-| `memory` | `Partial<Record<"l4" \| "l5" \| "l6", { include?: string[]; visibility?: string; format?: string }>>` | **(v4+)** Memory layer declarations carried from the card manifest. Omitted when the card declares no memory. |
-| `registry` | literal `null` | **Reserved.** Must be `null`; the validator throws otherwise. |
+### Root Fields
 
-Origin-specific (`card-lock.ts:102-121`):
+| Field | Meaning |
+| --- | --- |
+| `name` | Canonical root Card name. |
+| `requested` | Requirement ref from project config. |
+| `kind` | `card` or `blueprint`. |
+| `members` | Ordered direct member Card names; empty for a plain Card root. |
 
-| Field | When | Shape |
-|---|---|---|
-| `git` | required for `origin: "store"` and `origin: "git"`; **forbidden** for `"file"` and `"npm"` | `{ url?: string; ref?: string; commit: string }`. `commit` must be a 40-character lowercase SHA. |
+### Card Entry Fields
 
-### `npm` origin
+Each `cards` entry contains:
 
-`origin: "npm"` is part of the contract surface today and reserved for future package-registry-backed resolution. The validator accepts the value and forbids git metadata on it (`card-lock.ts:103-107`).
+| Field | Meaning |
+| --- | --- |
+| `name` / `requested` / `version` | Artifact identity and requirement provenance. |
+| `path` | Current local extracted/content path. |
+| `integrity` | Canonical `sha256-...` tree integrity. |
+| `treeSha` | Git tree SHA for Store/Git artifacts. |
+| `manifest` | Full validated Card manifest. |
+| `skills` / `hooks` | Locked capability indexes. |
+| `persona` / `beliefs` / `memory` | Locked Mind declarations when present. |
+| `hookConsent` | Optional Card/version-range hook consent. |
+| `origin` | `store`, `git`, `file`, or `npm`. |
+| `git` | Commit and optional URL/ref for Store/Git origins. |
+| `registry` | Reserved; currently `null`. |
 
-## Integrity Hash
+Every root and member must map to one Card entry. Orphan Cards, duplicate roots/members, root/member identity overlap, missing tree provenance, and incompatible same-name artifacts fail validation.
 
-The `integrity` field is computed by `computeCardIntegrity` (`cli/core/card-store.ts:317-331`). The algorithm is normative — any tool that emits drwn lockfiles must produce the same hash for the same tree.
+## Integrity
 
-1. Walk the card directory recursively. Skip `.integrity`, `.git`, and everything under `.git/` (`card-store.ts:295-297`).
-2. For each regular file:
-   - Capture `p` — the forward-slash path relative to the card root.
-   - Capture `m` — `"x"` if any of the executable bits (`mode & 0o111`) are set, otherwise `"-"`.
-   - Capture `h` — the lowercase hex `sha256` of the file's bytes.
-3. Sort the records by `p` ascending (locale-independent).
-4. Canonicalize as `JSON.stringify(records)` — i.e., `[{"p":"...","m":"-","h":"..."}, ...]` with sorted keys per record (object literal order: `p`, `m`, `h`).
-5. The final hash is `sha256-` followed by the lowercase hex `sha256` of that canonical JSON string.
+`computeCardIntegrity` walks regular files, excluding `.git` and `.integrity`, and hashes canonical sorted records of:
 
-This makes the hash sensitive to file content, path, and executable bit. It is not sensitive to mtimes, ownership, or symlink-vs-file distinctions for non-regular entries.
+- relative path;
+- executable-bit class;
+- SHA-256 of file bytes.
 
-## Project Overlay at Write
+The final value is `sha256-` plus the hash of the canonical JSON record array. This makes integrity sensitive to content, path, and executable state but not mtime/ownership.
 
-Card manifests contribute to project state through `mergeCardManifestsIntoProjectConfig` (`cli/core/card-project.ts:44-94`). The rule is:
+## Project Projection
 
-1. All card manifests are merged together for `skills.include`, `servers`, `extensions`, and `targets`. Later cards override earlier cards on key collisions.
-2. The project config's own `servers`, `extensions`, and `targets` are spread **after** the merged card values — the project wins on key collisions.
-3. `skills.include` is the union of all card includes plus the project's own includes. The project's `skills.exclude` carries through unchanged.
+Project config lists Worker roots and one selection. The selected root expands through the lock:
 
-The practical consequence: a project can disable a card-contributed server with `{"enabled": false}` and that override wins at write. A card cannot force a project to ship something it has explicitly turned off.
+```text
+selected Blueprint root -> root Card -> ordered member Cards
+```
 
-## Reserved Namespaces
+Only that closure contributes Card capabilities. Explicit project `skills`, `mcpServers`, `hooks`, `extensions`, and `targets` remain project-owned overlays. Machine defaults are not project declarations.
 
-- **`skills.exclude`** in a card manifest is **forbidden** (`cli/core/card-manifest.ts:85-87`). Cards contribute; consumers exclude.
-- **`skills.shared`** in a card manifest is **reserved**. Must be omitted or empty (`card-manifest.ts:91-97`).
-- **`registry`** in a lockfile entry is **reserved**. Must be `null` (`card-lock.ts:83-85`).
-- **`.integrity`, `.git`, `.git/*`** paths are skipped by the integrity walker and must not contribute to the hash.
+## Local Development
 
-## Compatibility Surface
+`.agents/drwn/config.local.json` uses `drwn.project-local` V1 for replacements, local-only roots, source overrides, and local selection. `.agents/drwn/card.lock.local` uses the same project-lock V1 graph. Local state is ignored and does not rewrite committed intent.
 
-Any future tool that reads drwn lockfiles or publishes drwn cards must honor this spec:
+## Security
 
-- Lockfile validator must reject `lockfileVersion` values other than `2`, `3`, or `4`.
-- All required `CardLockEntry` fields must be present and non-empty strings (except `registry: null` and origin-specific `git`).
-- Integrity hashes must be computed via the algorithm above. Mismatches indicate tampering or a divergent implementation.
-- Card refs must parse according to `parseCardRef`. Unsupported origins must error rather than silently fall through.
+- Card content never includes resolved environment secrets, API keys, or OAuth tokens.
+- Hook code requires explicit Card/version-range consent before materialization.
+- Notion OAuth and external stdio tool installation remain operator state.
+- Whole-Store export is disabled; deploy exports only one pinned closure through a separate allowlist.
 
 ## Related
 
-- [Card Manifest](../schemas/card-manifest) — the on-disk `card.json` shape
-- [Project Config JSON](../schemas/project-config-json) — where `cards[]` refs live
-- [Cards concept](../../concepts/cards) — authoring and consumption walkthrough
-- [Local Store](../../concepts/local-store) — store layout backing the three states
+- [Card Manifest](../schemas/card-manifest)
+- [Project Config JSON](../schemas/project-config-json)
+- [Cards](../../concepts/cards)
+- [Local Store](../../concepts/local-store)

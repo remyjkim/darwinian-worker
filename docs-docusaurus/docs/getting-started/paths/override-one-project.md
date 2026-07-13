@@ -4,7 +4,7 @@ sidebar_position: 4
 
 # Override for One Project
 
-One project needs a different effective harness than your machine defaults provide. This path scaffolds a project overlay at `<project>/.agents/drwn/config.json`, points the harness at it, and writes the project-scoped downstream state into `<project>/.claude`, `<project>/.codex`, and `<project>/.cursor`.
+One project needs explicit, reproducible harness intent. This path scaffolds a project config at `<project>/.agents/drwn/config.json`, selects one Worker root, and writes project-scoped downstream state into `<project>/.claude`, `<project>/.codex`, and `<project>/.cursor`.
 
 ## Prerequisites
 
@@ -25,9 +25,13 @@ drwn init --non-interactive
 
 ## Edit the overlay
 
-The overlay is plain JSON. Edit `<project>/.agents/drwn/config.json` directly, or use `drwn add` / `drwn extensions add` to mutate it.
+The config is plain JSON. Use the project mutation commands to keep the config
+and lock graph coherent, and use capability-specific commands for explicit
+project overlays.
 
 ```bash
+drwn add @team/operator@^1.0.0
+drwn use @team/operator
 drwn add skill <skill-name>
 drwn add mcp <server-name>
 drwn extensions add parallel
@@ -35,7 +39,7 @@ drwn extensions add markitdown
 drwn extensions add beads --include-skill
 ```
 
-The overlay shape is documented in the [project config guide](../../concepts/layered-model). At minimum it carries `version: 1` and any of `skills.include`, `skills.exclude`, `servers`, `extensions`, `targets`, and `cards`.
+The shape is documented in the [project config schema](../../reference/schemas/project-config-json). Every config carries `schema: "drwn.project-config"`, `schemaVersion: 1`, an ordered `workers` root list, and one `activeWorker` name or `null`. Optional explicit overlays include `skills`, `mcpServers`, `extensions`, `targets`, and `trustedSources`.
 
 **Machine-overlay suppression inside configured projects.** When a project config is present, the project overlay merges with the packaged defaults, not with `~/.agents/drwn/machine.json`. Machine-curated skills and machine `defaults.skills` / `defaults.mcpServers` do not leak into the project. The intent is that a project's effective harness is reproducible from its own files (plus the packaged baseline) — a different teammate on a different machine sees the same effective state.
 
@@ -47,7 +51,11 @@ drwn status --explain
 drwn status --json
 ```
 
-The output should show `project.configPath` pointing at your overlay and any `project.servers`, `project.skills`, `project.extensions`, or `project.cards` entries you added. If `project` is missing from the output, `drwn` did not find the config — re-check the path or run from inside the project directory.
+The JSON output identifies `schema: "drwn.project-status"`, the installed roots,
+one `activeWorker`, its active Card closure, explicit overlays, declared
+capabilities, and diagnostic-only ambient observations. If project state is
+missing, `drwn` did not find the config; re-check the path or run from inside
+the project directory.
 
 For provenance questions ("why is this skill in the effective state?"), use `drwn status --why`:
 
@@ -63,7 +71,11 @@ drwn write --dry-run
 drwn write
 ```
 
-`drwn write` materializes into `<project>/.claude`, `<project>/.codex`, and `<project>/.cursor` when the project overlay is present — not into the machine-scope directories. The project write record at `<project>/.agents/drwn/write-record.json` tracks what was written so the next run can clean up safely.
+`drwn write` materializes the selected root's aggregate plus explicit project
+overlays into `<project>/.claude`, `<project>/.codex`, and `<project>/.cursor`.
+It does not mutate project intent and does not project machine defaults into the
+project. The project write record at `<project>/.agents/drwn/write-record.json`
+tracks what was written so the next run can clean up safely.
 
 ## Verify
 
@@ -79,7 +91,7 @@ cat <project>/.cursor/mcp.json
 
 ## Cross-References
 
-- [Layered Model](../../concepts/layered-model) for how project, machine, and card layers compose
+- [Layered Model](../../concepts/layered-model) for declared project and ambient machine scope
 - [Use a Team's Harness](./use-team-harness) when the project overlay should consume a card rather than be defined locally
 - [Using `status --why`](../../troubleshooting/using-status-why) for tracing where an active item came from
 - [Reading Doctor](../../troubleshooting/reading-doctor) for the diagnostic surface

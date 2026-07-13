@@ -57,7 +57,7 @@ function extractCommandPaths(topLevelHelp: string) {
 
 const REQUIRED_SNIPPETS: Record<string, string[]> = {
   init: ["TTY", ".gitignore", "drwn init --non-interactive"],
-  "add mcp": ["Prompts in a TTY", "safe no-op"],
+  "add mcp": ["Prompts in a TTY", "Project intent is always explicit"],
   "add skill": ["Prompts in a TTY", "--all", "bundle"],
   "extensions setup": ["Beads only", "MarkItDown only", "--no-install"],
   "extensions doctor": ["all extensions"],
@@ -65,6 +65,7 @@ const REQUIRED_SNIPPETS: Record<string, string[]> = {
   "library defaults add skill": ["curates it into"],
   "library defaults add mcp": ["safe no-op"],
   "store export": ["disabled", "credentials", "no unrestricted override"],
+  worker: ["one selected project Worker", "drwn use", "Cards compose"],
 };
 
 describe("drwn command help", () => {
@@ -85,7 +86,7 @@ describe("drwn command help", () => {
 
   test("high-leverage commands explain behavior hidden by terse descriptions", async () => {
     for (const [command, snippets] of Object.entries(REQUIRED_SNIPPETS)) {
-      const result = await helpFor(command.split(" "));
+      const result = await detailedHelpFor(command.split(" "));
       expect(result.exitCode).toBe(0);
       for (const snippet of snippets) {
         expect(result.stdout).toContain(snippet);

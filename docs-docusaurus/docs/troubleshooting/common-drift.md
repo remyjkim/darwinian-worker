@@ -19,7 +19,7 @@ drwn doctor --json
 ls -la ~/.claude/settings.json.bak*
 ```
 
-**Resolution.** `drwn` backs up the previous `settings.json` to `~/.claude/settings.json.bak` (numbered if multiple exist) before each merge. Recover the lost field from the most recent backup and decide where it belongs: machine-wide configuration goes in `~/.claude/settings.json` siblings, drwn-managed MCP servers belong in `defaults.mcpServers` or `project.servers`.
+**Resolution.** `drwn` backs up the previous `settings.json` to `~/.claude/settings.json.bak` (numbered if multiple exist) before each merge. Recover the lost field from the most recent backup and decide where it belongs: machine-wide configuration goes in `~/.claude/settings.json` siblings, drwn-managed MCP servers belong in `defaults.mcpServers` or project `mcpServers`.
 
 ## Manually-installed bundles in `~/.agents/drwn/skills` not in defaults
 

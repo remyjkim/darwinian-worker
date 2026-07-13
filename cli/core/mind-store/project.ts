@@ -9,7 +9,7 @@ import { loadCardMindContent, type CardMindContent } from "./seed";
 export async function loadProjectMindCards(projectRoot: string): Promise<CardMindContent[]> {
   const lock = await loadCardLock(projectRoot);
   if (!lock || lock.cards.length === 0) {
-    throw new DrwnError("MIND_NO_CARDS", "No Cards are locked in this project; run `drwn project add <ref>` first.");
+    throw new DrwnError("MIND_NO_CARDS", "No Cards are locked in this project; run `drwn add <ref>` first.");
   }
   const config = readProjectConfigForWrite(projectRoot);
   if (config.activeWorker === null) {

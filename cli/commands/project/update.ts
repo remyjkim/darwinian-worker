@@ -8,7 +8,19 @@ import { renderWorkerMutation, requireProjectRoot, runChainedWrite } from "../ca
 
 export class ProjectUpdateCommand extends BaseCommand {
   static override paths = [["update"]];
-  static override usage = BaseCommand.Usage({ category: "Project", description: "Refresh the project Worker lock graph." });
+  static override usage = BaseCommand.Usage({
+    category: "Project",
+    description: "Refresh the project Worker lock graph.",
+    details: `
+      Re-resolves one named root or every declared root within its requirement,
+      preserving singular selection. The complete next config and lock are
+      validated before either file is replaced.
+    `,
+    examples: [
+      ["Refresh every root", "drwn update"],
+      ["Refresh one root", "drwn update @team/operator"],
+    ],
+  });
   name = Option.String({ required: false });
   write = Option.Boolean("--write", false);
   dryRun = Option.Boolean("--dry-run", false);

@@ -12,8 +12,10 @@ Declared in `.agents/drwn/config.json` under `trustedSources`:
 
 ```json
 {
-  "version": 1,
-  "cards": ["@your-org/backend@^1.0.0"],
+  "schema": "drwn.project-config",
+  "schemaVersion": 1,
+  "workers": ["@your-org/backend@^1.0.0"],
+  "activeWorker": "@your-org/backend",
   "trustedSources": {
     "strict": false,
     "gitHosts": ["github.com", "gitlab.internal.example.com"],

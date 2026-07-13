@@ -111,11 +111,11 @@ Currently checked:
 
 A single category that aggregates problems with `<project>/.agents/drwn/config.json` and the resolved card lock:
 
-- **Unknown server reference** — `project.servers["<name>"]` toggles a server that is not in the registry or the user MCP library.
-- **Unknown skill reference** — `skills.include` or `skills.exclude` names a skill that no built-in scope, curated layer, package-backed bundle, or locked card provides.
+- **Unknown server reference** — `mcpServers["<name>"]` toggles a server that is not in the registry, user MCP library, or selected Worker closure.
+- **Unknown skill reference** — `skills.include` or `skills.exclude` names a skill that no repo-native source, package-backed bundle, or selected Worker closure provides.
 - **Unknown extension reference** — `extensions["<name>"]` references an extension the registry does not know about.
 - **Stale target override** — `targets["<name>"].enabled` matches what the machine config already says; the override is a no-op.
-- **Card references unavailable skills** — a locked card's `skills.include` lists a skill name the project's available inventory cannot satisfy.
+- **Card references unavailable skills** — a Card in the selected root closure lists a skill name the project's available inventory cannot satisfy.
 - **Dangling defaults references** — `defaults.skills` or `defaults.mcpServers` on the machine config points at something not in the inventory.
 
 At write time these would each abort `drwn write` before mutation. At doctor time they collect into `projectConfigIssues` and the run continues so the rest of the report still renders.

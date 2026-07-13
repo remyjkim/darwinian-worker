@@ -73,32 +73,30 @@ All `add-*` and `remove-*` source commands accept `--dry-run` and `--json`.
 
 `remove-*` commands delete the bundled directory by default. Pass `--keep-files` to remove only the manifest entry while keeping files on disk.
 
-Consume cards in a project:
+Install Card or Blueprint roots in a project:
 
 ```bash
 drwn apply @your-handle/backend@^1.0.0
-drwn card apply @your-handle/backend@^1.0.0 --write
-drwn card add @your-handle/backend@^1.0.0
-drwn card add @your-handle/backend@^1.0.0 --allow-untrusted-source
-drwn card pin @your-handle/backend@1.0.0
-drwn card remove @your-handle/backend
-drwn card detach
-drwn card update
+drwn add @your-handle/backend@^1.0.0
+drwn add @your-handle/backend@^1.0.0 --allow-untrusted-source
+drwn pin @your-handle/backend@1.0.0
+drwn remove @your-handle/backend
+drwn update
+drwn use @your-handle/backend
 drwn card outdated
 drwn card status --explain
 ```
 
-Every mutating consumer command accepts `--write` to chain into `drwn write` after the lock mutation succeeds:
+Root mutation commands accept `--write` to chain into `drwn write` after the atomic config/lock mutation succeeds:
 
 ```bash
-drwn card add @your-handle/backend@^1.0.0 --write
-drwn card pin @your-handle/backend@1.0.0 --write
-drwn card remove @your-handle/backend --write
-drwn card update --write
-drwn card detach --write
+drwn add @your-handle/backend@^1.0.0 --write
+drwn pin @your-handle/backend@1.0.0 --write
+drwn remove @your-handle/backend --write
+drwn update --write
 ```
 
-`drwn update` is a top-level alias for `drwn card update`.
+These are the canonical project commands. `drwn card` remains the authoring, publication, trust, catalog, and inspection namespace.
 
 If a consumed card declares optional MCP servers, `--write` output reports whether each one is active, skipped, or shadowed by a different active definition. Skipped optional MCPs are not materialized until the project opts in:
 

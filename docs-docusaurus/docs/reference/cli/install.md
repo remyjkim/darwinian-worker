@@ -21,7 +21,7 @@ If no `card.lock` is found, `drwn install` exits with an error and suggests `drw
 | Flag | Description |
 |---|---|
 | `--frozen` | Fail instead of cloning, fetching, or modifying `card.lock`. Exits non-zero if any card needs to be fetched or if the lockfile would be updated. |
-| `--no-apply` | Fetch and verify cards without writing downstream files. Reports card count and lockfile status; does not run `drwn write`. |
+| `--no-write` | Fetch and verify Cards without writing downstream files. Reports Card count and lock status; does not run `drwn write`. |
 | `--json` | Emit machine-readable JSON output. |
 
 ## Examples
@@ -34,7 +34,7 @@ drwn install
 drwn install --frozen
 
 # Resolve cards without writing downstream config
-drwn install --no-apply
+drwn install --no-write
 
 # Machine-readable output
 drwn install --json
@@ -44,7 +44,7 @@ drwn install --json
 
 | Code | Meaning |
 |---|---|
-| `0` | All cards fetched; downstream state written (or skipped with `--no-apply`). |
+| `0` | All Cards fetched; downstream state written (or skipped with `--no-write`). |
 | `1` | One or more cards failed to fetch; errors reported per card. Also exits 1 when `--frozen` would require a clone, fetch, or lockfile update. |
 
 ## JSON output schema
@@ -58,7 +58,7 @@ drwn install --json
 }
 ```
 
-With `--no-apply`, `applied` is `false`. On failure, `ok` is `false` and the response includes `"errors": [{ "card": "...", "message": "..." }]`.
+With `--no-write`, `applied` is `false`. On failure, `ok` is `false` and the response includes `"errors": [{ "card": "...", "message": "..." }]`.
 
 ## Difference from `drwn write`
 

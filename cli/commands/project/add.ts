@@ -8,7 +8,19 @@ import { renderWorkerMutation, requireProjectRoot, runChainedWrite } from "../ca
 
 export class ProjectAddCommand extends BaseCommand {
   static override paths = [["add"]];
-  static override usage = BaseCommand.Usage({ category: "Project", description: "Add one Worker root to this project." });
+  static override usage = BaseCommand.Usage({
+    category: "Project",
+    description: "Add one Worker root to this project.",
+    details: `
+      Resolves one plain Card or Blueprint as a top-level Worker root and commits
+      project config and lock together. A Blueprint's Cards are closure members,
+      not additional roots. The first added root is selected explicitly.
+    `,
+    examples: [
+      ["Add a Blueprint root", "drwn add @team/operator@^1.0.0"],
+      ["Add without projecting", "drwn add @team/alternate@^1.0.0"],
+    ],
+  });
   spec = Option.String({ required: true });
   write = Option.Boolean("--write", false);
   dryRun = Option.Boolean("--dry-run", false);

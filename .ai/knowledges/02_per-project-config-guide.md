@@ -1,213 +1,190 @@
-# ABOUTME: Documents per-project config schema, discovery, merge semantics, and materialization targets.
-# ABOUTME: Covers cards, active workers, extensions, targets, skills, and the layered reproducibility model.
+# ABOUTME: Documents the first supported project config, lock, local overlay, and projection contracts.
+# ABOUTME: Covers Worker roots, singular selection, explicit capabilities, extensions, and diagnostics.
 
 # Per-Project Config Guide
 
 ## Purpose
 
-Use per-project config when one project should see a different effective `drwn` configuration than your machine-wide default.
+Use project state when a repository needs an explicit, reproducible agent harness. Project capabilities come from one selected Worker closure plus project-owned overlays. They do not inherit machine default selections.
 
-This lets a project:
+The complete contract is in [`docs/contracts/project-worker-v1.md`](../../docs/contracts/project-worker-v1.md).
 
-- apply reusable Cards
-- enable or disable MCP servers locally
-- add project-local MCP server definitions
-- enable extensions locally
-- enable or disable targets locally
-- include or exclude skills during write
+## Discovery
 
-Without per-project config, `drwn` uses the packaged or checkout harness defaults plus the current machine state.
-
-## Config Path And Discovery
-
-The config file path is:
+The committed config path is:
 
 ```text
 <project>/.agents/drwn/config.json
 ```
 
-Discovery walks upward from the current working directory and stops at the first matching file.
+Discovery walks upward from the current working directory and uses the nearest config. Commands outside a configured project operate at explicit machine scope.
 
-This means:
+Project-aware commands include `drwn add`, `drwn apply`, `drwn remove`, `drwn pin`, `drwn update`, `drwn use`, `drwn install`, `drwn write`, `drwn status`, `drwn doctor`, and project-aware skill/MCP/extension commands.
 
-- running `drwn` from a nested directory inside a project still finds the project config
-- the nearest matching config wins
-- commands outside a configured project fall back to the machine-wide harness view
-
-Commands affected by project discovery include:
-
-- `drwn write`
-- `drwn mcp list`
-- `drwn mcp write`
-- `drwn status`
-- `drwn doctor`
-- `drwn extensions status`
-- `drwn extensions doctor`
-- `drwn extensions setup`
-
-## Scaffolding
-
-Create a project config with:
+## Scaffold
 
 ```bash
 drwn init
+drwn init --non-interactive
 ```
 
-Overwrite an existing one with:
-
-```bash
-drwn init --force
-```
-
-The scaffolded file is:
+Prompt-free setup writes:
 
 ```json
 {
-  "version": 1
+  "schema": "drwn.project-config",
+  "schemaVersion": 1,
+  "workers": [],
+  "activeWorker": null
 }
 ```
 
-## Supported Schema
+The selected Recommended Darwinian Operator machine profile is future Task 80 work. It is not added by this contract, and non-interactive setup remains explicit and empty.
 
-Current schema:
+## Supported Config
+
+A representative config is:
 
 ```json
 {
-  "version": 1,
-  "cards": ["@me/backend@^1.0.0"],
-  "activeWorkers": ["@me/backend"],
-  "servers": {
-    "server-name": { "enabled": false },
-    "custom-server": {
-      "description": "Project-local server",
-      "transport": "stdio",
-      "command": "node",
-      "args": ["./scripts/server.js"],
-      "optional": false
-    }
+  "schema": "drwn.project-config",
+  "schemaVersion": 1,
+  "workers": ["@team/operator@^1.0.0"],
+  "activeWorker": "@team/operator",
+  "materialization": "vendored",
+  "committedSurfaces": true,
+  "mcpServers": {
+    "context7": { "enabled": true }
   },
   "skills": {
-    "include": ["skill-a"],
-    "exclude": ["skill-b"]
+    "include": ["frontend-design"],
+    "exclude": ["unused-skill"]
   },
   "hooks": {
-    "exclude": ["hook-name"],
+    "exclude": ["audit-policy"],
     "runtimes": {
       "claude-code": { "enabled": true },
-      "codex": { "enabled": false },
-      "mastra": { "enabled": false }
+      "codex": { "enabled": false }
     },
-    "signals": {
-      "enabled": true
-    }
-  },
-  "trustedSources": {
-    "strict": true,
-    "gitHosts": ["github.com"],
-    "gitOwners": ["my-org"],
-    "catalogScopes": ["@me"],
-    "refs": ["@me/backend@^1.0.0"]
+    "signals": { "enabled": true }
   },
   "extensions": {
-    "parallel": {
-      "enabled": true,
-      "skills": true,
-      "mcp": false
-    },
-    "beads": {
-      "enabled": true,
-      "targets": ["codex", "claude"],
-      "includeSkill": true
-    },
-    "markitdown": {
-      "enabled": true,
-      "skills": true
-    }
+    "parallel": { "enabled": true, "skills": true, "mcp": false },
+    "beads": { "enabled": true, "targets": ["codex", "claude"], "includeSkill": true },
+    "markitdown": { "enabled": true, "skills": true }
   },
   "targets": {
     "claude": { "enabled": true },
-    "codex": { "enabled": false }
+    "codex": { "enabled": true },
+    "cursor": { "enabled": false }
   }
 }
 ```
 
-Supported top-level keys:
+`workers` stores ordered top-level root requirements. A root is a plain Card or a Blueprint. Blueprint members are not repeated in config.
 
-- `version`
-- `cards`
-- `activeWorkers`
-- `servers`
-- `skills`
-- `hooks`
-- `extensions`
-- `targets`
-- `trustedSources`
+`activeWorker` is required. It is one installed canonical root name or `null`; there is no implicit selection.
 
-## Cards
+## Roots And Composition
 
-`cards` is an ordered array of Card refs. Supported refs include local
-store refs such as `@me/backend@^1.0.0`, exact refs such as
-`@me/backend@1.0.0`, and local development refs such as
-`file:../cards/backend`.
+Cards are capability units. A Blueprint composes ordered plain Cards into one Worker:
 
-Card refs are resolved into:
-
-```text
-<project>/.agents/drwn/card.lock
+```json
+{
+  "name": "@team/operator",
+  "version": "1.0.0",
+  "kind": "blueprint",
+  "composedFrom": [
+    "@team/notion@^1.0.0",
+    "@team/fal@^1.0.0"
+  ]
+}
 ```
 
-The lockfile is tracked with the project config. It records exact card versions,
-content-tree integrity, source paths, per-card bundled skill attribution, and
-the manifest used to compute effective state.
-
-Effective project state is:
+Given that Blueprint and an independent Card root, the lock graph is:
 
 ```text
-built-in defaults -> user library -> active cards in stack order -> project overlay
+roots = [operator, independent]
+cards = [operator, notion, fal, independent]
+selected = operator
+active closure = [operator, notion, fal]
 ```
 
-`cards` records every installed card in the lockfile, but only the *active*
-subset projects downstream. The active subset is selected by `selectActiveCards`
-in `cli/core/effective-state.ts`, driven by the `activeWorkers` key (see Active
-Workers below):
+Multiple roots are alternatives. To change composition, publish or select a different Blueprint.
 
-- when `activeWorkers` is absent, every installed card is active and projects in
-  declared lockfile order
-- when `activeWorkers` is set, only the named cards project, in the order they
-  appear in `activeWorkers` (the worker stack)
+## Canonical Mutations
 
-For skill materialization specifically, bundled card content is authoritative.
-If an applied card ships a skill with the same name as a repo-native or
-package-backed source, the card copy wins and downstream symlinks point into
-the immutable card store.
+```bash
+drwn add @team/operator@^1.0.0
+drwn apply @team/operator@^1.0.0
+drwn apply @team/operator@^1.0.0 @team/alternate@^1.0.0 --active @team/operator
+drwn pin @team/operator@1.2.3
+drwn update
+drwn update @team/operator
+drwn remove @team/alternate
+drwn use @team/operator
+drwn use --none
+```
 
-Machine-only defaults from `~/.agents/drwn/machine.json` do not apply when a
-project config is present.
+Config and lock are prepared and committed together. Root mutations support `--dry-run`. `drwn use` projects after selection by default; use `--no-write` to stop after committing intent.
 
-## Active Workers
+## Lock Contract
 
-`activeWorkers` selects which installed cards are active for downstream write.
-Installing a card (recorded in `cards` / `card.lock`) is separate from
-activating it. The key has three states:
+`.agents/drwn/card.lock` uses `schema: "drwn.project-lock"` and `schemaVersion: 1`. It records:
 
-- **absent** — every installed card is active (the default). This is the state
-  of a freshly scaffolded or card-applied project that never ran
-  `drwn worker stack`.
-- **`[]`** — explicitly no active cards. Installed card bundles remain in the
-  lockfile but none project downstream. `drwn worker stack clear` writes this
-  state.
-- **`["@me/backend", "@me/web"]`** — an explicit ordered stack. Only the named
-  cards project, in array order. `drwn worker stack use` writes this state.
+- `workerRoots` in requirement order;
+- each root's requested ref, kind, and ordered member names;
+- one deduplicated `cards` entry per root/member artifact;
+- exact version, integrity, manifest, origin, requested ref, and content provenance;
+- tree SHA and Git commit where required;
+- the minimum CLI feature floor needed by locked content.
 
-`activeWorkers` is consumed by `selectActiveCards`
-(`cli/core/effective-state.ts`). The selected cards become `activeCards`, which
-drive the effective registry and project overlay merge. `drwn worker stack`
-reports the active set and whether it is the absent default.
+The lock is committed. Run `drwn install --frozen` in CI to require all artifacts without allowing fetch or lock changes. Run `drwn install --no-write` when hydration should not project downstream files.
 
-## Project-local Materialization
+## Local Overlay
 
-When `drwn write` runs inside a configured project, it writes downstream tool
-state under the project root:
+Machine-local development overrides belong in `.agents/drwn/config.local.json`:
+
+```json
+{
+  "schema": "drwn.project-local",
+  "schemaVersion": 1,
+  "activeWorker": "@team/operator",
+  "cardReplacements": {},
+  "localOnlyRoots": [],
+  "sourceOverrides": {}
+}
+```
+
+The local lock is `.agents/drwn/card.lock.local` and uses the project-lock V1 schema. Local state is ignored by Git, never rewrites committed root requirements, and remains separately attributed in status.
+
+## Skills
+
+`skills.include` resolves explicit project skills from project-safe sources. `skills.exclude` wins over Card, extension-derived, or explicit includes. Unknown and ambiguous IDs fail before mutation.
+
+Card-bundled content takes precedence within the selected closure according to root/member order. Inactive roots do not contribute skills.
+
+## MCP Servers
+
+`mcpServers` may enable/disable a known project definition or provide a complete project-owned definition. Optional Card MCP definitions can be enabled only when their owning Card is in the selected closure.
+
+Notion OAuth, an `ntn` API key, and external stdio installations such as Momentic remain operator state. Definitions may reference environment variables, but project files must not contain resolved secrets.
+
+User-home target MCP entries can remain ambient in project sessions. Status and doctor report declared versus ambient provenance. Task 77 enforcement is diagnostic-only; target-specific collision enforcement belongs to approved Task 83.
+
+## Extensions
+
+`extensions.parallel`, `extensions.beads`, and `extensions.markitdown` store semantic project intent:
+
+- Parallel can derive `parallel-web-search`, `parallel-web-extract`, `parallel-deep-research`, and `parallel-data-enrichment`.
+- Beads can derive `beads-task-tracking` when `includeSkill` is true.
+- MarkItDown derives `markitdown-document-conversion` unless `skills` is false.
+
+Extension setup does not silently authenticate third-party services. `skills.exclude` still wins over extension-derived includes.
+
+## Projection
+
+Project write targets include:
 
 ```text
 <project>/.mcp.json
@@ -217,344 +194,58 @@ state under the project root:
 <project>/.codex/skills/
 <project>/.codex/hooks.json
 <project>/.cursor/mcp.json
+<project>/.agents/drwn/generated/
 <project>/.agents/drwn/write-record.json
 ```
 
-When `drwn write` runs outside a configured project, it writes machine-scope
-state under the home directory and store:
+`drwn write` is a pure projection. Full, dry-run, target-specific, skill-only, and MCP-only modes leave config, lock, root requirements, and selection byte-identical.
 
-```text
-~/.claude/
-~/.codex/
-~/.cursor/
-~/.agents/drwn/generated/
-~/.agents/drwn/global-write-record.json
-```
+Generated state contains one aggregate directory per root. A selected Blueprint projects its root plus ordered members as one closure. Generated bytes are disposable; project intent is never reconstructed from them.
 
-The implementation verifies this with scope-isolation tests. External
-Claude/Codex/Cursor read behavior should still be rechecked before relying on a
-new downstream tool version in production.
-
-## Merge Semantics
-
-Per-project config does not replace the baseline harness config wholesale. It merges into it.
-
-### Servers
-
-`servers` supports two behaviors:
-
-- toggle an existing baseline server with `{ "enabled": true|false }`
-- add a project-local server definition by providing a full server object
-
-Effects:
-
-- disabling a server removes it from the effective project registry
-- enabling a known baseline server restores it
-- adding a new server makes it available only in the effective project view
-
-### Targets
-
-`targets` can override whether a target is enabled for the project.
-
-Example:
-
-```json
-{
-  "version": 1,
-  "targets": {
-    "codex": { "enabled": false }
-  }
-}
-```
-
-This disables Codex for write from that project context without changing the machine-wide harness defaults.
-
-### Skills
-
-`skills.exclude` removes matching skills from downstream write in that project view.
-
-`skills.include` adds matching skills into downstream write for that project view.
-
-Resolution behavior:
-
-- repo-native shared skills can be included by skill name
-- installed package-backed shared skills can be included by skill name when the name resolves uniquely
-- applied-card bundled skills resolve before non-card sources
-- if multiple applied cards ship the same skill name, lockfile order decides the winner
-- unknown or ambiguous skill names fail `drwn write` before mutation and are also reported by `drwn doctor`
-
-### Extensions
-
-`extensions` stores semantic project intent for named capability families. Each extension owns how that intent maps to concrete write and setup behavior.
-
-Use `extensions.parallel` for project-scoped Parallel support, `extensions.beads` for project-scoped Beads support, and `extensions.markitdown` for project-scoped document conversion support.
-
-Parallel example:
-
-```json
-{
-  "version": 1,
-  "extensions": {
-    "parallel": {
-      "enabled": true,
-      "skills": true,
-      "mcp": false
-    }
-  }
-}
-```
-
-Effects:
-
-- derives `parallel-web-search`, `parallel-web-extract`, `parallel-deep-research`, and `parallel-data-enrichment` during project write
-- does not require global skill curation
-- keeps Parallel MCP disabled unless `mcp` is `true`
-- does not install or authenticate `parallel-cli`
-
-Beads example:
-
-```json
-{
-  "version": 1,
-  "extensions": {
-    "beads": {
-      "enabled": true,
-      "targets": ["codex", "claude"],
-      "includeSkill": true
-    }
-  }
-}
-```
-
-Effects:
-
-- records that Beads is selected for the project
-- lets `drwn extensions status beads` and `doctor beads` report project activation state
-- derives `beads-task-tracking` only when `includeSkill` is `true`
-
-MarkItDown example:
-
-```json
-{
-  "version": 1,
-  "extensions": {
-    "markitdown": {
-      "enabled": true,
-      "skills": true
-    }
-  }
-}
-```
-
-Effects:
-
-- records that MarkItDown is selected for the project
-- lets `drwn extensions status markitdown` and `doctor markitdown` report runtime health
-- derives `markitdown-document-conversion` unless `skills` is `false`
-- does not install `markitdown` unless `drwn extensions setup markitdown --install` is used or an interactive setup prompt is accepted
-
-Lower-level `skills.include` and `skills.exclude` still work with extension-derived skill lists. If an extension derives a skill and `skills.exclude` names the same skill, `skills.exclude` wins.
-
-## Examples
-
-### Minimal config
-
-```json
-{
-  "version": 1
-}
-```
-
-### Disable one server for this project
-
-```json
-{
-  "version": 1,
-  "servers": {
-    "markdownify": { "enabled": false }
-  }
-}
-```
-
-### Add a project-local MCP server
-
-```json
-{
-  "version": 1,
-  "servers": {
-    "project-devtools": {
-      "description": "Project-local devtools server",
-      "transport": "stdio",
-      "command": "node",
-      "args": ["./scripts/project-devtools.js"],
-      "optional": false
-    }
-  }
-}
-```
-
-### Exclude globally curated skills for one project
-
-```json
-{
-  "version": 1,
-  "skills": {
-    "exclude": ["blog-post-polish", "polish-voice-research"]
-  }
-}
-```
-
-### Include extra repo-native skills for one project
-
-```json
-{
-  "version": 1,
-  "skills": {
-    "include": ["frontend-design", "writing-plans"]
-  }
-}
-```
-
-### Enable Parallel for one project
-
-Use the command:
+## Status And Doctor
 
 ```bash
-drwn extensions setup parallel
+drwn status --json
+drwn status --why skill:<name>
+drwn doctor --json
 ```
 
-Or write config directly:
+Project JSON status uses `drwn.project-status` V1 and separates:
 
-```json
-{
-  "version": 1,
-  "extensions": {
-    "parallel": {
-      "enabled": true,
-      "skills": true,
-      "mcp": false
-    }
-  }
-}
-```
+- installed roots;
+- one selected root;
+- active closure Cards;
+- committed and local overlays;
+- declared skills, MCP servers, and hooks;
+- ambient user-home observations;
+- projection health.
 
-### Enable Beads for one project
-
-Use the command:
-
-```bash
-drwn extensions setup beads --include-skill
-```
-
-This initializes Beads through `bd` and records semantic extension config:
-
-```json
-{
-  "version": 1,
-  "extensions": {
-    "beads": {
-      "enabled": true,
-      "targets": ["codex", "claude", "cursor"],
-      "includeSkill": true
-    }
-  }
-}
-```
-
-### Disable a target locally
-
-```json
-{
-  "version": 1,
-  "targets": {
-    "cursor": { "enabled": false }
-  }
-}
-```
-
-## Status And Doctor Behavior
-
-`drwn status` reflects whether a project config is active and summarizes its override counts.
-
-`drwn doctor` reports project-config-specific issues such as:
-
-- unknown server references
-- unknown skill references
-- unknown extension references
-- stale project skill overrides
-
-This is report-only. `doctor` does not rewrite or repair project config. Wave 1 also makes unresolved `skills.include` names a write-time hard failure, so `doctor` is complementary diagnostics, not the only enforcement path.
+`doctor` is report-only. Neither command repairs project state.
 
 ## Recommended Workflow
 
 ```bash
 cd /path/to/project
-drwn init
-$EDITOR .agents/drwn/config.json
-drwn status
+drwn init --non-interactive
+drwn apply @team/operator@^1.0.0
+drwn use @team/operator --no-write
+drwn status --json
 drwn write --dry-run
-drwn doctor
+drwn doctor --json
 drwn write
 ```
 
-## What Cards Pins And What Cards Does Not
+## Reproducibility Boundary
 
-Cards pin **harness state** — the skills, MCP server definitions, extensions, and downstream targets a project should run on. Cards do not pin the *surrounding* environment. Being explicit about this prevents the "partial pinning" trap where a lockfile creates the illusion of reproducibility without the substance.
+Cards and locks pin harness content, not the host:
 
-What cards pin (today):
+- use package lockfiles for application dependencies;
+- use mise/asdf/Flox/Nix for runtimes and system libraries;
+- use Docker/Compose for services;
+- use drwn for Worker/Card capability state.
 
-- Card versions in `card.lock` (byte-identical across machines via content-tree integrity hashes)
-- Per-card bundled skill attribution in `card.lock`
-- Inline content shipped in a card (skills, MCP server definitions) by sha256 content hashing
-- The project overlay (`servers`, `skills`, `extensions`, `targets` fields in `config.json`)
+MCP runtimes should be version-pinned in their command args when reproducibility matters. Agent tool versions, OAuth grants, API keys, and external executables remain separately managed.
 
-What cards do not pin:
+## Safety
 
-- The drwn harness version itself (enforced loosely via `harness.minVersion`, not pinned exactly)
-- Claude Code / Codex / Cursor versions (vendor-controlled; not yet exposing a pin interface)
-- MCP server runtime resolution — `npx -y <pkg>` patterns pull the latest matching version at every invocation unless the version is pinned in `args`. The built-in `registry/mcp-servers.json` ships caret-pinned versions (e.g., `@upstash/context7-mcp@^2.0.0`) for this reason; card authors should do the same in their own `mcp-servers/<id>.json` definitions
-- CLI dependencies of skills (`bd` for Beads, `markitdown` for MarkItDown, etc.)
-- Operating-system-level dependencies of MCP servers
-- The shell environment, system libraries, or OS
-
-This is the same pinning surface a JavaScript project gets by committing `pnpm-lock.yaml` without pinning Node, system libs, or the host shell. The honest fix is to layer cards with a shell/toolchain manager (see Layered Reproducibility below).
-
-## Layered Reproducibility
-
-Reproducibility is best modeled as a stack of layers, with different tools owning different layers. Cards owns one layer; other tools own the others.
-
-```text
-Layer 8: Cards            (skills, MCP servers, extensions, downstream targets)
-Layer 6: Docker / Compose (service stack — Postgres, Redis, etc.)
-Layer 4: Flox or Nix      (Node, Python, system libs, shell hooks)
-Layer 3: implicit via Flox / asdf / mise (runtime versions)
-Layer 2: pnpm or Cargo    (app dependencies + lockfile)
-```
-
-Recommended composition for a project that needs full environmental reproducibility:
-
-- Pin app dependencies with `pnpm-lock.yaml` / `Cargo.lock` (Layer 2).
-- Pin runtime/toolchain versions with `asdf`, `mise`, or `Flox` (Layer 3 / 4).
-- Pin system libraries and the shell environment with `Flox` or `Nix` (Layer 4).
-- Pin service dependencies with `Docker Compose` (Layer 6).
-- Pin harness state with `drwn card apply` (Layer 8).
-
-Each layer's tool pins what it owns. Together they remove "works on my machine" friction across every typical dimension. Cards is the Layer-8 piece; it composes with — does not replace — the rest of the stack.
-
-For background on the layered-reproducibility model and where cards sits in the broader landscape, see `.ai/analyses/32_harness-cards-vs-flox-and-conda.md`.
-
-## Anti-Patterns
-
-Avoid:
-
-- treating project config as a second full baseline registry
-- using `skills.include` for broad global defaults when `drwn library defaults add skill <name>` would be clearer
-- manually listing extension-owned skills when `extensions.<name>` is clearer
-- assuming `doctor` will auto-fix stale project state
-- using project config when a simple `drwn library defaults add ...` change would be clearer
-- assuming a card lockfile is full environmental reproducibility (see What Cards Pins above; layer with a Layer-3/4 tool for the rest)
-
-## Relationship To Other Docs
-
-- general CLI usage: [01_agents-cli-usage-guide.md](./01_agents-cli-usage-guide.md)
-- extension skill bundles: [03_npm-skill-bundles-guide.md](./03_npm-skill-bundles-guide.md)
+Whole-Store export remains disabled with `STORE_EXPORT_DISABLED_UNSAFE`. Project and deploy flows never use a broad Store archive. For an unsupported development project, follow [`docs/prelaunch-project-reset.md`](../../docs/prelaunch-project-reset.md); do not ask the supported CLI to interpret old files.

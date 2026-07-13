@@ -171,7 +171,7 @@ What it does:
 - creates `<project>/.agents/drwn/config.json`
 - defaults to guided setup in interactive terminals
 - `--guided` forces the interactive guided flow when stdin and stdout are TTYs
-- writes a minimal config with `{ "version": 1 }` when `--non-interactive` or `--minimal` is used
+- writes a minimal `drwn.project-config` V1 document with `workers: []` and `activeWorker: null` when `--non-interactive` or `--minimal` is used
 - warns if `.gitignore` appears to exclude `.agents`
 
 Use this when one project needs overrides without changing your central machine-wide config.
@@ -196,7 +196,8 @@ Use `--library` on skill and MCP adds to restrict lookup to local inventory only
 
 ## Card Commands
 
-Cards package reusable project harness intent. A project records card refs in
+Cards package reusable project capabilities. Blueprints compose ordered Cards
+into one Worker root. A project records root refs in
 `<project>/.agents/drwn/config.json`, exact resolutions in
 `<project>/.agents/drwn/card.lock`, and project-local materialized state under
 `<project>/.claude`, `<project>/.codex`, and `<project>/.cursor`.
@@ -204,8 +205,9 @@ Cards package reusable project harness intent. A project records card refs in
 Published cards are stored as per-card bare Git repositories under
 `~/.agents/drwn/cards/@scope/name.git`. Version tags identify releases, and
 materialized content is extracted under `~/.agents/drwn/extracted/<tree-sha>`.
-The project lockfile is forward-only `lockfileVersion: 2`; store and Git-origin
-entries include `git.commit` as the integrity anchor.
+The project lock is `drwn.project-lock` V1. Its `workerRoots` records roots and
+ordered members; `cards` stores the deduplicated immutable artifacts. Store and
+Git-origin entries include tree SHA, integrity, and Git commit provenance.
 
 Authoring and publishing:
 
@@ -312,13 +314,12 @@ Project consumption:
 ```bash
 drwn apply @me/backend@^1.0.0
 drwn add @me/backend@^1.0.0
-drwn card apply @me/backend@^1.0.0 --write
-drwn card add @me/observability@^1.0.0
-drwn card pin @me/backend@1.0.0
-drwn card remove @me/observability
-drwn card detach
-drwn card update
+drwn apply @me/backend@^1.0.0 @me/observability@^1.0.0 --active @me/backend
+drwn pin @me/backend@1.0.0
+drwn remove @me/observability
 drwn update
+drwn use @me/backend
+drwn use --none
 drwn card outdated
 drwn card outdated --check
 drwn card outdated --fetch
@@ -399,36 +400,23 @@ the selected versions.
 
 ## Worker Commands
 
-A worker is an installed card materialized as an isolated generated bundle.
-Worker stack commands operate on a project and select which installed workers
-project into the IDE surface, without changing which cards are installed or
-locked.
+A Worker is one installed root: either a plain Card or a Blueprint whose ordered
+Cards form its closure. Multiple installed roots are alternatives. A project
+selects at most one root, and selection is explicit even when it is `null`.
 
 ```bash
-drwn worker stack
-drwn worker stack --json
-drwn worker stack use @team/base @team/frontend
-drwn worker stack clear
+drwn use @team/operator
+drwn use @team/operator --no-write
+drwn use --none
+drwn status --json
 ```
 
-- `worker stack` reads `<project>/.agents/drwn/generated/workers.json` (falling
-  back to `card.lock`) and marks which installed workers are currently active.
-- `worker stack use <names…>` records an ordered active stack. The argument order
-  is the projection order. It fails if any name is not installed in the project
-  and does not change installed cards.
-- `worker stack clear` sets the active stack to empty. Installed card bundles stay
-  materialized, but the next `drwn write` removes their projection.
-
-The active stack is stored as `activeWorkers` in
-`<project>/.agents/drwn/config.json` with three-way semantics:
-
-- absent: all installed workers are active (the default)
-- `[]`: no workers are active
-- `[names]`: exactly these workers, in this order, are active
-
-Only the active stack projects to the IDE surface (skills, MCP, and hooks).
-`drwn write` materializes each installed card as an isolated bundle under
-`<project>/.agents/drwn/generated/workers/` and records them in `workers.json`.
+`drwn use` selects an installed root or installs it additively, then runs
+projection unless `--no-write` is passed. `drwn use --none` clears selection
+without removing roots. `drwn write` creates one aggregate generated bundle per
+root; a Blueprint's member Cards are inside that aggregate and never become
+sibling Workers. Only the selected root closure supplies project Card
+capabilities.
 
 ## Install Command
 
@@ -437,7 +425,7 @@ Use `install` after cloning a project that already has
 
 ```bash
 drwn install
-drwn install --no-apply
+drwn install --no-write
 drwn install --frozen
 drwn install --json
 ```
@@ -448,7 +436,7 @@ Behavior:
 - ensures every locked store/Git-origin card is present locally
 - clones or fetches Git-backed card repos when needed
 - refreshes extracted paths if the lockfile points at content not yet materialized
-- runs `drwn write` unless `--no-apply` is passed
+- runs `drwn write` unless `--no-write` is passed
 - fails with `--frozen` instead of cloning, fetching, or changing `card.lock`
 
 ## Search Commands
@@ -1087,13 +1075,17 @@ drwn library defaults add mcp github
 drwn write --dry-run
 ```
 
-Use this when every project should inherit the item unless a project disables it.
+Use this for machine-scope sessions. Project declarations do not inherit machine
+defaults; user-home capabilities may still be ambient to downstream tools and
+are reported separately by project status and doctor.
 
 ### Project-specific override setup
 
 ```bash
 cd /path/to/project
 drwn init
+drwn apply @team/operator@^1.0.0
+drwn use @team/operator --no-write
 drwn status
 drwn write --dry-run
 ```
@@ -1118,7 +1110,7 @@ drwn doctor
 
 ```bash
 cd /path/to/project
-drwn install --no-apply
+drwn install --no-write
 drwn write --dry-run
 drwn install
 ```

@@ -149,8 +149,13 @@ General commands:
 - `drwn extensions setup parallel`
 - `drwn extensions setup markitdown`
 - `drwn extensions add <extensionName>`
-- `drwn apply <cardRef>`
-- `drwn update`
+- `drwn add <rootRef> [--dry-run] [--write]`
+- `drwn apply <rootRef>... [--active <root>|--none] [--dry-run] [--write]`
+- `drwn remove <rootName> [--dry-run] [--write]`
+- `drwn pin <rootRef> [--dry-run] [--write]`
+- `drwn update [rootName] [--dry-run] [--write]`
+- `drwn use <rootNameOrRef>|--none [--no-write] [--dry-run]`
+- `drwn install [--frozen] [--no-write] [--json]`
 
 Card commands:
 
@@ -168,13 +173,7 @@ Card commands:
 - `drwn card source set <name> [options]`
 - `drwn card source add-mcp <name> <serverName>`
 - `drwn card source remove-mcp <name> <serverName>`
-- `drwn card apply <cardRef> [--write]`
-- `drwn card add <cardRef> [--write]`
-- `drwn card pin <cardRef> [--write]`
-- `drwn card remove <name> [--write]`
-- `drwn card update [--write]`
 - `drwn card outdated [--check]`
-- `drwn card detach [--write]`
 - `drwn card list`
 - `drwn card show <cardRef>`
 - `drwn card status [--explain]`
@@ -186,6 +185,18 @@ Card commands:
 - `drwn card validate <cardRef>`
 
 Card source commands operate on editable sources under `~/.agents/drwn/sources/<scope>/<name>/`. Published cards are immutable store releases under `~/.agents/drwn/cards/`, and consumed cards are the refs and locks recorded by a project.
+
+Worker Blueprint authoring and remote operations:
+
+- `drwn worker new <name>`
+- `drwn worker compose <name> --add <cardRef>`
+- `drwn worker publish <name>`
+- `drwn worker deploy <rootRef> --name <slug>`
+- `drwn worker list`
+- `drwn worker status <slug>`
+
+Cards compose capabilities into one Blueprint. Installed Worker roots are
+alternatives; `drwn use` selects at most one root for project projection.
 
 Card hooks:
 
@@ -438,6 +449,26 @@ Notes:
 - Parallel MCP is controlled by `config.parallel.mcp.enabled`
 - project-local extension settings such as `extensions.parallel.mcp` are applied when commands run inside that project
 
+### Operator-owned MCP runtime state
+
+Card and project declarations describe how an MCP server should be launched;
+they do not install external executables or own credentials. In particular:
+
+- Notion's hosted MCP requires OAuth authorization in each downstream client
+  that uses it.
+- An `ntn`/Notion API token belongs in the operator environment or secret
+  storage, never in a Card, project config, lock, or generated Worker.
+- Momentic and other external stdio tools must be installed and authenticated
+  separately on the machine. A missing executable or closed initialize
+  handshake is runtime readiness failure, not a Worker graph failure.
+
+The Recommended Darwinian Operator machine profile is selected future Task 80
+work. Guided setup will preselect that opt-out profile while non-interactive
+setup remains explicitly empty. The profile may project only machine-safe
+skills and approved MCP definitions; it will not project Worker identity,
+instructions, hooks, permissions, or governance. Machine capabilities remain
+ambient to project sessions and are never project declarations.
+
 ## Skill library
 
 Built-in skills live in:
@@ -641,6 +672,8 @@ This creates:
 
 Project config can:
 
+- declare ordered plain Card or Blueprint Worker roots
+- select one installed root or explicit `null`
 - enable or disable MCP servers for one project
 - add project-local MCP server definitions
 - enable extensions such as Parallel, Beads, or MarkItDown for one project
@@ -648,6 +681,9 @@ Project config can:
 - enable or disable targets locally
 
 Project config is used by `drwn write`, `drwn mcp list`, `drwn mcp write`, `drwn status`, `drwn doctor`, and extension status/doctor/setup commands.
+
+Project declarations do not inherit machine default selections. User-home
+capabilities may remain ambient to downstream tools and are reported separately.
 
 Discovery walks upward from the current working directory and uses the nearest config file.
 
@@ -663,7 +699,10 @@ Project extension config is semantic:
 
 ```json
 {
-  "version": 1,
+  "schema": "drwn.project-config",
+  "schemaVersion": 1,
+  "workers": ["@team/operator@^1.0.0"],
+  "activeWorker": "@team/operator",
   "extensions": {
     "parallel": {
       "enabled": true,
@@ -684,6 +723,14 @@ Project extension config is semantic:
 ```
 
 Lower-level `skills.include` and `skills.exclude` still work for repo-native and package-backed skills. If both extension-derived includes and explicit excludes mention the same skill, `skills.exclude` wins.
+
+The lock uses `schema: "drwn.project-lock"` and `schemaVersion: 1`. It
+separates `workerRoots` from the deduplicated immutable `cards` closure. Local
+development overrides use `drwn.project-local` V1. Generated output contains
+one aggregate bundle per root, not one Worker per member Card.
+
+See [Project Worker Contract V1](./contracts/project-worker-v1.md) and the
+[controlled reset runbook](./prelaunch-project-reset.md).
 
 ## Layered reproducibility
 
@@ -711,7 +758,7 @@ What cards do not pin:
 - CLI dependencies of skills (`bd`, `markitdown`, `git`, etc.)
 - runtime, system libraries, or shell environment
 
-The recommended composition for a project that needs full reproducibility: use `drwn card apply` for the harness, and pair with Flox/Nix (or asdf/mise) at the shell layer to pin Node/Python/system libs, and Docker Compose at the service layer for runtime dependencies. Each tool pins what it owns.
+The recommended composition for a project that needs full reproducibility: use `drwn apply` for the harness, and pair with Flox/Nix (or asdf/mise) at the shell layer to pin Node/Python/system libs, and Docker Compose at the service layer for runtime dependencies. Each tool pins what it owns.
 
 For background on the layered model and how cards composes with the broader landscape, see [`.ai/knowledges/02_per-project-config-guide.md`](../.ai/knowledges/02_per-project-config-guide.md) and [`.ai/analyses/32_harness-cards-vs-flox-and-conda.md`](../.ai/analyses/32_harness-cards-vs-flox-and-conda.md).
 

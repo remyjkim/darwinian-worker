@@ -1,306 +1,27 @@
-<!-- ABOUTME: End-to-end install and project-setup guide for the drwn CLI and its cards. -->
-<!-- ABOUTME: Covers machine install, new/existing project adoption, applying cards, and cloning a card-locked repo. -->
+<!-- ABOUTME: End-to-end installation and project setup guide for the first supported drwn Worker contract. -->
+<!-- ABOUTME: Covers CLI install, project initialization, Blueprint use, clone hydration, and operator runtime state. -->
 
-# Installing `drwn` and Setting Up Cards
+# Install `drwn` And Set Up A Project Worker
 
-This guide takes you from nothing to a working Darwinian Minds harness: install the
-`drwn` CLI, set up a project (new or existing), and apply the cards that carry the
-skills, MCP servers, and hooks your agents use.
+`darwinian` is the package. `drwn` is the command. The CLI manages reusable Cards, Worker Blueprints, project state, machine inventory, and downstream Claude/Codex/Cursor projection.
 
-`drwn` is a local meta-harness. It organizes the skills, MCP servers, extensions,
-defaults, and per-project overlays that surround the agent tools you already run
-(Claude Code, Codex, Cursor), then materializes that state into their config
-directories with one command: `drwn write`.
+## Prerequisites
 
-- **Package:** `darwinian` · **Command:** `drwn`
-- **Public docs:** <https://darwiniantools.com>
-- **Command reference:** [`docs/cli-quickref.md`](docs/cli-quickref.md)
+- Bun 1.2 or newer;
+- npm for global package installation and npm-backed skill bundles;
+- Git for Card publication/resolution;
+- any optional third-party runtimes used by selected skills or MCP servers.
 
----
-
-## 1. Prerequisites
-
-| Use case | Requirement |
-| --- | --- |
-| Run the published package | **Bun 1.2+** and **npm** |
-| Work from a source checkout (CLI development) | **Bun 1.2+** |
-| Add npm-backed skill bundles | **npm** |
-| Optional integrations | `parallel-cli`, `markitdown` (via `uv`), `bd` (Beads), `markdownify-mcp` — only when you enable them |
-
-The published package currently executes its TypeScript entrypoint with Bun, so
-`bun` must be on `PATH` after npm installs the `drwn` binary. Node.js is still
-used by optional MCP servers that launch Node processes.
-
-> **Platform note:** macOS and Linux are supported today. Windows is not yet
-> supported — home-directory resolution, skill symlinks, and archive handling
-> assume a POSIX environment. Use WSL2 on Windows.
-
----
-
-## 2. Install the CLI
+## Install
 
 ```bash
 curl -fsSL https://bun.sh/install | bash
 npm install -g darwinian
+drwn --version
 drwn status
 ```
 
-`drwn status` prints the resolved store path, the enabled targets
-(`claude`, `codex`, `cursor`), and current inventory counts. Use `drwn`
-everywhere.
-
-### What lands on disk
-
-`drwn` keeps all of its own state under `~/.agents/drwn/` and never writes into
-your project until you ask it to. The machine store holds:
-
-```text
-~/.agents/drwn/
-├── machine.json          # machine-wide default skills + MCP servers
-├── sources/              # editable card sources you author
-├── cards/                # published card repositories
-├── skills/               # installed skill packages
-├── mcp-servers/          # user-registered MCP definitions
-├── catalogs/             # registered card catalogs
-├── generated/            # generated worker + hook output
-└── credentials.json      # analyzer auth token (only if you log in)
-```
-
-Downstream tool state is written to `~/.claude`, `~/.codex`, and `~/.cursor`
-(or their project-local equivalents). Everything `drwn` writes is tracked in a
-write record so the next write can clean up safely.
-
----
-
-## 3. The 30-second mental model
-
-`drwn` resolves an **effective harness** from layers, then materializes it:
-
-```text
-packaged defaults  →  machine defaults  →  project overlay  →  cards
-                              ↓
-                         drwn write
-                              ↓
-              ~/.claude · ~/.codex · ~/.cursor  (or <project>/.*)
-```
-
-- **Cards** are versioned, Git-backed bundles of skills, MCP servers, and hooks.
-- **`drwn write`** is the one-way materialization step. It is non-destructive by
-  default and supports `--dry-run` to preview every change first.
-- **Inspect before you write.** `drwn status`, `drwn doctor`, and
-  `drwn write --dry-run` never mutate anything.
-
----
-
-## 4. One-time machine setup (optional)
-
-Set machine-wide defaults so every project starts from a known baseline. Skip
-this if you only want per-project configuration.
-
-```bash
-drwn library list                       # see available skills + MCP servers
-drwn library defaults add skill <skill-name>
-drwn library defaults add mcp <server-name>
-drwn library defaults list
-
-drwn write --dry-run                    # preview machine-scope materialization
-drwn write
-```
-
-Machine defaults live in `~/.agents/drwn/machine.json`. They apply to any project
-that does not define its own overlay.
-
----
-
-## 5. Set up a project
-
-A project becomes drwn-managed when it has a `<project>/.agents/drwn/config.json`.
-The two starting points below differ only in intent — the mechanics are the same,
-and nothing is written to your codebase until the final `drwn write`.
-
-### 5a. New project from scratch
-
-```bash
-cd /path/to/project
-drwn init                               # writes .agents/drwn/config.json
-# add capabilities (see §6 for cards, or these for direct skills/extensions):
-drwn add skill <skill-name-or-query>
-drwn extensions add parallel
-drwn write --dry-run
-drwn write
-```
-
-`drwn init` is interactive in a TTY; pass `--non-interactive` (or `--minimal`)
-for a prompt-free config in scripts and CI.
-
-### 5b. Existing project adopting drwn
-
-Adoption is additive and safe — `drwn init` only creates `.agents/drwn/` and
-writes downstream state into `.claude` / `.codex` / `.cursor`. It does not touch
-your existing code.
-
-```bash
-cd /path/to/existing/project
-drwn init
-drwn status --explain                   # confirm the overlay is detected
-# apply a card (§6) and/or add skills, then:
-drwn write --dry-run                    # read this carefully before writing
-drwn write
-```
-
-Notes:
-
-- `drwn init` **warns** if your `.gitignore` excludes `.agents` (which would stop
-  teammates from sharing the harness) but never edits `.gitignore` for you.
-- Commit `.agents/drwn/config.json` and `.agents/drwn/card.lock` so collaborators
-  reproduce the same effective harness.
-- Use `drwn status --why skill:<name>` to trace why any item is active.
-
----
-
-## 6. Apply cards
-
-Cards are how you pull in a curated set of skills, MCP servers, and hooks.
-
-### The canonical cards
-
-The operator cards ship from the **`darwinian-worker-skills`** repository:
-
-| Card | Use it for |
-| --- | --- |
-| `@darwinian/mind-skills` | **Primary card most users should apply** — the current Darwinian Minds operator skills (project setup, install, materialization, cards, library, defaults, diagnostics, worker-stack). |
-| `@darwinian/base-mind` | Optional persona card that composes on top of `mind-skills`. Persona/beliefs/memory return as a separate pluggable capability card. |
-| `@darwinian/harness-skills` | Back-compat only — a one-release compatibility card with legacy aliases. New projects should use `mind-skills` instead. |
-
-### Applying a card today
-
-The canonical cards are distributed via the `darwinian-worker-skills` Git repo. Clone
-it and apply the card source directly with a `file:` ref:
-
-```bash
-git clone https://github.com/remyjkim/darwinian-worker-skills.git
-drwn card apply file:/absolute/path/to/darwinian-worker-skills/cards/mind-skills
-drwn write --dry-run
-drwn write
-```
-
-To publish into your local store once and apply by name afterward:
-
-```bash
-# copy the card source into ~/.agents/drwn/sources/@darwinian/mind-skills, then:
-drwn card source doctor @darwinian/mind-skills --json
-drwn card publish @darwinian/mind-skills
-drwn card apply @darwinian/mind-skills@^0.1.0
-drwn write
-```
-
-> Once these cards are published to a card catalog, you will be able to resolve
-> them directly with `drwn card apply @darwinian/mind-skills@^0.1.0` without the
-> `file:` ref. They are not in the public community catalog yet.
-
-### Consuming a team or community card
-
-`drwn init` pre-registers the default community catalog
-(`https://github.com/curation-labs/dm-cards-catalog-v1.git`, scope `@community`)
-unless you pass `--no-default-catalogs`. Discover and apply cards from it, or
-apply any card by its Git URL:
-
-```bash
-drwn search card <query>                # search registered catalogs
-drwn card apply @team/backend@^1.0.0    # a published/cataloged card
-drwn card apply git+https://github.com/org/some-card.git#v1.2.0
-drwn write
-```
-
-Keep cards current:
-
-```bash
-drwn card status --explain
-drwn card outdated
-drwn card update
-drwn write --dry-run && drwn write
-```
-
-Use `drwn card pin @team/backend@1.2.3` to lock an exact version, and
-`drwn card remove @team/backend` to stop consuming a card.
-
----
-
-## 7. Clone a project that already has cards
-
-When you clone a repo that already carries `.agents/drwn/card.lock`, you restore
-the locked harness rather than choosing cards. `drwn install` fetches the locked
-cards and materializes the pinned state without changing card intent.
-
-```bash
-drwn --version
-drwn status --json
-
-# read-only feasibility check (also the CI form):
-drwn install --frozen --no-apply --json
-
-# fetch/clone the locked cards into the local store:
-drwn install --no-apply --json
-
-# preview, then install + write in one step:
-drwn write --dry-run --json
-drwn install --json
-
-drwn status --json && drwn doctor --json
-```
-
-If `card.lock` is missing, this is not a clone-restore — go to §5/§6 instead.
-
----
-
-## 8. Verify and troubleshoot
-
-```bash
-drwn status                 # effective harness for the current directory
-drwn doctor                 # report-only diagnostics (never mutates)
-drwn status --why skill:<name>   # provenance: why is this active?
-ls .claude/skills           # materialized skill symlinks (or ~/.claude/skills)
-```
-
-`drwn doctor` reports broken symlinks, stale links, MCP drift, missing generated
-files, and project-config issues without fixing them. Unresolved skill references
-make `drwn write` fail **before** any mutation, by design.
-
----
-
-## 9. Advanced: the worker stack
-
-When you have more than one card installed, you order the active stack
-explicitly:
-
-```bash
-drwn worker stack                       # installed workers and which are active
-drwn worker stack use @darwinian/base-mind @team/domain-mind   # ordered active stack
-drwn worker stack clear                 # deactivate all
-drwn write
-```
-
-By default, all installed workers are active; `drwn worker stack use` pins an
-explicit stack.
-
----
-
-## Appendix A: Useful environment variables
-
-| Variable | Purpose |
-| --- | --- |
-| `AGENTS_REPO_ROOT` | Point a global `drwn` at a local source checkout (see Appendix B). |
-| `AGENTS_DIR` | Override the agents directory (default `~/.agents`). |
-| `DRWN_STORE_READONLY=1` | Refuse all store mutations (validation/CI). |
-| `DRWN_ANALYZER_URL` / `DRWN_TOKEN` | Analyzer API endpoint and bearer token for `drwn login` / `drwn analyze`. |
-| `DRWN_FETCH_CONCURRENCY` | Parallel card/skill fetches (default 4). |
-| `DRWN_GIT_TIMEOUT_MS` | Git operation timeout (default 30000). |
-
----
-
-## Appendix B: Checkout / development mode
-
-Use a checkout only to edit the registry, maintain a fork, or develop the CLI.
+From a source checkout:
 
 ```bash
 git clone https://github.com/remyjkim/darwinian-worker.git
@@ -309,27 +30,234 @@ bun install
 bun run drwn -- status
 ```
 
-Point a globally-installed `drwn` at the checkout:
-
-```bash
-export AGENTS_REPO_ROOT=/path/to/darwinian-worker
-drwn status
-```
-
-For day-to-day development, link the package and run the source directly:
+For development:
 
 ```bash
 bun link
 drwn --help
 ```
 
-In checkout mode you can edit `registry/config.json` (targets and toggles),
-`registry/mcp-servers.json` (MCP definitions), and `skills/` (built-in skills).
+## State Locations
 
----
+Machine Store state lives under `~/.agents/drwn/`:
 
-## See also
+```text
+machine.json
+sources/
+cards/
+extracted/
+skills/
+mcp-servers/
+catalogs/
+generated/
+projects.json
+credentials.json
+```
 
-- [`docs/cli-quickref.md`](docs/cli-quickref.md) — full command reference
-- [Getting Started](docs-docusaurus/docs/getting-started/) — installation, first run, and task paths
-- [`README.md`](README.md) — project overview
+Project authority lives under:
+
+```text
+<project>/.agents/drwn/config.json
+<project>/.agents/drwn/card.lock
+```
+
+Local development overrides use `config.local.json` and `card.lock.local`. Generated output and downstream tool files are disposable projections.
+
+Whole-Store export is disabled because the Store can contain credentials and operational state. `drwn store export` fails with `STORE_EXPORT_DISABLED_UNSAFE`.
+
+## Mental Model
+
+```text
+author Cards -> compose one Blueprint -> add roots -> select one Worker -> write
+```
+
+- A Card is one reusable capability.
+- A Blueprint composes ordered plain Cards into one Worker.
+- A project may install multiple roots as alternatives.
+- `activeWorker` explicitly selects one root or is `null`.
+- `drwn write` projects the selected root closure and explicit project overlays.
+- Machine default selections are not inherited into project declarations.
+
+## Initialize A Project
+
+```bash
+cd /path/to/project
+drwn init --non-interactive
+```
+
+This writes:
+
+```json
+{
+  "schema": "drwn.project-config",
+  "schemaVersion": 1,
+  "workers": [],
+  "activeWorker": null
+}
+```
+
+Interactive `drwn init` can guide current extension setup. The Recommended Darwinian Operator machine profile is future Task 80 behavior and is not part of this project contract.
+
+Commit `.agents/drwn/config.json` and `.agents/drwn/card.lock`. Keep local overlay files ignored.
+
+## Use A Published Worker
+
+Apply one published plain Card or Blueprint root:
+
+```bash
+drwn apply @team/operator@^1.0.0
+drwn status --json
+drwn write --dry-run
+drwn write
+```
+
+Applying one root selects it. For alternatives, selection must be explicit:
+
+```bash
+drwn apply @team/operator@^1.0.0 @team/alternate@^1.0.0 --active @team/operator
+```
+
+Manage roots:
+
+```bash
+drwn add @team/another@^1.0.0
+drwn pin @team/operator@1.2.3
+drwn update
+drwn update @team/operator
+drwn remove @team/another
+```
+
+Manage selection:
+
+```bash
+drwn use @team/operator
+drwn use @team/operator --no-write
+drwn use --none
+```
+
+`drwn use` writes by default. `--no-write` commits intent without downstream projection.
+
+## Author A Capability Card
+
+```bash
+drwn card new @team/notion --no-git
+drwn card source add-skill @team/notion notion-knowledge
+drwn card source add-mcp @team/notion notion
+drwn card source doctor @team/notion --json
+drwn card publish @team/notion
+```
+
+Editable source state is mutable. Published Card versions are immutable.
+
+## Compose A Blueprint
+
+```bash
+drwn worker new @team/operator --no-git
+drwn worker compose @team/operator --add @team/notion@^1.0.0
+drwn worker compose @team/operator --add @team/fal@^1.0.0
+drwn card source doctor @team/operator --json
+drwn worker publish @team/operator
+```
+
+The Blueprint's member order determines closure order. Members remain independently authored Cards, but the project selects the Blueprint as one Worker.
+
+## Clone A Managed Project
+
+After cloning a project that already commits supported config and lock:
+
+```bash
+drwn install --frozen --json
+```
+
+`--frozen` requires every locked artifact to be present and refuses fetch/lock changes. For normal hydration:
+
+```bash
+drwn install --no-write --json
+drwn write --dry-run --json
+drwn install --json
+```
+
+Install hydrates exact locked Cards and writes by default. It never changes root requirements or selection.
+
+## Direct Project Capabilities
+
+Explicit project overlays remain available:
+
+```bash
+drwn add skill <skill-name-or-query>
+drwn add mcp <server-name>
+drwn extensions add parallel
+drwn extensions add beads --target=codex,claude --include-skill
+drwn extensions add markitdown
+drwn write --dry-run
+```
+
+These mutate only project intent. They do not make capabilities machine defaults.
+
+## Machine Capabilities
+
+Current machine-scope selections are managed separately:
+
+```bash
+drwn library list
+drwn library defaults add skill <skill-name>
+drwn library defaults add mcp <server-name>
+drwn library defaults list
+drwn write --scope machine --dry-run
+drwn write --scope machine
+```
+
+Machine capabilities may be ambient to downstream project sessions because the downstream tool reads user-home configuration. Project status and doctor distinguish that ambient visibility from project declarations.
+
+## Notion, `ntn`, And Momentic
+
+Cards may carry definitions and skills, but installation and credentials are operator state:
+
+- authorize Notion's hosted MCP in each downstream client that needs it;
+- place an `ntn` API key in operator environment/secret storage;
+- install and authenticate Momentic or another stdio executable separately;
+- keep `.env`, tokens, cookies, and OAuth grants out of Cards, Blueprints, config, lock, and generated files.
+
+An OAuth-required, executable-missing, timeout, or initialize-handshake error is a runtime readiness diagnosis. It does not imply that the project Worker graph is corrupt.
+
+## Verify
+
+```bash
+drwn status --json
+drwn status --why skill:<name>
+drwn doctor --json
+drwn write --dry-run
+```
+
+Verify:
+
+- config is `drwn.project-config` V1;
+- lock is `drwn.project-lock` V1;
+- one intended root is selected or selection is explicit `null`;
+- Blueprint member order is correct;
+- generated state has one aggregate directory per root;
+- declared and ambient capabilities are separated;
+- config and lock do not change during write;
+- no secret appears in project state.
+
+## Unsupported Development Projects
+
+The first supported contract does not read prototype project state. Follow [`docs/prelaunch-project-reset.md`](docs/prelaunch-project-reset.md) to preserve authored Card sources, remove unsupported project intent/projection, and initialize clean V1 state. There is no automated migration.
+
+## Environment Overrides
+
+| Variable | Purpose |
+| --- | --- |
+| `AGENTS_REPO_ROOT` | Use a source checkout as packaged assets. |
+| `AGENTS_DIR` | Override the machine Agents directory. |
+| `AGENTS_HOME_DIR` | Override user-home resolution for isolated tests. |
+| `DRWN_STORE_READONLY=1` | Reject Store mutation while allowing reads/dry-runs. |
+| `DRWN_TOKEN` | Headless Darwinian API authentication. |
+| `DRWN_FETCH_CONCURRENCY` | Concurrent Card/skill fetch limit. |
+| `DRWN_GIT_TIMEOUT_MS` | Git operation timeout. |
+
+## References
+
+- [`docs/contracts/project-worker-v1.md`](docs/contracts/project-worker-v1.md)
+- [`docs/cli-quickref.md`](docs/cli-quickref.md)
+- [`.ai/knowledges/10_drwn-cli-architecture.md`](.ai/knowledges/10_drwn-cli-architecture.md)

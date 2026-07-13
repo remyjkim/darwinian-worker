@@ -1,873 +1,122 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>drwn — Card Usage Guide</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>drwn Cards and Workers</title>
   <style>
-    :root {
-      --bg: #fafafa;
-      --bg-elev: #ffffff;
-      --text: #1f2937;
-      --muted: #64748b;
-      --border: #e2e8f0;
-      --code-bg: #0f172a;
-      --code-text: #e2e8f0;
-      --code-prompt: #64748b;
-      --code-flag: #a5b4fc;
-      --code-string: #86efac;
-      --code-cmd: #fbbf24;
-      --accent: #0ea5e9;
-      --accent-strong: #0369a1;
-      --warn-bg: #fef3c7;
-      --warn-border: #f59e0b;
-      --note-bg: #dbeafe;
-      --note-border: #3b82f6;
-      --state-machine: #f0fdfa;
-      --state-source: #fef3c7;
-      --state-store: #fae8ff;
-      --state-project: #dbeafe;
-      --state-downstream: #dcfce7;
-    }
-
-    * { box-sizing: border-box; }
-
-    html, body {
-      margin: 0;
-      padding: 0;
-      background: var(--bg);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      font-size: 15px;
-      line-height: 1.6;
-    }
-
-    .layout {
-      display: grid;
-      grid-template-columns: 260px 1fr;
-      max-width: 1400px;
-      margin: 0 auto;
-    }
-
-    nav.toc {
-      position: sticky;
-      top: 0;
-      align-self: start;
-      height: 100vh;
-      overflow-y: auto;
-      padding: 32px 24px;
-      border-right: 1px solid var(--border);
-      background: var(--bg-elev);
-    }
-
-    nav.toc h2 {
-      font-size: 13px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-      margin: 24px 0 8px 0;
-    }
-
-    nav.toc h2:first-child { margin-top: 0; }
-
-    nav.toc a {
-      display: block;
-      color: var(--text);
-      text-decoration: none;
-      padding: 4px 0;
-      font-size: 13.5px;
-      border-left: 2px solid transparent;
-      padding-left: 8px;
-      margin-left: -10px;
-    }
-
-    nav.toc a:hover {
-      border-left-color: var(--accent);
-      color: var(--accent-strong);
-    }
-
-    main {
-      padding: 48px 64px;
-      max-width: 920px;
-    }
-
-    header.title {
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 24px;
-      margin-bottom: 40px;
-    }
-
-    header.title h1 {
-      margin: 0 0 8px 0;
-      font-size: 32px;
-      letter-spacing: -0.01em;
-    }
-
-    header.title .sub {
-      color: var(--muted);
-      font-size: 14px;
-    }
-
-    h2.section {
-      font-size: 22px;
-      margin-top: 56px;
-      margin-bottom: 16px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    h3.scenario {
-      font-size: 18px;
-      margin-top: 40px;
-      margin-bottom: 12px;
-      color: var(--accent-strong);
-    }
-
-    h4 {
-      font-size: 14px;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--muted);
-      margin-top: 24px;
-      margin-bottom: 8px;
-    }
-
-    p { margin: 8px 0 12px 0; }
-
-    code {
-      font-family: "SF Mono", Menlo, Monaco, Consolas, "Courier New", monospace;
-      font-size: 13.5px;
-      background: rgba(15, 23, 42, 0.06);
-      padding: 1px 6px;
-      border-radius: 3px;
-      color: var(--text);
-    }
-
-    pre {
-      background: var(--code-bg);
-      color: var(--code-text);
-      padding: 16px 20px;
-      border-radius: 6px;
-      overflow-x: auto;
-      font-family: "SF Mono", Menlo, Monaco, Consolas, "Courier New", monospace;
-      font-size: 13px;
-      line-height: 1.55;
-      margin: 12px 0 16px 0;
-    }
-
-    pre code {
-      background: transparent;
-      padding: 0;
-      color: inherit;
-      font-size: inherit;
-    }
-
-    .cli-prompt { color: var(--code-prompt); user-select: none; }
-    .cli-cmd { color: var(--code-cmd); }
-    .cli-flag { color: var(--code-flag); }
-    .cli-string { color: var(--code-string); }
-    .cli-comment { color: var(--code-prompt); font-style: italic; }
-
-    .note, .warn {
-      padding: 12px 16px;
-      border-left: 3px solid;
-      border-radius: 0 4px 4px 0;
-      margin: 16px 0;
-      font-size: 14px;
-    }
-
-    .note { background: var(--note-bg); border-color: var(--note-border); }
-    .warn { background: var(--warn-bg); border-color: var(--warn-border); }
-
-    .note strong, .warn strong { display: block; margin-bottom: 4px; }
-
-    table.transitions {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 12px 0 16px 0;
-      font-size: 13.5px;
-    }
-
-    table.transitions th, table.transitions td {
-      text-align: left;
-      padding: 8px 12px;
-      border-bottom: 1px solid var(--border);
-      vertical-align: top;
-    }
-
-    table.transitions th {
-      background: var(--bg);
-      color: var(--muted);
-      font-weight: 600;
-      text-transform: uppercase;
-      font-size: 11.5px;
-      letter-spacing: 0.06em;
-    }
-
-    table.transitions code {
-      white-space: nowrap;
-      font-size: 12.5px;
-    }
-
-    .state-diagram {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 12px;
-      margin: 20px 0;
-      font-size: 12px;
-    }
-
-    .state-box {
-      padding: 12px 14px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-    }
-
-    .state-box .label {
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--muted);
-      margin-bottom: 6px;
-    }
-
-    .state-box .path {
-      font-family: "SF Mono", Menlo, Monaco, Consolas, monospace;
-      font-size: 11.5px;
-      color: var(--text);
-      line-height: 1.45;
-      word-break: break-all;
-    }
-
-    .state-box.machine { background: var(--state-machine); }
-    .state-box.source { background: var(--state-source); }
-    .state-box.store { background: var(--state-store); }
-    .state-box.project { background: var(--state-project); }
-    .state-box.downstream { background: var(--state-downstream); }
-
-    .flow {
-      background: var(--bg-elev);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 16px 20px;
-      margin: 12px 0 16px 0;
-      font-size: 13.5px;
-    }
-
-    .flow .step {
-      padding: 4px 0;
-      display: flex;
-      gap: 12px;
-    }
-
-    .flow .step-num {
-      flex: 0 0 24px;
-      color: var(--accent);
-      font-weight: 600;
-      font-family: monospace;
-    }
-
-    .flow .step-body { flex: 1; }
-
-    ul, ol { padding-left: 22px; margin: 6px 0 12px 0; }
-    li { margin: 4px 0; }
-
-    .arrow { color: var(--muted); }
-
-    @media (max-width: 900px) {
-      .layout { grid-template-columns: 1fr; }
-      nav.toc { position: relative; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
-      main { padding: 32px 24px; }
-      .state-diagram { grid-template-columns: repeat(2, 1fr); }
-    }
+    :root { color-scheme: light dark; --line: #8a8f98; --accent: #15735f; }
+    body { margin: 0 auto; max-width: 980px; padding: 32px 24px 72px; font: 16px/1.55 system-ui, sans-serif; }
+    h1, h2, h3 { line-height: 1.2; letter-spacing: 0; }
+    h2 { border-top: 1px solid var(--line); padding-top: 24px; margin-top: 40px; }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    pre { padding: 16px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid var(--line); padding: 9px; text-align: left; vertical-align: top; }
+    .flow { font-size: 1.05rem; font-weight: 650; color: var(--accent); }
+    .note { border-left: 4px solid var(--accent); padding: 8px 14px; }
   </style>
 </head>
 <body>
-<div class="layout">
-
-<nav class="toc">
-  <h2>Orientation</h2>
-  <a href="#state-model">The state model</a>
-  <a href="#how-write-works">How <code>drwn write</code> works</a>
-
-  <h2>Authoring</h2>
-  <a href="#scenario-iterate">A · Iterating on your own card</a>
-  <a href="#scenario-release">B · Cutting a release</a>
-  <a href="#scenario-new">C · Creating a brand-new card</a>
-  <a href="#scenario-capture">D · Capturing an existing project</a>
-
-  <h2>Consuming &amp; switching</h2>
-  <a href="#scenario-workers">Selecting the active worker stack</a>
-  <a href="#scenario-apply">E · Switching the whole card set</a>
-  <a href="#scenario-add">F · Adding a card alongside others</a>
-  <a href="#scenario-remove">G · Removing or detaching cards</a>
-  <a href="#scenario-versions">H · Version mechanics</a>
-
-  <h2>Inspection</h2>
-  <a href="#scenario-inspect">I · Reading current state</a>
-
-  <h2>Reference</h2>
-  <a href="#state-map">State file map</a>
-  <a href="#command-table">Command quick lookup</a>
-  <a href="#conflict-rules">Conflict resolution rules</a>
-</nav>
-
-<main>
-
-<header class="title">
-  <h1>drwn — Card Usage Guide</h1>
-  <div class="sub">
-    Scenarios for modifying, creating, and switching between Darwinian Minds Cards.
-    Each scenario lists exact CLI commands and the disk-state transitions they cause.
-  </div>
-</header>
-
-<h2 class="section" id="state-model">The state model</h2>
-
-<p>
-  drwn moves bits between five distinct layers. Knowing which layer a command touches is the
-  fastest way to understand what's happening on disk.
-</p>
-
-<div class="state-diagram">
-  <div class="state-box machine">
-    <div class="label">Machine library</div>
-    <div class="path">~/.agents/drwn/<br/>machine.json<br/>skills/<br/>extensions/</div>
-  </div>
-  <div class="state-box source">
-    <div class="label">Card source (editable)</div>
-    <div class="path">~/.agents/drwn/sources/<br/>&lt;scope&gt;/&lt;name&gt;/<br/>card.json + skills/ + ...</div>
-  </div>
-  <div class="state-box store">
-    <div class="label">Card store (immutable)</div>
-    <div class="path">~/.agents/drwn/cards/<br/>&lt;scope&gt;/&lt;name&gt;.git/<br/>extracted/&lt;hash&gt;/</div>
-  </div>
-  <div class="state-box project">
-    <div class="label">Project</div>
-    <div class="path">&lt;project&gt;/.agents/drwn/<br/>config.json + card.lock</div>
-  </div>
-  <div class="state-box downstream">
-    <div class="label">Downstream (generated)</div>
-    <div class="path">&lt;project&gt;/.claude/<br/>&lt;project&gt;/.codex/<br/>&lt;project&gt;/.cursor/</div>
-  </div>
-</div>
-
-<table class="transitions">
-  <thead><tr><th>Layer</th><th>Mutability</th><th>What it holds</th></tr></thead>
-  <tbody>
-    <tr><td>Machine library</td><td>You edit</td><td>Authoring scope, machine-wide skill / MCP defaults, extension state.</td></tr>
-    <tr><td>Card source</td><td>You edit</td><td>The working copy of a card you're authoring. Mutable until you publish a version.</td></tr>
-    <tr><td>Card store</td><td>Append-only</td><td>Bare git repos per card + integrity-hashed extracted snapshots per published version. Read-only by convention.</td></tr>
-    <tr><td>Project</td><td>You edit (via CLI)</td><td><code>config.json</code> declares cards + overlay; <code>card.lock</code> is the resolved snapshot.</td></tr>
-    <tr><td>Downstream</td><td>Generated</td><td>Symlinks and JSON written by <code>drwn write</code>. Never edit by hand &mdash; the next write replaces it.</td></tr>
-  </tbody>
-</table>
-
-<h2 class="section" id="how-write-works">How <code>drwn write</code> works</h2>
-
-<p>
-  Every consumer-side scenario ends with <code>drwn write</code>. Knowing the steps makes the
-  rest of this guide concrete.
-</p>
-
-<div class="flow">
-  <div class="step"><div class="step-num">1.</div><div class="step-body">Read project <code>config.json</code> + <code>card.lock</code>.</div></div>
-  <div class="step"><div class="step-num">2.</div><div class="step-body">Resolve each card ref against the card store (or <code>file:</code> source).</div></div>
-  <div class="step"><div class="step-num">3.</div><div class="step-body">Select the active worker stack from <code>activeWorkers</code> (absent &rarr; all installed). Compute the effective skill + MCP set, layering: machine defaults &rarr; active worker stack &rarr; project overlay.</div></div>
-  <div class="step"><div class="step-num">4.</div><div class="step-body">Plan symlinks under <code>.claude/skills/</code>, <code>.codex/skills/</code>, and generated MCP configs.</div></div>
-  <div class="step"><div class="step-num">5.</div><div class="step-body">Compare plan against current downstream state. Display as a diff with <code>--dry-run</code>; apply otherwise.</div></div>
-  <div class="step"><div class="step-num">6.</div><div class="step-body">Replace stale drwn-managed symlinks; preserve user-owned files with a warning.</div></div>
-</div>
-
-<p>
-  <strong>Always preview with <code>--dry-run</code> before a real write</strong> &mdash;
-  especially when switching cards or removing one, since the diff makes the replace/remove
-  actions visible.
-</p>
-
-<h2 class="section" id="scenario-iterate">Scenario A · Iterating on your own card during development</h2>
-
-<p>
-  Goal: edit a skill body or add a new skill to a card you already own. No version bump,
-  no consumer impact, fast feedback loop.
-</p>
-
-<h4>Prereqs</h4>
-<ul>
-  <li>Card source already exists at <code>~/.agents/drwn/sources/@scope/name/</code>.</li>
-  <li>A scratch project with <code>drwn card apply file:&lt;source-dir&gt;</code> already run, so you have a place to test materialization.</li>
-</ul>
-
-<h4>Commands</h4>
-
-<pre><span class="cli-comment"># 1. Edit the SKILL.md in staging (or directly in the source dir).</span>
-<span class="cli-prompt">$</span> vim /tmp/staging/&lt;skill&gt;/SKILL.md
-
-<span class="cli-comment"># 2. Re-add into the source (overwrite the bundled copy).</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn card source add-skill</span> @scope/name &lt;skill&gt; \
-    <span class="cli-flag">--from</span> /tmp/staging/&lt;skill&gt; <span class="cli-flag">--replace</span>
-
-<span class="cli-comment"># 3. Validate the source.</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn card source doctor</span> @scope/name <span class="cli-flag">--json</span>
-
-<span class="cli-comment"># 4. Re-materialize in the scratch project (file: refs re-read each write).</span>
-<span class="cli-prompt">$</span> cd /tmp/scratch-project
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn write</span> <span class="cli-flag">--dry-run</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn write</span>
-
-<span class="cli-comment"># 5. Smoke test in a fresh Claude Code session (the skill cache loads at startup).</span>
-<span class="cli-prompt">$</span> claude</pre>
-
-<h4>What's happening under the hood</h4>
-
-<table class="transitions">
-  <thead><tr><th>Step</th><th>Layer touched</th><th>Effect</th></tr></thead>
-  <tbody>
-    <tr><td><code>add-skill --replace</code></td><td>Source</td><td><code>cp -r</code> overwrites <code>sources/@scope/name/skills/&lt;skill&gt;/</code>. <code>card.json.skills.include</code> already lists the name; no manifest change.</td></tr>
-    <tr><td><code>source doctor</code></td><td>Source (read-only)</td><td>Walks the dir, checks <code>SKILL.md</code> exists, validates the manifest, surfaces orphaned/missing entries.</td></tr>
-    <tr><td><code>drwn write</code></td><td>Project &rarr; Downstream</td><td>The applied <code>file:</code> ref uses range <code>*</code>, so the source is re-read each write. The symlink target (<code>~/.agents/drwn/sources/...</code>) is the same path; only the content under it changed.</td></tr>
-    <tr><td>Restart Claude</td><td>Runtime</td><td>Claude Code loads skills at session start. A running session won't see the edit.</td></tr>
-  </tbody>
-</table>
-
-<div class="note">
-  <strong>Why no version bump?</strong>
-  During iteration the consuming project resolves your card via <code>file:</code>. That ref has range <code>*</code> and re-resolves on every write. You don't bump the version until you're cutting a release that others should pin against. See Scenario B.
-</div>
-
-<h2 class="section" id="scenario-release">Scenario B · Cutting a release of your card</h2>
-
-<p>
-  Goal: turn the current source contents into a versioned, distributable release. Consumers
-  pull the new version through <code>card update</code> or by re-applying.
-</p>
-
-<h4>Commands</h4>
-
-<pre><span class="cli-comment"># 1. Stamp a new version on the source. Choose:</span>
-<span class="cli-comment">#    patch &mdash; bug fix, no structural change</span>
-<span class="cli-comment">#    minor &mdash; adds skills/MCPs or relaxes constraints</span>
-<span class="cli-comment">#    major &mdash; removes / renames skills, breaking change</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn card source set</span> @scope/name <span class="cli-flag">--version</span> 1.2.0
-
-<span class="cli-comment"># 2. Publish locally (creates a tagged commit in the bare repo + extracted snapshot).</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn card publish</span> @scope/name
-
-<span class="cli-comment"># 3. (Optional) Push to your Git remote.</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn card push</span> @scope/name
-
-<span class="cli-comment"># 4. (Optional) Catalog publish if you maintain a catalog.</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn card catalog publish</span> @scope/name@1.2.0 <span class="cli-flag">--catalog</span> &lt;target&gt;</pre>
-
-<h4>What's happening under the hood</h4>
-
-<table class="transitions">
-  <thead><tr><th>Step</th><th>Layer touched</th><th>Effect</th></tr></thead>
-  <tbody>
-    <tr><td><code>source set --version</code></td><td>Source</td><td>Mutates <code>sources/@scope/name/card.json.version</code>. Strict semver required.</td></tr>
-    <tr><td><code>card publish</code></td><td>Source &rarr; Store</td><td>Stages source dir, commits to <code>~/.agents/drwn/cards/@scope/name.git/</code> on <code>main</code>, tags <code>v1.2.0</code>, extracts to <code>~/.agents/drwn/extracted/&lt;sha256&gt;/</code>. Integrity hash computed over the extracted tree. Guardrail: rejects if your version bump doesn't match the structural classification.</td></tr>
-    <tr><td><code>card push</code></td><td>Store &rarr; Remote</td><td><code>git push origin refs/heads/main --tags</code>. Local <code>[drwn]</code> config never travels.</td></tr>
-  </tbody>
-</table>
-
-<h4>Consumer side</h4>
-
-<pre><span class="cli-comment"># Consumers see the new version once they refresh their lock.</span>
-<span class="cli-prompt">$</span> cd &lt;their-project&gt;
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn card outdated</span>            <span class="cli-comment"># report-only, exits 0</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn card update</span>               <span class="cli-comment"># re-resolves every ref, writes new card.lock</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn write</span> <span class="cli-flag">--dry-run</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn write</span></pre>
-
-<div class="warn">
-  <strong>Publish guardrail</strong>
-  <code>card publish</code> classifies the structural diff vs the previous version and rejects bumps that
-  understate the change (e.g. adding a skill but only bumping <code>patch</code>). Use <code>--force-bump-mismatch</code>
-  only if you intentionally bypass &mdash; it almost always indicates the version bump was wrong.
-</div>
-
-<h2 class="section" id="scenario-new">Scenario C · Creating a brand-new card from scratch</h2>
-
-<p>
-  Goal: stand up a new card source with one or more skills, then publish it.
-</p>
-
-<h4>Commands</h4>
-
-<pre><span class="cli-comment"># 1. Create the empty source. Scope is auto-derived from `gh` / git config</span>
-<span class="cli-comment">#    on first use and saved to machine.json.</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn card new</span> @scope/name <span class="cli-flag">--no-git</span>
-
-<span class="cli-comment"># 2. Set the description (good hygiene; surfaces in `card show`).</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn card source set</span> @scope/name \
-    <span class="cli-flag">--description</span> <span class="cli-string">"What this card bundles and who it's for"</span>
-
-<span class="cli-comment"># 3. Stage your skill content. Each skill is a directory with SKILL.md</span>
-<span class="cli-comment">#    plus any auxiliary files (scripts, fixtures, prebuilt JS bundles).</span>
-<span class="cli-prompt">$</span> mkdir -p /tmp/staging/my-skill
-<span class="cli-prompt">$</span> vim /tmp/staging/my-skill/SKILL.md   <span class="cli-comment"># frontmatter: name + description</span>
-
-<span class="cli-comment"># 4. Add into the source (one call per skill).</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn card source add-skill</span> @scope/name my-skill \
-    <span class="cli-flag">--from</span> /tmp/staging/my-skill
-
-<span class="cli-comment"># 5. (Optional) Add MCP servers to the card.</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn card source add-mcp</span> @scope/name &lt;server-id&gt;
-
-<span class="cli-comment"># 6. Validate.</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn card source doctor</span> @scope/name <span class="cli-flag">--json</span>
-
-<span class="cli-comment"># 7. Test against a scratch project using a `file:` ref (no publish yet).</span>
-<span class="cli-prompt">$</span> mkdir -p /tmp/test-project &amp;&amp; cd /tmp/test-project
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn init</span> <span class="cli-flag">--non-interactive</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn card apply</span> file:$HOME/.agents/drwn/sources/@scope/name
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn write</span> <span class="cli-flag">--dry-run</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn write</span>
-
-<span class="cli-comment"># 8. Smoke test (open Claude in /tmp/test-project, try invoking a skill).</span>
-<span class="cli-comment"># 9. Publish + push when ready &mdash; see Scenario B.</span></pre>
-
-<h4>What's happening under the hood</h4>
-
-<table class="transitions">
-  <thead><tr><th>Step</th><th>Layer touched</th><th>Effect</th></tr></thead>
-  <tbody>
-    <tr><td><code>card new</code></td><td>Machine + Source</td><td>Creates <code>sources/@scope/name/</code> with an empty <code>card.json</code> (version <code>1.0.0</code>, empty <code>skills.include</code>). Without <code>--no-git</code>, initializes a working git repo inside the source.</td></tr>
-    <tr><td><code>source set --description</code></td><td>Source</td><td>Mutates <code>card.json.description</code>. Also accepts <code>--license</code>, <code>--harness-min-version</code>, <code>--stability</code>, <code>--last-validated-with</code>, <code>--test-status-badge</code>.</td></tr>
-    <tr><td><code>source add-skill</code></td><td>Source</td><td><code>cp -r</code> the <code>--from</code> dir into <code>sources/@scope/name/skills/&lt;skill&gt;/</code>. Appends to <code>card.json.skills.include</code>. <code>SKILL.md</code> is required; everything else travels.</td></tr>
-    <tr><td><code>source add-mcp</code></td><td>Source</td><td>Adds <code>mcp-servers/&lt;id&gt;.json</code> and records it under <code>card.json.servers</code>.</td></tr>
-    <tr><td><code>source doctor</code></td><td>Source (read-only)</td><td>Reports orphaned bundled skills/MCPs, missing manifest entries, package.json divergence, manifest schema violations.</td></tr>
-    <tr><td><code>card apply file:...</code></td><td>Project</td><td>Resolves the source directly (no publish needed), validates its <code>card.json</code> + skill dirs, writes <code>config.json</code> + <code>card.lock</code> with the file ref.</td></tr>
-  </tbody>
-</table>
-
-<div class="note">
-  <strong>Auxiliary files</strong>
-  Skills can ship <code>.ts</code>, <code>.sh</code>, prebuilt JS bundles, fixtures &mdash; anything under the staged directory. The whole skill dir is symlinked into <code>.claude/skills/&lt;name&gt;/</code> at write time, so the body can reference siblings via stable paths like <code>node .claude/skills/my-skill/dist/index.js</code>.
-</div>
-
-<h2 class="section" id="scenario-capture">Scenario D · Capturing an existing project as a card</h2>
-
-<p>
-  Goal: snapshot a project's effective harness (its currently active skills and MCPs) into a
-  self-contained, sharable card source.
-</p>
-
-<h4>Commands</h4>
-
-<pre><span class="cli-prompt">$</span> cd &lt;project-with-harness&gt;
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn card new</span> @scope/project-harness <span class="cli-flag">--from-project</span> . <span class="cli-flag">--no-git</span></pre>
-
-<h4>What's happening under the hood</h4>
-
-<table class="transitions">
-  <thead><tr><th>Step</th><th>Layer touched</th><th>Effect</th></tr></thead>
-  <tbody>
-    <tr><td><code>card new --from-project</code></td><td>Project &rarr; Source</td><td>Reads the project's effective skill set via the layered resolver. Copies each selected skill into <code>sources/@scope/project-harness/skills/&lt;name&gt;/</code>. Writes a <code>card.json</code> with version <code>0.1.0</code> by convention; you bump it up to 1.0.0 before publishing.</td></tr>
-  </tbody>
-</table>
-
-<p>
-  After capture you treat it like any other source: edit, doctor, apply to a scratch project, publish.
-</p>
-
-<h2 class="section" id="scenario-workers">Selecting the active worker stack</h2>
-
-<p>
-  Every applied card installs as its own worker, so a project can have several workers
-  <em>installed</em>. Only the <strong>active stack</strong> &mdash; an ordered list stored as
-  <code>activeWorkers</code> in project <code>config.json</code> &mdash; selects the active worker stack and
-  contributes to the effective skill / MCP set. Order sets conflict precedence.
-</p>
-
-<h4>Commands</h4>
-
-<pre><span class="cli-prompt">$</span> cd &lt;project&gt;
-
-<span class="cli-comment"># See installed workers and which are active.</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn worker stack</span> <span class="cli-flag">--json</span>
-
-<span class="cli-comment"># Pin an explicit, ordered active stack (names must be installed).</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn worker stack use</span> @scope/base @scope/frontend
-
-<span class="cli-comment"># Deactivate everything (installed workers stay materialized).</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn worker stack clear</span>
-
-<span class="cli-comment"># Re-project downstream after changing the stack.</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn write</span> <span class="cli-flag">--dry-run</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn write</span></pre>
-
-<h4><code>activeWorkers</code> semantics</h4>
-
-<table class="transitions">
-  <thead><tr><th>Value in config.json</th><th>Meaning</th></tr></thead>
-  <tbody>
-    <tr><td>key absent</td><td><strong>All installed workers active</strong> (the default). <code>drwn worker stack</code> reports the default and suggests <code>drwn worker stack use</code> to pin a stack.</td></tr>
-    <tr><td><code>[]</code> (empty array)</td><td><strong>No worker active.</strong> Workers remain on disk, but the next <code>drwn write</code> drops the active-stack projection. Set by <code>drwn worker stack clear</code>.</td></tr>
-    <tr><td><code>["@scope/a", "@scope/b"]</code></td><td><strong>Exactly these, in this order.</strong> The ordered stack that projects. Set by <code>drwn worker stack use</code>; names not installed in the project are rejected.</td></tr>
-  </tbody>
-</table>
-
-<div class="note">
-  <strong>Where the list comes from</strong>
-  <code>drwn worker stack</code> reads <code>.agents/drwn/generated/workers.json</code> (the registry written by
-  <code>drwn write</code>), falling back to <code>card.lock</code> when the registry is absent.
-</div>
-
-<h2 class="section" id="scenario-apply">Scenario E · Switching the whole card set on a project</h2>
-
-<p>
-  Goal: replace whatever cards are applied with a different set. Useful when changing context
-  (research project &rarr; production project), or when consolidating onto a new card.
-</p>
-
-<h4>Commands</h4>
-
-<pre><span class="cli-prompt">$</span> cd &lt;project&gt;
-
-<span class="cli-comment"># 1. See what's currently applied.</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn card status</span> <span class="cli-flag">--json</span>
-
-<span class="cli-comment"># 2. Replace the set in one shot. Any number of refs &mdash; this is the whole desired state.</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn apply</span> @scope/card-a@^1.0.0 @scope/card-b@^2.0.0
-
-<span class="cli-comment"># 3. Preview downstream change.</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn write</span> <span class="cli-flag">--dry-run</span> <span class="cli-flag">--json</span>
-
-<span class="cli-comment"># 4. Apply downstream.</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn write</span></pre>
-
-<h4>What's happening under the hood</h4>
-
-<table class="transitions">
-  <thead><tr><th>Step</th><th>Layer touched</th><th>Effect</th></tr></thead>
-  <tbody>
-    <tr><td><code>drwn apply</code></td><td>Project</td><td><strong>Replaces</strong> <code>config.json.cards</code> with the provided list. Resolves each ref against the local store / file source. Rewrites <code>card.lock</code> in one transaction. Old cards drop out of the array.</td></tr>
-    <tr><td><code>drwn write</code></td><td>Project &rarr; Downstream</td><td>Recomputes the effective skill + MCP set. Stale drwn-managed symlinks (from the previously applied set) are removed; user-owned files with the same name are preserved with a warning.</td></tr>
-  </tbody>
-</table>
-
-<div class="warn">
-  <strong><code>apply</code> is destructive at the config level</strong>
-  The previous <code>cards</code> array is overwritten in full. There is no <code>--dry-run</code> on card-mutation commands today; the safety net is <code>drwn write --dry-run</code> showing the downstream diff. If you only want to add one card, use <code>drwn card add</code> (Scenario F).
-</div>
-
-<h2 class="section" id="scenario-add">Scenario F · Adding a card alongside others</h2>
-
-<p>
-  Goal: layer one more card on top of what's already applied.
-</p>
-
-<h4>Commands</h4>
-
-<pre><span class="cli-prompt">$</span> cd &lt;project&gt;
-
-<span class="cli-comment"># 1. Append a single card.</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn card add</span> @scope/extra-card@^1.0.0
-
-<span class="cli-comment"># 2. Materialize.</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn write</span> <span class="cli-flag">--dry-run</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn write</span></pre>
-
-<h4>What's happening under the hood</h4>
-
-<table class="transitions">
-  <thead><tr><th>Step</th><th>Layer touched</th><th>Effect</th></tr></thead>
-  <tbody>
-    <tr><td><code>card add</code></td><td>Project</td><td>Appends one ref to <code>config.json.cards</code>. Refreshes <code>card.lock</code>. Duplicate card names are rejected &mdash; use <code>card pin</code> or <code>card update</code> if it's already there.</td></tr>
-    <tr><td><code>drwn write</code></td><td>Project &rarr; Downstream</td><td>Layers the new card on top of existing materialization. Skill / MCP collisions resolve per the rules in <a href="#conflict-rules">Conflict resolution</a>.</td></tr>
-  </tbody>
-</table>
-
-<h2 class="section" id="scenario-remove">Scenario G · Removing or detaching cards</h2>
-
-<p>
-  Two distinct operations: remove one card by name, or detach the project from all cards.
-</p>
-
-<h4>Commands</h4>
-
-<pre><span class="cli-comment"># Remove a single card by name.</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn card remove</span> @scope/card-a
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn write</span>
-
-<span class="cli-comment"># Detach the project from all cards (overlay preserved).</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn card detach</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn write</span></pre>
-
-<h4>What's happening under the hood</h4>
-
-<table class="transitions">
-  <thead><tr><th>Step</th><th>Layer touched</th><th>Effect</th></tr></thead>
-  <tbody>
-    <tr><td><code>card remove</code></td><td>Project</td><td>Drops the named entry from <code>config.json.cards</code>. Rejects unknown names so scripts catch stale assumptions.</td></tr>
-    <tr><td><code>card detach</code></td><td>Project</td><td><strong>Clears</strong> the <code>cards</code> array but <strong>preserves</strong> explicit project overlay (direct skills, servers, extensions, targets). Useful when transitioning to non-card configuration without losing per-project additions.</td></tr>
-    <tr><td><code>drwn write</code></td><td>Project &rarr; Downstream</td><td>Removes drwn-managed symlinks that the dropped cards used to satisfy. Skills that overlapped with another card or with machine defaults stay in place.</td></tr>
-  </tbody>
-</table>
-
-<h2 class="section" id="scenario-versions">Scenario H · Version mechanics</h2>
-
-<p>
-  Three commands cover the lifecycle of a card's version constraint on a project.
-</p>
-
-<h4>Inspect what's outdated</h4>
-
-<pre><span class="cli-prompt">$</span> <span class="cli-cmd">drwn card outdated</span>          <span class="cli-comment"># human-readable</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn card outdated</span> <span class="cli-flag">--json</span>   <span class="cli-comment"># machine-readable</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn card outdated</span> <span class="cli-flag">--check</span>  <span class="cli-comment"># exit non-zero if updates exist (CI-friendly)</span></pre>
-
-<p>
-  Refreshes the lockfile, compares locked versions to the highest local version that
-  satisfies each ref's range, and reports the deltas.
-</p>
-
-<h4>Re-resolve all refs against the current store</h4>
-
-<pre><span class="cli-prompt">$</span> <span class="cli-cmd">drwn card update</span>
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn write</span></pre>
-
-<p>
-  Re-resolves every ref in <code>config.json</code> and writes a fresh <code>card.lock</code>.
-  Use this after publishing newer local versions that satisfy your configured ranges, or
-  after fetching from a git remote.
-</p>
-
-<h4>Pin to an exact version</h4>
-
-<pre><span class="cli-prompt">$</span> <span class="cli-cmd">drwn card pin</span> @scope/name@1.2.3
-<span class="cli-prompt">$</span> <span class="cli-cmd">drwn write</span></pre>
-
-<p>
-  Replaces the version constraint for one card. Locks reproducible behavior independent of
-  future publishes. If the card isn't already in the project, <code>pin</code> adds it.
-</p>
-
-<h4>State transitions, summarized</h4>
-
-<table class="transitions">
-  <thead><tr><th>Command</th><th>config.json.cards</th><th>card.lock</th><th>Notes</th></tr></thead>
-  <tbody>
-    <tr><td><code>card outdated</code></td><td>Unchanged</td><td>Refreshed</td><td>Diagnostic only.</td></tr>
-    <tr><td><code>card update</code></td><td>Unchanged</td><td>Refreshed against current ranges</td><td>Picks up new versions that satisfy existing ranges.</td></tr>
-    <tr><td><code>card pin @x@1.2.3</code></td><td>Updates one entry's range</td><td>Refreshed with exact pin</td><td>Locks to that version regardless of later publishes.</td></tr>
-    <tr><td><code>card add @x@^1.2.0</code></td><td>Appends new entry</td><td>Resolves the new entry</td><td>Errors on duplicate name.</td></tr>
-    <tr><td><code>card remove @x</code></td><td>Drops one entry</td><td>Drops the entry</td><td>Errors on unknown name.</td></tr>
-    <tr><td><code>drwn apply ...</code></td><td>Replaced entirely</td><td>Fully rewritten</td><td>Whole-set replacement.</td></tr>
-    <tr><td><code>card detach</code></td><td>Cleared</td><td>Cleared</td><td>Overlay preserved.</td></tr>
-  </tbody>
-</table>
-
-<h2 class="section" id="scenario-inspect">Scenario I · Reading current state</h2>
-
-<p>
-  Four inspection lenses, no mutation.
-</p>
-
-<table class="transitions">
-  <thead><tr><th>Command</th><th>Answers</th></tr></thead>
-  <tbody>
-    <tr><td><code>drwn status</code></td><td>What's effectively active in this project + machine? Skills, MCPs, extensions, targets, cards.</td></tr>
-    <tr><td><code>drwn status --why &lt;name&gt;</code></td><td>Which layer is providing <code>&lt;name&gt;</code> and why? Card vs machine default vs project overlay.</td></tr>
-    <tr><td><code>drwn status --explain</code></td><td>Full explanation of every layer's contribution.</td></tr>
-    <tr><td><code>drwn card status</code></td><td>Just the cards: specs, locked versions, integrity, paths.</td></tr>
-    <tr><td><code>drwn card show @scope/name</code></td><td>The manifest for one card &mdash; skills, MCPs, version, stability, etc.</td></tr>
-    <tr><td><code>drwn doctor</code></td><td>Drift, stale state, broken symlinks. Reports without fixing &mdash; pair with <code>repair-harness</code> skill.</td></tr>
-    <tr><td><code>drwn store status</code></td><td>Store health, legacy layout detection.</td></tr>
-  </tbody>
-</table>
-
-<p>
-  All accept <code>--json</code> for scripting.
-</p>
-
-<h2 class="section" id="state-map">State file map</h2>
-
-<table class="transitions">
-  <thead><tr><th>Path</th><th>Purpose</th><th>Who writes</th></tr></thead>
-  <tbody>
-    <tr><td><code>~/.agents/drwn/machine.json</code></td><td>Authoring scope, machine defaults list, optional bundle flags.</td><td>CLI</td></tr>
-    <tr><td><code>~/.agents/drwn/skills/</code></td><td>Machine-default skill library.</td><td>CLI via <code>library</code> commands</td></tr>
-    <tr><td><code>~/.agents/drwn/sources/&lt;scope&gt;/&lt;name&gt;/</code></td><td>Editable card source. Includes <code>card.json</code>, <code>skills/</code>, <code>mcp-servers/</code>, optional <code>hooks/</code>.</td><td>You + CLI</td></tr>
-    <tr><td><code>~/.agents/drwn/cards/&lt;scope&gt;/&lt;name&gt;.git/</code></td><td>Bare git repo per card. One commit + tag per published version.</td><td><code>card publish</code> / <code>card fetch</code></td></tr>
-    <tr><td><code>~/.agents/drwn/extracted/&lt;hash&gt;/</code></td><td>Integrity-hashed extracted snapshot of a published version. Consumed via symlinks.</td><td><code>card publish</code> / resolver</td></tr>
-    <tr><td><code>&lt;project&gt;/.agents/drwn/config.json</code></td><td>Declared card refs + project overlay (direct skills, servers, extensions, targets).</td><td>CLI</td></tr>
-    <tr><td><code>&lt;project&gt;/.agents/drwn/card.lock</code></td><td>Resolved snapshot: exact versions, paths, integrity hashes. Reproducible build artifact.</td><td>CLI (any card mutation)</td></tr>
-    <tr><td><code>&lt;project&gt;/.agents/drwn/generated/workers.json</code></td><td>Registry of installed worker bundles (name + version). Read by <code>drwn worker stack</code>.</td><td><code>drwn write</code></td></tr>
-    <tr><td><code>&lt;project&gt;/.agents/drwn/generated/workers/&lt;scope&gt;/&lt;name&gt;/</code></td><td>Per-installed-worker bundle: <code>skills/</code>, <code>mcp/servers.json</code>, <code>hooks/</code>, and <code>worker.json</code> (name, version, integrity, path, skills, hooks, servers). One per applied card.</td><td><code>drwn write</code></td></tr>
-    <tr><td><code>&lt;project&gt;/.claude/skills/&lt;name&gt;</code></td><td>Symlink to materialized skill dir. Replaced by next <code>drwn write</code>.</td><td><code>drwn write</code></td></tr>
-    <tr><td><code>&lt;project&gt;/.codex/skills/&lt;name&gt;</code></td><td>Same as <code>.claude/</code> for Codex.</td><td><code>drwn write</code></td></tr>
-    <tr><td><code>&lt;project&gt;/.cursor/mcp.json</code></td><td>Generated MCP config for Cursor.</td><td><code>drwn write</code></td></tr>
-  </tbody>
-</table>
-
-<h2 class="section" id="command-table">Command quick lookup</h2>
-
-<table class="transitions">
-  <thead><tr><th>Goal</th><th>Command</th></tr></thead>
-  <tbody>
-    <tr><td>See effective state</td><td><code>drwn status [--why &lt;name&gt;] [--json]</code></td></tr>
-    <tr><td>See cards on this project</td><td><code>drwn card status [--json]</code></td></tr>
-    <tr><td>See one card's manifest</td><td><code>drwn card show @scope/name</code></td></tr>
-    <tr><td>List cards in local store</td><td><code>drwn card list [--json]</code></td></tr>
-    <tr><td>Create editable source</td><td><code>drwn card new @scope/name [--from-project &lt;path&gt;] [--no-git]</code></td></tr>
-    <tr><td>Add skill to source</td><td><code>drwn card source add-skill @scope/name &lt;skill&gt; --from &lt;dir&gt; [--replace]</code></td></tr>
-    <tr><td>Add MCP server to source</td><td><code>drwn card source add-mcp @scope/name &lt;id&gt;</code></td></tr>
-    <tr><td>Set source description / version / etc.</td><td><code>drwn card source set @scope/name --version 1.2.0 --description "..."</code></td></tr>
-    <tr><td>Validate source</td><td><code>drwn card source doctor @scope/name [--json]</code></td></tr>
-    <tr><td>Publish a version locally</td><td><code>drwn card publish @scope/name</code></td></tr>
-    <tr><td>Add remote</td><td><code>drwn card remote add @scope/name &lt;url&gt;</code></td></tr>
-    <tr><td>Push to remote</td><td><code>drwn card push @scope/name</code></td></tr>
-    <tr><td>Fetch from remote</td><td><code>drwn card fetch @scope/name</code></td></tr>
-    <tr><td>Clone a remote card</td><td><code>drwn card clone git+&lt;url&gt;#v1.2.0 --json</code></td></tr>
-    <tr><td>Validate a stored card</td><td><code>drwn card validate @scope/name@1.2.0 [--json]</code></td></tr>
-    <tr><td>Apply cards (replace set)</td><td><code>drwn apply &lt;ref&gt; [&lt;ref&gt; ...]</code></td></tr>
-    <tr><td>Add one card</td><td><code>drwn card add &lt;ref&gt;</code></td></tr>
-    <tr><td>Pin a card to exact version</td><td><code>drwn card pin @scope/name@1.2.3</code></td></tr>
-    <tr><td>Remove one card</td><td><code>drwn card remove @scope/name</code></td></tr>
-    <tr><td>Detach project from all cards</td><td><code>drwn card detach</code></td></tr>
-    <tr><td>List installed workers + active stack</td><td><code>drwn worker stack [--json]</code></td></tr>
-    <tr><td>Set the ordered active worker stack</td><td><code>drwn worker stack use &lt;name&gt; [&lt;name&gt; ...]</code></td></tr>
-    <tr><td>Clear the active worker stack</td><td><code>drwn worker stack clear</code></td></tr>
-    <tr><td>Re-resolve refs against store</td><td><code>drwn card update</code></td></tr>
-    <tr><td>Show updates available</td><td><code>drwn card outdated [--check] [--json]</code></td></tr>
-    <tr><td>Preview materialization</td><td><code>drwn write --dry-run [--json]</code></td></tr>
-    <tr><td>Materialize</td><td><code>drwn write</code></td></tr>
-    <tr><td>Diagnose drift</td><td><code>drwn doctor [--json]</code></td></tr>
-  </tbody>
-</table>
-
-<h2 class="section" id="conflict-rules">Conflict resolution rules</h2>
-
-<p>
-  When the same skill name is available from multiple sources, drwn resolves in a fixed order
-  (<code>card-skill-resolver.ts:31&ndash;65</code>):
-</p>
-
-<ol>
-  <li><strong>Cards, in array order.</strong> The first card in <code>config.json.cards</code> that declares the skill wins. Order matters.</li>
-  <li><strong>Machine defaults (user-default layer).</strong> The skill library set via <code>drwn library defaults add skill &lt;name&gt;</code>.</li>
-  <li><strong>Missing.</strong> Reported as a resolution failure during <code>drwn write</code>.</li>
-</ol>
-
-<p>
-  Practical implications:
-</p>
-
-<ul>
-  <li>To override a machine default for one project, ship a card that declares the same skill name.</li>
-  <li>To pick a winner between two cards that both declare <code>morning</code>, reorder them via <code>drwn apply &lt;winner&gt; &lt;loser&gt;</code> or rebuild the array with <code>card remove</code> / <code>card add</code>.</li>
-  <li><code>drwn status --why morning</code> tells you which layer is actually providing the skill in the current state. Run it before assuming.</li>
-</ul>
-
-<p>
-  MCP servers and extensions have analogous layering. For per-tool detail run
-  <code>drwn status --explain</code>.
-</p>
-
-</main>
-
-</div>
+  <!-- ABOUTME: Browser-readable operator guide for the first supported Card and Worker contract. -->
+  <!-- ABOUTME: Covers authoring, Blueprint composition, singular selection, projection, and runtime state. -->
+  <h1>drwn Cards and Workers</h1>
+  <p class="flow">Author Cards &rarr; compose one Blueprint &rarr; add roots &rarr; select one Worker &rarr; write.</p>
+
+  <h2>Terms</h2>
+  <table>
+    <thead><tr><th>Term</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td>Card</td><td>An independently authored and published capability bundle: skills, MCP definitions, hooks, and optional Mind content.</td></tr>
+      <tr><td>Blueprint</td><td>A Card with an ordered list of plain Card members. It defines one composed Worker.</td></tr>
+      <tr><td>Worker root</td><td>An installed plain Card or Blueprint. Installed roots are alternatives.</td></tr>
+      <tr><td>Selected Worker</td><td>The single root named by <code>activeWorker</code>, or no root when it is <code>null</code>.</td></tr>
+      <tr><td>Closure</td><td>The selected root followed by its ordered Blueprint members.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Author And Publish Cards</h2>
+  <pre><code>drwn card new @team/notion --no-git
+drwn card source add-skill @team/notion notion-knowledge
+drwn card source add-mcp @team/notion notion
+drwn card source doctor @team/notion --json
+drwn card publish @team/notion</code></pre>
+  <p>Editable sources live under <code>~/.agents/drwn/sources</code>. Published versions are immutable Store artifacts. Credentials never belong in a Card source or manifest.</p>
+
+  <h2>Compose One Blueprint</h2>
+  <pre><code>drwn worker new @team/operator --no-git
+drwn worker compose @team/operator --add @team/notion@^1.0.0
+drwn worker compose @team/operator --add @team/fal@^1.0.0
+drwn worker publish @team/operator</code></pre>
+  <p>Member order is capability precedence and provenance order. Members must be plain Cards in this contract.</p>
+
+  <h2>Initialize A Project</h2>
+  <pre><code>cd /path/to/project
+drwn init --non-interactive
+drwn apply @team/operator@^1.0.0
+drwn use @team/operator --no-write
+drwn write --dry-run
+drwn write</code></pre>
+  <p>The committed config is self-identifying:</p>
+  <pre><code>{
+  "schema": "drwn.project-config",
+  "schemaVersion": 1,
+  "workers": ["@team/operator@^1.0.0"],
+  "activeWorker": "@team/operator"
+}</code></pre>
+  <p><code>workers</code> lists only roots. Blueprint members are resolved into <code>card.lock</code>.</p>
+
+  <h2>Manage Roots And Selection</h2>
+  <pre><code>drwn add @team/alternate@^1.0.0
+drwn apply @team/operator@1.0.0 @team/alternate@1.0.0 --active @team/operator
+drwn pin @team/operator@1.0.0
+drwn update @team/operator
+drwn remove @team/alternate
+drwn use @team/operator
+drwn use --none</code></pre>
+  <p>Adding alternatives does not combine them. Composition changes happen by publishing a different Blueprint. Root mutations update config and lock atomically; selection changes do not alter the lock.</p>
+
+  <h2>Lock And Generated State</h2>
+  <table>
+    <thead><tr><th>Path</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr><td><code>.agents/drwn/config.json</code></td><td><code>drwn.project-config</code> V1 intent: roots, one selection, and explicit overlays.</td></tr>
+      <tr><td><code>.agents/drwn/card.lock</code></td><td><code>drwn.project-lock</code> V1 immutable root graph and Card provenance.</td></tr>
+      <tr><td><code>.agents/drwn/config.local.json</code></td><td><code>drwn.project-local</code> V1 ignored development overrides.</td></tr>
+      <tr><td><code>.agents/drwn/generated/workers.json</code></td><td>Disposable registry of one aggregate generated bundle per root.</td></tr>
+      <tr><td><code>.agents/drwn/generated/active-worker.json</code></td><td>Disposable selected root and closure record.</td></tr>
+      <tr><td><code>.agents/drwn/write-record.json</code></td><td>Ownership hashes for safe reconciliation.</td></tr>
+    </tbody>
+  </table>
+  <p>A Blueprint root receives one aggregate generated directory. Its member Cards do not receive sibling Worker directories unless they were separately installed as roots.</p>
+
+  <h2>Project Capabilities</h2>
+  <p>Project declarations come from the selected closure and explicit project overlays. Machine defaults are a separate machine-write authority. User-home skills and MCP entries may still be visible to downstream tools; status and doctor report those as ambient, never as project declarations.</p>
+  <pre><code>drwn status --json
+drwn status --why skill:notion-knowledge
+drwn doctor --json</code></pre>
+
+  <h2>Notion And External Tools</h2>
+  <p>Cards can ship a Notion MCP definition or an <code>ntn</code> integration skill, but OAuth and API keys remain operator state. Complete Notion OAuth in the downstream client and keep API keys in environment or secret storage. External stdio tools such as Momentic must be installed and authenticated separately.</p>
+  <p class="note">An OAuth-required or missing-executable startup error is a runtime readiness issue. It does not mean the project root graph is invalid.</p>
+
+  <h2>Clone And Install</h2>
+  <pre><code>drwn install --frozen
+drwn install --no-write
+drwn write --dry-run
+drwn install</code></pre>
+  <p>Install hydrates the exact lock and writes by default. It does not change root requirements or selection.</p>
+
+  <h2>Capture And Deploy</h2>
+  <pre><code>drwn card new @team/captured --from-project .
+drwn worker deploy @team/operator@1.0.0 --name team-operator</code></pre>
+  <p>Capture includes the selected closure and explicit overlays, excluding inactive roots, machine/ambient capabilities, generated output, platform connectors, and secrets. Project-aware deploy sends one root plus pinned closure through the unchanged remote contract. Member and inactive-root deploy attempts fail locally.</p>
+
+  <h2>Safety</h2>
+  <p><code>drwn write</code> is a pure projection and supports <code>--dry-run</code>. It never changes project root requirements, selection, or lock state.</p>
+  <p>Whole-Store export remains disabled with <code>STORE_EXPORT_DISABLED_UNSAFE</code>. Use the controlled reset runbook for unsupported development project state; there is no automated migration.</p>
+
+  <h2>Future Machine Profile</h2>
+  <p>The Recommended Darwinian Operator profile is future Task 80 work. It may project machine-safe skills and approved MCP definitions during guided setup, but it will not create Worker identity, hooks, permissions, governance, or project intent.</p>
 </body>
 </html>

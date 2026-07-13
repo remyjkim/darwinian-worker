@@ -41,7 +41,7 @@ In the card manifest (`card.json`), beliefs appear under `beliefs.include`:
 
 ## Personas
 
-A **persona** is a file that shapes the agent's behavioral and stylistic identity — tone, voice, scope of engagement, communication style. Only one persona is composed into the system prompt per write; when multiple mind cards contribute personas, the active stack order determines precedence.
+A **persona** is a file that shapes the agent's behavioral and stylistic identity — tone, voice, scope of engagement, communication style. Persona sections compose in the selected Worker closure's root/member order.
 
 On disk: `persona/<entry>/PERSONA.md`
 
@@ -109,11 +109,11 @@ In the card manifest, memory entries appear under the layer they belong to:
 
 All three content types carry explicit visibility metadata. `drwn write` filters content based on visibility and the current project's trust policy. Content marked `private` is never exported when the card is published to a catalog.
 
-When multiple mind cards are active, content from all active cards is composed in active-stack order. See [Minds](./minds) for the composition model.
+Mind content from the selected root and its ordered member Cards is composed with source fences. See [Minds](./minds) for the composition model.
 
 ## See also
 
-- [Minds](./minds) — the active mind stack and how content is selected
+- [Minds](./minds) — how the selected Worker closure supplies Mind content
 - [Hook Policies](./hook-policies) — the fourth mind card content type
 - [`drwn card source`](../reference/cli/card) — scaffolding commands
 - [Guide: Authoring Mind Cards](../guides/authoring-mind-cards)

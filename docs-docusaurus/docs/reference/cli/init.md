@@ -21,7 +21,20 @@ drwn init --non-interactive
 drwn init --minimal
 ```
 
-`--non-interactive` and `--minimal` are equivalent: both skip prompts and write the bare `{ "version": 1 }` config.
+`--non-interactive` and `--minimal` are equivalent: both skip prompts and write
+the minimal first-supported project contract:
+
+```json
+{
+  "schema": "drwn.project-config",
+  "schemaVersion": 1,
+  "workers": [],
+  "activeWorker": null
+}
+```
+
+This is explicit empty project intent. Add one or more alternative roots with
+`drwn add`, then select at most one with `drwn use` before projection.
 
 Force the guided flow even when invoked with flags:
 
@@ -63,6 +76,7 @@ The default catalog URL is configured in the packaged registry at `defaults.comm
 
 The project overlay can:
 
+- declare alternative Worker roots and one selected root
 - enable or disable MCP servers for this project
 - add project-local MCP server definitions
 - enable extensions such as Parallel, Beads, or MarkItDown
@@ -70,3 +84,6 @@ The project overlay can:
 - enable or disable targets locally
 
 See [Per-project configuration](../../guides/per-project-patterns) and `.ai/knowledges/02_per-project-config-guide.md` for the full overlay model.
+
+The future Recommended Darwinian Operator machine profile is not part of this
+project scaffold. Machine capability profiles remain ambient to projects.

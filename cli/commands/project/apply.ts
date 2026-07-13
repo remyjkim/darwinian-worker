@@ -10,7 +10,19 @@ import { renderWorkerMutation, requireProjectRoot, runChainedWrite } from "../ca
 
 export class ProjectApplyCommand extends BaseCommand {
   static override paths = [["apply"]];
-  static override usage = BaseCommand.Usage({ category: "Project", description: "Replace this project's Worker roots." });
+  static override usage = BaseCommand.Usage({
+    category: "Project",
+    description: "Replace this project's Worker roots.",
+    details: `
+      Resolves the complete replacement root graph before atomically committing
+      config and lock. Multiple alternative roots require --active <root> or
+      --none; they never become an implicit active stack.
+    `,
+    examples: [
+      ["Apply and select one root", "drwn apply @team/operator@^1.0.0"],
+      ["Keep alternatives and select one", "drwn apply @team/a@1.0.0 @team/b@1.0.0 --active @team/a"],
+    ],
+  });
   specs = Option.Rest();
   active = Option.String("--active");
   none = Option.Boolean("--none", false);

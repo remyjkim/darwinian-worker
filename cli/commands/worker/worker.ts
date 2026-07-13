@@ -4,6 +4,9 @@
 import { BaseCommand } from "../base";
 
 const DETAILS = [
+  "Cards compose capabilities into one Blueprint. A project selects one Worker root with drwn use;",
+  "worker deploy sends that root and its pinned Card closure to the remote runtime.",
+  "",
   "Available commands:",
   "  drwn worker deploy <cardRef> --name <slug>",
   "  drwn worker list",
@@ -19,7 +22,7 @@ export class WorkerCommand extends BaseCommand {
 
   static override usage = BaseCommand.Usage({
     category: "Worker",
-    description: "Deploy and operate workers.",
+    description: "Deploy and operate one selected project Worker.",
     details: DETAILS,
     examples: [
       ["List deployed workers", "drwn worker list"],

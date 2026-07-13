@@ -4,18 +4,18 @@ sidebar_position: 2
 
 # Add
 
-`drwn add` is the project-mutation surface for the three things a project pins: cards, skills, and MCP servers. Each subcommand edits `<project>/.agents/drwn/config.json` (and `card.lock` for cards) without touching machine-wide defaults.
+`drwn add` is the project-mutation surface for Worker roots, skills, and MCP servers. Each path edits `<project>/.agents/drwn/config.json` (and `card.lock` for roots) without touching machine-wide defaults.
 
-## drwn add card
+## drwn add &lt;root-ref&gt;
 
-Append a card ref to the project and refresh `card.lock`.
+Append one plain Card or Blueprint Worker root and refresh the complete lock graph.
 
 ```bash
-drwn add card @your-handle/backend@^1.0.0
-drwn add card @team/review --write
+drwn add @your-handle/backend@^1.0.0
+drwn add @team/review --write
 ```
 
-`add card` is an alias for `drwn card add`. It rejects duplicate card names so one project keeps a single constraint per card. Pass `--write` to chain `drwn write` after the config update.
+The first root is selected explicitly. Later roots are installed alternatives and do not contribute capabilities until selected with `drwn use`. Blueprint members are closure Cards, not additional roots. Pass `--write` to chain `drwn write` after the config/lock transaction.
 
 See [Card commands](./card) for the full card lifecycle.
 
@@ -61,7 +61,7 @@ drwn add mcp github --yes
 drwn add mcp context7 --dry-run
 ```
 
-`add mcp` looks up the server in the local library first (built-in registry merged with `~/.agents/drwn/mcp-servers/`). If the server is already active by global default, the command is a safe no-op — no project override is written.
+`add mcp` looks up the server in project-valid definitions first (built-ins, selected closure Cards, and `~/.agents/drwn/mcp-servers/`). Project intent is explicit even when the same ID is active in machine scope.
 
 Restrict the lookup to local inventory:
 

@@ -130,9 +130,9 @@ drwn card push @your-handle/mind --remote-visibility private
 
 ```bash
 cd ~/your-project
-drwn card add @your-handle/mind@^0.1.0
+drwn add @your-handle/mind@^0.1.0
 drwn install
-drwn mind use @your-handle/mind
+drwn use @your-handle/mind --no-write
 drwn write
 ```
 
@@ -145,8 +145,8 @@ drwn write
 
 ## See also
 
-- [Minds](../concepts/minds) — the active mind stack model
+- [Minds](../concepts/minds) — Mind content in one selected Worker closure
 - [Beliefs, Personas, and Memory](../concepts/beliefs-memories-personas) — content types in detail
 - [Hook Policies](../concepts/hook-policies) — writing enforcement and observer policies
-- [Managing Minds](./managing-minds) — day-to-day active stack management
+- [Managing Minds](./managing-minds) — provision, sync, diff, and checkpoint
 - [`drwn card source`](../reference/cli/card) — full source subcommand reference

@@ -38,13 +38,13 @@ drwn card source add-mcp @your-handle/backend context7
 drwn card source remove-mcp @your-handle/backend context7 --keep-files
 ```
 
-Consumption commands:
+Project root commands:
 
 ```bash
 drwn apply @your-handle/backend@^1.0.0
-drwn card add @your-handle/backend@^1.0.0
-drwn card pin @your-handle/backend@1.0.0
-drwn card update
+drwn add @your-handle/backend@^1.0.0
+drwn pin @your-handle/backend@1.0.0
 drwn update
+drwn use @your-handle/backend
 drwn write --dry-run
 ```

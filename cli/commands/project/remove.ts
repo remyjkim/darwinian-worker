@@ -8,7 +8,16 @@ import { renderWorkerMutation, requireProjectRoot, runChainedWrite } from "../ca
 
 export class ProjectRemoveCommand extends BaseCommand {
   static override paths = [["remove"]];
-  static override usage = BaseCommand.Usage({ category: "Project", description: "Remove one Worker root from this project." });
+  static override usage = BaseCommand.Usage({
+    category: "Project",
+    description: "Remove one Worker root from this project.",
+    details: `
+      Removes one installed root and re-resolves the remaining graph. Member
+      Cards that are no longer reachable leave the lock. Removing the selected
+      root clears selection rather than selecting an alternative implicitly.
+    `,
+    examples: [["Remove an alternative root", "drwn remove @team/alternate"]],
+  });
   name = Option.String({ required: true });
   write = Option.Boolean("--write", false);
   dryRun = Option.Boolean("--dry-run", false);

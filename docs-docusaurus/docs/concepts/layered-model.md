@@ -61,7 +61,7 @@ What cards do not pin:
 - CLI dependencies of skills (`bd`, `markitdown`, `git`, etc.)
 - runtime, system libraries, or shell environment
 
-Recommended composition for full reproducibility: `drwn card apply` for the harness, Flox/Nix (or asdf/mise) at the shell layer to pin Node/Python/system libs, and Docker Compose at the service layer for runtime dependencies. Each tool pins what it owns.
+Recommended composition for full reproducibility: `drwn apply` for the harness, Flox/Nix (or asdf/mise) at the shell layer to pin Node/Python/system libs, and Docker Compose at the service layer for runtime dependencies. Each tool pins what it owns.
 
 ## See also
 

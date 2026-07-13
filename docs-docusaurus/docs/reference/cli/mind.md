@@ -1,115 +1,38 @@
 ---
-sidebar_position: 20
+sidebar_position: 13
 ---
 
-# Mind
+# Worker Mind
 
-`drwn mind` manages the active mind stack for the current project. Mind cards contribute beliefs, personas, memory, and hook policies to the agent's cognitive layer; this namespace controls which installed mind cards are active and in what order.
+`drwn worker mind` manages DB-backed Mind content for the selected project Worker closure.
 
 ## Commands
 
-### `drwn mind list`
-
-Lists installed minds and the active stack.
-
 ```bash
-drwn mind list
-drwn mind list --json
+drwn worker mind provision [--mind-id <id>] [--json]
+drwn worker mind status [--mind-id <id>] [--json]
+drwn worker mind doctor [--mind-id <id>] [--json]
+drwn worker mind sync [--mind-id <id>] [--dry-run] [--force] [--json]
+drwn worker mind diff [--mind-id <id>] [--json]
+drwn worker mind checkpoint [--mind-id <id>] [--json]
+drwn worker mind pool retire <path> --yes
 ```
 
-Output columns: mind name, version, and whether it is currently active.
+The Mind ID comes from `--mind-id` or `BGDB_PATH_PREFIX=minds/<id>`.
 
-When `activeMinds` is not set in project config, all installed minds are active by default, and the command appends a note explaining this. Use `drwn mind use` to pin an explicit ordered stack.
+## Source Order
 
-**Flags**
+The adapter loads the selected root then its ordered member Cards. Provisioned `mind.json` records one `worker` and ordered `cards`, each with version/integrity provenance.
 
-| Flag | Description |
-|---|---|
-| `--json` | Emit machine-readable JSON output. |
+## Safety
 
-**JSON output schema**
+- Provision is create-once and idempotent.
+- Sync preserves DB edits unless `--force` is explicit.
+- Checkpoint requires provenance and local Card sources.
+- Tokens remain in runtime environment/bindings, not project state.
+- No selected Worker fails before DB writes.
 
-```json
-{
-  "minds": [
-    { "name": "@team/base", "version": "1.0.0", "active": true },
-    { "name": "@team/frontend", "version": "2.1.0", "active": false }
-  ],
-  "activeMinds": ["@team/base"],
-  "defaultActiveMinds": false
-}
-```
+## Related
 
-`defaultActiveMinds: true` means no explicit stack is set — all installed minds are currently active.
-
----
-
-### `drwn mind use`
-
-Sets the ordered active mind stack for this project. Takes one or more mind names; order matters for composition priority.
-
-```bash
-drwn mind use @team/base
-drwn mind use @team/base @team/frontend
-drwn mind use @team/base @team/frontend --json
-```
-
-Fails if any named mind is not installed in this project. Persists `activeMinds` in `.agents/drwn/config.json`. The next `drwn write` projects only the declared stack into downstream tool surfaces.
-
-**Arguments**
-
-| Argument | Description |
-|---|---|
-| `<name>...` | One or more installed mind card names, in activation order. At least one required. |
-
-**Flags**
-
-| Flag | Description |
-|---|---|
-| `--json` | Emit machine-readable JSON output. |
-
----
-
-### `drwn mind clear`
-
-Clears the active mind stack. Sets `activeMinds` to an empty list in project config.
-
-```bash
-drwn mind clear
-drwn mind clear --json
-```
-
-Installed card bundles remain materialized — `clear` only removes the active-stack declaration. The next `drwn write` will exclude all mind-card contributions from downstream state.
-
-**Flags**
-
-| Flag | Description |
-|---|---|
-| `--json` | Emit machine-readable JSON output. |
-
-## Typical workflow
-
-```bash
-# Install a mind card
-drwn add @team/base
-drwn install
-
-# Inspect what is available
-drwn mind list
-
-# Activate an ordered stack
-drwn mind use @team/base @team/frontend
-
-# Materialize the active stack into tool state
-drwn write
-
-# Remove all mind activation
-drwn mind clear
-drwn write
-```
-
-## See also
-
-- [Minds concept](../../concepts/minds) — what a mind card is and how the active stack composes
-- [Beliefs, Personas, and Memory](../../concepts/beliefs-memories-personas) — the content types a mind card contributes
-- [`drwn card source`](./card) — authoring mind content
+- [Minds](../../concepts/minds)
+- [Managing Minds](../../guides/managing-minds)

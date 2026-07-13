@@ -125,7 +125,7 @@ When a card update changes effective state, compare before and after:
 ```bash
 drwn card outdated
 drwn status --why card:@your-handle/backend
-drwn card update --dry-run
+drwn update --dry-run
 ```
 
 ## Cross-References

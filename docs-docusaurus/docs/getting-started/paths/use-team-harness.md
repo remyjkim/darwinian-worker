@@ -21,12 +21,11 @@ Keep the project current:
 drwn card status --explain
 drwn status --why
 drwn card outdated
-drwn card update
 drwn update
 drwn write --dry-run
 ```
 
-Use `drwn card pin @team/backend@1.2.3` when a project needs an exact card version. Use `drwn card remove @team/backend` when the project should stop consuming the team harness.
+Use `drwn pin @team/backend@1.2.3` when a project needs an exact root version. Use `drwn remove @team/backend` when the project should stop consuming the team harness.
 
 Extensions remain explicit project choices:
 

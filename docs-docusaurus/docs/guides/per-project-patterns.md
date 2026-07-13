@@ -5,21 +5,20 @@ sidebar_position: 1
 # Per-Project Override Patterns
 
 This guide shows when to use per-project config, how to scaffold it, and the
-common patterns for tailoring one project without changing your machine-wide
-defaults.
+common patterns for declaring one reproducible project harness.
 
 ## When To Use Per-Project Config
 
-Reach for a project config when **one project** needs a different effective
-view than your machine defaults. Examples:
+Use a project config whenever a project needs a Worker or explicit capability
+intent. Examples:
 
-- a project should disable a globally curated skill
+- a project should select one Blueprint from several alternative roots
 - a project should add its own local MCP server
 - a project should enable Parallel, Beads, or MarkItDown without enabling them globally
 - a project should disable a downstream target (e.g. no Cursor)
 
-If every project should get the change, prefer machine defaults
-(`drwn library defaults add ...`) instead.
+Machine defaults remain machine-scoped and may be visible ambiently in project
+sessions. They are not inherited as project declarations.
 
 ## Scaffold
 
@@ -41,6 +40,7 @@ existing config.
 
 A project config can:
 
+- declare alternative Card or Blueprint roots and select at most one
 - toggle existing MCP servers on or off for one project
 - add project-local MCP server definitions
 - enable extensions (Parallel, Beads, MarkItDown) for one project
@@ -59,7 +59,10 @@ subcommands.
 
 ```json
 {
-  "version": 1,
+  "schema": "drwn.project-config",
+  "schemaVersion": 1,
+  "workers": ["@team/operator@^1.0.0"],
+  "activeWorker": "@team/operator",
   "extensions": {
     "parallel": {
       "enabled": true,
@@ -88,24 +91,27 @@ If an extension derives a skill and `skills.exclude` names the same skill,
 **`skills.exclude` wins**. Unknown skill names in `skills.include` fail
 `drwn write` before mutation and are also reported by `drwn doctor`.
 
-## Machine Defaults Are Suppressed When Project Config Is Present
+## Declared And Ambient Scope
 
-When a project config exists, machine-only defaults from
-`~/.agents/drwn/machine.json` do not apply. The project takes full ownership of
-its effective view, layered as:
+Project capabilities are resolved only from project-owned inputs:
 
 ```text
-built-in defaults -> user library -> cards in declared order -> project overlay
+selected Worker root closure -> explicit project overlays -> explicit local overlay
 ```
 
-This keeps project behavior reproducible across machines.
+Machine defaults and user-home target files are not copied into project intent,
+lock state, or generated Worker aggregates. Status and doctor may report them as
+diagnostic-only ambient observations because downstream clients can still expose
+user-home state during a project session.
 
 ## Recommended Workflow
 
 ```bash
 cd /path/to/project
 drwn init
-$EDITOR .agents/drwn/config.json
+drwn add @team/operator@^1.0.0
+drwn use @team/operator --no-write
+drwn add mcp context7
 drwn status
 drwn write --dry-run
 drwn doctor

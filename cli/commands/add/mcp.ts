@@ -26,8 +26,10 @@ export class AddMcpCommand extends BaseCommand {
       the current project has locked cards that declare optional MCP servers,
       those card-local definitions can also be enabled by name.
 
-      Prompts in a TTY when no query or name is given. Project intent is always
-      explicit, even when the same server is active in machine scope.
+      Prompts in a TTY when no query or name is given.
+
+      Project intent is always explicit, even when the same server is active in
+      machine scope.
     `,
     examples: [
       ["Add a registry server to this project", "drwn add mcp context7"],
