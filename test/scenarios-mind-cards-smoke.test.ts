@@ -7,7 +7,7 @@ import { existsSync } from "node:fs";
 import { cp, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { loadCardLock, MINDS_MIN_DRWN_VERSION } from "../cli/core/card-lock";
-import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
 const MIND_TOOLS_SOURCE = "/Users/pureicis/dev/darwinian-cards/mind-tools";
 const MIND_STARTER_SOURCE = "/Users/pureicis/dev/darwinian-cards/mind-starter";
@@ -21,8 +21,7 @@ afterEach(async () => {
 
 async function scaffoldProject(root: string) {
   const projectDir = join(root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1 }, null, 2));
+  await writeSupportedProjectConfig(projectDir);
   return projectDir;
 }
 
@@ -32,7 +31,7 @@ test("@darwinian/mind-tools applies from file:, locks with the minds floor (no p
 
   const projectDir = await scaffoldProject(fixture.root);
 
-  const applied = await runAgentsCli(["card", "apply", `file:${MIND_TOOLS_SOURCE}`], envFor(fixture), projectDir);
+  const applied = await runAgentsCli(["apply", `file:${MIND_TOOLS_SOURCE}`], envFor(fixture), projectDir);
   expect(applied.exitCode).toBe(0);
 
   const lock = await loadCardLock(projectDir);
@@ -63,7 +62,7 @@ test("@darwinian/mind-starter applies alone, provisions a complete mind (voice +
 
   const projectDir = await scaffoldProject(fixture.root);
 
-  const applied = await runAgentsCli(["card", "apply", `file:${MIND_STARTER_SOURCE}`], envFor(fixture), projectDir);
+  const applied = await runAgentsCli(["apply", `file:${MIND_STARTER_SOURCE}`], envFor(fixture), projectDir);
   expect(applied.exitCode).toBe(0);
 
   const lock = await loadCardLock(projectDir);

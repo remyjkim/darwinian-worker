@@ -2,11 +2,10 @@
 // ABOUTME: Guards skills, MCP servers, and hook consent reporting on apply.
 
 import { afterEach, expect, test } from "bun:test";
-import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { applyProjectWorkerRoots } from "../cli/core/worker-project";
 import { buildApplyContentSummary } from "../cli/core/card-apply-summary";
-import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -16,8 +15,7 @@ afterEach(async () => {
 
 async function createProjectDir(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), '{\n  "version": 2\n}\n');
+  await writeSupportedProjectConfig(projectDir);
   return projectDir;
 }
 

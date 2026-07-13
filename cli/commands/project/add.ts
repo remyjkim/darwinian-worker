@@ -22,6 +22,13 @@ export class ProjectAddCommand extends BaseCommand {
         cwd: this.context.cwd,
         dryRun: this.dryRun,
       });
+      for (const card of result.locked) {
+        if (card.hooks.length > 0 && !card.hookConsent) {
+          this.context.stderr.write(
+            `Warning: ${card.name}@${card.version} declares hooks but has no hook consent. Run drwn card trust ${card.name} --hooks before drwn write materializes them.\n`,
+          );
+        }
+      }
       this.context.stdout.write(renderWorkerMutation(result));
       return this.write && !this.dryRun ? runChainedWrite(this) : 0;
     } catch (error) {

@@ -1,54 +1,60 @@
-// ABOUTME: Implements drwn use as clone-if-absent, apply, and write orchestration.
-// ABOUTME: Thin porcelain over existing card apply and materialization paths.
+// ABOUTME: Selects one installed Worker root or installs and selects a new root.
+// ABOUTME: Commits project intent before optional one-way downstream projection.
 
 import { Option } from "clipanion";
-import { applyProjectCardSpecs } from "../core/card-project";
+import { useProjectWorker } from "../core/worker-project";
 import { registerProject } from "../core/project-registry";
-import { syncRepository } from "../core/sync";
-import { renderSyncResult } from "../core/output";
-import { findProjectConfig, resolveProjectRootFromConfigPath } from "../core/project";
 import { BaseCommand } from "./base";
+import { renderWorkerMutation, requireProjectRoot, runChainedWrite } from "./card/project-command";
 
 export class UseCommand extends BaseCommand {
   static override paths = [["use"]];
 
   static override usage = BaseCommand.Usage({
     category: "General",
-    description: "Apply a card ref to the current project and materialize it.",
+    description: "Select one project Worker, installing the root when needed.",
     details: `
-      Replaces project cards with this ref, then runs drwn write to vendor and
-      materialize projection surfaces. Use drwn card add to append instead of replace.
+      Selects an installed Worker root by name, or installs a new root additively
+      from a ref. Project intent commits before downstream projection begins.
     `,
-    examples: [["Use a card", "drwn use @me/backend@^1.0.0"]],
+    examples: [
+      ["Select or install a Worker", "drwn use @me/backend@^1.0.0"],
+      ["Clear the active Worker", "drwn use --none"],
+    ],
   });
 
-  ref = Option.String({ required: true });
+  ref = Option.String({ required: false });
+  none = Option.Boolean("--none", false, { description: "Clear selection without removing installed roots." });
+  noWrite = Option.Boolean("--no-write", false, { description: "Commit selection without projecting downstream files." });
   dryRun = Option.Boolean("--dry-run", false, { description: "Preview without writing." });
 
   async execute() {
-    const projectConfigPath = findProjectConfig(this.context.cwd);
-    if (!projectConfigPath) {
-      this.context.stderr.write("Run drwn use inside a project.\n");
+    try {
+      if (this.none === Boolean(this.ref)) {
+        this.context.stderr.write("Provide exactly one Worker ref or --none.\n");
+        return 1;
+      }
+      const projectRoot = requireProjectRoot(this);
+      const mutation = await useProjectWorker(projectRoot, this.context.agentsDir, this.none ? null : this.ref!, {
+        repoRoot: this.context.repoRoot,
+        cwd: this.context.cwd,
+        dryRun: this.dryRun,
+      });
+      this.context.stdout.write(renderWorkerMutation(mutation));
+      if (this.dryRun) {
+        if (!this.noWrite) this.context.stdout.write("Would run drwn write after committing project state.\n");
+        return 0;
+      }
+      await registerProject(this.context.agentsDir, projectRoot);
+      if (this.noWrite) return 0;
+      const exitCode = await runChainedWrite(this);
+      if (exitCode !== 0) {
+        this.context.stderr.write("Worker selection remains persisted; fix the projection error and run drwn write again.\n");
+      }
+      return exitCode;
+    } catch (error) {
+      this.context.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
       return 1;
     }
-    const projectRoot = resolveProjectRootFromConfigPath(projectConfigPath);
-    if (this.dryRun) {
-      this.context.stdout.write(`Would apply ${this.ref} and run drwn write in ${projectRoot}\n`);
-      return 0;
-    }
-    const mutation = await applyProjectCardSpecs(projectRoot, this.context.agentsDir, [this.ref], {
-      repoRoot: this.context.repoRoot,
-      cwd: this.context.cwd,
-    });
-    await registerProject(this.context.agentsDir, projectRoot);
-    this.context.stdout.write(`Applied ${this.ref}\n`);
-    const result = await syncRepository({
-      repoRoot: this.context.repoRoot,
-      agentsDir: this.context.agentsDir,
-      homeDir: this.context.homeDir,
-      cwd: this.context.cwd,
-    });
-    this.context.stdout.write(`${renderSyncResult(result)}Cards: ${mutation.locked.map((c) => c.name).join(", ")}\n`);
-    return 0;
   }
 }

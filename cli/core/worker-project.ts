@@ -248,3 +248,74 @@ export async function updateProjectWorkerGraph(
     return { specs: [...current.config.workers], select: (before) => before.config.activeWorker };
   }, options);
 }
+
+function prepareSelectionMutation(
+  projectRoot: string,
+  snapshot: ProjectStateSnapshot,
+  current: CurrentProjectState,
+  activeWorker: string | null,
+  dryRun: boolean | undefined,
+) {
+  if (activeWorker !== null) assertRootInstalled(current.graph, activeWorker);
+  const configBytes = `${JSON.stringify(validateProjectConfig({
+    ...current.config,
+    activeWorker,
+  }), null, 2)}\n`;
+  const lockBytes = snapshot.lockBytes ?? serializeCardLock({
+    workerRoots: current.graph.roots,
+    cards: current.graph.cards,
+  });
+  return {
+    bytes: { configBytes, lockBytes },
+    value: {
+      projectConfigPath: projectConfigPath(projectRoot),
+      lockPath: cardLockPath(projectRoot),
+      workers: [...current.config.workers],
+      roots: current.graph.roots,
+      locked: current.graph.cards,
+      activeWorker,
+      ...(dryRun ? { dryRun: true as const } : {}),
+      configBytes,
+      lockBytes,
+    } satisfies WorkerProjectMutation,
+  };
+}
+
+export async function useProjectWorker(
+  projectRoot: string,
+  agentsDir: string,
+  ref: string | null,
+  options: WorkerMutationOptions = {},
+) {
+  return mutateProjectState(projectRoot, async (snapshot) => {
+    const current = parseSnapshot(snapshot);
+    if (ref === null) {
+      return prepareSelectionMutation(projectRoot, snapshot, current, null, options.dryRun);
+    }
+
+    const requestedName = parseCardRef(ref).name;
+    const installedRoot = current.graph.roots.find((root) => cardNamesEqual(root.name, requestedName));
+    if (installedRoot) {
+      return prepareSelectionMutation(projectRoot, snapshot, current, installedRoot.name, options.dryRun);
+    }
+    if (current.graph.cards.some((card) => cardNamesEqual(card.name, requestedName))) {
+      throw new DrwnError(
+        "WORKER_MEMBER_NOT_SELECTABLE",
+        `${requestedName} is a Blueprint member, not an installed Worker root`,
+      );
+    }
+
+    return prepareMutation(
+      projectRoot,
+      agentsDir,
+      snapshot,
+      [...current.config.workers, ref],
+      (_before, next) => {
+        const added = next.roots.find((root) => cardNamesEqual(root.name, requestedName));
+        if (!added) throw new DrwnError("WORKER_ROOT_NOT_RESOLVED", `Could not resolve Worker root ${ref}`);
+        return added.name;
+      },
+      options,
+    );
+  }, { dryRun: options.dryRun });
+}

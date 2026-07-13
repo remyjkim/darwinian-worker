@@ -2,10 +2,9 @@
 // ABOUTME: Ensures --fetch refreshes Git-origin card tags before comparison.
 
 import { afterEach, expect, test } from "bun:test";
-import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { loadCardLock } from "../cli/core/card-lock";
-import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 import { createLocalCardRepo, tagAdditionalVersion } from "./fixtures/git-helpers";
 
 const tempRoots: string[] = [];
@@ -20,9 +19,8 @@ test("card outdated --fetch sees newer remote tags", async () => {
   const remote = await createLocalCardRepo({ name: "@team/backend", version: "1.0.0" });
   tempRoots.push(remote.tempDir);
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1 }, null, 2));
-  expect((await runAgentsCli(["card", "apply", `git+${remote.url}#v1.0.0`], envFor(fixture), projectDir)).exitCode).toBe(0);
+  await writeSupportedProjectConfig(projectDir);
+  expect((await runAgentsCli(["apply", `git+${remote.url}#v1.0.0`], envFor(fixture), projectDir)).exitCode).toBe(0);
   await tagAdditionalVersion(remote, { name: "@team/backend", version: "1.1.0" });
 
   const result = await runAgentsCli(["card", "outdated", "--fetch", "--check"], envFor(fixture), projectDir);
@@ -37,9 +35,8 @@ test("card outdated --fetch reports range updates without rewriting card.lock", 
   const remote = await createLocalCardRepo({ name: "@team/backend", version: "1.0.0" });
   tempRoots.push(remote.tempDir);
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1 }, null, 2));
-  expect((await runAgentsCli(["card", "apply", `git+${remote.url}@^1.0.0`], envFor(fixture), projectDir)).exitCode).toBe(0);
+  await writeSupportedProjectConfig(projectDir);
+  expect((await runAgentsCli(["apply", `git+${remote.url}@^1.0.0`], envFor(fixture), projectDir)).exitCode).toBe(0);
   expect((await loadCardLock(projectDir))?.cards[0]?.version).toBe("1.0.0");
   await tagAdditionalVersion(remote, { name: "@team/backend", version: "1.1.0" });
 
@@ -51,7 +48,7 @@ test("card outdated --fetch reports range updates without rewriting card.lock", 
   ]);
   expect((await loadCardLock(projectDir))?.cards[0]?.version).toBe("1.0.0");
 
-  const update = await runAgentsCli(["card", "update"], envFor(fixture), projectDir);
+  const update = await runAgentsCli(["update"], envFor(fixture), projectDir);
   expect(update.exitCode, update.stderr).toBe(0);
   expect((await loadCardLock(projectDir))?.cards[0]?.version).toBe("1.1.0");
 });

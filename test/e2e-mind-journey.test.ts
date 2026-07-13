@@ -6,7 +6,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createMindDbClient, type MindDbClient } from "../cli/core/mind-store/client";
-import { cleanupTempRoots, createTempRoot, envFor, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, createTempRoot, envFor, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
 const enabled = process.env.DRWN_E2E_BGDB === "1";
 const test = baseTest.skipIf(!enabled);
@@ -118,9 +118,8 @@ test("journey: provision, DB-first edit, drift-preserving sync, checkpoint again
   expect((await runAgentsCli(["card", "publish", "@me/mind"], envFor(fixture))).exitCode).toBe(0);
 
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1 }, null, 2));
-  expect((await runAgentsCli(["card", "add", "@me/mind@1.0.0"], envFor(fixture), projectDir)).exitCode).toBe(0);
+  await writeSupportedProjectConfig(projectDir);
+  expect((await runAgentsCli(["add", "@me/mind@1.0.0"], envFor(fixture), projectDir)).exitCode).toBe(0);
 
   const mindId = unique("mind_e2e");
   const env = {

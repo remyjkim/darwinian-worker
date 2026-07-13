@@ -51,9 +51,11 @@ export async function installProjectWorkers(
   activeWorker: string | null,
   overrides: Partial<ProjectConfig> = {},
 ) {
-  const { applyProjectCardSpecs } = await import("../cli/core/card-project");
-  await applyProjectCardSpecs(projectRoot, agentsDir, workers);
-  await writeSupportedProjectConfig(projectRoot, { workers, activeWorker, ...overrides });
+  const { applyProjectWorkerRoots } = await import("../cli/core/worker-project");
+  await writeSupportedProjectConfig(projectRoot, overrides);
+  await applyProjectWorkerRoots(projectRoot, agentsDir, workers, {
+    ...(activeWorker === null ? { none: true } : { active: activeWorker }),
+  });
 }
 
 export async function createTempRoot(prefix: string) {

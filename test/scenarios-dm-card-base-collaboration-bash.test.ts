@@ -88,7 +88,7 @@ if (payload.results.length !== 1 || payload.results[0].url !== 'git+' + process.
 }
 NODE
 
-(cd "$PINNED_PROJECT" && drwn_consumer init --non-interactive --no-default-catalogs && drwn_consumer card apply "git+$CARD_REMOTE_URL#v0.1.0" --write && drwn_consumer worker stack use "$DM_CARD_BASE_NAME" && drwn_consumer write)
+(cd "$PINNED_PROJECT" && drwn_consumer init --non-interactive --no-default-catalogs && drwn_consumer apply "git+$CARD_REMOTE_URL#v0.1.0" --write)
 assert_lock_version "$PINNED_PROJECT" 0.1.0
 assert_skill "$PINNED_PROJECT" bootstrap-project
 
@@ -102,13 +102,13 @@ if (payload.catalogs.length !== 0) {
   throw new Error('fresh consumer unexpectedly has catalogs: ' + JSON.stringify(payload));
 }
 NODE
-(cd "$PINNED_PROJECT" && drwn_fresh install --no-apply --json > "$FRESH_NO_APPLY_JSON")
+(cd "$PINNED_PROJECT" && drwn_fresh install --no-write --json > "$FRESH_NO_APPLY_JSON")
 test ! -e "$PINNED_PROJECT/.claude/skills/bootstrap-project/SKILL.md"
 (cd "$PINNED_PROJECT" && drwn_fresh install --json > "$FRESH_INSTALL_JSON")
 assert_lock_version "$PINNED_PROJECT" 0.1.0
 assert_skill "$PINNED_PROJECT" bootstrap-project
 
-(cd "$RANGE_PROJECT" && drwn_consumer init --non-interactive --no-default-catalogs && drwn_consumer card apply "git+$CARD_REMOTE_URL@^0.1.0" --write && drwn_consumer worker stack use "$DM_CARD_BASE_NAME" && drwn_consumer write)
+(cd "$RANGE_PROJECT" && drwn_consumer init --non-interactive --no-default-catalogs && drwn_consumer apply "git+$CARD_REMOTE_URL@^0.1.0" --write)
 assert_lock_version "$RANGE_PROJECT" 0.1.0
 `,
     {
@@ -192,12 +192,12 @@ if (JSON.stringify(payload.outdated) !== JSON.stringify(expected)) {
 }
 NODE
 (cd "$RANGE_PROJECT" && ! drwn_consumer card outdated --fetch --check >/dev/null)
-(cd "$RANGE_PROJECT" && drwn_consumer card update --write)
+(cd "$RANGE_PROJECT" && drwn_consumer update --write)
 assert_lock_version "$RANGE_PROJECT" 0.1.1
 assert_skill "$RANGE_PROJECT" support-harness
 (cd "$RANGE_PROJECT" && drwn_consumer card outdated --fetch --check >/dev/null)
 
-(cd "$PINNED_PROJECT" && drwn_fresh card update --write)
+(cd "$PINNED_PROJECT" && drwn_fresh update --write)
 assert_lock_version "$PINNED_PROJECT" 0.1.0
 assert_skill "$PINNED_PROJECT" bootstrap-project
 `,

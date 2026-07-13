@@ -41,11 +41,6 @@ export function renderWorkerMutation(result: WorkerProjectMutation) {
   ].join("\n") + "\n";
 }
 
-export function commandMoved(command: BaseCommand, replacement: string) {
-  command.context.stderr.write(`COMMAND_MOVED: use ${replacement}\n`);
-  return 1;
-}
-
 export async function runChainedWrite(command: BaseCommand) {
   try {
     const result = await syncRepository({

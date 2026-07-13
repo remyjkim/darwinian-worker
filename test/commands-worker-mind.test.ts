@@ -4,7 +4,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 import { startFakeBgdb, type FakeBgdb } from "./fixtures/fake-bgdb";
 
 const tempRoots: string[] = [];
@@ -35,12 +35,11 @@ async function scaffoldMindProject() {
   expect((await runAgentsCli(["card", "publish", "@me/mind"], envFor(fixture))).exitCode).toBe(0);
 
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1 }, null, 2));
+  await writeSupportedProjectConfig(projectDir);
   const manifest = JSON.parse(
     await readFile(join(fixture.agentsDir, "drwn", "sources", "@me", "mind", "card.json"), "utf8"),
   ) as { version: string };
-  expect((await runAgentsCli(["card", "add", `@me/mind@${manifest.version}`], envFor(fixture), projectDir)).exitCode).toBe(0);
+  expect((await runAgentsCli(["add", `@me/mind@${manifest.version}`], envFor(fixture), projectDir)).exitCode).toBe(0);
 
   const env = {
     ...envFor(fixture),

@@ -1,11 +1,15 @@
-// ABOUTME: Implements drwn install for bootstrapping project cards from card.lock.
-// ABOUTME: Fetches missing Git-backed cards and optionally writes downstream agent state.
+// ABOUTME: Bootstraps supported project Worker graphs from project lock V1.
+// ABOUTME: Fetches missing Git-backed Cards and optionally writes downstream agent state.
 
 import { Option, UsageError } from "clipanion";
 import { ensureCardPresentFromLock } from "../core/card-install";
-import { loadCardLock, persistCardLock } from "../core/card-lock";
+import { serializeCardLock, validateCardLockfile } from "../core/card-lock";
 import { pMap, resolveFetchConcurrency } from "../core/concurrency";
+import { selectProjectWorker } from "../core/effective-state";
+import { DrwnError } from "../core/errors";
 import { renderJson, renderSyncResult } from "../core/output";
+import { validateProjectConfig } from "../core/project";
+import { mutateProjectState, readProjectStateSnapshot } from "../core/project-state-transaction";
 import { syncRepository } from "../core/sync";
 import { BaseCommand } from "./base";
 import { requireProjectRoot } from "./card/project-command";
@@ -17,13 +21,13 @@ export class InstallCommand extends BaseCommand {
     category: "General",
     description: "Fetch missing cards from card.lock and write project state.",
     details: `
-      Reads .agents/drwn/card.lock, ensures every locked card is present in the
+      Reads the supported .agents/drwn/card.lock, ensures every locked Card is present in the
       local Git-backed store, updates extracted paths when needed, then writes
-      the effective project state unless --no-apply is passed.
+      the effective project state unless --no-write is passed.
     `,
     examples: [
       ["Bootstrap after cloning a project", "drwn install"],
-      ["Fetch cards without writing downstream files", "drwn install --no-apply"],
+      ["Fetch Cards without writing downstream files", "drwn install --no-write"],
       ["Fail if cloning, fetching, or lockfile updates would be required", "drwn install --frozen"],
     ],
   });
@@ -32,7 +36,7 @@ export class InstallCommand extends BaseCommand {
     description: "Fail instead of cloning, fetching, or changing card.lock.",
   });
 
-  noApply = Option.Boolean("--no-apply", false, {
+  noWrite = Option.Boolean("--no-write", false, {
     description: "Fetch and verify cards without writing downstream files.",
   });
 
@@ -42,9 +46,23 @@ export class InstallCommand extends BaseCommand {
 
   async execute() {
     const projectRoot = requireProjectRoot(this);
-    const lock = await loadCardLock(projectRoot);
-    if (!lock) {
+    const initial = await readProjectStateSnapshot(projectRoot);
+    if (!initial.lockBytes) {
       throw new UsageError("No card.lock found. Did you mean `drwn apply`?");
+    }
+    if (!initial.configBytes) throw new UsageError("No project config found. Run `drwn init` first.");
+
+    let lock;
+    try {
+      const config = validateProjectConfig(JSON.parse(initial.configBytes), `${projectRoot}/.agents/drwn/config.json`);
+      lock = validateCardLockfile(JSON.parse(initial.lockBytes), `${projectRoot}/.agents/drwn/card.lock`);
+      selectProjectWorker({ projectConfig: config, committedLock: lock, configLocal: null, localLock: null });
+    } catch (error) {
+      const normalized = error instanceof DrwnError
+        ? error
+        : new DrwnError("PROJECT_STATE_INVALID", "Project config or lock is malformed JSON", undefined, error);
+      this.context.stderr.write(`${normalized.code}: ${normalized.message}\n`);
+      return 1;
     }
 
     const errors: Array<{ card: string; message: string }> = [];
@@ -71,10 +89,22 @@ export class InstallCommand extends BaseCommand {
     }
 
     if (changed) {
-      await persistCardLock(projectRoot, this.context.agentsDir, lock);
+      const nextLockBytes = serializeCardLock(lock);
+      await mutateProjectState(projectRoot, async (current) => {
+        if (current.configBytes !== initial.configBytes || current.lockBytes !== initial.lockBytes) {
+          throw new DrwnError(
+            "PROJECT_STATE_CHANGED",
+            "Project config or lock changed while install was hydrating Cards; retry install",
+          );
+        }
+        return {
+          bytes: { configBytes: initial.configBytes!, lockBytes: nextLockBytes },
+          value: undefined,
+        };
+      });
     }
 
-    if (this.noApply) {
+    if (this.noWrite) {
       const payload = { ok: true, cards: lock.cards.length, applied: false, lockfileChanged: changed };
       this.context.stdout.write(this.json ? renderJson(payload) : `Installed ${lock.cards.length} card(s).\n`);
       return 0;

@@ -12,7 +12,6 @@ const DETAILS = [
   "  drwn worker chat <slug> --message <text>",
   "  drwn worker rollback <slug>",
   "  drwn worker delete <slug> --force",
-  "  drwn worker stack",
 ].join("\n");
 
 export class WorkerCommand extends BaseCommand {

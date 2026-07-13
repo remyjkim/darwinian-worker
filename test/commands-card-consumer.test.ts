@@ -1,11 +1,11 @@
-// ABOUTME: Verifies project-side card consumption commands and lockfile updates.
-// ABOUTME: Protects the user workflow for applying, updating, and removing cards.
+// ABOUTME: Verifies canonical project Worker root commands and lockfile updates.
+// ABOUTME: Protects applying, updating, and removing project Worker roots.
 
 import { afterEach, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { join } from "node:path";
+import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -30,58 +30,55 @@ async function publishCardWithHook(fixture: Awaited<ReturnType<typeof scaffoldCl
   expect((await runAgentsCli(["card", "publish", "@me/policy"], envFor(fixture))).exitCode).toBe(0);
 }
 
-test("card apply replaces project cards and writes a lockfile", async () => {
+test("apply replaces project Worker roots and writes a lockfile", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   await publishCard(fixture);
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1 }, null, 2));
+  await writeSupportedProjectConfig(projectDir);
 
-  const result = await runAgentsCli(["card", "apply", "@me/backend@^1.0.0"], envFor(fixture), projectDir);
+  const result = await runAgentsCli(["apply", "@me/backend@^1.0.0"], envFor(fixture), projectDir);
 
   expect(result.exitCode).toBe(0);
   const config = JSON.parse(await readFile(join(projectDir, ".agents", "drwn", "config.json"), "utf8"));
-  expect(config.cards).toEqual(["@me/backend@^1.0.0"]);
+  expect(config.workers).toEqual(["@me/backend@^1.0.0"]);
+  expect(config.activeWorker).toBe("@me/backend");
   expect(existsSync(join(projectDir, ".agents", "drwn", "card.lock"))).toBe(true);
 });
 
-test("top-level apply alias works", async () => {
+test("top-level apply is the canonical replacement command", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   await publishCard(fixture);
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1 }, null, 2));
+  await writeSupportedProjectConfig(projectDir);
 
   const result = await runAgentsCli(["apply", "@me/backend@^1.0.0"], envFor(fixture), projectDir);
 
   expect(result.exitCode).toBe(0);
 });
 
-test("top-level add alias adds a card to the current project", async () => {
+test("top-level add installs a Worker root in the current project", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   await publishCard(fixture);
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1, cards: [] }, null, 2));
+  await writeSupportedProjectConfig(projectDir);
 
   const result = await runAgentsCli(["add", "@me/backend@^1.0.0"], envFor(fixture), projectDir);
 
   expect(result.exitCode).toBe(0);
-  expect(JSON.parse(await readFile(join(projectDir, ".agents", "drwn", "config.json"), "utf8")).cards).toEqual(["@me/backend@^1.0.0"]);
+  expect(JSON.parse(await readFile(join(projectDir, ".agents", "drwn", "config.json"), "utf8")).workers).toEqual(["@me/backend@^1.0.0"]);
 });
 
-test("card add writes hook declarations into the lockfile", async () => {
+test("add writes hook declarations into the lockfile", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   await publishCardWithHook(fixture);
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1, cards: [] }, null, 2));
+  await writeSupportedProjectConfig(projectDir);
 
-  const result = await runAgentsCli(["card", "add", "@me/policy@^1.1.0"], envFor(fixture), projectDir);
+  const result = await runAgentsCli(["add", "@me/policy@^1.1.0"], envFor(fixture), projectDir);
 
   expect(result.exitCode).toBe(0);
   const lock = JSON.parse(await readFile(join(projectDir, ".agents", "drwn", "card.lock"), "utf8"));
@@ -89,25 +86,20 @@ test("card add writes hook declarations into the lockfile", async () => {
 });
 
 
-test("card apply --write chains materialization after preserving mutation", async () => {
+test("apply --write chains materialization after preserving mutation", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   await publishCard(fixture);
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1 }, null, 2));
+  await writeSupportedProjectConfig(projectDir);
 
-  const result = await runAgentsCli(["card", "apply", "@me/backend@^1.0.0", "--write"], envFor(fixture), projectDir);
-  const use = await runAgentsCli(["worker", "stack", "use", "@me/backend"], envFor(fixture), projectDir);
-  const write = await runAgentsCli(["write"], envFor(fixture), projectDir);
+  const result = await runAgentsCli(["apply", "@me/backend@^1.0.0", "--write"], envFor(fixture), projectDir);
 
   expect(result.exitCode).toBe(0);
-  expect(use.exitCode).toBe(0);
-  expect(write.exitCode).toBe(0);
   expect(existsSync(join(projectDir, ".claude", "skills", "alpha"))).toBe(true);
 });
 
-test("card apply --write surfaces skipped optional MCPs from the applied card", async () => {
+test("apply --write surfaces skipped optional MCPs from the applied Worker", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   await publishCardWithSkills(fixture, {
@@ -123,17 +115,16 @@ test("card apply --write surfaces skipped optional MCPs from the applied card", 
     },
   });
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1 }, null, 2));
+  await writeSupportedProjectConfig(projectDir);
 
-  const result = await runAgentsCli(["card", "apply", "@me/backend@^1.0.0", "--write"], envFor(fixture), projectDir);
+  const result = await runAgentsCli(["apply", "@me/backend@^1.0.0", "--write"], envFor(fixture), projectDir);
 
   expect(result.exitCode).toBe(0);
   expect(result.stdout).toContain("Optional MCP servers from cards:");
   expect(result.stdout).toContain("- card-local (skipped - enable with `drwn add mcp card-local`)");
 });
 
-test("card add --write surfaces skipped optional MCPs from the added card", async () => {
+test("add --write surfaces skipped optional MCPs from the added Worker", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   await publishCardWithSkills(fixture, {
@@ -149,17 +140,16 @@ test("card add --write surfaces skipped optional MCPs from the added card", asyn
     },
   });
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1, cards: [] }, null, 2));
+  await writeSupportedProjectConfig(projectDir);
 
-  const result = await runAgentsCli(["card", "add", "@me/backend@^1.0.0", "--write"], envFor(fixture), projectDir);
+  const result = await runAgentsCli(["add", "@me/backend@^1.0.0", "--write"], envFor(fixture), projectDir);
 
   expect(result.exitCode).toBe(0);
   expect(result.stdout).toContain("Optional MCP servers from cards:");
   expect(result.stdout).toContain("- card-local (skipped - enable with `drwn add mcp card-local`)");
 });
 
-test("card add, pin, remove, detach, and outdated mutate expected files", async () => {
+test("add, pin, remove, clear, and outdated mutate expected files", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   await publishCard(fixture, "@me/backend", "1.0.0");
@@ -167,24 +157,23 @@ test("card add, pin, remove, detach, and outdated mutate expected files", async 
   await publishCard(fixture, "@me/observability", "1.0.0");
   const projectDir = join(fixture.root, "project");
   const configPath = join(projectDir, ".agents", "drwn", "config.json");
-  await mkdir(dirname(configPath), { recursive: true });
-  await writeFile(configPath, JSON.stringify({ version: 1, cards: ["@me/backend@^1.0.0"] }, null, 2));
-  expect((await runAgentsCli(["card", "update"], envFor(fixture), projectDir)).exitCode).toBe(0);
+  await writeSupportedProjectConfig(projectDir);
+  expect((await runAgentsCli(["apply", "@me/backend@^1.0.0"], envFor(fixture), projectDir)).exitCode).toBe(0);
 
-  expect((await runAgentsCli(["card", "add", "@me/observability@^1.0.0"], envFor(fixture), projectDir)).exitCode).toBe(0);
-  expect(JSON.parse(await readFile(configPath, "utf8")).cards).toEqual(["@me/backend@^1.0.0", "@me/observability@^1.0.0"]);
-  expect((await runAgentsCli(["card", "add", "@me/backend@^1.0.0"], envFor(fixture), projectDir)).exitCode).not.toBe(0);
+  expect((await runAgentsCli(["add", "@me/observability@^1.0.0"], envFor(fixture), projectDir)).exitCode).toBe(0);
+  expect(JSON.parse(await readFile(configPath, "utf8")).workers).toEqual(["@me/backend@^1.0.0", "@me/observability@^1.0.0"]);
+  expect((await runAgentsCli(["add", "@me/backend@^1.0.0"], envFor(fixture), projectDir)).exitCode).not.toBe(0);
 
-  expect((await runAgentsCli(["card", "pin", "@me/backend@1.0.0"], envFor(fixture), projectDir)).exitCode).toBe(0);
-  expect(JSON.parse(await readFile(configPath, "utf8")).cards[0]).toBe("@me/backend@1.0.0");
+  expect((await runAgentsCli(["pin", "@me/backend@1.0.0"], envFor(fixture), projectDir)).exitCode).toBe(0);
+  expect(JSON.parse(await readFile(configPath, "utf8")).workers[0]).toBe("@me/backend@1.0.0");
 
   const outdated = await runAgentsCli(["card", "outdated", "--check"], envFor(fixture), projectDir);
   expect(outdated.exitCode).not.toBe(0);
 
-  expect((await runAgentsCli(["card", "remove", "@me/observability"], envFor(fixture), projectDir)).exitCode).toBe(0);
-  expect(JSON.parse(await readFile(configPath, "utf8")).cards).toEqual(["@me/backend@1.0.0"]);
-  expect((await runAgentsCli(["card", "remove", "@me/observability"], envFor(fixture), projectDir)).exitCode).not.toBe(0);
+  expect((await runAgentsCli(["remove", "@me/observability"], envFor(fixture), projectDir)).exitCode).toBe(0);
+  expect(JSON.parse(await readFile(configPath, "utf8")).workers).toEqual(["@me/backend@1.0.0"]);
+  expect((await runAgentsCli(["remove", "@me/observability"], envFor(fixture), projectDir)).exitCode).not.toBe(0);
 
-  expect((await runAgentsCli(["card", "detach"], envFor(fixture), projectDir)).exitCode).toBe(0);
-  expect(JSON.parse(await readFile(configPath, "utf8")).cards).toEqual([]);
+  expect((await runAgentsCli(["apply", "--none"], envFor(fixture), projectDir)).exitCode).toBe(0);
+  expect(JSON.parse(await readFile(configPath, "utf8")).workers).toEqual([]);
 });

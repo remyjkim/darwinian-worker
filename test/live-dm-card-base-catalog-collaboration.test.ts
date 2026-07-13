@@ -69,7 +69,7 @@ liveTest("publishes and consumes the live dm-card-base GitHub repo through a cat
   await mkdir(projectDir, { recursive: true });
   const initialized = await runAgentsCli(["init", "--non-interactive", "--no-default-catalogs"], envFor(consumer), projectDir);
   expect(initialized.exitCode, initialized.stderr).toBe(0);
-  const applied = await runAgentsCli(["card", "apply", liveRef, "--write"], envFor(consumer), projectDir);
+  const applied = await runAgentsCli(["apply", liveRef, "--write"], envFor(consumer), projectDir);
   expect(applied.exitCode, applied.stderr).toBe(0);
   const initialLock = await expectLiveLock(projectDir);
   expectLiveSkill(projectDir, "bootstrap-project");
@@ -83,8 +83,8 @@ liveTest("publishes and consumes the live dm-card-base GitHub repo through a cat
   await rm(join(projectDir, ".codex"), { recursive: true, force: true });
   await rm(join(projectDir, ".cursor"), { recursive: true, force: true });
   await rm(initialLock.cards[0]!.path, { recursive: true, force: true });
-  const noApply = await runAgentsCli(["install", "--no-apply", "--json"], envFor(freshConsumer), projectDir);
-  expect(noApply.exitCode, noApply.stderr).toBe(0);
+  const noWrite = await runAgentsCli(["install", "--no-write", "--json"], envFor(freshConsumer), projectDir);
+  expect(noWrite.exitCode, noWrite.stderr).toBe(0);
   expect(existsSync(join(projectDir, ".claude", "skills", "bootstrap-project"))).toBe(false);
   const installed = await runAgentsCli(["install", "--json"], envFor(freshConsumer), projectDir);
   expect(installed.exitCode, installed.stderr).toBe(0);

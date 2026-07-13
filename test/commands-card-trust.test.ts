@@ -4,7 +4,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -21,9 +21,8 @@ async function setupProjectWithHookCard() {
   const sourceDir = join(fixture.agentsDir, "drwn", "sources", "@me", "policy");
   const manifest = JSON.parse(await readFile(join(sourceDir, "card.json"), "utf8"));
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1, cards: [] }, null, 2));
-  expect((await runAgentsCli(["card", "add", `@me/policy@${manifest.version}`], envFor(fixture), projectDir)).exitCode).toBe(0);
+  await writeSupportedProjectConfig(projectDir);
+  expect((await runAgentsCli(["add", `@me/policy@${manifest.version}`], envFor(fixture), projectDir)).exitCode).toBe(0);
   return { fixture, projectDir };
 }
 
@@ -50,14 +49,13 @@ test("card add warns when the added card declares hooks without consent", async 
   expect((await runAgentsCli(["card", "publish", "@me/policy"], envFor(fixture))).exitCode).toBe(0);
   const manifest = JSON.parse(await readFile(join(fixture.agentsDir, "drwn", "sources", "@me", "policy", "card.json"), "utf8"));
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1, cards: [] }, null, 2));
+  await writeSupportedProjectConfig(projectDir);
 
-  const result = await runAgentsCli(["card", "add", `@me/policy@${manifest.version}`], envFor(fixture), projectDir);
+  const result = await runAgentsCli(["add", `@me/policy@${manifest.version}`], envFor(fixture), projectDir);
 
   expect(result.exitCode).toBe(0);
-  expect(result.stderr).toContain("declares hooks");
-  expect(result.stderr).toContain("drwn card trust @me/policy --hooks");
+  expect(`${result.stdout}\n${result.stderr}`).toContain("declares hooks");
+  expect(`${result.stdout}\n${result.stderr}`).toContain("drwn card trust @me/policy --hooks");
 });
 
 test("card trust --hooks defaults range from locked version and updates timestamp idempotently", async () => {
@@ -92,12 +90,8 @@ test("card update drops hook consent when the locked version exits the consent r
   const sourceDir = join(fixture.agentsDir, "drwn", "sources", "@me", "policy");
   expect((await runAgentsCli(["card", "publish", "@me/policy"], envFor(fixture))).exitCode).toBe(0);
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(
-    join(projectDir, ".agents", "drwn", "config.json"),
-    JSON.stringify({ version: 1, cards: ["@me/policy@>=1.0.0"] }, null, 2),
-  );
-  expect((await runAgentsCli(["card", "update"], envFor(fixture), projectDir)).exitCode).toBe(0);
+  await writeSupportedProjectConfig(projectDir);
+  expect((await runAgentsCli(["apply", "@me/policy@>=1.0.0"], envFor(fixture), projectDir)).exitCode).toBe(0);
   expect((await runAgentsCli(["card", "trust", "@me/policy", "--hooks", "--range", "^1.0.0"], envFor(fixture), projectDir)).exitCode).toBe(0);
   const manifestPath = join(sourceDir, "card.json");
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
@@ -105,7 +99,7 @@ test("card update drops hook consent when the locked version exits the consent r
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   expect((await runAgentsCli(["card", "publish", "@me/policy"], envFor(fixture))).exitCode).toBe(0);
 
-  const result = await runAgentsCli(["card", "update"], envFor(fixture), projectDir);
+  const result = await runAgentsCli(["update"], envFor(fixture), projectDir);
 
   expect(result.exitCode).toBe(0);
   expect(result.stdout).toContain("hook consent dropped");
@@ -118,7 +112,7 @@ test("card update carries hook consent while locked version remains in range", a
   const { fixture, projectDir } = await setupProjectWithHookCard();
   expect((await runAgentsCli(["card", "trust", "@me/policy", "--hooks", "--range", "^1.0.0"], envFor(fixture), projectDir)).exitCode).toBe(0);
 
-  const result = await runAgentsCli(["card", "update"], envFor(fixture), projectDir);
+  const result = await runAgentsCli(["update"], envFor(fixture), projectDir);
 
   expect(result.exitCode).toBe(0);
   expect((await readLock(projectDir)).cards[0].hookConsent?.consentedRange).toBe("^1.0.0");
@@ -132,12 +126,8 @@ test("card outdated notes when hook consent will need re-granting", async () => 
   const sourceDir = join(fixture.agentsDir, "drwn", "sources", "@me", "policy");
   expect((await runAgentsCli(["card", "publish", "@me/policy"], envFor(fixture))).exitCode).toBe(0);
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(
-    join(projectDir, ".agents", "drwn", "config.json"),
-    JSON.stringify({ version: 1, cards: ["@me/policy@>=1.0.0"] }, null, 2),
-  );
-  expect((await runAgentsCli(["card", "update"], envFor(fixture), projectDir)).exitCode).toBe(0);
+  await writeSupportedProjectConfig(projectDir);
+  expect((await runAgentsCli(["apply", "@me/policy@>=1.0.0"], envFor(fixture), projectDir)).exitCode).toBe(0);
   expect((await runAgentsCli(["card", "trust", "@me/policy", "--hooks", "--range", "^1.0.0"], envFor(fixture), projectDir)).exitCode).toBe(0);
   const manifestPath = join(sourceDir, "card.json");
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));

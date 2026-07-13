@@ -129,7 +129,7 @@ test("DRWN_STORE_READONLY refuses drwn install when a card must be cloned", asyn
   expect(
     (
       await runAgentsCli(
-        ["card", "add", `git+${cardRepo.url}#v1.0.0`],
+        ["add", `git+${cardRepo.url}#v1.0.0`],
         envFor(fixture),
         projectDir,
       )
