@@ -337,6 +337,37 @@ drwn write --target=claude
 drwn mcp write --target=cursor
 ```
 
+### Target-native ambient MCP collisions
+
+Project MCP declarations and user-home MCP entries can share an ID because
+downstream tools load both scopes. Before any project write, drwn classifies
+those collisions using the selected target's native merge rules:
+
+- Claude replaces the whole lower-precedence entry (`local > project > user`).
+  A differing ambient definition is reported as a shadowing warning.
+- Codex merges project fields over user fields. The write is rejected with
+  `CODEX_INCOMPATIBLE_TRANSPORTS` only when the merged entry would contain both
+  `command` and `url`; compatible augmentation is reported as a warning.
+- Cursor loads project and global MCP configuration. Matching entries are
+  accepted; differing definitions, including a transport change, are reported
+  as warnings because Cursor does not publish a stronger duplicate-ID contract.
+
+Only enabled targets selected for the write can block it. Standard and
+`--mcp-only` writes run this preflight before hooks, generated files, target
+configuration, skills, or write records are changed. `--skills-only` reports
+MCP collisions without blocking skill projection. Dry-run uses the same
+classification and still rejects a fatal collision without mutation.
+
+`--force` repairs drwn-owned projection drift; it does not bypass invalid MCP
+composition. Resolve a fatal collision by removing or renaming one definition,
+or by aligning its transport. Do not copy ambient credentials or machine state
+into a Worker, Card, project config, lockfile, or generated output.
+
+`drwn status`, `drwn doctor`, and `drwn mcp list` report the declared and
+ambient provenance plus the disposition and reason code. Their output is
+redacted: it does not expose command arguments, URLs, headers, environment
+values, or other definition payloads.
+
 ## How export works
 
 `drwn export sessions` discovers and archives all session log files (`.jsonl`) from Claude Code and Codex belonging to the current project. Sessions are discovered by matching project slug prefixes (derived by replacing every `/` in the project path with `-`); this automatically includes all git worktrees.
@@ -461,6 +492,11 @@ they do not install external executables or own credentials. In particular:
 - Momentic and other external stdio tools must be installed and authenticated
   separately on the machine. A missing executable or closed initialize
   handshake is runtime readiness failure, not a Worker graph failure.
+
+OAuth grants, API keys, executable availability, environment expansion,
+timeouts, and initialize handshakes are runtime-readiness concerns. The ambient
+collision preflight validates target configuration composition; it does not
+claim that an MCP server can authenticate or start.
 
 The Recommended Darwinian Operator machine profile is selected future Task 80
 work. Guided setup will preselect that opt-out profile while non-interactive

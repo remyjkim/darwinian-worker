@@ -170,7 +170,29 @@ Card-bundled content takes precedence within the selected closure according to r
 
 Notion OAuth, an `ntn` API key, and external stdio installations such as Momentic remain operator state. Definitions may reference environment variables, but project files must not contain resolved secrets.
 
-User-home target MCP entries can remain ambient in project sessions. Status and doctor report declared versus ambient provenance. Task 77 enforcement is diagnostic-only; target-specific collision enforcement belongs to approved Task 83.
+User-home target MCP entries remain ambient in project sessions. They are not
+Worker, Card, project, lockfile, or generated state. `status`, `doctor`, and
+`mcp list` report declared and ambient provenance through redacted references;
+definition payloads and secret-bearing values are never emitted.
+
+Project writes apply the target-native collision policy before any projection
+mutation. Claude's whole-entry precedence makes a differing user or local entry
+a shadowing warning. Codex merges project fields over user fields, so compatible
+augmentation is a warning while an effective entry containing both `command`
+and `url` fails with `CODEX_INCOMPATIBLE_TRANSPORTS`. Cursor collisions are
+warnings, including transport changes, because its duplicate-ID merge behavior
+is characterization-tested rather than a published contract. Identical entries
+are accepted for every target.
+
+Only enabled targets selected for the operation can block a standard or
+MCP-only write. Skills-only projection reports collisions without blocking;
+dry-run applies the same fatal policy without mutation. `--force` cannot bypass
+the classifier. Remediation removes, renames, or aligns the conflicting target
+entry instead of importing ambient machine state into project declarations.
+
+This policy validates configuration composition only. OAuth grants, API keys,
+external executables, environment expansion, timeouts, and MCP initialize
+handshakes remain separate operator-owned runtime-readiness concerns.
 
 ## Extensions
 

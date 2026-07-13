@@ -397,6 +397,95 @@ export function verifyWorkerContract(root = repoRoot, overrides: SourceOverrides
   };
 }
 
+export function verifyAmbientMcpPolicy(root = repoRoot, overrides: SourceOverrides = {}): CheckResult {
+  const issues: string[] = [];
+  const source = (pathValue: string) => {
+    if (Object.hasOwn(overrides, pathValue)) return overrides[pathValue]!;
+    const absolutePath = join(root, pathValue);
+    if (!existsSync(absolutePath)) {
+      issues.push(`missing ambient policy source ${pathValue}`);
+      return "";
+    }
+    return readFileSync(absolutePath, "utf8");
+  };
+  const requireTokens = (pathValue: string, tokens: string[]) => {
+    const content = source(pathValue);
+    for (const token of tokens) {
+      if (!content.includes(token)) issues.push(`${pathValue} is missing ${token}`);
+    }
+  };
+
+  requireTokens("cli/core/ambient-policy.ts", [
+    "AMBIENT_IDENTICAL",
+    "CLAUDE_SCOPE_SHADOW",
+    "CODEX_PROJECT_AUGMENTS_USER",
+    "CODEX_INCOMPATIBLE_TRANSPORTS",
+    "CURSOR_PROJECT_MERGES_USER",
+    "CURSOR_PROJECT_TRANSPORT_OVERRIDE",
+    "classifyAmbientMcpCollisions",
+  ]);
+  requireTokens("cli/core/effective-state.ts", [
+    "inspectAmbientMcpDefinitions",
+    "classifyAmbientMcpCollisions",
+    "renderMcpServerForTarget",
+    "selectedAmbientCollisions",
+  ]);
+  requireTokens("cli/core/sync.ts", ["assertAmbientMcpPreflight", "ambientCollisions"]);
+  requireTokens("cli/commands/write.ts", ["assertAmbientMcpPreflight"]);
+  requireTokens("cli/core/diagnostics.ts", [
+    'enforcement: "target-native"',
+    "state.ambientCollisions",
+    "selectedAmbientCollisions(state)",
+  ]);
+  requireTokens("cli/commands/mcp/list.ts", ["state.ambientCollisions"]);
+
+  const classifierTests = source("test/core-ambient-policy.test.ts");
+  if (!classifierTests.includes("user-secret-sentinel") || !classifierTests.includes("project-secret-sentinel")) {
+    issues.push("ambient classifier secret redaction coverage is missing");
+  }
+  const writeTests = source("test/commands-write.test.ts");
+  if (!writeTests.includes("fatal selected-target MCP preflight aborts every projection mutation")) {
+    issues.push("ambient policy full-command atomicity coverage is missing");
+  }
+  requireTokens("test/commands-write-codex-conflict.test.ts", [
+    "a fatal Codex collision does not block a Claude-only write",
+    "Codex fatal transport collisions cannot be bypassed with force",
+    "user HTTP plus project stdio",
+    "user stdio plus project HTTP",
+  ]);
+  requireTokens("test/commands-use-worker.test.ts", [
+    "fatal ambient collision preserves selected Worker intent without projection mutation",
+  ]);
+  requireTokens("test/commands-doctor.test.ts", [
+    "does not enforce a fatal-shaped collision on a disabled target",
+  ]);
+
+  const sync = source("cli/core/sync.ts");
+  if (
+    sync.includes("detectCodexLayerConflicts") ||
+    sync.includes("codexConflicts") ||
+    sync.includes("skipped the project-scope entry") ||
+    sync.includes("rerun with --force")
+  ) {
+    issues.push("retired Codex collision path or force bypass remains in cli/core/sync.ts");
+  }
+
+  requireTokens("docs/cli-quickref.md", [
+    "Target-native ambient MCP collisions",
+    "CODEX_INCOMPATIBLE_TRANSPORTS",
+  ]);
+  requireTokens(".ai/knowledges/02_per-project-config-guide.md", [
+    "target-native",
+    "CODEX_INCOMPATIBLE_TRANSPORTS",
+  ]);
+
+  return {
+    name: "ambient MCP policy",
+    ok: issues.length === 0,
+    details: issues.join("; ") || undefined,
+  };
+}
+
 async function verifySchemaPackageReachable() {
   const pkg = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8")) as {
     dependencies?: Record<string, string>;
@@ -463,6 +552,7 @@ async function main() {
 
   checks.push(verifyDocsPresence());
   checks.push(verifyWorkerContract());
+  checks.push(verifyAmbientMcpPolicy());
   checks.push(verifyStoreExportSecurity());
   checks.push(await verifySchemaPackageReachable());
   checks.push(await verifyPackageContents());
