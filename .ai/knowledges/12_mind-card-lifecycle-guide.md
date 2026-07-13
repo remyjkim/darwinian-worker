@@ -1,11 +1,11 @@
 # ABOUTME: Operator guide to the mind card lifecycle: authoring persona/beliefs, provisioning DB-backed minds, drift, rebase, checkpoint, and pool memory.
-# ABOUTME: Companion to analysis 110 (architecture) and task 72 (implementation); commands verified against the fake and real BeginningDB test tiers.
+# ABOUTME: Companion to analysis 110 (architecture), task 72 (implementation), and task 76 (substrate split).
 
 # Mind Card Lifecycle Guide
 
 **Status**: Active
-**Last Updated**: 2026-07-07
-**References**: [.ai/analyses/110_mind-card-target-architecture.md, .ai/tasks/72_mind-card-implementation-plan.md, /Users/pureicis/dev/darwinian-cards/mind-card/CONVENTIONS.md]
+**Last Updated**: 2026-07-12
+**References**: [.ai/analyses/110_mind-card-target-architecture.md, .ai/tasks/72_mind-card-implementation-plan.md, .ai/tasks/76_mind-substrate-split-implementation-plan.md, /Users/pureicis/dev/darwinian-cards/mind-tools/CONVENTIONS.md]
 
 ---
 

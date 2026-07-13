@@ -15,6 +15,7 @@ This directory holds internal operator and maintainer knowledge that is more spe
 - [02_per-project-config-guide.md](./02_per-project-config-guide.md): per-project config discovery, schema, merge rules, and diagnostics
 - [03_npm-skill-bundles-guide.md](./03_npm-skill-bundles-guide.md): package-backed skill bundle model, ingestion, storage, and constraints
 - [11_card-usage-guide.html](./11_card-usage-guide.html): narrative card authoring and consumption usage scenarios, with the layered state model (HTML)
+- [12_mind-card-lifecycle-guide.md](./12_mind-card-lifecycle-guide.md): authoring, provisioning, rebasing, checkpointing, and retiring DB-backed minds
 
 ## Distribution And Release Docs
 
