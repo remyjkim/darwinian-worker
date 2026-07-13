@@ -12,7 +12,7 @@
 
 ## Task Metadata
 
-**Status**: Core implementation complete; npm/registry distribution pending
+**Status**: v0.1.0 published and opt-in distribution complete; Windows/Linux native parity pending
 **Created**: 2026-07-07
 **Updated**: 2026-07-12
 **Assigned**: Claude + Remy
@@ -59,7 +59,7 @@ A reviewer can clone the repo, run the package test/build flow, register the bui
 - [x] Audit log writes attempt before any spawn and outcome after every terminal state.
 - [x] Hash-chain verification detects edited, deleted, or reordered audit lines.
 - [ ] macOS sandbox wrapper is tested on macOS. Windows/Linux wrappers have native tests plus guarded skip-with-gap tests on non-native hosts.
-- [ ] Registry/card distribution is opt-in and tested through existing MCP rendering paths.
+- [x] Registry/card distribution is opt-in and tested through existing MCP rendering paths.
 - [x] `cd drwn-command-bridge && bun test`, `cd drwn-command-bridge && bun run typecheck`, `cd drwn-command-bridge && bun run build`, and `cd drwn-command-bridge && npm pack --dry-run` pass.
 
 ## Strategies Considered
@@ -949,8 +949,8 @@ Only commit if changes were required to make gates pass.
 - [x] `cd drwn-command-bridge && npm pack --dry-run` includes the runnable bundle.
 - [x] Manual macOS end-to-end through Claude Desktop or equivalent MCP stdio client is recorded.
 - [ ] Windows/Linux native validation is either complete or explicitly listed as a release blocker; do not mark v1 complete on skip-only coverage.
-- [ ] Registry entry is optional and opt-in tested.
-- [ ] drwn card source passes `card source doctor`.
+- [x] Registry entry is optional and opt-in tested.
+- [x] drwn card source passes `card source doctor`.
 
 ## Implementation Evidence (2026-07-12)
 
@@ -961,9 +961,14 @@ Only commit if changes were required to make gates pass.
   stdio. It listed both tools, ran `node --version` through
   `/usr/bin/sandbox-exec`, denied `sudo whoami`, and verified four hash-chained
   audit records.
-- `drwn-command-bridge` remained unclaimed on the public npm registry (E404).
-- Linux native `bwrap` validation, Windows native validation, npm publication,
-  and registry/card distribution remain open and are intentionally unchecked.
+- `drwn-command-bridge@0.1.0` was published on 2026-07-12 and verified through
+  public registry metadata plus an isolated global install and `--help` smoke.
+- The packaged registry pins `drwn-command-bridge@^0.1.0`, keeps it disabled by
+  default, and has opt-in/rendering coverage for Claude, Codex, and Cursor.
+- `drwn card source doctor @darwinian/drwn-command-bridge --json` reports
+  `ok: true`. No machine defaults were changed.
+- Linux native `bwrap` validation and Windows native sandbox validation remain
+  open and are intentionally unchecked; required unsupported sandbox paths fail closed.
 
 ## Risks And Mitigations
 

@@ -43,6 +43,7 @@
     }
   },
   "optional": {
+    "drwn-command-bridge": false,
     "markdownify": false,
     "notion": true,
     "slack": false

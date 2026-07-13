@@ -120,7 +120,10 @@ describe("package readiness", () => {
     expect(workflow).toContain("workflow_dispatch:");
     expect(workflow).toContain("dry_run:");
     expect(workflow).toContain("name: npm-publish");
-    expect(workflow).toContain("NPM_TOKEN: ${{ secrets.NPM_TOKEN }}");
+    expect(workflow).toContain("id-token: write");
+    expect(workflow).toContain("npm install --global npm@11.16.0");
+    expect(workflow).not.toContain("secrets.NPM_TOKEN");
+    expect(workflow).not.toContain("NODE_AUTH_TOKEN");
     expect(workflow).toContain("if: ${{ github.event_name == 'push' || inputs.dry_run == false }}");
     expect(workflow).toContain("name: Dry run complete");
     expect(workflow).toContain("if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true }}");
@@ -141,7 +144,10 @@ describe("package readiness", () => {
     expect(workflow).toContain("working-directory: drwn-command-bridge");
     expect(workflow).toContain("bun run verify");
     expect(workflow).toContain("name: npm-publish");
-    expect(workflow).toContain("NPM_TOKEN: ${{ secrets.NPM_TOKEN }}");
+    expect(workflow).toContain("id-token: write");
+    expect(workflow).toContain("npm install --global npm@11.16.0");
+    expect(workflow).not.toContain("secrets.NPM_TOKEN");
+    expect(workflow).not.toContain("NODE_AUTH_TOKEN");
     expect(workflow).toContain("npm view \"drwn-command-bridge@${VERSION}\"");
     expect(workflow).toContain("npm publish --access public");
     expect(workflow).toContain("npm view \"drwn-command-bridge@${VERSION}\" version");

@@ -2,9 +2,9 @@
 
 ## Releasing a new CLI version
 
-Use the GitHub Actions release workflow for npm publishes. The `npm-publish`
-environment owns `NPM_TOKEN` and requires reviewer approval before the publish
-job can run.
+Use the GitHub Actions release workflow for npm publishes. npm trusted-publisher
+bindings restrict tokenless OIDC publishing to this repository's `release.yml`
+workflow and the `npm-publish` environment.
 
 1. On `main` with a clean working tree, bump `version` in `package.json`.
 2. Run the local release gate:
@@ -45,6 +45,10 @@ token using the guarded manual process in `docs/maintainers/publishing.md`.
 `drwn-command-bridge` is a separate npm package with an independent version and
 release decision. The CLI release workflow verifies its typecheck, tests, Node
 bundle, and dry-run tarball, but does not publish it.
+
+npm trusted publishing restricts bridge publication to
+`release-command-bridge.yml` in this repository and the `npm-publish`
+environment; no long-lived npm token is required.
 
 Before publishing a bridge version:
 
