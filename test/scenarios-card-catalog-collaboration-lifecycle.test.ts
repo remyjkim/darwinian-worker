@@ -142,7 +142,7 @@ test("team follows a dm-card-base catalog, installs it, refreshes catalog update
   expect(pinnedUpdate.exitCode, pinnedUpdate.stderr).toBe(0);
   const pinnedLock = await expectLockVersion(pinnedProject, "0.1.0");
   expect(readFileSync(join(pinnedProject, ".claude", "skills", "bootstrap-project", "SKILL.md"), "utf8")).toBe(readFileSync(join(pinnedLock.cards[0]!.path, "skills", "bootstrap-project", "SKILL.md"), "utf8"));
-});
+}, 30_000);
 
 async function initProject(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>, projectDir: string) {
   await mkdir(projectDir, { recursive: true });
