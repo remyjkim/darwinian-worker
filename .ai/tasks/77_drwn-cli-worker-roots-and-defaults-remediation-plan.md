@@ -11,7 +11,7 @@
 
 **Tech Stack:** Bun, TypeScript 6, Clipanion, JSON schema validators, immutable Card Store artifacts, vendored project trees, managed-path reconciliation, `bun:test`, Bash smoke scenarios.
 
-**Status:** Revision 5 - revised for clean-slate architecture review; implementation paused
+**Status:** Completed 2026-07-13. Evidence: `.ai/tasks/77_completion_worker-roots-and-project-isolation.md`
 
 **Architecture authority:** `.ai/analyses/116_drwn-cli-card-worker-target-architecture.md` Revision 5
 

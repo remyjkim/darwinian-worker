@@ -3,7 +3,7 @@
 
 # Analysis 116: drwn CLI Card and Worker Target Architecture
 
-**Status**: Revision 5 - clean-slate target revised for architecture review; Task 77 implementation paused
+**Status**: Implemented by Task 77 on 2026-07-13
 
 **Date**: 2026-07-13
 
