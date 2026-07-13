@@ -10,13 +10,15 @@ Materialization is the second half of `drwn write`: resolving the effective harn
 
 Every materialization run composes effective harness state from up to five surfaces, in precedence order:
 
-- packaged harness defaults: `registry/config.json` and built-in skills and MCP definitions
+- packaged policy and available built-in skills/MCP definitions
 - local library: package-backed skill bundles under `~/.agents/drwn/skills` and user MCP definitions under `~/.agents/drwn/mcp-servers`
-- user defaults: machine-wide active state in `~/.agents/drwn/machine.json`
-- project overlay: `<project>/.agents/drwn/config.json` plus any merged card manifests
+- explicit machine intent: one pinned profile plus explicit skill/MCP IDs in strict `drwn.machine` V1
+- project intent: one selected Worker closure plus explicit overlays in strict project V1
 - downstream state: Claude, Codex, Cursor config files plus generated MCP configs
 
-A project overlay's mere presence wipes the machine-only overlay for `optional`, `defaults`, `catalogs`, and `parallel`. Inside a configured project, machine state stops contributing those fields.
+Machine and project evaluation are separate. Inside a configured project,
+machine capability IDs never contribute to declared state. User-home output can
+remain ambient in a downstream session and is diagnosed separately.
 
 ## The Resolved-State Engine
 
@@ -32,9 +34,9 @@ The separation between as-written and as-active is load-bearing. Every command r
 
 `drwn write` writes to disk through exactly three mechanisms, chosen per target:
 
-- **Copied directories** for skills. Claude and Codex skill targets are copied from the resolved skill source under `~/.agents/skills`, the repo skill tree, or a card's extracted tree. Each copied directory is recorded as a `managed-directory` entry in the write record.
-- **`_drwn` managed-field meta block** for Claude `settings.json` and Codex `config.toml`. drwn rewrites only the keys it declares as managed (`mcpServers` for Claude, `mcp_servers` for Codex) and records canonical hashes of those keys in a `_drwn` block so the next write can detect drift.
-- **Direct file write** for Cursor. drwn writes `~/.cursor/mcp.json` (or the project's `.cursor/mcp.json`) directly as a `managed-content` entry. Cursor's standalone JSON format means drwn owns the whole file, so the meta-block protocol is unnecessary.
+- **Copied directories** for selected skills. Each copied directory is recorded as a `managed-directory` entry.
+- **Per-server managed fields** for machine MCP projection. Claude, Codex, and Cursor record hashes for only the server IDs drwn owns, preserving unrelated fields and siblings.
+- **Project-owned target files** for project projection, with target-specific merge behavior and a project write record.
 
 See [Ownership and Write Records](./ownership-and-write-records) for how these three variants are recorded and cleaned up.
 
@@ -67,15 +69,15 @@ See [reference/cli/write](../reference/cli/write) for the full flag surface.
 
 ## Card-Overlay Wins Rule
 
-Card-bundled skill content is authoritative. When a project has a card locked, and that card's manifest declares a skill in `skills.include`, the card's extracted copy wins over any user-default of the same name. There is no merge semantic: the returned path is single-source.
+Card-bundled skill content is authoritative inside the selected Worker closure. A selected Card's extracted copy wins over any same-named repo-native or package-backed source. There is no merge semantic: the returned path is single-source.
 
-`drwn write --dry-run` annotates each planned skill copy with the winning resolution layer. When a curated user-default would have provided the same skill, the dry run records it as `also available:` so the operator can see what was shadowed:
+`drwn write --dry-run` annotates each planned skill copy with the winning resolution layer. When another Library source could have provided the same skill, the dry run records it as `also available:`:
 
 ```text
 skills/inspect-harness from card foo@1.0.0 (also available: user-default)
 ```
 
-If a card's `skills.include` names a skill the card store cannot resolve from disk, resolution returns `missing` with an actionable reason — drwn does not silently fall through to user defaults on a corrupt card store.
+If a Card's `skills.include` names content its immutable extraction cannot resolve, resolution returns `missing` with an actionable reason. drwn does not silently fall through to another source on a corrupt Card store.
 
 ## Unresolved-Skill Hard Fail
 

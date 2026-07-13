@@ -128,7 +128,12 @@ Cards may declare MCP definitions, but runtime installation and credentials rema
 
 ## Machine Profiles
 
-The **Recommended Darwinian Operator** machine profile is future Task 80 work, not behavior shipped by this contract. The selected direction is an opt-out guided-setup profile from `@darwinian/operator` that may project only machine-safe skills and explicitly approved MCP definitions. It will not project Worker identity, instructions, hooks, permissions, or governance. Non-interactive setup remains explicit and empty until that future task lands.
+The **Recommended Darwinian Operator** machine profile is shipped separately
+from this project contract. Guided machine setup preselects the opt-out,
+immutable `@darwinian/operator@1.0.2` profile; non-interactive setup writes
+explicit empty machine intent. The profile projects only 17 approved
+machine-safe skills and zero MCP servers. It does not project Worker identity,
+instructions, hooks, permissions, governance, or project intent.
 
 ## Store Safety
 

@@ -4,7 +4,7 @@ sidebar_position: 2
 
 # Using `status --why`
 
-`drwn status --why <query>` answers a provenance question: which layer (card, project overlay, machine default, packaged registry, extension registry) is putting this skill, server, extension, target, or card into the effective harness. It is the right command to reach for when something is active and you cannot tell why, or when something is missing and you want to know which layer would normally provide it.
+`drwn status --why <query>` answers a provenance question: which Card, project overlay, machine profile/explicit selection, Library source, or registry entry explains the item.
 
 The query is either `kind:name` (typed) or a bare `name` (untyped, ambiguous-resolution allowed).
 
@@ -31,11 +31,12 @@ Possible answers:
 
 - `skill:reviewer is active or available from card @your-handle/backend@0.2.0.`
 - `skill:reviewer is active or available from project config.`
-- `skill:reviewer is active or available from machine curation.`
+- `skill:reviewer is active from machine profile.`
+- `skill:reviewer is active from explicit machine selection.`
 - `skill:reviewer is active or available from repo or installed skill library.`
 - `not found: skill:reviewer`
 
-The order reflects resolution precedence at write time: card-bundled skills win over project-config inclusion, which wins over machine-curated skills, which win over baseline inventory.
+For project writes, Card-bundled skills in the selected Worker closure win over project-safe Library sources. For machine writes, profile attribution wins over an overlapping explicit selection.
 
 ### `--why server:<name>`
 

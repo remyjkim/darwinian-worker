@@ -1,4 +1,4 @@
-# ABOUTME: Explains the npm package-backed skill bundle model — ingestion, storage, curation, and downstream write.
+# ABOUTME: Explains the npm package-backed skill bundle model — ingestion, storage, explicit selection, and downstream write.
 # ABOUTME: Covers bundle shape, boundary with drwn, local storage layout, and supported commands.
 
 # NPM Skill Bundles Guide
@@ -22,7 +22,7 @@ In this model:
 
 - npm is the distribution and versioning layer
 - the bundle provides skill files plus metadata
-- `drwn` (invocable as `drwn` or the `dminds` alias) remains the only supported local meta-harness control plane for curation and downstream write
+- `drwn` remains the only supported local meta-harness control plane for explicit selection and downstream write
 
 Bundles are extension sources. They do not replace the built-in first-party skill tree in the repo.
 
@@ -59,7 +59,7 @@ Specifically, the package contributes:
 - ingestion
 - validation
 - inventory
-- curation
+- explicit machine or project selection
 - downstream write
 
 ## Required Bundle Shape
@@ -129,7 +129,8 @@ In the cards-era store, installed bundles live under:
 ~/.agents/drwn/skills/<package-name>/<version>
 ```
 
-There is also a `current` pointer file at the package root indicating the active version.
+There is also a `current` pointer file at the package root indicating the
+version exposed by Library inventory. This pointer does not activate any skill.
 
 Example:
 
@@ -172,7 +173,7 @@ drwn skills packages show <package-name>
 drwn skills packages show <package-name> --json
 ```
 
-## Availability vs Curation
+## Availability, Selection, And Projection
 
 Adding a bundle makes its skills available. It does not expose them automatically.
 
@@ -188,15 +189,45 @@ drwn write
 Important distinction:
 
 - available: the bundle exists in the active bundle cache, normally `~/.agents/drwn/skills`
-- default: a shared skill is listed in `~/.agents/drwn/machine.json` under `defaults.skills`
-- compatibility publication: a default or curated shared skill is linked into `~/.agents/skills`
-- written: downstream tool skill directories are copied into `~/.claude/skills` and `~/.codex/skills`
+- project-selected: the project declares the skill through `skills.include`, an extension, or its selected Worker closure
+- machine-selected: `~/.agents/drwn/machine.json` lists the ID under `capabilities.skills`, either directly or through the pinned profile
+- written: a project or machine write copies the selected bytes into recorded owned downstream paths
+
+Machine selection and projection are separate:
+
+```bash
+drwn library defaults add skill <skill-name>
+drwn write --scope machine --skills-only --dry-run
+drwn write --scope machine --skills-only
+```
+
+The machine file uses strict `drwn.machine` V1:
+
+```json
+{
+  "schema": "drwn.machine",
+  "schemaVersion": 1,
+  "policy": {},
+  "capabilities": {
+    "profile": null,
+    "skills": ["skill-name"],
+    "mcpServers": []
+  }
+}
+```
+
+The Recommended Darwinian Operator profile is an immutable
+`@darwinian/operator@1.0.2` pin that supplies 17 approved machine-safe skills
+and zero MCP servers. Package installation does not alter that profile or add a
+skill to its allowlist.
 
 ## Current Constraints
 
-### Shared-skill curation only
+### Supported machine scopes
 
-Only shared skills can be made global defaults or curated into `~/.agents/skills`.
+Explicit machine selections may resolve shared, Claude-only, or Codex-only
+skills. Projection writes only to targets supported by that skill's scope.
+Ambient compatibility directories are not activation authority.
 
 ### Unique skill names assumed
 
@@ -212,7 +243,7 @@ Implemented now:
 - list
 - show
 - inventory
-- curation
+- explicit selection
 - downstream write
 
 Deferred:
@@ -235,7 +266,9 @@ drwn add skill /path/to/skill-directory
 drwn library add skill /path/to/skill-directory
 ```
 
-A loose skill directory must contain a `SKILL.md` file. The skill is copied into the managed skill tree and becomes available for curation and downstream write like any other skill.
+A loose skill directory must contain a `SKILL.md` file. The skill is copied into
+the managed skill tree and becomes available for explicit selection like any
+other skill. Ingestion does not activate or project it.
 
 This is useful for:
 
@@ -245,8 +278,9 @@ This is useful for:
 
 Related commands:
 
-- `drwn skills curate <name>` — add a shared skill to the machine-wide default set
-- `drwn skills uncurate <name>` — remove a skill from the machine-wide default set
+- `drwn library defaults add skill <name>` — select an available skill for machine scope
+- `drwn library defaults remove skill <name>` — remove the explicit machine selection
+- `drwn add skill <name>` — declare an available skill in the current project
 - `drwn search skill <query>` — search available skills by name or keyword
 
 ## How Bundles Relate To Built-In Skills
@@ -288,6 +322,7 @@ Current bundle support does not mean:
 - npm install locations are the authoritative source
 - arbitrary public npm packages are automatically trusted
 - install-time scripts are part of the intended workflow
+- adding a package implicitly activates machine or project capabilities
 
 `drwn` remains the local harness control plane.
 

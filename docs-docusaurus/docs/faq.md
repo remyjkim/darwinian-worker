@@ -22,7 +22,11 @@ Because the right fix depends on intent that `drwn` does not have. A stale skill
 
 ## Why are bundle update and remove not implemented?
 
-The first wave of package-backed skill bundles intentionally ships `add`, `list`, `show`, curate, and downstream-write only. Update and remove were left out because their semantics (in-place upgrade vs reinstall, dangling references when a bundle is removed) need more design before they ship. For now, remove a bundle by deleting the directory under `~/.agents/drwn/skills/` and re-running `drwn write`; upgrade by re-adding the new version.
+The first wave of package-backed skill bundles intentionally ships add, list,
+show, explicit selection, and downstream write only. Update and remove were left
+out because their semantics need more design before they ship. For now, remove a
+bundle by deleting its directory only after removing project and machine
+references; upgrade by re-adding the new version.
 
 See the [extension skill bundles section](./reference/cli/library) and [npm skill bundles guide](https://github.com/remyjkim/darwinian-worker/blob/main/.ai/knowledges/03_npm-skill-bundles-guide.md) for the current surface.
 

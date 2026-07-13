@@ -20,16 +20,18 @@ drwn doctor --json
 | Category | Detail |
 |---|---|
 | Broken or missing skill entries | drwn-owned skill entries in downstream skill directories whose content no longer exists |
-| Stale skill entries | drwn-owned downstream skill entries that no longer correspond to the desired set (curated + scope + card-source resolved skills) |
+| Stale skill entries | prior-owned downstream skill entries that no longer correspond to selected machine or project skills |
 | MCP drift | Per-target managed-content drift across Claude / Codex / Cursor, comparing recorded vs recomputed hashes for each managed field |
 | Hook issues | A locked card declares hook policies but no hook consent has been recorded via `drwn card trust` |
 | Project config — unknown server | `serverOverrides` references a server that is neither in the registry nor the user MCP library |
 | Project config — unknown skill | `skills.include` (or `extensions.<name>` derivations) references a skill that does not resolve in any layer |
 | Project config — unknown extension | `extensions.<name>` references an extension drwn does not know |
 | Project config — stale target override | `targets.<name>` references a target drwn does not know |
-| Project config — unknown card | A `config.cards` entry cannot be parsed or matched against `card.lock` |
-| Project config — unresolved card refs | A locked card cannot be materialized (missing extract, missing remote, etc.) |
+| Project config — invalid Worker root | A configured root cannot be parsed or matched against `card.lock` |
+| Project config — unresolved Card refs | A locked Card cannot be materialized from its immutable extraction |
 | Card manifest — unavailable skill | A consumed card's manifest references a skill name that does not resolve under the effective state |
+| Machine capability issues | Invalid explicit IDs or missing/changed pinned profile bytes |
+| Machine projection conflicts | Foreign destinations or drift in prior-owned state; report-only |
 | Store + write-record status | Store schema version, card count, and last-write record presence/corruption |
 
 ## Report-only by design

@@ -57,7 +57,7 @@ drwn write
 ```
 
 `drwn write` then derives the four Parallel skills for this project without
-needing global skill curation.
+needing a machine skill selection.
 
 ## Add The MCP Overlay (Project Scope)
 

@@ -43,27 +43,29 @@ drwn mcp write --json
 | User MCP library | `~/.agents/drwn/mcp-servers/<id>.json` | machine-local additions |
 | Card-declared definitions | locked card manifests and card store content | card authors |
 | Registry/target config | `registry/config.json` | packaged harness |
-| Machine defaults | `~/.agents/drwn/machine.json` under `defaults.mcpServers` | machine-local |
+| Machine selections | `~/.agents/drwn/machine.json` under `capabilities.mcpServers` | machine-local |
 | Project overlay | `<project>/.agents/drwn/config.json` | per-project |
 
 ## Inclusion rules
 
-`buildActiveServers` decides which servers materialize for the active targets:
+Machine and project evaluation use separate inclusion rules:
 
-- If `defaults.mcpServers` is set, it acts as an allowlist — only listed servers are active.
-- Otherwise: `transport: "platform-provided"` entries are always excluded (they live in the registry for documentation but are never written to downstream tool configs).
-- Servers with `optional: true` are off by default; toggle them in the optional boolean map at `defaults.optional.<name>` (or the registry's optional map for machine writes).
+- Machine scope activates only profile MCP IDs plus explicit `capabilities.mcpServers` IDs.
+- `transport: "platform-provided"` entries are never projected into local tool configs.
 - In a project, `drwn add mcp <name>` writes `servers.<name>.enabled = true`; this also enables optional MCPs declared only by locked cards.
-- The Parallel MCP overlay is gated by `config.parallel.mcp.enabled`.
 - Inside a project, `extensions.parallel.mcp = true` enables the project-local Parallel MCP overlay; the project overlay can also enable or disable any individual server.
+- Packaged optional/Parallel flags never activate machine MCPs.
 
 ## Generated config
 
 `drwn write` (and `drwn mcp write`) produce target-specific output:
 
-- Claude: `_drwn`-managed `mcpServers` block inside `~/.claude/settings.json`
-- Codex: `mcp_servers` section rewrite inside `~/.codex/config.toml`
-- Cursor: `~/.cursor/mcp.json` (or the project's `.cursor/mcp.json`) written directly as `managed-content` — drwn owns the whole file
+- Claude: per-server owned fields in `~/.claude.json` (or project `.mcp.json`)
+- Codex: per-server owned fields in `~/.codex/config.toml`
+- Cursor: per-server owned fields in `~/.cursor/mcp.json`
+
+Unrelated fields and server IDs survive machine writes. A same-ID field that is
+not in the global write record is foreign and blocks projection.
 
 ## Related
 

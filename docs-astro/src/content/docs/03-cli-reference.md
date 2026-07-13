@@ -105,11 +105,12 @@ order: 3
 | Command | Description |
 |---------|-------------|
 | `drwn skills list` | List available skills |
-| `drwn skills curate <skillName>` | Curate a shared skill |
-| `drwn skills uncurate <skillName>` | Remove a skill from curation |
 | `drwn skills packages add <packageSpec>` | Add a package-backed skill bundle |
 | `drwn skills packages list` | List installed skill packages |
 | `drwn skills packages show <packageName>` | Show package details |
+
+Use `drwn library defaults add skill <skillName>` for an explicit machine
+selection or `drwn add skill <skillName>` for the current project.
 
 ## Common Flags
 

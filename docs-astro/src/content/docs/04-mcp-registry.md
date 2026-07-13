@@ -29,8 +29,8 @@ Add a user MCP server:
 drwn library add mcp my-server.json --as my-server
 ```
 
-Machine-wide active MCP defaults live in `~/.agents/drwn/machine.json` under
-`defaults.mcpServers`.
+Explicit machine MCP selections live in `~/.agents/drwn/machine.json` under
+`capabilities.mcpServers` and are projected with `drwn write --scope machine`.
 
 Reusable MCP definitions use the current `~/.agents/drwn/mcp-servers/`
 directory.

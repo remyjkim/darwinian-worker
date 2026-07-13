@@ -17,7 +17,7 @@ intent. Examples:
 - a project should enable Parallel, Beads, or MarkItDown without enabling them globally
 - a project should disable a downstream target (e.g. no Cursor)
 
-Machine defaults remain machine-scoped and may be visible ambiently in project
+Machine capabilities remain machine-scoped and may be visible ambiently in project
 sessions. They are not inherited as project declarations.
 
 ## Scaffold
@@ -99,7 +99,7 @@ Project capabilities are resolved only from project-owned inputs:
 selected Worker root closure -> explicit project overlays -> explicit local overlay
 ```
 
-Machine defaults and user-home target files are not copied into project intent,
+Machine capability selections and user-home target files are not copied into project intent,
 lock state, or generated Worker aggregates. Status and doctor may report them as
 diagnostic-only ambient observations because downstream clients can still expose
 user-home state during a project session.

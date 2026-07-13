@@ -28,19 +28,23 @@ drwn write --mcp-only
 drwn mcp write --dry-run
 ```
 
-`drwn write --force` is for replacing drift inside paths that `drwn` already owns. It is not a general cleanup flag for user-managed files.
+`drwn write --force` repairs drift only inside paths or MCP fields already recorded as drwn-owned. It never claims foreign files or fields.
 
-Write at machine scope (user defaults) rather than project scope:
+Write at explicit machine scope rather than project scope:
 
 ```bash
-drwn write --root
-drwn write --user       # alias for --root
-drwn write --root --dry-run
+drwn write --scope machine --dry-run
+drwn write --scope machine
 ```
 
-`--root` / `--user` ignores project config and writes machine defaults to user-scope tool configs (`~/.claude/`, `~/.codex/`, `~/.cursor/`). The write record lives at `~/.agents/drwn/global-write-record.json`.
+`--scope machine` ignores project config and projects strict machine intent to user-scope tool configs (`~/.claude/`, `~/.codex/`, `~/.cursor/`). The write record lives at `~/.agents/drwn/global-write-record.json`.
 
-Without `--root`, project writes use `<project>/.agents/drwn/write-record.json`. The two modes are mutually exclusive — passing both flags is an error.
+Project writes use `<project>/.agents/drwn/write-record.json` and project intent only. User-home capabilities may remain ambient in the downstream client but are never copied into project declarations.
+
+A first machine write refuses an existing unrecorded destination or same-ID MCP
+field with `MACHINE_PROJECTION_CONFLICT`, even when bytes are identical.
+Removal deletes only unchanged prior-owned state; drifted and foreign state is
+preserved.
 
 Enforcement flags:
 

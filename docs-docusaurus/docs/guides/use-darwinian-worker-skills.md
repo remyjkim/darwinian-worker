@@ -30,7 +30,7 @@ drwn skills packages show darwinian-worker-skills
 ```
 
 Installing a bundle makes its skills available. It does not activate them in a
-project and does not make them machine defaults.
+project and does not select them for machine scope.
 
 ## Add One Skill To A Project
 
@@ -45,19 +45,17 @@ drwn write --dry-run
 
 Use `drwn write` only after the dry run shows the downstream changes you expect.
 
-## Make A Skill A Machine Default
+## Select A Skill For Machine Scope
 
-Use defaults only when every future project on the machine should inherit the
-skill:
+Use a machine selection only when machine sessions should expose the skill.
+Projects remain independent from this selection:
 
 ```bash
 drwn library defaults add skill inspect-harness --dry-run --json
 drwn library defaults add skill inspect-harness
-drwn write --dry-run
+drwn write --scope machine --dry-run
+drwn write --scope machine
 ```
-
-Defaulting a shared skill also curates it into the compatibility publication
-layer at `~/.agents/skills`.
 
 ## Use The Stable Card During Development
 

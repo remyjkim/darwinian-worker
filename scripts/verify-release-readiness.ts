@@ -216,6 +216,210 @@ function verifyStoreExportSecurity() {
 
 type SourceOverrides = Record<string, string>;
 
+function sourceSlice(content: string, startToken: string, endToken?: string) {
+  const start = content.indexOf(startToken);
+  if (start === -1) return "";
+  const end = endToken ? content.indexOf(endToken, start + startToken.length) : -1;
+  return content.slice(start, end === -1 ? undefined : end);
+}
+
+export function verifyMachineContract(root = repoRoot, overrides: SourceOverrides = {}): CheckResult {
+  const issues: string[] = [];
+  const source = (pathValue: string) => {
+    if (Object.hasOwn(overrides, pathValue)) return overrides[pathValue]!;
+    const absolutePath = join(root, pathValue);
+    if (!existsSync(absolutePath)) {
+      issues.push(`missing machine contract source ${pathValue}`);
+      return "";
+    }
+    return readFileSync(absolutePath, "utf8");
+  };
+  const requireTokens = (pathValue: string, tokens: string[]) => {
+    const content = source(pathValue);
+    for (const token of tokens) {
+      if (!content.includes(token)) issues.push(`${pathValue} is missing ${token}`);
+    }
+  };
+
+  requireTokens("cli/core/machine-config.ts", [
+    'schema: z.literal("drwn.machine")',
+    "schemaVersion: z.literal(1)",
+    "capabilities: z.object",
+    "profile: profileSchema.nullable()",
+    "skills: uniqueIds",
+    "mcpServers: uniqueIds",
+    "MACHINE_CONFIG_INVALID",
+    ".strict()",
+  ]);
+  requireTokens("cli/core/user-config.ts", [
+    "resolveMachineConfigPath",
+    "readMachineConfigFile",
+    "mergeMachinePolicy(repoConfig, machineConfig)",
+  ]);
+  requireTokens("cli/core/defaults.ts", [
+    "resolveMachineCapabilities",
+    "verifyMachineProfilePin",
+    "machine.capabilities.skills",
+    "machine.capabilities.mcpServers",
+  ]);
+
+  const machineReaders = [
+    "cli/core/user-config.ts",
+    "cli/core/card-store.ts",
+    "cli/core/effective-state.ts",
+    "cli/core/defaults.ts",
+    "cli/core/diagnostics.ts",
+  ];
+  for (const pathValue of machineReaders) {
+    const content = source(pathValue);
+    for (const field of ["defaults", "optional", "parallel"] as const) {
+      if (new RegExp(`(?:machineConfig|machine|input)\\.${field}\\b`).test(content)) {
+        issues.push(`${pathValue} reads prototype machine field ${field}`);
+      }
+    }
+    if (content.includes("resolveUserConfigPath")) {
+      issues.push(`${pathValue} reads the prototype machine config path`);
+    }
+  }
+
+  const defaultsSource = source("cli/core/defaults.ts");
+  const activation = sourceSlice(
+    defaultsSource,
+    "export async function resolveMachineCapabilities",
+    "export async function validateDefaultReferences",
+  );
+  for (const forbidden of [
+    "listCuratedSkills",
+    "resolveDefaultSkillNames",
+    "resolveDefaultMcpNames",
+    "config.optional",
+    "config.parallel",
+  ]) {
+    if (activation.includes(forbidden)) issues.push(`machine activation reads ${forbidden}`);
+  }
+  if (activation.includes("resolveCard(")) {
+    issues.push("machine activation performs runtime profile resolution");
+  }
+
+  const profileSource = source("cli/core/machine-profiles.ts");
+  const offlineVerification = sourceSlice(
+    profileSource,
+    "export async function verifyMachineProfilePin",
+    "export async function initializeMachineCapabilities",
+  );
+  if (offlineVerification.includes("resolveCard(")) {
+    issues.push("pinned profile verification performs a runtime fetch");
+  }
+  requireTokens("cli/core/machine-profiles.ts", [
+    "computeIntegrityFromDir(dir)",
+    "Pinned profile bytes are missing",
+    "Pinned profile integrity changed",
+  ]);
+
+  let profile: Record<string, unknown> | null = null;
+  try {
+    const registry = JSON.parse(source("registry/machine-profiles.json")) as {
+      schema?: string;
+      schemaVersion?: number;
+      profiles?: Array<Record<string, unknown>>;
+    };
+    if (registry.schema !== "drwn.machine-profiles" || registry.schemaVersion !== 1 || registry.profiles?.length !== 1) {
+      issues.push("machine profile registry must contain exactly one V1 profile");
+    }
+    profile = registry.profiles?.[0] ?? null;
+  } catch {
+    issues.push("machine profile registry must be valid JSON");
+  }
+  if (profile) {
+    if (profile.id !== "darwinian-operator") issues.push("Operator profile ID must be darwinian-operator");
+    if (profile.name !== "@darwinian/operator") issues.push("Operator Card name must be @darwinian/operator");
+    if (profile.version !== "1.0.2") issues.push("Operator version must be 1.0.2");
+    if (profile.source !== "git+https://github.com/curation-labs/darwinian-operator.git#v1.0.2") {
+      issues.push("Operator profile must use the exact Operator source");
+    }
+    if (profile.commit !== "6b2998c51b7c736c70c2e522cb8d7b3170e816d8") issues.push("Operator commit pin changed");
+    if (profile.treeSha !== "2297dfc30783200a2b6a0da1189d7de20a01f23c") issues.push("Operator tree pin changed");
+    if (profile.integrity !== "sha256-284cd3ba4880a60ba93b81c0be0dd15796b27a640ed697fdb1a18fe6b5ff30d9") {
+      issues.push("Operator integrity pin changed");
+    }
+    if (!Array.isArray(profile.skills) || profile.skills.length !== 17) issues.push("Operator profile must expose exactly 17 approved skills");
+    if (!Array.isArray(profile.mcpServers) || profile.mcpServers.length !== 0) issues.push("Operator profile must expose zero MCP servers");
+  }
+
+  const index = source("cli/index.ts");
+  for (const command of ["SkillsCurateCommand", "SkillsUncurateCommand"]) {
+    if (index.includes(command)) issues.push(`cli/index.ts registers retired curation command ${command}`);
+  }
+  for (const pathValue of ["cli/commands/skills/curate.ts", "cli/commands/skills/uncurate.ts"]) {
+    if (existsSync(join(root, pathValue))) issues.push(`retired curation command file remains: ${pathValue}`);
+  }
+
+  const ownershipTests = source("test/scenarios-root-scope.test.ts");
+  for (const [token, label] of [
+    ['const foreignMcpTargets = ["claude", "codex", "cursor"] as const', "foreign ownership coverage is missing"],
+    ["including dry-run and force", "dry-run/force ownership coverage is missing"],
+    ["detects drift only for drwn-owned MCP server entries", "owned MCP drift coverage is missing"],
+    ["preserves drifted prior-owned MCP entries for every target", "drifted removal coverage is missing"],
+  ] as const) {
+    if (!ownershipTests.includes(token)) issues.push(label);
+  }
+  const skillOwnershipTests = source("test/commands-write-drift.test.ts");
+  if (!skillOwnershipTests.includes('for (const variant of ["different", "identical"] as const)')) {
+    issues.push("foreign skill ownership coverage is missing");
+  }
+
+  const forwardDocPaths = [
+    "README.md",
+    "docs/cli-quickref.md",
+    ".ai/knowledges/01_agents-cli-usage-guide.md",
+    ".ai/knowledges/02_per-project-config-guide.md",
+    ".ai/knowledges/03_npm-skill-bundles-guide.md",
+  ];
+  const forwardDocs = forwardDocPaths.map(source).join("\n");
+  for (const token of [
+    '"schema": "drwn.machine"',
+    '"schemaVersion": 1',
+    "Recommended Darwinian Operator",
+    "@darwinian/operator@1.0.2",
+    "drwn library defaults add skill",
+    "drwn library defaults add mcp",
+    "drwn write --scope machine",
+    "MACHINE_PROJECTION_CONFLICT",
+    "operator-owned runtime state",
+  ]) {
+    if (!forwardDocs.includes(token)) issues.push(`machine contract docs are missing ${token}`);
+  }
+  const staleMachineDocPatterns = [
+    /drwn skills (?:curate|uncurate)/,
+    /future Task 80/i,
+    /"defaults"\s*:/,
+    /defaults\.(?:skills|mcpServers)/,
+    /curated publication layer/i,
+    /machine-wide active MCP defaults live/i,
+  ];
+  for (const pathValue of forwardDocPaths) {
+    const content = source(pathValue);
+    if (staleMachineDocPatterns.some((pattern) => pattern.test(content))) {
+      issues.push(`prototype machine documentation remains in ${pathValue}`);
+    }
+  }
+
+  const storeExport = source("cli/commands/store/export.ts");
+  if (
+    !storeExport.includes("STORE_EXPORT_DISABLED_UNSAFE") ||
+    /\bcreateArchive\s*\(/.test(storeExport) ||
+    /entries\s*:\s*\[\s*["']drwn["']\s*\]/.test(storeExport)
+  ) {
+    issues.push("whole-Store export must remain fail-closed");
+  }
+
+  return {
+    name: "machine capability contract",
+    ok: issues.length === 0,
+    details: issues.join("; ") || undefined,
+  };
+}
+
 export function verifyWorkerContract(root = repoRoot, overrides: SourceOverrides = {}): CheckResult {
   const issues: string[] = [];
   const source = (pathValue: string) => {
@@ -310,7 +514,13 @@ export function verifyWorkerContract(root = repoRoot, overrides: SourceOverrides
     issues.push("generated Worker sync treats locked member Cards as roots");
   }
 
-  const projectEvaluation = source("cli/core/effective-state.ts") + source("cli/core/sync.ts");
+  const syncSource = source("cli/core/sync.ts");
+  const machineProjection = sourceSlice(
+    syncSource,
+    "export function planMachineManagedPaths",
+    "export interface MachineProjectionConflict",
+  );
+  const projectEvaluation = source("cli/core/effective-state.ts") + syncSource.replace(machineProjection, "");
   for (const machinePath of ["listCuratedSkills", "resolveCuratedSkillsDir", "claude-only", "codex-only"]) {
     if (projectEvaluation.includes(machinePath)) {
       issues.push(`project evaluation scans machine compatibility source ${machinePath}`);
@@ -552,6 +762,7 @@ async function main() {
 
   checks.push(verifyDocsPresence());
   checks.push(verifyWorkerContract());
+  checks.push(verifyMachineContract());
   checks.push(verifyAmbientMcpPolicy());
   checks.push(verifyStoreExportSecurity());
   checks.push(await verifySchemaPackageReachable());

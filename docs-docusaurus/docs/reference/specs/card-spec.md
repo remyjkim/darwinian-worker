@@ -124,7 +124,7 @@ Project config lists Worker roots and one selection. The selected root expands t
 selected Blueprint root -> root Card -> ordered member Cards
 ```
 
-Only that closure contributes Card capabilities. Explicit project `skills`, `mcpServers`, `hooks`, `extensions`, and `targets` remain project-owned overlays. Machine defaults are not project declarations.
+Only that closure contributes Card capabilities. Explicit project `skills`, `mcpServers`, `hooks`, `extensions`, and `targets` remain project-owned overlays. Machine capabilities are not project declarations.
 
 ## Local Development
 

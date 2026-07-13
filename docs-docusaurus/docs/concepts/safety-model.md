@@ -9,9 +9,9 @@ drwn's safety model is intentionally simple. It treats the operator as the final
 ## The six rules
 
 - **Preview first with `--dry-run`.** Every mutating command supports it. The dry run reports the same diffs and managed-path changes the real run would apply.
-- **Inspect machine state with `status`.** `drwn status` reads only — it never writes — and surfaces the operative configuration, target state, curated skills, and current libraries.
+- **Inspect machine state with `status`.** `drwn status` reads only and surfaces the strict schema, profile pin, capability provenance, target state, current Library, and projection health.
 - **Diagnose drift with `doctor` — report-only.** `drwn doctor` enumerates problems (drift, stale symlinks, ownership conflicts, missing generated files) and stops. It never auto-fixes. See [Reading doctor output](../troubleshooting/reading-doctor) for the read-out conventions.
-- **Curate skills explicitly before writing them downstream.** Adding a skill bundle to the library does not enable it. Only curated skills are written into downstream targets.
+- **Select capabilities explicitly before projecting them.** Adding a skill bundle or MCP definition to the Library does not enable it. Machine and project selections are separate from write.
 - **Treat package-backed bundles as available content, not automatically exposed behavior.** Installing an npm skills package is conceptually "fetched and verified"; making it visible to your agents is a separate, explicit act.
 - **Keep cleanup report-only until a command explicitly supports repair or pruning.** When you encounter detritus (a stale link, a leftover write record), the doctor tells you about it. If a remediation command does not yet exist for that specific finding, the right answer is to clean up manually or open a request — not to grow auto-fix surface area.
 
@@ -23,9 +23,9 @@ The safety model trades convenience for legibility. It is more typing. It is mor
 
 ## How it shows up in commands
 
-- `drwn write` honors `--dry-run` and refuses to overwrite hand-edited downstream files without `--force`.
+- `drwn write` honors `--dry-run`. Machine projection refuses every foreign destination even with `--force`; force repairs only prior drwn-owned drift.
 - `drwn doctor` exits non-zero when it finds issues so it can gate CI, but it never mutates.
-- `drwn curate` is a separate verb from `drwn add` precisely so the "available" / "enabled" split is enforced.
+- `drwn library add` makes content available, `drwn library defaults add` selects it for machine scope, and `drwn write --scope machine` projects it.
 - `DRWN_STORE_READONLY=1` is a global escape hatch: when set, every write under `~/.agents/drwn/` is refused at the chokepoint. Use it in environments where the local store must not be modified at all.
 
 ## See also

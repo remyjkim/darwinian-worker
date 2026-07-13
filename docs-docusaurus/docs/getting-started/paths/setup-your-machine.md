@@ -4,7 +4,7 @@ sidebar_position: 3
 
 # Set Up Your Machine
 
-Set up `drwn` once per machine. After this path you will have an installed CLI, a local store under `~/.agents/drwn`, a chosen set of machine-wide default skills and MCP servers, and a clean first write into the downstream tool config.
+Set up `drwn` once per machine. After this path you will have an installed CLI, a local Store under `~/.agents/drwn`, explicit machine capability intent, and a reviewed first projection into downstream tool config.
 
 ## Prerequisites
 
@@ -49,24 +49,29 @@ Drill into a single entry to see what it does:
 drwn library show <name>
 ```
 
-## See current machine defaults
+## Initialize Machine Intent
 
-Machine defaults live in `~/.agents/drwn/machine.json`. On a fresh install the lists are empty.
+Prompt-free setup creates strict empty `drwn.machine` V1 intent:
 
 ```bash
+drwn init --non-interactive
 drwn library defaults list
 ```
 
-## Add machine-wide defaults
+Interactive `drwn init` offers the opt-out Recommended Darwinian Operator
+profile. The immutable `@darwinian/operator@1.0.2` pin contributes 17 approved
+machine-safe skills and zero MCP servers.
 
-Decide which skills and MCP servers should be active across every project that does not override them. Skills go through `library defaults add skill`; MCP servers through `library defaults add mcp`:
+## Add Explicit Machine Capabilities
+
+Decide which skills and MCP servers should be visible in machine sessions. Skills go through `library defaults add skill`; MCP servers through `library defaults add mcp`:
 
 ```bash
 drwn library defaults add skill <skill-name>
 drwn library defaults add mcp <server-name>
 ```
 
-For example, to make a code reviewer skill and the `context7` documentation MCP server part of every project by default:
+For example, to select a code reviewer skill and the `context7` documentation MCP server:
 
 ```bash
 drwn library defaults add skill reviewer
@@ -83,11 +88,11 @@ drwn library defaults remove mcp <server-name>
 
 ## Preview, then write
 
-`drwn write --dry-run` shows the exact changes the write would make to `~/.claude`, `~/.codex`, and `~/.cursor`. Read it before running the unguarded write.
+`drwn write --scope machine --dry-run` shows the exact changes the write would make to `~/.claude`, `~/.codex`, and `~/.cursor`. Read it before running the write.
 
 ```bash
-drwn write --dry-run
-drwn write
+drwn write --scope machine --dry-run
+drwn write --scope machine
 ```
 
 ## Verify
@@ -101,7 +106,12 @@ ls ~/.claude/skills
 ls ~/.codex/skills
 ```
 
-`drwn doctor` is report-only — if anything looks wrong it tells you what without mutating. The downstream skill directories should contain copied skill directories for each of your curated and default skills.
+`drwn doctor` is report-only. It reports invalid capability IDs, missing or changed profile bytes, and projection ownership conflicts without repairing them. The downstream skill directories should contain copied skill directories for selected skills.
+
+If a destination already exists without a matching global write-record entry,
+the write fails with `MACHINE_PROJECTION_CONFLICT`. Do not use force to claim
+it. Move, remove, or reconcile foreign state explicitly; force repairs only
+drift in prior drwn-owned output.
 
 ## Cross-References
 

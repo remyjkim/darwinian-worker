@@ -27,7 +27,7 @@ drwn store export --out /tmp/drwn-store.tar
 
 `drwn store seed` populates an empty store from a legacy snapshot or prepared directory. It refuses to overwrite a non-empty store unless `--force` is passed. It remains available for CI base images and airgapped deployments where card cloning is unavailable.
 
-The store contains machine defaults, package-backed skills, MCP server definitions, card sources, published card repositories, extracted card trees, catalogs, and write records.
+The Store contains strict machine intent, package-backed skills, MCP server definitions, Card sources, published Card repositories, extracted Card trees, catalogs, and write records.
 
 Use readonly mode for checks that must not mutate local state:
 

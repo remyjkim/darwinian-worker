@@ -4,87 +4,105 @@ sidebar_position: 1
 
 # Machine JSON
 
-On disk: `~/.agents/drwn/machine.json` (resolved by `resolveMachineConfigPath`, `cli/core/store-paths.ts`).
+On disk: `~/.agents/drwn/machine.json`.
 
-Purpose: the machine-scope drwn configuration. Holds target enablement, machine-wide defaults (skills, MCP servers, extension config), catalog toggles, parallel-extension state, and an authoring scope used by `drwn card new`. Merged on top of the packaged repo config when an effective config is built (`mergeMachineConfig`, `cli/core/user-config.ts:77-100`).
+Purpose: the first supported machine-scope policy and capability contract. The
+file is strict, namespaced, and independent from project Worker declarations.
 
-## Type
-
-`MachineConfig = CanonicalConfig & { authoring?: { scope?: string } }` (`cli/core/types.ts:76-80`).
-
-`CanonicalConfig` (`cli/core/types.ts:39-69`) supplies every field except `authoring`.
-
-## Example
+## Schema
 
 ```json
 {
-  "version": 1,
-  "targets": {
-    "claude": { "enabled": true,  "configPath": "~/.claude/settings.json",        "format": "json-merge",      "mcpKey": "mcpServers" },
-    "codex":  { "enabled": true,  "configPath": "~/.codex/config.toml",           "format": "toml-merge",      "mcpKey": "mcp_servers" },
-    "cursor": { "enabled": false, "configPath": "~/.cursor/mcp.json",             "format": "json-standalone", "mcpKey": "mcpServers" }
-  },
-  "defaults": {
-    "skills": ["parallel-web-search", "markitdown-document-conversion"],
-    "mcpServers": ["context7"],
-    "extensions": {
-      "parallel": { "enabled": true, "skills": true, "mcp": false }
+  "schema": "drwn.machine",
+  "schemaVersion": 1,
+  "policy": {
+    "authoring": { "scope": "@your-handle" },
+    "targets": {
+      "claude": { "enabled": true },
+      "codex": { "enabled": true },
+      "cursor": { "enabled": false }
     }
   },
-  "catalogs": {
-    "npmSkills": { "enabled": true, "searchLimit": 25 },
-    "mcp":       { "enabled": true, "sources": [{ "type": "url", "url": "https://example.com/mcp.json" }] }
-  },
-  "parallel": {
-    "cli": { "enabled": true },
-    "mcp": { "enabled": false }
-  },
-  "optional": {
-    "context7": true
-  },
-  "authoring": {
-    "scope": "@your-handle"
+  "capabilities": {
+    "profile": null,
+    "skills": [],
+    "mcpServers": []
   }
 }
 ```
 
+Every object rejects unknown fields. The only supported schema version is `1`.
+Prototype files are rejected with `MACHINE_CONFIG_INVALID`; they are never
+migrated, rewritten, or interpreted.
+
 ## Fields
 
-| Field | Type | Required | Meaning | Enforced at |
-|---|---|---|---|---|
-| `version` | `number` (must be `1`) | yes | Schema version. Anything else throws on load. | `loadUserConfig`, `cli/core/user-config.ts:25-28` |
-| `targets` | `Record<TargetName, TargetConfig>` | yes | Per-target config: `enabled`, `configPath`, `format` (`json-merge`/`toml-merge`/`json-standalone`), `mcpKey`. | `cli/core/types.ts:31-37`; merged via `mergeMachineConfig`, `user-config.ts:79-82` |
-| `defaults.skills` | `string[]` | no | Curated skill names enabled by default. Seeded from the curated bundle on first init. | Read by `loadEffectiveConfig`; seeded in `initializeUserConfigFromPackagedDefaults`, `user-config.ts:36-50` |
-| `defaults.mcpServers` | `string[]` | no | MCP server names enabled by default. Seeded by `resolveDefaultMcpNames`. | `user-config.ts:36-50` |
-| `defaults.extensions` | `Record<string, ProjectExtensionConfig>` | no | Default extension settings (parallel/beads/markitdown) applied machine-wide. | `cli/core/types.ts:42-46` |
-| `catalogs.npmSkills.enabled` | `boolean` | no | Toggles npm skill catalog search. | `cli/core/types.ts:48-51` |
-| `catalogs.npmSkills.searchLimit` | `number` | no | Max results returned by catalog search. | `cli/core/types.ts:48-51` |
-| `catalogs.mcp.enabled` | `boolean` | no | Toggles the MCP catalog. | `cli/core/types.ts:52-58` |
-| `catalogs.mcp.sources` | `Array<{ type: "file"; path } \| { type: "url"; url }>` | no | Extra catalog sources merged into the default catalog. | `cli/core/types.ts:52-58` |
-| `parallel.cli.enabled` | `boolean` | no | Whether the Parallel CLI surface is enabled at the machine level. | `cli/core/types.ts:60-67` |
-| `parallel.mcp.enabled` | `boolean` | no | Whether the Parallel MCP servers are enabled at the machine level. | `cli/core/types.ts:60-67` |
-| `optional` | `Record<string, boolean>` | yes | Per-name optional toggles. The map exists even when empty so consumers can write into it. | `cli/core/types.ts:68` |
-| `defaults.communityCatalogUrl` | `string \| null` | no | Overrides the default community catalog endpoint URL. Set `null` to disable community catalog resolution. | `card-catalog.ts:68-74` |
-| `authoring.scope` | `string` (`@scope` shape) | no | Default npm-style scope applied to `drwn card new` when the supplied name is unscoped. | Read at `card-store.ts:231-233`; written at `card-store.ts:236-240` |
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `schema` | `"drwn.machine"` | yes | Namespaced contract identity. |
+| `schemaVersion` | `1` | yes | First supported local machine schema. |
+| `policy.authoring.scope` | `string` | no | Default scope for unscoped `drwn card new` names. |
+| `policy.targets` | partial target map | no | Approved target policy overrides. |
+| `policy.catalogs` | catalog policy | no | npm skill and MCP catalog policy. |
+| `policy.analyzer` | analyzer policy | no | Session analyzer endpoints and limits. |
+| `policy.trustedSources` | trust policy | no | Trusted Git/catalog source policy. |
+| `capabilities.profile` | immutable profile pin or `null` | yes | One approved machine capability profile. |
+| `capabilities.skills` | unique `string[]` | yes | Explicit machine skill IDs. |
+| `capabilities.mcpServers` | unique `string[]` | yes | Explicit machine MCP IDs. |
 
-For `defaults.skills` and `defaults.mcpServers`, any array — including an empty array (`[]`) — is treated as an explicit machine override; an empty array activates nothing. Only a missing field means "uninitialized": reads fall back to the resolved defaults, and `drwn library defaults add|remove ...` seeds the list with the currently resolved defaults before applying the mutation. An explicit empty array is preserved as-is.
+Capabilities never alter policy. Policy never activates capabilities.
 
-## How it gets there
+## Recommended Profile
 
-- **Initial creation** — `ensureStoreInitialized` writes `{ "version": 1, "optional": {} }` when no machine.json exists (`cli/core/card-store.ts:103-106`).
-- **First-run seeding** — `initializeUserConfigFromPackagedDefaults` (`cli/core/user-config.ts:36-50`) populates `defaults.skills`, `defaults.mcpServers`, and `defaults.extensions` from the packaged repo config and curated skill list.
-- **Mutators**
-  - `drwn library defaults add|remove skill|mcp` rewrites `defaults.skills` / `defaults.mcpServers` (`cli/commands/library/defaults/*.ts`).
-  - `drwn card new --scope @your-handle` persists `authoring.scope` (`cli/commands/card/new.ts`; persistence at `card-store.ts:236-240`).
-- **Reads** — `loadOrInitializeUserConfig` and `loadEffectiveConfig` (`user-config.ts:52-75`) pull the file when present and merge it onto the packaged repo config.
+Guided setup offers **Recommended Darwinian Operator** as an opt-out default.
+Its pin identifies `@darwinian/operator@1.0.2` at the exact Git tag, commit,
+tree SHA, and content integrity. The approved projection is 17 machine-safe
+skills and zero MCP servers.
 
-## Notes
+The profile is not a Worker. It contributes no instructions, hooks,
+permissions, governance, identity, or project state. Runtime reads its pinned
+extracted bytes offline and fails on missing or changed content.
 
-- When a project config is discovered, machine `defaults` are not silently applied on top of project state; project config is the authoritative overlay. See [Project Config JSON](./project-config-json).
-- `optional` is the single source of truth for per-server enabled state at the machine layer; project `servers` toggles modify the effective version, not this file.
+## Activation And Mutation
+
+Effective machine capabilities are exactly:
+
+```text
+approved subset of the selected immutable profile
++ capabilities.skills
++ capabilities.mcpServers
+```
+
+Use the supported mutators:
+
+```bash
+drwn library defaults list
+drwn library defaults add skill <skill-id>
+drwn library defaults remove skill <skill-id>
+drwn library defaults add mcp <server-id>
+drwn library defaults remove mcp <server-id>
+```
+
+These commands edit machine intent only. Run `drwn write --scope machine` to
+project it. Library availability, packaged optional flags, Parallel flags,
+ambient directories, and existing downstream files do not activate anything.
+
+## Initialization
+
+- `drwn init --non-interactive` and `--minimal` create explicit empty intent.
+- Guided `drwn init` offers the Recommended profile as `[Y/n]`.
+- Declining writes empty intent.
+- Existing valid intent is never reset or re-prompted.
+
+## Project Boundary
+
+Project evaluation does not read machine capability selections. A project uses
+one selected Worker closure plus explicit project overlays. User-home output may
+remain ambient in the downstream client, but status reports it separately and
+never imports it into project intent.
 
 ## Related
 
-- [Project Config JSON](./project-config-json) — the project-scope overlay
-- [Write Record JSON](./write-record-json) — machine-scope write record at `~/.agents/drwn/global-write-record.json`
-- [Local Store](../../concepts/local-store) — store layout that includes machine.json
+- [Project Config JSON](./project-config-json)
+- [Write Record JSON](./write-record-json)
+- [Local Store](../../concepts/local-store)

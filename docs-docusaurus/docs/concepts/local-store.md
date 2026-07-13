@@ -4,7 +4,7 @@ sidebar_position: 3
 
 # Local Store
 
-The local store is `~/.agents/drwn`. It is the durable state for machine defaults, reusable library content, card sources, published cards, catalogs, extracted card trees, and write records.
+The local Store is `~/.agents/drwn`. It is the durable state for strict machine intent, reusable Library content, Card sources, published Cards, catalogs, extracted Card trees, and write records.
 
 Important paths:
 

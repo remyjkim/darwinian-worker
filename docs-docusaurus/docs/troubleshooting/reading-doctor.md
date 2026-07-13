@@ -45,14 +45,14 @@ Each of the top-level arrays maps to one detector category below.
 
 ### Broken symlinks
 
-A symlink under `~/.claude/skills/` or `~/.codex/skills/` whose target file no longer exists. Usually means a skill bundle was uninstalled or a curated skill directory was renamed.
+A symlink under `~/.claude/skills/` or `~/.codex/skills/` whose target file no longer exists. Usually means a previously projected source was removed.
 
 ```bash
 drwn doctor --json
 drwn write --dry-run
 ```
 
-Re-running `drwn write` re-points drwn-owned links to the correct source if the underlying skill is still resolved. If the skill itself is gone, remove the offending ref from `defaults.skills` (machine) or `skills.include` (project).
+Re-running `drwn write` re-points drwn-owned links to the correct source if the underlying skill is still resolved. If the skill itself is gone, remove it with `drwn library defaults remove skill` (machine) or from `skills.include` (project).
 
 ### Stale skill symlinks
 
@@ -114,9 +114,11 @@ A single category that aggregates problems with `<project>/.agents/drwn/config.j
 - **Unknown server reference** — `mcpServers["<name>"]` toggles a server that is not in the registry, user MCP library, or selected Worker closure.
 - **Unknown skill reference** — `skills.include` or `skills.exclude` names a skill that no repo-native source, package-backed bundle, or selected Worker closure provides.
 - **Unknown extension reference** — `extensions["<name>"]` references an extension the registry does not know about.
-- **Stale target override** — `targets["<name>"].enabled` matches what the machine config already says; the override is a no-op.
+- **Stale target override** — `targets["<name>"].enabled` matches packaged project policy; the override is a no-op.
 - **Card references unavailable skills** — a Card in the selected root closure lists a skill name the project's available inventory cannot satisfy.
-- **Dangling defaults references** — `defaults.skills` or `defaults.mcpServers` on the machine config points at something not in the inventory.
+- **Unresolved machine capability** — an explicit machine skill or MCP ID is unavailable in the local Library.
+- **Invalid profile bytes** — the pinned profile extraction is missing or no longer matches its recorded integrity.
+- **Machine projection conflict** — a destination is foreign or prior-owned state has drifted. Doctor reports it without repair.
 
 At write time these would each abort `drwn write` before mutation. At doctor time they collect into `projectConfigIssues` and the run continues so the rest of the report still renders.
 

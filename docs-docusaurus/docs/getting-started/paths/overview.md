@@ -14,13 +14,19 @@ See [Use a Team's Harness](./use-team-harness).
 
 ## Set Up Your Machine
 
-You are installing `drwn` for the first time on a personal machine and want a sensible baseline before any project-specific work. This path walks through the install, the initial inventory inspection, and how to add machine-wide defaults so that a fresh `drwn write` in any project starts from a known set of skills and MCP servers. This path is right for you when there is no team harness yet and you are setting up your own defaults.
+You are installing `drwn` for the first time and want explicit machine intent
+before project work. This path covers empty versus guided initialization, the
+pinned Recommended profile, explicit Library selections, and an
+ownership-checked machine projection.
 
 See [Set Up Your Machine](./setup-your-machine).
 
 ## Override for One Project
 
-Your machine defaults are fine for most work, but one project needs a different effective harness — maybe a different MCP server, an extension only that project should use, or a skill the rest of your machine should not have. This path walks through scaffolding a project overlay that suppresses the machine defaults inside that project and produces a project-scoped downstream state. This path is right for you when you want isolation without rewriting your machine.
+One project needs a reproducible declared harness. This path scaffolds strict
+project V1 state, installs alternative Worker roots, selects at most one, and
+projects only that closure plus explicit project overlays. Machine capabilities
+remain separate and may only be visible ambiently through the downstream tool.
 
 See [Override for One Project](./override-one-project).
 

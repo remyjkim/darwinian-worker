@@ -66,7 +66,7 @@ drwn write
 ```
 
 `drwn write` derives `markitdown-document-conversion` for the project without
-requiring global skill curation.
+requiring a machine skill selection.
 
 ## See Also
 

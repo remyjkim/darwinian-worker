@@ -21,7 +21,7 @@ That one decision controls both the effective state and the write destination.
 Outside a configured project, effective state is:
 
 ```text
-packaged defaults + local store inventory + ~/.agents/drwn/machine.json
+packaged policy + Library inventory + strict drwn.machine V1 intent
 ```
 
 Machine-scope writes materialize into:
@@ -34,15 +34,16 @@ Machine-scope writes materialize into:
 ~/.agents/drwn/global-write-record.json
 ```
 
-Use machine defaults when every project should inherit the same skill or MCP
-server unless a project explicitly overrides it.
+Use explicit machine selections for user-home sessions. Projects never inherit
+them as declarations, though downstream tools may expose user-home state
+ambiently.
 
 ## Project-Scope Writes
 
 Inside a configured project, effective state is:
 
 ```text
-packaged defaults + local store inventory + cards in lockfile order + project overlay
+packaged project-safe policy + one selected Worker closure + explicit project overlays
 ```
 
 Project-scope writes materialize into:

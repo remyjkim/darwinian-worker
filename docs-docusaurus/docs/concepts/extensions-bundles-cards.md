@@ -25,7 +25,7 @@ drwn extensions status
 drwn extensions doctor beads
 ```
 
-Selecting an extension for a project writes semantic config under `<project>/.agents/drwn/config.json`. `drwn write` then derives the right skills and MCP entries for that project — no global curation needed:
+Selecting an extension for a project writes semantic config under `<project>/.agents/drwn/config.json`. `drwn write` then derives the right skills and MCP entries for that project without changing machine intent:
 
 ```bash
 drwn extensions add parallel
@@ -56,7 +56,7 @@ drwn write --dry-run
 drwn write
 ```
 
-Update and remove lifecycle commands for bundles are intentionally not part of the first implementation. The supported surface today is add, list, show, inventory, curation, and downstream write.
+Update and remove lifecycle commands for bundles are intentionally not part of the first implementation. The supported surface today is add, list, show, inventory, explicit selection, and downstream write.
 
 See [reference/cli/skills](../reference/cli/skills) for skill commands.
 
@@ -76,23 +76,23 @@ Cards consumed by a project record their resolution in `<project>/.agents/drwn/c
 
 See [Cards](./cards) for the lifecycle and [reference/cli/card](../reference/cli/card) for the command surface.
 
-## The add / curate / write Trichotomy
+## Add, Select, Write
 
 The three verbs do not mean the same thing. Keep them straight:
 
 - **added** — the bundle is available under `~/.agents/drwn/skills`. Adding does not change any downstream tool.
-- **curated** — a shared skill is linked into `~/.agents/skills`. This is the machine-level publication layer. Curating does not write to Claude, Codex, or Cursor.
-- **written** — the curated skill (or a card-bundled skill, or a repo-native skill) is linked into downstream tool directories such as `~/.claude/skills`. This is the only step that affects what an agent sees.
+- **selected** — machine or project intent names an available skill. Selection does not write to Claude, Codex, or Cursor.
+- **written** — selected skill bytes are copied into ownership-recorded downstream directories. This is the only step that affects what an agent sees.
 
 Each step is a separate command so package installation never silently changes every agent on the machine:
 
 ```bash
-drwn library add skill <pkg>      # added
-drwn skills curate <name>          # curated (shared scope only)
-drwn write                         # written
+drwn library add skill <pkg>              # available
+drwn library defaults add skill <name>    # machine-selected
+drwn write --scope machine                # written to user-home targets
 ```
 
-Cards short-circuit some of this for project consumption: applying a card writes a lock entry, and the bundled skill content materializes from the card's extracted tree without needing a separate curation step. The card-overlay wins rule (see [Materialization](./materialization)) makes the bundled skill authoritative for that project.
+Cards declare project capability content directly. The selected Worker closure and explicit project overlays determine project selection; Card-bundled content is authoritative for that project.
 
 ## Cross-References
 

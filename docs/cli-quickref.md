@@ -63,6 +63,65 @@ For scripts and CI-style setup, make `init` explicit:
 drwn init --non-interactive
 ```
 
+Non-interactive and minimal setup initialize explicit empty machine intent.
+Guided setup preselects an opt-out Recommended Darwinian Operator profile.
+
+## Machine Capability Contract
+
+Machine intent lives only in `~/.agents/drwn/machine.json`:
+
+```json
+{
+  "schema": "drwn.machine",
+  "schemaVersion": 1,
+  "policy": {},
+  "capabilities": {
+    "profile": null,
+    "skills": [],
+    "mcpServers": []
+  }
+}
+```
+
+This is the first supported machine schema. Prototype shapes are rejected, not
+migrated. `drwn init --non-interactive` and `--minimal` create the exact empty
+intent above. Interactive guided setup offers **Recommended Darwinian
+Operator** as `[Y/n]`; declining leaves the explicit empty intent.
+
+The profile is the immutable `@darwinian/operator@1.0.2` Card at
+`git+https://github.com/curation-labs/darwinian-operator.git#v1.0.2`. Its pin
+records commit, tree SHA, and content integrity. It projects an approved subset
+of 17 machine-safe skills and zero MCP servers. It never projects Worker
+identity, instructions, hooks, permissions, governance, or project state.
+
+Available Library items become explicit machine selections only through:
+
+```bash
+drwn library defaults add skill <skillName>
+drwn library defaults add mcp <serverName>
+drwn library defaults remove skill <skillName>
+drwn library defaults remove mcp <serverName>
+drwn write --scope machine --dry-run
+drwn write --scope machine
+```
+
+Selection and projection are separate. Adding or removing a selection edits
+only machine intent. Packaged optional flags, Parallel flags,
+`~/.agents/skills`, and existing target files are not activation authority.
+
+Machine projection is ownership-recorded. A destination or same-ID MCP field
+absent from the global write record is foreign and fails with
+`MACHINE_PROJECTION_CONFLICT`, even when bytes are identical or `--force` is
+present. Force repairs drift only for prior drwn-owned state. Removal deletes
+only unchanged prior-owned bytes or fields; foreign and drifted state is
+preserved and reported by `drwn doctor`.
+
+For a controlled prelaunch reset, record non-secret selections, back up
+`machine.json` and `global-write-record.json` outside the Store, remove the
+unsupported prototype files, run setup, reselect capabilities, preview with
+`drwn write --scope machine --dry-run`, and resolve ownership findings without
+claiming foreign paths.
+
 ## What it changes on disk
 
 `drwn` can read and write local agent configuration under:
@@ -161,6 +220,7 @@ Card commands:
 
 - `drwn card new <name> --scope @scope`
 - `drwn card new <name> --from-project [projectPath]`
+- `drwn card new <name> --from-defaults`
 - `drwn card publish <name>`
 - `drwn card catalog publish <cardRef> --catalog <scope|git-url|path> --mode <local|direct>`
 - `drwn card source list`
@@ -249,8 +309,6 @@ MCP commands:
 Skill commands:
 
 - `drwn skills list`
-- `drwn skills curate <skillName>`
-- `drwn skills uncurate <skillName>`
 - `drwn skills packages add <packageSpec|SKILL.md|skillDir>`
 - `drwn skills packages list`
 - `drwn skills packages show <packageName>`
@@ -271,7 +329,7 @@ Store maintenance commands:
 - `drwn store seed --from <legacy-snapshot-or-directory> [--force]`
 - `drwn store export --out <path>` (registered but disabled)
 
-`drwn store export` fails with `STORE_EXPORT_DISABLED_UNSAFE` before creating an output directory. Whole-store archives can contain credentials, machine defaults, project registrations, write history, generated state, and caches. There is no unrestricted override. Treat archives produced by earlier releases as sensitive. Deploy's scoped Card payload export and legacy Store seed inputs are separate paths and remain supported.
+`drwn store export` fails with `STORE_EXPORT_DISABLED_UNSAFE` before creating an output directory. Whole-store archives can contain credentials, machine intent, project registrations, write history, generated state, and caches. There is no unrestricted override. Treat archives produced by earlier releases as sensitive. Deploy's scoped Card payload export and legacy Store seed inputs are separate paths and remain supported.
 
 Export commands:
 
@@ -302,9 +360,9 @@ drwn analyze sessions --help
 
 The core model has five layers:
 
-- packaged harness defaults: config, built-in skills, and built-in MCP definitions
+- packaged harness policy and available built-in skill/MCP definitions
 - local library: package-backed skills, synthetic local skill snapshots, and user MCP definitions under `~/.agents/drwn/skills` and `~/.agents/drwn/mcp-servers`
-- user defaults: machine-wide active state under `~/.agents/drwn/machine.json`
+- explicit machine intent: one pinned profile plus explicit skill and MCP selections under `~/.agents/drwn/machine.json`
 - project overlay: current-project overrides under `<project>/.agents/drwn/config.json`
 - downstream state: Claude, Codex, Cursor, and generated MCP config files
 
@@ -450,7 +508,7 @@ drwn analyze sessions --archive /tmp/sessions.tar.gz --json
 
 Reusable MCP servers are defined in [`registry/mcp-servers.json`](../registry/mcp-servers.json). Target config and optional toggles live in [`registry/config.json`](../registry/config.json).
 
-User-registered MCP servers live under `~/.agents/drwn/mcp-servers`. Machine-wide active MCP defaults live in `~/.agents/drwn/machine.json` under `defaults.mcpServers`.
+User-registered MCP servers live under `~/.agents/drwn/mcp-servers`. They become active at machine scope only when selected under `capabilities.mcpServers` through `drwn library defaults add mcp`.
 
 Card-declared MCP definitions are merged into the effective registry for projects that consume those cards. They do not need to exist in the reusable registry or user library. If a card-declared server has `optional: true`, it is off by default and can be enabled in that project with:
 
@@ -498,12 +556,12 @@ timeouts, and initialize handshakes are runtime-readiness concerns. The ambient
 collision preflight validates target configuration composition; it does not
 claim that an MCP server can authenticate or start.
 
-The Recommended Darwinian Operator machine profile is selected future Task 80
-work. Guided setup will preselect that opt-out profile while non-interactive
-setup remains explicitly empty. The profile may project only machine-safe
-skills and approved MCP definitions; it will not project Worker identity,
-instructions, hooks, permissions, or governance. Machine capabilities remain
-ambient to project sessions and are never project declarations.
+The Recommended Darwinian Operator profile is a pinned machine capability
+profile, not a Worker. Guided setup preselects it with opt-out; non-interactive
+setup remains explicitly empty. The `@darwinian/operator@1.0.2` pin provides 17
+approved skills and zero MCP servers. Machine capabilities remain ambient to
+project sessions and are never project declarations. A reproducible project
+that depends on Operator includes the Operator Card in its selected Blueprint.
 
 ## Skill library
 
@@ -514,22 +572,17 @@ Built-in skills live in:
 - `skills/codex-only`
 - `skills/experimental`
 
-Curated shared skills are published through:
-
-```text
-~/.agents/skills
-```
-
-Typical built-in skill flow:
+Typical machine skill flow:
 
 ```bash
 drwn skills list
-drwn skills curate <skillName>
-drwn write --skills-only --dry-run
-drwn write --skills-only
+drwn library defaults add skill <skillName>
+drwn write --scope machine --skills-only --dry-run
+drwn write --scope machine --skills-only
 ```
 
-Only shared skills can be curated into `~/.agents/skills`. Claude-only and Codex-only skills are written directly to their target-specific skill directories.
+The explicit selection resolves from repo-native or installed package-backed
+Library inventory. Ambient compatibility directories do not activate a skill.
 
 ## Extension skill bundles
 
@@ -554,12 +607,12 @@ drwn add skill import-mcp-from-claude
 drwn write --dry-run
 ```
 
-Global curation remains useful when a shared skill should be available by default across projects:
+To make an installed shared skill available in machine sessions:
 
 ```bash
 drwn skills packages add <npm-package-or-local-path>
-drwn skills curate <skillName>
-drwn write --skills-only
+drwn library defaults add skill <skillName>
+drwn write --scope machine --skills-only
 ```
 
 For editable card sources, copy the same loose skill into the card source instead of importing it into the reusable library:
@@ -574,10 +627,14 @@ The distinction matters:
 - **added** means the bundle is available under `~/.agents/drwn/skills`
 - **loose-imported** means a local `SKILL.md` was normalized into a synthetic package-backed snapshot
 - **card-sourced** means the skill files were copied into an editable card source
-- **curated** means a shared skill is linked into `~/.agents/skills`
-- **written** means the curated skill is linked into downstream tool directories
+- **machine-selected** means its ID is explicit machine intent
+- **written** means selected bytes are copied into owned downstream tool directories
 
-Current bundle support includes add, list, show, inventory, curation, loose-skill normalization, and downstream write. Update and remove lifecycle commands are intentionally not part of the first implementation. JSON inventory currently reports synthetic local skill bundles with `sourceType: "npm"` and `sourceId: "@local/<skillName>"`.
+Current bundle support includes add, list, show, inventory, explicit selection,
+loose-skill normalization, and downstream write. Update and remove lifecycle
+commands are intentionally not part of the first implementation. JSON inventory
+currently reports synthetic local skill bundles with `sourceType: "npm"` and
+`sourceId: "@local/<skillName>"`.
 
 ## Extensions
 
@@ -602,7 +659,7 @@ Current extensions:
 
 ### Parallel
 
-Parallel support is CLI+skills-first. Selecting the extension for one project writes semantic config under `<project>/.agents/drwn/config.json`; `drwn write` then derives the four Parallel skills for that project without requiring global skill curation.
+Parallel support is CLI+skills-first. Selecting the extension for one project writes semantic config under `<project>/.agents/drwn/config.json`; `drwn write` then derives the four Parallel skills for that project without requiring a machine skill selection.
 
 Preview setup:
 
@@ -691,7 +748,7 @@ Setup never runs `bd init --force` or `bd doctor --fix` by default. Beads MCP re
 
 ## Per-project configuration
 
-Use per-project config when one project needs a different effective view than the global default.
+Use per-project config when a project needs a reproducible declared harness independent of machine intent.
 
 Create a project config:
 
@@ -718,7 +775,7 @@ Project config can:
 
 Project config is used by `drwn write`, `drwn mcp list`, `drwn mcp write`, `drwn status`, `drwn doctor`, and extension status/doctor/setup commands.
 
-Project declarations do not inherit machine default selections. User-home
+Project declarations do not inherit machine capability selections. User-home
 capabilities may remain ambient to downstream tools and are reported separately.
 
 Discovery walks upward from the current working directory and uses the nearest config file.
@@ -812,6 +869,7 @@ It reports:
 - broken symlinks
 - stale downstream skill links
 - MCP drift
+- machine schema, profile, capability provenance, and projection ownership issues
 - missing generated config files
 - project config issues
 

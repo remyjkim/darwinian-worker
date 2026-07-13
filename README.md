@@ -4,7 +4,7 @@
 
 # darwinian
 
-`darwinian` is a local meta-harness for AI agent tools — a CLI that organizes the skills, MCP servers, extensions, defaults, project overlays, and downstream tool state surrounding the agents you already use.
+`darwinian` is a local meta-harness for AI agent tools — a CLI that organizes skills, MCP servers, extensions, explicit machine capabilities, project overlays, and downstream tool state surrounding the agents you already use.
 
 The package is `darwinian`. The command is `drwn`.
 
@@ -40,7 +40,45 @@ drwn write
 Cards compose capabilities into one Blueprint. A project may install alternative
 Worker roots but selects at most one; `drwn write` projects only the selected
 root closure plus explicit project overlays. Project declarations do not inherit
-machine default selections.
+machine capability selections.
+
+Machine intent uses the first supported namespaced contract:
+
+```json
+{
+  "schema": "drwn.machine",
+  "schemaVersion": 1,
+  "policy": {},
+  "capabilities": {
+    "profile": null,
+    "skills": [],
+    "mcpServers": []
+  }
+}
+```
+
+`drwn init --non-interactive` and `--minimal` initialize this explicit empty
+intent. Guided `drwn init` preselects the opt-out **Recommended Darwinian
+Operator** profile. The immutable `@darwinian/operator@1.0.2` pin contributes
+exactly 17 approved machine-safe skills and zero MCP servers; it contributes no
+Worker identity, instructions, hooks, permissions, or governance.
+
+Add other machine capabilities explicitly, then project them in a separate
+step:
+
+```bash
+drwn library defaults add skill <skill-id>
+drwn library defaults add mcp <server-id>
+drwn write --scope machine --dry-run
+drwn write --scope machine
+```
+
+Machine writes claim only paths or MCP fields they create and record. Foreign
+destinations fail with `MACHINE_PROJECTION_CONFLICT`, including under
+`--force`; force can repair only drift in prior drwn-owned state. For a
+controlled prelaunch reset, back up the non-secret machine intent and global
+write record outside the Store, remove unsupported prototype state, rerun
+setup, and reselect capabilities explicitly.
 
 ## Store Export Safety
 

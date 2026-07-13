@@ -48,7 +48,7 @@ The safety model is intentionally simple:
 - **Inspect** machine state with `status`
 - **Diagnose** drift with `doctor`
 - **Resolve managed drift intentionally** with `write --force`
-- **Curate** skills explicitly before writing them downstream
+- **Select** machine or project skills explicitly before writing them downstream
 - **Available, not exposed** — package-backed bundles are available content, not automatically active behavior
 - **Write-record cleanup** removes drwn-owned stale paths while preserving user-owned replacements
 - **Write-record cleanup** removes drwn-owned stale paths while preserving user-owned replacements

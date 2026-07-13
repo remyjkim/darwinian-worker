@@ -8,32 +8,32 @@ Darwinian Minds composes effective harness state from a fixed stack of layers, t
 
 ```mermaid
 flowchart TB
-    A[Built-in Harness Source] --> B[Machine Overlay<br/>~/.agents/drwn/machine.json]
-    B --> C[Project Overlay<br/>&lt;project&gt;/.agents/drwn/config.json]
-    C --> D[Curated Layer<br/>~/.agents/skills]
-    D --> E[Effective Harness State]
-    E --> F[Downstream: ~/.claude, ~/.codex, ~/.cursor]
+    A[Packaged Policy and Library] --> B[Machine Intent<br/>drwn.machine V1]
+    B --> C[User-home Projection]
+    D[Cards and Blueprints] --> E[Project Intent<br/>drwn.project-config V1]
+    E --> F[Project Projection]
+    C -. ambient visibility .-> F
 ```
 
 ## Composition layers
 
-1. **Built-in harness source.** The packaged `registry/config.json` (target enablement, optional MCP toggles, parallel/catalog defaults) and `registry/mcp-servers.json` (canonical MCP definitions). This is the deterministic baseline every machine inherits.
-2. **Machine overlay** at `~/.agents/drwn/machine.json` (`MachineConfig`). Shallow-merges over the baseline for `targets`, `optional`, `defaults`, `catalogs`, `parallel`. Also stores `authoring.scope` for `drwn card new`.
-3. **Card manifests** resolved from `projectConfig.cards`. Each locked card contributes `skills.include`, `servers`, `extensions`, `targets`, and its bundled skill content. Manifests merge into the project config via `mergeCardManifestsIntoProjectConfig`.
-4. **Project overlay** at `<project>/.agents/drwn/config.json` (`ProjectConfig`). Applied on top of (1) + (3) via `mergeProjectConfig`. On key collisions with card-contributed values, **project wins** for `servers`, `extensions`, and `targets`; `skills.include` is a union; `skills.exclude` is honored last (excludes always win).
-5. **Curated layer** at `~/.agents/skills`. Per-skill symlinks pointing into repo-native, package-backed, or card-bundled sources. Curation membership is set by `drwn skills curate` / `drwn library defaults add skill`.
+1. **Packaged source.** `registry/config.json`, `registry/mcp-servers.json`, repo-native skills, and installed Library content provide policy and available definitions. Availability is not activation.
+2. **Machine intent.** Strict `drwn.machine` V1 selects an immutable profile plus explicit skill and MCP IDs. Only approved policy fields merge into packaged policy.
+3. **Project roots.** Cards compose into one Blueprint; a project installs root alternatives and selects at most one active Worker closure.
+4. **Project overlays.** Strict `drwn.project-config` V1 may add explicit skills, MCP definitions, extensions, targets, and hook controls. Excludes win last.
+5. **Projection.** Machine and project writes are separate pure projections with separate ownership records. Machine capabilities may remain ambient in a project session, but never become project declarations.
 
-Effective state is computed by `buildEffectiveState`. Inside a configured project, the **machine overlay is intentionally suppressed**: the base is the packaged config, then card manifests, then project overlay. Outside a configured project, the machine overlay applies normally.
+Effective state is computed by `buildEffectiveState`. Inside a configured project, machine capability intent is intentionally excluded: the base is packaged project-safe policy, then the selected Card closure and project overlays. Outside a configured project, explicit machine intent applies.
 
 ## Write-time resolution rules
 
 When `drwn write` resolves a skill name to a filesystem path, it consults three layers in fixed order:
 
 1. **Locked card** — any entry in `card.lock` whose manifest declares the skill name. Resolves to the immutable card store path.
-2. **User default** — repo-native scope dirs (`skills/{shared,claude-only,codex-only,experimental}`) then installed bundles.
+2. **Available Library source** — repo-native scope dirs (`skills/{shared,claude-only,codex-only,experimental}`) then installed bundles.
 3. **Missing** — surfaces as a typed write-time hard fail; no downstream mutation.
 
-**Cards win over user-defaults at write time, always.** A card that declares a skill in its manifest shadows any same-named user-default skill. The alternative source is announced as `also available:` in dry-run output but never written. This is the opposite directionality from config merge — at config merge time the project overlay overrides card values; at write-time skill resolution the card wins. They operate on different things (config keys vs filesystem paths).
+**Cards win over other available sources at project write time.** A Card that declares a skill in the selected closure shadows any same-named repo-native or package-backed source. The alternative source is announced as `also available:` in dry-run output but never written.
 
 ## Layered reproducibility (the bigger picture)
 

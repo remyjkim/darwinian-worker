@@ -1,6 +1,6 @@
 ---
 title: "Skill Library"
-description: "Built-in skills, curation, and package-backed skill bundles."
+description: "Built-in skills, explicit selection, and package-backed skill bundles."
 date: 2026-04-28
 order: 5
 ---
@@ -14,24 +14,18 @@ Built-in skills live in four directories:
 - `skills/codex-only` — applied only to Codex
 - `skills/experimental` — not applied by default
 
-## Curation
-
-Curated shared skills are published to:
-
-```text
-~/.agents/skills
-```
+## Machine Selection
 
 Typical flow:
 
 ```bash
 drwn skills list
-drwn skills curate <skillName>
-drwn write --skills-only --dry-run
-drwn write --skills-only
+drwn library defaults add skill <skillName>
+drwn write --scope machine --skills-only --dry-run
+drwn write --scope machine --skills-only
 ```
 
-Only shared skills can be curated into `~/.agents/skills`. Claude-only and Codex-only skills are written directly to their target-specific skill directories.
+Selection writes strict machine intent. Projection is a separate, ownership-recorded step.
 
 ## Package-Backed Skill Bundles
 
@@ -48,20 +42,20 @@ drwn write --dry-run
 drwn write
 ```
 
-Global curation remains useful when a shared skill should be available by default across projects:
+To select an installed skill for machine sessions:
 
 ```bash
 drwn skills packages add <npm-package-or-local-path>
-drwn skills curate <skillName>
-drwn write --skills-only
+drwn library defaults add skill <skillName>
+drwn write --scope machine --skills-only
 ```
 
-## Added vs. Curated vs. Written
+## Added vs. Selected vs. Written
 
 The distinction matters:
 
 - **Added** — the bundle is available under `~/.agents/drwn/skills` in the cards-era store
-- **Curated** — a shared skill is linked into `~/.agents/skills`
-- **Written** — the curated skill is linked into downstream tool directories
+- **Selected** — machine or project intent names the skill
+- **Written** — selected bytes are copied into owned downstream tool directories
 
 Package-backed bundles use the current `~/.agents/drwn/skills` store path.

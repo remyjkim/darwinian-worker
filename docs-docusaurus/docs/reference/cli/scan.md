@@ -33,7 +33,7 @@ Text output enumerates the planned role; JSON output returns:
 When implemented, `drwn scan` will:
 
 - inspect existing local agent tool config (Claude, Codex, Cursor, MCP) without mutating any files
-- report import candidates for promotion into the library, machine defaults, or current project overlay
+- report import candidates for Library inventory, explicit machine selection, or current project overlays
 - remain non-mutating by construction — the eventual import/promotion step will be a separate explicit command
 
 ## What it does today

@@ -61,11 +61,12 @@ drwn skills list
 If the skill should be available globally:
 
 ```bash
-drwn skills curate <skill-name>
+drwn library defaults add skill <skill-name>
+drwn write --scope machine --skills-only --dry-run
 ```
 
 If the skill should apply only to one project, scope it through the project
-config instead of curating it.
+config instead of selecting it for machine scope.
 
 ## Preview The Managed Write
 

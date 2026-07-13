@@ -41,7 +41,13 @@ drwn extensions add beads --include-skill
 
 The shape is documented in the [project config schema](../../reference/schemas/project-config-json). Every config carries `schema: "drwn.project-config"`, `schemaVersion: 1`, an ordered `workers` root list, and one `activeWorker` name or `null`. Optional explicit overlays include `skills`, `mcpServers`, `extensions`, `targets`, and `trustedSources`.
 
-**Machine-overlay suppression inside configured projects.** When a project config is present, the project overlay merges with the packaged defaults, not with `~/.agents/drwn/machine.json`. Machine-curated skills and machine `defaults.skills` / `defaults.mcpServers` do not leak into the project. The intent is that a project's effective harness is reproducible from its own files (plus the packaged baseline) — a different teammate on a different machine sees the same effective state.
+**Machine capability isolation inside configured projects.** When a project
+config is present, project-safe packaged policy combines with the selected
+Worker closure and explicit project overlays. The profile and explicit
+capability IDs in `~/.agents/drwn/machine.json` do not become project intent.
+User-home output may remain ambient in the downstream client and is reported
+separately. A different teammate can reproduce the declared project state from
+the project files plus immutable Card content.
 
 ## Confirm the project overlay is detected
 
@@ -73,7 +79,7 @@ drwn write
 
 `drwn write` materializes the selected root's aggregate plus explicit project
 overlays into `<project>/.claude`, `<project>/.codex`, and `<project>/.cursor`.
-It does not mutate project intent and does not project machine defaults into the
+It does not mutate project intent and does not project machine capabilities into the
 project. The project write record at `<project>/.agents/drwn/write-record.json`
 tracks what was written so the next run can clean up safely.
 

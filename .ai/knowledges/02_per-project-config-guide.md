@@ -5,7 +5,7 @@
 
 ## Purpose
 
-Use project state when a repository needs an explicit, reproducible agent harness. Project capabilities come from one selected Worker closure plus project-owned overlays. They do not inherit machine default selections.
+Use project state when a repository needs an explicit, reproducible agent harness. Project capabilities come from one selected Worker closure plus project-owned overlays. They do not inherit machine capability selections.
 
 The complete contract is in [`docs/contracts/project-worker-v1.md`](../../docs/contracts/project-worker-v1.md).
 
@@ -39,7 +39,11 @@ Prompt-free setup writes:
 }
 ```
 
-The selected Recommended Darwinian Operator machine profile is future Task 80 work. It is not added by this contract, and non-interactive setup remains explicit and empty.
+Machine setup is a separate contract. Prompt-free initialization creates
+explicit empty `drwn.machine` V1 intent, while guided initialization preselects
+the opt-out Recommended Darwinian Operator profile. Neither choice adds a
+project Worker. A project that depends on Operator includes
+`@darwinian/operator@1.0.2` in its selected Blueprint.
 
 ## Supported Config
 

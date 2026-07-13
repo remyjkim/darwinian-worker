@@ -150,7 +150,7 @@ describe("documentation readiness", () => {
     expect(bundleGuide).toContain("bundle.json");
     expect(bundleGuide).toContain("npm pack");
     expect(bundleGuide).toContain("available");
-    expect(bundleGuide).toContain("curated");
+    expect(bundleGuide).toContain("explicit selection");
     expect(bundleGuide).toContain("~/.agents/drwn/skills");
     expect(bundleGuide).toContain("~/.agents/drwn/machine.json");
     expect(brewGuide).toContain("drwn store status --json");
@@ -203,6 +203,31 @@ describe("documentation readiness", () => {
     expect(releaseProcess).toContain("drwn-command-bridge");
     expect(releaseProcess).toContain("native macOS");
     expect(releaseProcess).toContain("npm publish --access public");
+
+    const machineDocs = [readme, quickref, usageGuide, projectGuide, bundleGuide].join("\n");
+    for (const token of [
+      '"schema": "drwn.machine"',
+      '"schemaVersion": 1',
+      "Recommended Darwinian Operator",
+      "@darwinian/operator@1.0.2",
+      "drwn library defaults add skill",
+      "drwn library defaults add mcp",
+      "drwn write --scope machine",
+      "MACHINE_PROJECTION_CONFLICT",
+      "operator-owned runtime state",
+    ]) {
+      expect(machineDocs).toContain(token);
+    }
+    for (const stale of [
+      /drwn skills (?:curate|uncurate)/,
+      /future Task 80/i,
+      /"defaults"\s*:/,
+      /defaults\.(?:skills|mcpServers)/,
+      /curated publication layer/i,
+    ]) {
+      expect(machineDocs).not.toMatch(stale);
+      expect(docsDocusaurus).not.toMatch(stale);
+    }
   });
 
   test("forward docs publish only the first supported project Worker contract", async () => {
@@ -238,7 +263,7 @@ describe("documentation readiness", () => {
     expect(contract).toContain("ambient");
     expect(contract).toContain("OAuth");
     expect(contract).toContain("STORE_EXPORT_DISABLED_UNSAFE");
-    expect(contract).toContain("future");
+    expect(contract).toContain("@darwinian/operator@1.0.2");
     expect(contract).toContain("Recommended Darwinian Operator");
     expect(reset).toContain("controlled prelaunch reset");
     expect(reset).toContain("no automated migration");

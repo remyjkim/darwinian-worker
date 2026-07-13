@@ -6,7 +6,7 @@ sidebar_position: 5
 
 MCP servers are reusable tool definitions that `drwn` can activate globally, attach to a project, bundle into a card source, and write into downstream agent tool configs.
 
-Built-in definitions come from the harness registry. User definitions live under `~/.agents/drwn/mcp-servers`. Card-declared definitions come from the locked cards consumed by the current project. Machine defaults live in `~/.agents/drwn/machine.json`; project choices live in `.agents/drwn/config.json`.
+Built-in definitions come from the harness registry. User definitions live under `~/.agents/drwn/mcp-servers`. Card-declared definitions come from the selected project Worker closure. Explicit machine MCP IDs live under `capabilities.mcpServers` in `~/.agents/drwn/machine.json`; project choices live in `.agents/drwn/config.json`.
 
 Inspect active MCP state:
 

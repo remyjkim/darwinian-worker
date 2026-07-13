@@ -48,9 +48,9 @@ drwn card catalog publish @team/backend@1.0.0 --catalog @team --mode direct
 
 `--mode direct` commits and pushes the catalog entry. `--mode local` updates a local catalog checkout without committing.
 
-## Defaults
+## Machine Selections
 
-Defaults promote available local inventory into the machine-wide active set:
+The `defaults` command group promotes available Library items into explicit machine capability selections:
 
 ```bash
 drwn library defaults list
@@ -60,6 +60,11 @@ drwn library defaults add mcp <server-id>
 drwn library defaults remove mcp <server-id>
 ```
 
-Machine defaults are written under `~/.agents/drwn/machine.json`. Project-local selections should use `drwn add ...` instead.
+Selections are written under `capabilities.skills` and
+`capabilities.mcpServers` in strict `drwn.machine` V1. These commands do not
+project target files. Use `drwn write --scope machine` separately. Project-local
+selections should use `drwn add ...` instead.
 
-For `defaults.skills` and `defaults.mcpServers`, any array — including an empty array — is an explicit machine allowlist; an empty array activates nothing. Only a missing field is treated as uninitialized, resolving through the packaged defaults plus machine toggles. On first `add` or `remove` against an uninitialized (missing) list, `drwn` seeds the list with the currently resolved defaults before applying the requested change; an explicit empty array is preserved as-is.
+Profile capabilities are attributed first and deduplicated against explicit
+selections. Removing an explicit overlap does not remove the capability supplied
+by the selected profile.

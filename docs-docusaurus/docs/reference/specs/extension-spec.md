@@ -56,7 +56,10 @@ interface ExtensionDefinition {
 { name: string; source: "repo" | "package"; defaultIncluded: boolean }
 ```
 
-`defaultIncluded: true` skills are added to machine `defaults.skills` on first init. `source: "repo"` means the skill ships in the drwn repo; `source: "package"` reserves the surface for skills shipped by an npm bundle.
+`defaultIncluded` is descriptive extension metadata used by extension-specific
+project setup; it does not activate a machine skill. `source: "repo"` means the
+skill ships in the drwn repo; `source: "package"` reserves the surface for
+skills shipped by an npm bundle.
 
 ### `ExtensionMcpReference`
 
@@ -104,7 +107,7 @@ Application semantics live in `applyProjectExtensionConfig` (`cli/core/extension
 
 - If `beads.enabled === false`: `beads-task-tracking` is added to **exclude**.
 - Else if `beads.includeSkill === true`: `beads-task-tracking` is added to **include**.
-- Else: no skill change. The Beads CLI and hooks still surface in status, but the skill stays at whatever the machine default chose.
+- Else: no project skill change. The Beads CLI and hooks still surface in status.
 
 ### `markitdown`
 
@@ -126,7 +129,9 @@ Two report shapes carry extension health (`cli/core/extensions/types.ts:39-77`):
 Produced by `drwn status` for each extension. Required fields: `id`, `displayName`, `available` (boolean), `scope` (`"global" | "project" | "mixed"`), `commands[]`, `skills[]`, `mcpServers[]`, `warnings[]`. Optional `project` block carries the project's CWD, the discovered config path, whether the extension is configured/enabled in that project, and (for Beads) whether the issue directory exists.
 
 - `commands[].available` is `true` when the binary is on PATH.
-- `skills[].present` is `true` when the skill directory exists in the resolved skill set; `curated` is `true` when the skill is in machine `defaults.skills`.
+- `skills[].present` is `true` when the skill directory exists. The legacy
+  `curated` observation reports an ambient compatibility link only; it is not
+  machine activation authority.
 - `mcpServers[].configured` is `true` when the server is in the effective registry; `active` is `true` when it is enabled.
 
 ### `ExtensionDoctorReport`

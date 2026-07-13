@@ -19,13 +19,17 @@ drwn doctor --json
 ls -la ~/.claude/settings.json.bak*
 ```
 
-**Resolution.** `drwn` backs up the previous `settings.json` to `~/.claude/settings.json.bak` (numbered if multiple exist) before each merge. Recover the lost field from the most recent backup and decide where it belongs: machine-wide configuration goes in `~/.claude/settings.json` siblings, drwn-managed MCP servers belong in `defaults.mcpServers` or project `mcpServers`.
+**Resolution.** Restore the user-owned field from your own versioned config or
+backup. Machine MCP selection belongs in `capabilities.mcpServers` through
+`drwn library defaults add mcp`; project MCP intent belongs in project
+`mcpServers`. drwn preserves unrelated siblings but does not own their backup
+lifecycle.
 
-## Manually-installed bundles in `~/.agents/drwn/skills` not in defaults
+## Installed bundles that are not selected
 
 **Symptom.** A skill bundle is present in the local store but never shows up under `~/.claude/skills/` or `~/.codex/skills/` after `drwn write`. `drwn library list skills` shows it.
 
-**Likely cause.** The bundle is available but not added to machine defaults or any project's `skills.include`. Availability and activation are separate steps by design — see [Local Store](../concepts/local-store).
+**Likely cause.** The bundle is available but not selected by machine intent or any project's `skills.include`. Availability and activation are separate steps by design.
 
 **Diagnostic.**
 
@@ -42,8 +46,8 @@ If the `--why` query returns `not found`, the skill is available but not selecte
 ```bash
 drwn library defaults add skill <name>
 drwn add skill <name>
-drwn write --dry-run
-drwn write
+drwn write --scope machine --dry-run  # machine selection
+drwn write                            # project selection, from the project
 ```
 
 ## Old `cards/` directories from pre-Wave-1 store
