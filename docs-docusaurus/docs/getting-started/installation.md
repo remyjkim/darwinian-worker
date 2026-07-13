@@ -16,6 +16,7 @@ Pick the installation path that matches what you want to do. The published packa
 ## Install the published package
 
 ```bash
+curl -fsSL https://bun.sh/install | bash
 npm install -g darwinian
 drwn status
 ```

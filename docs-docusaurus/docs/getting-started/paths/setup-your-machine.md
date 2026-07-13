@@ -8,14 +8,16 @@ Set up `drwn` once per machine. After this path you will have an installed CLI, 
 
 ## Prerequisites
 
-- Node 20+
-- npm (for the published package) or Bun 1.2+ (for the checkout-mode workflow)
+- Bun 1.2+
+- npm (for the published package and npm-backed skill bundles)
+- Node.js (for optional MCP servers that spawn Node processes)
 
-The published package runs from the built Node entrypoint. Checkout mode runs the TypeScript source through Bun; that is only needed when you want to edit `drwn` itself.
+The published package and checkout mode both run the TypeScript CLI through Bun.
 
 ## Install
 
 ```bash
+curl -fsSL https://bun.sh/install | bash
 npm install -g darwinian
 drwn --version
 ```

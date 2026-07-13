@@ -6,6 +6,15 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 describe("package readiness", () => {
+  test("published CLI declares its Bun runtime requirement", () => {
+    const pkg = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as Record<string, unknown>;
+    const installGuide = readFileSync(join(process.cwd(), "INSTALL.md"), "utf8");
+
+    expect(pkg.engines).toEqual({ bun: ">=1.2.0" });
+    expect(installGuide).toContain("Run the published package | **Bun 1.2+** and **npm**");
+    expect(installGuide).not.toContain("The published CLI runs on Node");
+  });
+
   test("package has required metadata and repository wiring", () => {
     const pkg = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as Record<string, unknown>;
 

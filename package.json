@@ -24,6 +24,9 @@
     "type": "git",
     "url": "git+https://github.com/remyjkim/darwinian-worker.git"
   },
+  "engines": {
+    "bun": ">=1.2.0"
+  },
   "files": [
     "cli",
     "registry",

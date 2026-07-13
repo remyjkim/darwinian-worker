@@ -22,14 +22,14 @@ directories with one command: `drwn write`.
 
 | Use case | Requirement |
 | --- | --- |
-| Run the published package | **Node.js 20+** and **npm** |
+| Run the published package | **Bun 1.2+** and **npm** |
 | Work from a source checkout (CLI development) | **Bun 1.2+** |
 | Add npm-backed skill bundles | **npm** |
 | Optional integrations | `parallel-cli`, `markitdown` (via `uv`), `bd` (Beads), `markdownify-mcp` — only when you enable them |
 
-The published CLI runs on Node; you do **not** need Bun to use it. Bun is only
-required if you run the TypeScript source directly from a checkout (see
-[Appendix B](#appendix-b-checkout--development-mode)).
+The published package currently executes its TypeScript entrypoint with Bun, so
+`bun` must be on `PATH` after npm installs the `drwn` binary. Node.js is still
+used by optional MCP servers that launch Node processes.
 
 > **Platform note:** macOS and Linux are supported today. Windows is not yet
 > supported — home-directory resolution, skill symlinks, and archive handling
@@ -40,6 +40,7 @@ required if you run the TypeScript source directly from a checkout (see
 ## 2. Install the CLI
 
 ```bash
+curl -fsSL https://bun.sh/install | bash
 npm install -g darwinian
 drwn status
 ```

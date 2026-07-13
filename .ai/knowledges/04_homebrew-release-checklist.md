@@ -27,9 +27,9 @@ This checklist is future-facing. Homebrew distribution is not implemented yet, b
   - source-only via Bun (requires Bun as a dependency)
   - bundled script/runtime wrapper
   - prebuilt release artifact
-  - npm-installed global package (requires Node.js 20+)
+  - npm-installed global package (currently requires Bun 1.2+ and npm)
 - binary install strategy
-- document runtime dependency expectations for end users (Bun for development, Node.js for published package)
+- document runtime dependency expectations for end users (Bun for both the current published package and development)
 
 ## Formula Hosting
 
