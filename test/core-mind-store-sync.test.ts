@@ -33,9 +33,10 @@ function cardsAt(version: string, personaText: string, beliefText: string): Card
       name: "@me/mind",
       version,
       integrity: `sha256-${version}`,
+      declaresMind: true,
       persona: [{ entry: "voice", content: personaText }],
       beliefs: [{ entry: "quality", content: beliefText }],
-      memory: { l5: { format: "jsonl" } },
+      memory: { observations: { format: "jsonl" } },
     },
   ];
 }

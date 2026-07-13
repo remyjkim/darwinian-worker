@@ -3,7 +3,7 @@
 
 import { Option } from "clipanion";
 import { DrwnError } from "../../../core/errors";
-import { createMindDbClient, type MindDbClient } from "../../../core/mind-store/client";
+import { createMindDbClient, inspectMindMemoryHealth } from "../../../core/mind-store/client";
 import { resolveBgdbConfig } from "../../../core/mind-store/config";
 import { computeDrift, readMindIndex } from "../../../core/mind-store/ledger";
 import { loadProjectMindCards, resolveMindId } from "../../../core/mind-store/project";
@@ -16,26 +16,6 @@ interface MindDoctorIssue {
   severity: "error" | "warning";
   message: string;
   path?: string;
-}
-
-async function walkPoolFiles(client: MindDbClient): Promise<string[]> {
-  const files: string[] = [];
-  for (const layer of await client.list("/pool")) {
-    if (layer.kind !== "dir") {
-      continue;
-    }
-    for (const day of await client.list(`/pool/${layer.name}`)) {
-      if (day.kind !== "dir") {
-        continue;
-      }
-      for (const file of await client.list(`/pool/${layer.name}/${day.name}`)) {
-        if (file.kind === "file") {
-          files.push(`/pool/${layer.name}/${day.name}/${file.name}`);
-        }
-      }
-    }
-  }
-  return files;
 }
 
 export class WorkerMindDoctorCommand extends BaseCommand {
@@ -62,6 +42,7 @@ export class WorkerMindDoctorCommand extends BaseCommand {
     try {
       const projectRoot = requireProjectRoot(this);
       const mindId = resolveMindId({ flag: this.mindId });
+      const cards = await loadProjectMindCards(projectRoot);
       const client = createMindDbClient(resolveBgdbConfig());
 
       let reachable = true;
@@ -82,7 +63,6 @@ export class WorkerMindDoctorCommand extends BaseCommand {
       }
 
       if (reachable && index) {
-        const cards = await loadProjectMindCards(projectRoot);
         for (const row of await computeDrift(client, index, cards)) {
           if (row.state === "db-edited") {
             issues.push({ code: "drift_db_edited", severity: "warning", message: `Live DB edits not in the card baseline: ${row.path}`, path: row.path });
@@ -91,15 +71,15 @@ export class WorkerMindDoctorCommand extends BaseCommand {
             issues.push({ code: "seeded_file_missing", severity: "error", message: `Seeded file was deleted from the DB: ${row.path}`, path: row.path });
           }
         }
-        for (const poolPath of await walkPoolFiles(client)) {
-          const stat = await client.stat(poolPath);
-          if (!stat) {
-            continue;
-          }
-          const placements = await client.placements(stat.inodeId);
-          if (placements.length === 1) {
-            issues.push({ code: "unplaced_pool_entry", severity: "warning", message: `Pool entry has no memory views: ${poolPath}`, path: poolPath });
-          }
+      }
+      if (reachable) {
+        for (const issue of await inspectMindMemoryHealth(client, mindId)) {
+          const message = issue.code === "unplaced_pool_entry"
+            ? `Pool entry has no Mind views: ${issue.path}`
+            : issue.code === "pool_placement_missing"
+              ? `Mind view has no canonical pool placement: ${issue.path}`
+              : `Unsupported Worker Mind memory residue: ${issue.path}`;
+          issues.push({ code: issue.code, severity: "warning", message, path: issue.path });
         }
       }
 

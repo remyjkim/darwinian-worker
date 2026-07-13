@@ -33,14 +33,16 @@ const cards: CardMindContent[] = [
     name: "@team/seeded-mind",
     version: "0.1.0",
     integrity: "sha256-mind",
+    declaresMind: true,
     persona: [{ entry: "voice", content: "# voice\n\nPlain speech.\n" }],
     beliefs: [{ entry: "collaboration", content: "# collaboration\n\nMemory over scrollback.\n" }],
-    memory: { l4: { format: "md" }, l5: { format: "jsonl" } },
+    memory: { observations: { format: "jsonl" }, insights: { format: "md" } },
   },
   {
     name: "@team/overlay",
     version: "1.2.0",
     integrity: "sha256-overlay",
+    declaresMind: false,
     persona: [{ entry: "review", content: "# review\n\nEvidence first.\n" }],
     beliefs: [],
     memory: {},
@@ -63,7 +65,8 @@ test("seedMind writes fenced persona, belief copies, and a ledger index", async 
   const index = await readMindIndex(client, "mind_1");
   expect(index?.mindId).toBe("mind_1");
   expect(index?.worker).toEqual({ card: "@team/seeded-mind", version: "0.1.0", integrity: "sha256-mind" });
-  expect(index?.memory).toEqual({ l4: { format: "md" }, l5: { format: "jsonl" } });
+  expect(index?.schema).toBe("drwn.mind-index");
+  expect(index?.memory).toEqual({ observations: { format: "jsonl" }, insights: { format: "md" } });
   expect(index?.ledger.map((row) => row.path)).toEqual([
     "/minds/mind_1/persona.md",
     "/minds/mind_1/beliefs/@team/seeded-mind/collaboration/BELIEF.md",
@@ -82,6 +85,45 @@ test("seedMind rejects an empty Worker closure", async () => {
   const { client } = start();
 
   await expect(seedMind(client, "mind_empty", [])).rejects.toMatchObject({ code: "MIND_WORKER_REQUIRED" });
+});
+
+test("seedMind rejects a capability-free closure without creating an index", async () => {
+  const { server, client } = start();
+  const capabilityFree: CardMindContent[] = [{
+    name: "@team/tools",
+    version: "1.0.0",
+    integrity: "sha256-tools",
+    declaresMind: false,
+    persona: [],
+    beliefs: [],
+    memory: {},
+  }];
+
+  await expect(seedMind(client, "mind_none", capabilityFree)).rejects.toMatchObject({
+    code: "MIND_CAPABILITY_NOT_DECLARED",
+  });
+  expect(server.readFile("/minds/mind_none/mind.json")).toBeNull();
+});
+
+test("seedMind accepts each declared capability and permits empty semantic memory", async () => {
+  const cases: Array<[string, Omit<CardMindContent, "name" | "version" | "integrity">]> = [
+    ["persona", { declaresMind: true, persona: [{ entry: "voice", content: "voice\n" }], beliefs: [], memory: {} }],
+    ["beliefs", { declaresMind: true, persona: [], beliefs: [{ entry: "quality", content: "quality\n" }], memory: {} }],
+    ["observations", { declaresMind: true, persona: [], beliefs: [], memory: { observations: { format: "jsonl" } } }],
+    ["insights", { declaresMind: true, persona: [], beliefs: [], memory: { insights: { format: "md" } } }],
+  ];
+  for (const [suffix, card] of cases) {
+    const { client } = start();
+    const result = await seedMind(client, `mind_${suffix}`, [{
+      name: `@team/${suffix}`,
+      version: "1.0.0",
+      integrity: `sha256-${suffix}`,
+      ...card,
+    }]);
+    expect(result.alreadyProvisioned).toBe(false);
+    const index = await readMindIndex(client, `mind_${suffix}`);
+    if (suffix === "persona" || suffix === "beliefs") expect(index?.memory).toEqual({});
+  }
 });
 
 test("loadProjectMindCards returns the selected root followed by its ordered members", async () => {
@@ -115,6 +157,32 @@ test("loadProjectMindCards returns the selected root followed by its ordered mem
   expect(loaded.map((card) => card.name)).toEqual(["@team/worker", "@team/member"]);
   expect(loaded.map((card) => card.integrity)).toEqual(["sha256-@team/worker", "sha256-@team/member"]);
   expect(loaded[1]?.persona).toEqual([{ entry: "voice", content: "# voice\n\nMember voice.\n" }]);
+  expect(loaded.map((card) => card.declaresMind)).toEqual([false, true]);
+});
+
+test("loadProjectMindCards ignores Mind capability on an inactive root", async () => {
+  const projectRoot = await createTempRoot("mind-project-");
+  tempRoots.push(projectRoot);
+  const contentRoot = join(projectRoot, "content");
+  const selected = cardEntry(contentRoot, "@team/tools", { skills: { include: ["alpha"] } });
+  const inactive = cardEntry(contentRoot, "@team/inactive", {
+    memory: { observations: { format: "jsonl" } },
+  });
+  await writeSupportedProjectConfig(projectRoot, {
+    workers: [selected.requested, inactive.requested],
+    activeWorker: selected.name,
+  });
+  await writeCardLock(projectRoot, {
+    workerRoots: [
+      { name: selected.name, requested: selected.requested, kind: "card", members: [] },
+      { name: inactive.name, requested: inactive.requested, kind: "card", members: [] },
+    ],
+    cards: [selected, inactive],
+  });
+
+  await expect(loadProjectMindCards(projectRoot)).rejects.toMatchObject({
+    code: "MIND_CAPABILITY_NOT_DECLARED",
+  });
 });
 
 test("seedMind is idempotent: a provisioned mind reports alreadyProvisioned with no writes", async () => {

@@ -3,6 +3,8 @@
 
 import { DrwnError } from "../errors";
 import type { BgdbConfig } from "./config";
+import type { MemoryKind } from "../card-manifest";
+import { parseCanonicalPoolPath } from "./paths";
 
 export interface MindDbStat {
   etag: string;
@@ -32,6 +34,80 @@ export interface MindDbClient {
   unplace(path: string): Promise<void>;
   placements(inodeId: number): Promise<string[]>;
   search(q: string, opts?: { pathPrefix?: string }): Promise<string[]>;
+}
+
+export interface MindMemoryHealthIssue {
+  code: "unplaced_pool_entry" | "pool_placement_missing" | "unsupported_memory_residue";
+  path: string;
+}
+
+const MEMORY_KINDS: readonly MemoryKind[] = ["observations", "insights"];
+
+async function walkFiles(client: MindDbClient, root: string): Promise<string[]> {
+  const files: string[] = [];
+  for (const entry of await client.list(root)) {
+    const path = `${root}/${entry.name}`;
+    if (entry.kind === "dir") files.push(...await walkFiles(client, path));
+    else files.push(path);
+  }
+  return files;
+}
+
+function hasCanonicalPoolPlacement(paths: string[], kind: MemoryKind): boolean {
+  return paths.some((path) => {
+    try {
+      return parseCanonicalPoolPath(path).kind === kind;
+    } catch {
+      return false;
+    }
+  });
+}
+
+export async function inspectMindMemoryHealth(client: MindDbClient, mindId: string): Promise<MindMemoryHealthIssue[]> {
+  const issues: MindMemoryHealthIssue[] = [];
+  const poolRootEntries = await client.list("/pool");
+  for (const entry of poolRootEntries) {
+    if (!MEMORY_KINDS.includes(entry.name as MemoryKind)) {
+      issues.push({ code: "unsupported_memory_residue", path: `/pool/${entry.name}` });
+    }
+  }
+
+  const mindMemoryRoot = `/minds/${mindId}/memory`;
+  for (const entry of await client.list(mindMemoryRoot)) {
+    if (!MEMORY_KINDS.includes(entry.name as MemoryKind)) {
+      issues.push({ code: "unsupported_memory_residue", path: `${mindMemoryRoot}/${entry.name}` });
+    }
+  }
+
+  for (const kind of MEMORY_KINDS) {
+    for (const poolPath of await walkFiles(client, `/pool/${kind}`)) {
+      try {
+        parseCanonicalPoolPath(poolPath);
+      } catch {
+        issues.push({ code: "unsupported_memory_residue", path: poolPath });
+        continue;
+      }
+      const stat = await client.stat(poolPath);
+      if (!stat) continue;
+      const placements = await client.placements(stat.inodeId);
+      if (!placements.some((path) => path.startsWith("/minds/") && path.includes(`/memory/${kind}/`))) {
+        issues.push({ code: "unplaced_pool_entry", path: poolPath });
+      }
+    }
+
+    const reportedInodes = new Set<number>();
+    for (const viewPath of await walkFiles(client, `${mindMemoryRoot}/${kind}`)) {
+      const stat = await client.stat(viewPath);
+      if (!stat || reportedInodes.has(stat.inodeId)) continue;
+      const placements = await client.placements(stat.inodeId);
+      if (!hasCanonicalPoolPlacement(placements, kind)) {
+        reportedInodes.add(stat.inodeId);
+        issues.push({ code: "pool_placement_missing", path: viewPath });
+      }
+    }
+  }
+
+  return issues.sort((left, right) => left.path.localeCompare(right.path) || left.code.localeCompare(right.code));
 }
 
 function encodePath(path: string) {
@@ -106,7 +182,7 @@ export function createMindDbClient(config: Pick<BgdbConfig, "baseUrl" | "token" 
       return { etag: statResponse.headers.get("etag") ?? "" };
     },
     // PATCH is an offset write, not an atomic append: the offset comes from a prior stat, so concurrent
-    // appenders can race. L5 conventions assume one writer per entry file (a session's capture context).
+    // appenders can race. Observation conventions assume one writer per capture-context entry file.
     async append(path, content) {
       const statResponse = await request("GET", `/v1/stat${encodePath(path)}`);
       if (statResponse.status === 404) {
@@ -156,7 +232,10 @@ export function createMindDbClient(config: Pick<BgdbConfig, "baseUrl" | "token" 
       await assertOk(response, "place");
     },
     async unplace(path) {
-      const response = await request("DELETE", `/v1/fs${encodePath(path)}`);
+      const response = await request("DELETE", `/v1/fs${encodePath(path)}?action=unplace`);
+      if (response.status === 404) {
+        return;
+      }
       await assertOk(response, "unplace");
     },
     async placements(inodeId) {

@@ -6,16 +6,19 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { MemoryManifest } from "../card-manifest";
 import type { CardLockEntry } from "../card-lock";
+import { DrwnError } from "../errors";
+import { cardDeclaresMind } from "../mind-capability";
 import { DRWN_VERSION } from "../version";
 import { composePersona } from "../mind-content/persona-composer";
 import type { MindDbClient } from "./client";
 import { mindCardProvenance, readMindIndex, writeMindIndex, type LedgerRow, type MindIndex } from "./ledger";
-import { beliefSeedPath, memoryLayerRoot, personaSeedPath } from "./paths";
+import { beliefSeedPath, memoryKindRoot, personaSeedPath } from "./paths";
 
 export interface CardMindContent {
   name: string;
   version: string;
   integrity: string;
+  declaresMind: boolean;
   persona: Array<{ entry: string; content: string }>;
   beliefs: Array<{ entry: string; content: string }>;
   memory: MemoryManifest;
@@ -40,6 +43,7 @@ export async function loadCardMindContent(card: CardLockEntry, contentRoot: stri
     name: card.name,
     version: card.version,
     integrity: card.integrity,
+    declaresMind: cardDeclaresMind(card.manifest),
     persona,
     beliefs,
     memory: card.manifest.memory ?? {},
@@ -53,6 +57,13 @@ export interface SeedResult {
 
 export async function seedMind(client: MindDbClient, mindId: string, cards: CardMindContent[]): Promise<SeedResult> {
   const provenance = mindCardProvenance(cards);
+  if (!cards.some((card) => card.declaresMind)) {
+    throw new DrwnError(
+      "MIND_CAPABILITY_NOT_DECLARED",
+      `Selected Worker ${provenance.worker.card} does not declare optional Mind capability.`,
+      ["Compose a Card that contributes persona, beliefs, observations, or insights, then resolve the Worker again."],
+    );
+  }
   const existing = await readMindIndex(client, mindId);
   if (existing) {
     return { alreadyProvisioned: true, created: [] };
@@ -84,13 +95,18 @@ export async function seedMind(client: MindDbClient, mindId: string, cards: Card
 
   const memory: MemoryManifest = {};
   for (const card of cards) {
-    for (const [layer, section] of Object.entries(card.memory) as Array<[keyof MemoryManifest, { format?: string }]>) {
-      memory[layer] = { ...(section.format ? { format: section.format as never } : {}), ...memory[layer] };
-      await client.mkdir(memoryLayerRoot(mindId, layer));
+    if (card.memory.observations) {
+      memory.observations = { format: "jsonl" };
+      await client.mkdir(memoryKindRoot(mindId, "observations"));
+    }
+    if (card.memory.insights) {
+      memory.insights = { format: "md" };
+      await client.mkdir(memoryKindRoot(mindId, "insights"));
     }
   }
 
   const index: MindIndex = {
+    schema: "drwn.mind-index",
     schemaVersion: 1,
     mindId,
     ...provenance,

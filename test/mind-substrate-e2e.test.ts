@@ -50,7 +50,7 @@ function lockEntry(sourceDir: string, integrity: string): CardLockEntry {
   };
 }
 
-test("the real mind-starter, applied alone, provisions a complete mind (voice + collaboration + layers)", async () => {
+test("the real mind-starter, applied alone, provisions a complete semantic Mind", async () => {
   const { server, client } = start();
 
   const entry = lockEntry(MIND_STARTER_SOURCE, "sha256-starter-real");
@@ -68,10 +68,10 @@ test("the real mind-starter, applied alone, provisions a complete mind (voice + 
   expect(result.created).toContain("/minds/mind_starter/beliefs/@darwinian/mind-starter/collaboration/BELIEF.md");
   const belief = server.readFile("/minds/mind_starter/beliefs/@darwinian/mind-starter/collaboration/BELIEF.md")!;
   expect(belief).toContain("Durable knowledge belongs in memory");
-  // memory layers scaffolded — the seed index records the declared layers
+  // The strict seed index records the declared semantic memory kinds.
   const { readMindIndex } = await import("../cli/core/mind-store/ledger");
   const index = await readMindIndex(client, "mind_starter");
-  expect(index?.memory).toEqual({ l4: { format: "md" }, l5: { format: "jsonl" } });
+  expect(index?.memory).toEqual({ observations: { format: "jsonl" }, insights: { format: "md" } });
 });
 
 test("the real [mind-tools, content] stack composes a persona with ONLY the content card's voice (no substrate pollution)", async () => {

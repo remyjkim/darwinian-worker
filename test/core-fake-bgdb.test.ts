@@ -59,73 +59,83 @@ test("PUT creates without an ETag header (stat carries it); If-None-Match/If-Mat
 
 test("PATCH is an offset write requiring Content-Range; appending writes at the current size", async () => {
   const server = start();
-  await call(server, "PUT", "/v1/fs/pool/l5/a.jsonl", { body: '{"n":1}\n' });
+  await call(server, "PUT", "/v1/fs/pool/observations/a.jsonl", { body: '{"n":1}\n' });
 
-  const missingRange = await call(server, "PATCH", "/v1/fs/pool/l5/a.jsonl", { body: "x" });
+  const missingRange = await call(server, "PATCH", "/v1/fs/pool/observations/a.jsonl", { body: "x" });
   expect(missingRange.status).toBe(400);
 
-  const appended = await call(server, "PATCH", "/v1/fs/pool/l5/a.jsonl", {
+  const appended = await call(server, "PATCH", "/v1/fs/pool/observations/a.jsonl", {
     body: '{"n":2}\n',
     headers: { "content-range": 'bytes 8-' },
   });
 
   expect(appended.status).toBe(204);
-  expect(server.readFile("/pool/l5/a.jsonl")).toBe('{"n":1}\n{"n":2}\n');
+  expect(server.readFile("/pool/observations/a.jsonl")).toBe('{"n":1}\n{"n":2}\n');
 });
 
 test("place creates a second path to the same inode; edits are visible through both", async () => {
   const server = start();
-  await call(server, "PUT", "/v1/fs/pool/l5/entry.jsonl", { body: "one\n" });
+  await call(server, "PUT", "/v1/fs/pool/observations/entry.jsonl", { body: "one\n" });
 
-  const placed = await call(server, "POST", "/v1/fs/pool/l5/entry.jsonl?action=place&destination=/minds/m1/memory/l5/entry.jsonl");
+  const placed = await call(server, "POST", "/v1/fs/pool/observations/entry.jsonl?action=place&destination=/minds/m1/memory/observations/by-date/entry.jsonl");
   expect(placed.status).toBe(201);
 
-  await call(server, "PATCH", "/v1/fs/minds/m1/memory/l5/entry.jsonl", {
+  await call(server, "PATCH", "/v1/fs/minds/m1/memory/observations/by-date/entry.jsonl", {
     body: "two\n",
     headers: { "content-range": "bytes 4-" },
   });
-  expect(server.readFile("/pool/l5/entry.jsonl")).toBe("one\ntwo\n");
+  expect(server.readFile("/pool/observations/entry.jsonl")).toBe("one\ntwo\n");
 
-  const stat = await call(server, "GET", "/v1/stat/pool/l5/entry.jsonl");
+  const stat = await call(server, "GET", "/v1/stat/pool/observations/entry.jsonl");
   const { inode_id } = (await stat.json()) as { inode_id: number };
   const placements = await call(server, "GET", `/v1/files/${inode_id}/placements`);
   expect(((await placements.json()) as { paths: string[] }).paths).toEqual([
-    "/minds/m1/memory/l5/entry.jsonl",
-    "/pool/l5/entry.jsonl",
+    "/minds/m1/memory/observations/by-date/entry.jsonl",
+    "/pool/observations/entry.jsonl",
   ]);
 });
 
 test("DELETE unplaces one path; deleting the last placement removes the inode", async () => {
   const server = start();
-  await call(server, "PUT", "/v1/fs/pool/l5/entry.jsonl", { body: "x\n" });
-  await call(server, "POST", "/v1/fs/pool/l5/entry.jsonl?action=place&destination=/minds/m1/memory/l5/entry.jsonl");
+  await call(server, "PUT", "/v1/fs/pool/observations/entry.jsonl", { body: "x\n" });
+  await call(server, "POST", "/v1/fs/pool/observations/entry.jsonl?action=place&destination=/minds/m1/memory/observations/by-date/entry.jsonl");
 
-  expect((await call(server, "DELETE", "/v1/fs/minds/m1/memory/l5/entry.jsonl")).status).toBe(204);
-  expect(server.readFile("/pool/l5/entry.jsonl")).toBe("x\n");
+  expect((await call(server, "DELETE", "/v1/fs/minds/m1/memory/observations/by-date/entry.jsonl")).status).toBe(204);
+  expect(server.readFile("/pool/observations/entry.jsonl")).toBe("x\n");
 
-  expect((await call(server, "DELETE", "/v1/fs/pool/l5/entry.jsonl")).status).toBe(204);
-  expect(server.readFile("/pool/l5/entry.jsonl")).toBeNull();
+  expect((await call(server, "DELETE", "/v1/fs/pool/observations/entry.jsonl")).status).toBe(204);
+  expect(server.readFile("/pool/observations/entry.jsonl")).toBeNull();
+});
+
+test("explicit unplace refuses to remove the final placement", async () => {
+  const server = start();
+  await call(server, "PUT", "/v1/fs/pool/insights/entry.md", { body: "x\n" });
+
+  const response = await call(server, "DELETE", "/v1/fs/pool/insights/entry.md?action=unplace");
+
+  expect(response.status).toBe(409);
+  expect(server.readFile("/pool/insights/entry.md")).toBe("x\n");
 });
 
 test("delete_everywhere removes all placements at once", async () => {
   const server = start();
-  await call(server, "PUT", "/v1/fs/pool/l4/r.md", { body: "r\n" });
-  await call(server, "POST", "/v1/fs/pool/l4/r.md?action=place&destination=/minds/m1/memory/l4/r.md");
+  await call(server, "PUT", "/v1/fs/pool/insights/r.md", { body: "r\n" });
+  await call(server, "POST", "/v1/fs/pool/insights/r.md?action=place&destination=/minds/m1/memory/insights/by-date/r.md");
 
-  const removed = await call(server, "DELETE", "/v1/fs/pool/l4/r.md?action=delete_everywhere");
+  const removed = await call(server, "DELETE", "/v1/fs/pool/insights/r.md?action=delete_everywhere");
 
   expect(removed.status).toBe(204);
-  expect(server.readFile("/minds/m1/memory/l4/r.md")).toBeNull();
+  expect(server.readFile("/minds/m1/memory/insights/by-date/r.md")).toBeNull();
 });
 
 test("search matches content and respects path_prefix", async () => {
   const server = start();
-  await call(server, "PUT", "/v1/fs/minds/m1/memory/l4/insight.md", { body: "retro insight\n" });
-  await call(server, "PUT", "/v1/fs/minds/m2/memory/l4/other.md", { body: "retro other\n" });
+  await call(server, "PUT", "/v1/fs/minds/m1/memory/insights/by-topic/insight.md", { body: "retro insight\n" });
+  await call(server, "PUT", "/v1/fs/minds/m2/memory/insights/by-topic/other.md", { body: "retro other\n" });
 
   const scoped = await call(server, "GET", "/v1/search?q=retro&path_prefix=/minds/m1");
 
-  expect(((await scoped.json()) as { results: string[] }).results).toEqual(["/minds/m1/memory/l4/insight.md"]);
+  expect(((await scoped.json()) as { results: string[] }).results).toEqual(["/minds/m1/memory/insights/by-topic/insight.md"]);
 });
 
 test("list returns immediate children with kinds", async () => {

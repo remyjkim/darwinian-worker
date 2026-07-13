@@ -52,13 +52,13 @@ export function startFakeBgdb(options: { token?: string } = {}): FakeBgdb {
     }
   }
 
-  function unplace(path: string, everywhere: boolean): number {
+  function removePlacement(path: string, action: "delete" | "unplace" | "delete_everywhere"): number {
     const normalized = normalize(path);
     const id = state.paths.get(normalized);
     if (id === undefined) {
       return 404;
     }
-    if (everywhere) {
+    if (action === "delete_everywhere") {
       for (const [candidate, owner] of [...state.paths.entries()]) {
         if (owner === id) {
           state.paths.delete(candidate);
@@ -66,6 +66,10 @@ export function startFakeBgdb(options: { token?: string } = {}): FakeBgdb {
       }
       state.inodes.delete(id);
       return 204;
+    }
+    const placementCount = [...state.paths.values()].filter((owner) => owner === id).length;
+    if (action === "unplace" && placementCount === 1) {
+      return 409;
     }
     state.paths.delete(normalized);
     const remaining = [...state.paths.values()].some((owner) => owner === id);
@@ -232,7 +236,11 @@ export function startFakeBgdb(options: { token?: string } = {}): FakeBgdb {
       }
 
       if (request.method === "DELETE") {
-        const status = unplace(path, url.searchParams.get("action") === "delete_everywhere");
+        const requestedAction = url.searchParams.get("action");
+        const action = requestedAction === "unplace" || requestedAction === "delete_everywhere"
+          ? requestedAction
+          : "delete";
+        const status = removePlacement(path, action);
         return status === 204
           ? new Response(null, { status: 204 })
           : Response.json({ error: "not found" }, { status });

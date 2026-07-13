@@ -26,6 +26,17 @@ interface DesiredFile {
   entry: string;
 }
 
+function ledgerRow(file: DesiredFile, etag: string): LedgerRow {
+  return {
+    path: file.path,
+    card: file.card,
+    cardVersion: file.cardVersion,
+    section: file.section,
+    entry: file.entry,
+    etag,
+  };
+}
+
 // Entries removed from a card are left in place in the DB (DB-wins philosophy); doctor surfaces staleness.
 function desiredFiles(mindId: string, cards: CardMindContent[]): DesiredFile[] {
   const files: DesiredFile[] = [];
@@ -65,7 +76,7 @@ export async function syncMind(
     if (!row) {
       if (!options.dryRun) {
         const { etag } = await client.put(file.path, file.content, { ifNoneMatch: "*" });
-        nextLedger.push({ ...file, etag });
+        nextLedger.push(ledgerRow(file, etag));
       }
       result.created.push(file.path);
       continue;
@@ -92,7 +103,7 @@ export async function syncMind(
       ? await client.put(file.path, file.content)
       : await client.put(file.path, file.content, { ifMatch: row.etag });
     result.updated.push(file.path);
-    nextLedger.push({ ...file, etag });
+    nextLedger.push(ledgerRow(file, etag));
   }
 
   if (!options.dryRun) {

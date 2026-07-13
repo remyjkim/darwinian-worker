@@ -26,15 +26,17 @@ const toolsShaped: CardMindContent = {
   name: "@darwinian/mind-tools",
   version: "0.1.0",
   integrity: "sha256-tools",
+  declaresMind: true,
   persona: [], // the substrate carries NO persona — this is the whole point of the split
   beliefs: [],
-  memory: { l4: { format: "md" }, l5: { format: "jsonl" } },
+  memory: { observations: { format: "jsonl" }, insights: { format: "md" } },
 };
 
 const contentShaped: CardMindContent = {
   name: "@x/figure-mind",
   version: "1.0.0",
   integrity: "sha256-figure",
+  declaresMind: true,
   persona: [{ entry: "voice", content: "# voice\n\nA distinctive, figure-specific voice.\n" }],
   beliefs: [{ entry: "skepticism", content: "# skepticism\n\nDefault to doubt; earn conviction.\n" }],
   memory: {},

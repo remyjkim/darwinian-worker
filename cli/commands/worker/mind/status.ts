@@ -33,6 +33,7 @@ export class WorkerMindStatusCommand extends BaseCommand {
     try {
       const projectRoot = requireProjectRoot(this);
       const mindId = resolveMindId({ flag: this.mindId });
+      const cards = await loadProjectMindCards(projectRoot);
       const client = createMindDbClient(resolveBgdbConfig());
       const index = await readMindIndex(client, mindId);
       if (!index) {
@@ -43,7 +44,6 @@ export class WorkerMindStatusCommand extends BaseCommand {
         this.context.stdout.write(`Mind ${mindId} is not provisioned. Run: drwn worker mind provision\n`);
         return 0;
       }
-      const cards = await loadProjectMindCards(projectRoot);
       const drift = await computeDrift(client, index, cards);
       if (this.json) {
         this.context.stdout.write(renderJson({ mindId, provisioned: true, worker: index.worker, cards: index.cards, drift }));

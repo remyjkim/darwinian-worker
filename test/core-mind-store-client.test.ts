@@ -3,7 +3,7 @@
 
 import { afterEach, expect, test } from "bun:test";
 import { DrwnError } from "../cli/core/errors";
-import { createMindDbClient } from "../cli/core/mind-store/client";
+import { createMindDbClient, inspectMindMemoryHealth } from "../cli/core/mind-store/client";
 import { resolveBgdbConfig } from "../cli/core/mind-store/config";
 import { startFakeBgdb, type FakeBgdb } from "./fixtures/fake-bgdb";
 
@@ -73,27 +73,71 @@ test("get and stat return null for missing paths and etags for present ones", as
 test("append, place, placements, unplace, and delete-everywhere round-trip", async () => {
   const { server, client } = startClient();
 
-  await client.put("/pool/l5/e.jsonl", "one\n");
-  await client.append("/pool/l5/e.jsonl", "two\n");
-  await client.place("/pool/l5/e.jsonl", "/minds/m1/memory/l5/e.jsonl");
+  await client.put("/pool/observations/2026-07-07/1403-01ARZ3NDEKTSV4RRFFQ69G5FAV.jsonl", "one\n");
+  await client.append("/pool/observations/2026-07-07/1403-01ARZ3NDEKTSV4RRFFQ69G5FAV.jsonl", "two\n");
+  await client.place(
+    "/pool/observations/2026-07-07/1403-01ARZ3NDEKTSV4RRFFQ69G5FAV.jsonl",
+    "/minds/m1/memory/observations/by-date/2026-07-07/1403-01ARZ3NDEKTSV4RRFFQ69G5FAV.jsonl",
+  );
 
-  const stat = await client.stat("/pool/l5/e.jsonl");
-  expect(await client.placements(stat!.inodeId)).toEqual(["/minds/m1/memory/l5/e.jsonl", "/pool/l5/e.jsonl"]);
+  const stat = await client.stat("/pool/observations/2026-07-07/1403-01ARZ3NDEKTSV4RRFFQ69G5FAV.jsonl");
+  expect(await client.placements(stat!.inodeId)).toHaveLength(2);
 
-  await client.unplace("/minds/m1/memory/l5/e.jsonl");
-  expect(server.readFile("/pool/l5/e.jsonl")).toBe("one\ntwo\n");
+  await client.unplace("/minds/m1/memory/observations/by-date/2026-07-07/1403-01ARZ3NDEKTSV4RRFFQ69G5FAV.jsonl");
+  expect(server.state.requests).toContain(
+    "DELETE /v1/fs/minds/m1/memory/observations/by-date/2026-07-07/1403-01ARZ3NDEKTSV4RRFFQ69G5FAV.jsonl?action=unplace",
+  );
+  expect(server.readFile("/pool/observations/2026-07-07/1403-01ARZ3NDEKTSV4RRFFQ69G5FAV.jsonl")).toBe("one\ntwo\n");
 
-  await client.delete("/pool/l5/e.jsonl", { everywhere: true });
-  expect(server.readFile("/pool/l5/e.jsonl")).toBeNull();
+  await client.delete("/pool/observations/2026-07-07/1403-01ARZ3NDEKTSV4RRFFQ69G5FAV.jsonl", { everywhere: true });
+  expect(server.readFile("/pool/observations/2026-07-07/1403-01ARZ3NDEKTSV4RRFFQ69G5FAV.jsonl")).toBeNull();
+});
+
+test("explicit unplace is idempotent and cannot destroy the final placement", async () => {
+  const { server, client } = startClient();
+  const path = "/pool/insights/2026-07-07/1403-01ARZ3NDEKTSV4RRFFQ69G5FAV.md";
+  await client.put(path, "insight\n");
+
+  await expect(client.unplace(path)).rejects.toThrow(DrwnError);
+  expect(server.readFile(path)).toBe("insight\n");
+
+  await expect(client.unplace("/pool/insights/missing.md")).resolves.toBeUndefined();
 });
 
 test("search and list are scoped and typed", async () => {
   const { client } = startClient();
-  await client.put("/minds/m1/memory/l4/i.md", "deep insight\n");
-  await client.put("/minds/m2/memory/l4/j.md", "deep other\n");
+  await client.put("/minds/m1/memory/insights/by-topic/i.md", "deep insight\n");
+  await client.put("/minds/m2/memory/insights/by-topic/j.md", "deep other\n");
 
-  expect(await client.search("deep", { pathPrefix: "/minds/m1" })).toEqual(["/minds/m1/memory/l4/i.md"]);
-  expect(await client.list("/minds/m1/memory/l4")).toEqual([{ name: "i.md", kind: "file" }]);
+  expect(await client.search("deep", { pathPrefix: "/minds/m1" })).toEqual(["/minds/m1/memory/insights/by-topic/i.md"]);
+  expect(await client.list("/minds/m1/memory/insights/by-topic")).toEqual([{ name: "i.md", kind: "file" }]);
+});
+
+test("memory health compares inode placements across pool, by-date, and by-topic views", async () => {
+  const { client } = startClient();
+  const pool = "/pool/insights/2026-07-07/1403-01ARZ3NDEKTSV4RRFFQ69G5FAV.md";
+  const byDate = "/minds/m1/memory/insights/by-date/2026-07-07/1403-01ARZ3NDEKTSV4RRFFQ69G5FAV.md";
+  const byTopic = "/minds/m1/memory/insights/by-topic/quality/current.md";
+  await client.put(pool, "insight\n");
+  await client.place(pool, byDate);
+  await client.place(pool, byTopic);
+
+  expect(await inspectMindMemoryHealth(client, "m1")).toEqual([]);
+
+  await client.unplace(pool);
+  const orphaned = await inspectMindMemoryHealth(client, "m1");
+  expect(orphaned.filter((issue) => issue.code === "pool_placement_missing")).toHaveLength(1);
+});
+
+test("memory health reports unplaced entries and unsupported residue", async () => {
+  const { client } = startClient();
+  await client.put("/pool/observations/2026-07-07/1403-01ARZ3NDEKTSV4RRFFQ69G5FAV.jsonl", "{}\n");
+  await client.put("/pool/l5/legacy.jsonl", "{}\n");
+  await client.put("/minds/m1/memory/raw_data/file.bin", "x");
+
+  const issues = await inspectMindMemoryHealth(client, "m1");
+  expect(issues.map((issue) => issue.code)).toContain("unplaced_pool_entry");
+  expect(issues.filter((issue) => issue.code === "unsupported_memory_residue")).toHaveLength(2);
 });
 
 test("unreachable server surfaces MIND_DB_UNREACHABLE", async () => {

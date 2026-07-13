@@ -5,6 +5,7 @@ import { Option } from "clipanion";
 import { confirmDestructive } from "../../../core/confirm";
 import { createMindDbClient } from "../../../core/mind-store/client";
 import { resolveBgdbConfig } from "../../../core/mind-store/config";
+import { parseCanonicalPoolPath } from "../../../core/mind-store/paths";
 import { renderJson } from "../../../core/output";
 import { BaseCommand } from "../../base";
 
@@ -19,7 +20,7 @@ export class WorkerMindPoolRetireCommand extends BaseCommand {
       and cannot be recovered. Agents must never run this; use mind-forget
       (unplace) to remove an entry from one mind's view instead.
     `,
-    examples: [["Retire a pool entry", "drwn worker mind pool retire /pool/l5/2026-07-07/1403-….jsonl --yes"]],
+    examples: [["Retire a pool entry", "drwn worker mind pool retire /pool/insights/2026-07-07/1403-<ulid>.md --yes"]],
   });
 
   poolPath = Option.String({ required: true });
@@ -30,10 +31,7 @@ export class WorkerMindPoolRetireCommand extends BaseCommand {
 
   async execute() {
     try {
-      if (!this.poolPath.startsWith("/pool/")) {
-        this.context.stderr.write(`Only pool paths can be retired (got: ${this.poolPath}). Use mind-forget/unplace for view paths.\n`);
-        return 1;
-      }
+      parseCanonicalPoolPath(this.poolPath);
       const client = createMindDbClient(resolveBgdbConfig());
       const stat = await client.stat(this.poolPath);
       if (!stat) {

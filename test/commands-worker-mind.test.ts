@@ -50,6 +50,28 @@ async function scaffoldMindProject() {
   return { fixture, server, projectDir, env };
 }
 
+async function scaffoldCapabilityFreeProject() {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  const server = startFakeBgdb();
+  servers.push(server);
+  expect((await runAgentsCli(["card", "new", "@me/tools", "--no-git"], envFor(fixture))).exitCode).toBe(0);
+  expect((await runAgentsCli(["card", "publish", "@me/tools"], envFor(fixture))).exitCode).toBe(0);
+  const projectDir = join(fixture.root, "project");
+  await writeSupportedProjectConfig(projectDir);
+  expect((await runAgentsCli(["add", "@me/tools@1.0.0"], envFor(fixture), projectDir)).exitCode).toBe(0);
+  return {
+    server,
+    projectDir,
+    env: {
+      ...envFor(fixture),
+      BGDB_BASE_URL: server.baseUrl,
+      BGDB_TOKEN: server.token,
+      BGDB_PATH_PREFIX: "minds/mind_none",
+    },
+  };
+}
+
 test("provision seeds the mind, is idempotent, and status reports drift states", async () => {
   const { server, projectDir, env } = await scaffoldMindProject();
 
@@ -103,11 +125,28 @@ test("provision requires a mind id from flag or path prefix", async () => {
   expect((JSON.parse(flagged.stdout) as { mindId: string }).mindId).toBe("mind_flag");
 });
 
+test("closure-dependent commands reject a capability-free selected Worker", async () => {
+  const { server, projectDir, env } = await scaffoldCapabilityFreeProject();
+  for (const args of [
+    ["worker", "mind", "provision", "--json"],
+    ["worker", "mind", "status", "--json"],
+    ["worker", "mind", "doctor", "--json"],
+    ["worker", "mind", "sync", "--json"],
+    ["worker", "mind", "diff", "--json"],
+    ["worker", "mind", "checkpoint", "--json"],
+  ]) {
+    const result = await runAgentsCli(args, env, projectDir);
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain("does not declare optional Mind capability");
+  }
+  expect(server.readFile("/minds/mind_none/mind.json")).toBeNull();
+});
+
 test("doctor reports unreachable bindings as warnings and finds unplaced pool entries", async () => {
   const { server, projectDir, env } = await scaffoldMindProject();
   expect((await runAgentsCli(["worker", "mind", "provision"], env, projectDir)).exitCode).toBe(0);
 
-  await fetch(new URL("/v1/fs/pool/l5/2026-07-07/1403-ENTRY.jsonl", server.baseUrl), {
+  await fetch(new URL("/v1/fs/pool/observations/2026-07-07/1403-01ARZ3NDEKTSV4RRFFQ69G5FAV.jsonl", server.baseUrl), {
     method: "PUT",
     headers: { authorization: `Bearer ${server.token}` },
     body: '{"ts":"2026-07-07T14:03:00Z","type":"note","content":"orphan"}\n',
@@ -128,7 +167,7 @@ test("doctor reports unreachable bindings as warnings and finds unplaced pool en
 test("pool retire refuses without --yes and deletes everywhere with it", async () => {
   const { server, projectDir, env } = await scaffoldMindProject();
   expect((await runAgentsCli(["worker", "mind", "provision"], env, projectDir)).exitCode).toBe(0);
-  const poolPath = "/pool/l4/2026-07-07/1403-RETIRE.md";
+  const poolPath = "/pool/insights/2026-07-07/1403-01ARZ3NDEKTSV4RRFFQ69G5FAV.md";
   await fetch(new URL(`/v1/fs${poolPath}`, server.baseUrl), {
     method: "PUT",
     headers: { authorization: `Bearer ${server.token}` },
@@ -143,4 +182,20 @@ test("pool retire refuses without --yes and deletes everywhere with it", async (
   const retired = await runAgentsCli(["worker", "mind", "pool", "retire", poolPath, "--yes"], env, projectDir);
   expect(retired.exitCode).toBe(0);
   expect(server.readFile(poolPath)).toBeNull();
+});
+
+test("pool retire rejects noncanonical paths before contacting BeginningDB", async () => {
+  const { server, projectDir, env } = await scaffoldMindProject();
+  for (const path of [
+    "/pool/l5/2026-07-07/1403-01ARZ3NDEKTSV4RRFFQ69G5FAV.jsonl",
+    "/pool/raw_data/2026-07-07/1403-01ARZ3NDEKTSV4RRFFQ69G5FAV.jsonl",
+    "/pool/observations/not-a-date/file.jsonl",
+    "/minds/mind_t1/memory/observations/by-date/file.jsonl",
+  ]) {
+    const before = server.state.requests.length;
+    const result = await runAgentsCli(["worker", "mind", "pool", "retire", path, "--yes"], env, projectDir);
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain("canonical semantic pool file");
+    expect(server.state.requests).toHaveLength(before);
+  }
 });

@@ -30,7 +30,15 @@ export async function loadProjectMindCards(projectRoot: string): Promise<CardMin
     }
     return card;
   });
-  return Promise.all(ordered.map((card) => loadCardMindContent(card, card.path)));
+  const cards = await Promise.all(ordered.map((card) => loadCardMindContent(card, card.path)));
+  if (!cards.some((card) => card.declaresMind)) {
+    throw new DrwnError(
+      "MIND_CAPABILITY_NOT_DECLARED",
+      `Selected Worker ${root.name} does not declare optional Mind capability.`,
+      ["Compose a Card that contributes persona, beliefs, observations, or insights, then resolve the Worker again."],
+    );
+  }
+  return cards;
 }
 
 export function resolveMindId(options: { flag?: string; env?: NodeJS.ProcessEnv }): string {

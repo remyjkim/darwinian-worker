@@ -19,7 +19,7 @@ export class WorkerMindProvisionCommand extends BaseCommand {
     description: "Provision and seed a worker's mind in BeginningDB.",
     details: `
       Composes the selected Worker closure's persona and beliefs, uploads them into
-      minds/<mindId>/ with atomic creates, scaffolds memory layers, and writes
+      minds/<mindId>/ with atomic creates, scaffolds declared semantic memory, and writes
       the mind.json seed ledger. Running against a provisioned mind is a no-op.
     `,
     examples: [
