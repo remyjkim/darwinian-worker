@@ -8,12 +8,12 @@ import { relative, join } from "node:path";
 import { tmpdir } from "node:os";
 import { create as createArchive } from "./archive";
 import {
-  HOOKS_MIN_DRWN_VERSION,
   loadCardLock,
   type CardLockEntry,
   type GitLockInfo,
   type WorkerRootLockEntry,
 } from "./card-lock";
+import { minimumDrwnVersionForManifests } from "./mind-capability";
 import { parseCardRef, type ResolveCardOptions } from "./card-store";
 import { DrwnError } from "./errors";
 import { readProjectConfigForWrite } from "./project-writes";
@@ -171,7 +171,7 @@ async function resolveDeployClosure(options: BuildWorkerDeployPayloadOptions): P
     return {
       cards: orderedClosure(root, graph.cards),
       requested: options.cardRef,
-      minDrwnVersion: HOOKS_MIN_DRWN_VERSION,
+      minDrwnVersion: minimumDrwnVersionForManifests(graph.cards.map((card) => card.manifest)),
     };
   }
 

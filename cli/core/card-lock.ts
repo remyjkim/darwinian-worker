@@ -4,14 +4,21 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { BeliefsManifest, CardManifest, MemoryFormat, MemoryManifest, PersonaManifest } from "./card-manifest";
-import { assertValidCardManifest, MEMORY_LAYER_NAMES } from "./card-manifest";
+import type { BeliefsManifest, CardManifest, MemoryManifest, PersonaManifest } from "./card-manifest";
+import { assertValidCardManifest, MEMORY_KINDS } from "./card-manifest";
 import { DrwnError } from "./errors";
 import { writeAtomically } from "./fs";
 import * as git from "./git";
 import { gte } from "./semver-utils";
 import { resolveCardBareRepoPath } from "./store-paths";
 import { DRWN_VERSION } from "./version";
+import {
+  PROJECT_WORKER_MIN_DRWN_VERSION,
+  WORKER_MIND_MIN_DRWN_VERSION,
+  minimumDrwnVersionForManifests,
+} from "./mind-capability";
+
+export { PROJECT_WORKER_MIN_DRWN_VERSION, WORKER_MIND_MIN_DRWN_VERSION } from "./mind-capability";
 
 export type CardOrigin = "store" | "git" | "file" | "npm";
 
@@ -62,8 +69,6 @@ export type CardLockfile = ProjectLockV1;
 export type ProjectLockGraph = Pick<ProjectLockV1, "workerRoots" | "cards">;
 
 export const HOOKS_MIN_DRWN_VERSION = "0.3.0";
-export const MINDS_MIN_DRWN_VERSION = "0.7.0";
-export const PROJECT_WORKER_MIN_DRWN_VERSION = "0.8.0";
 
 export interface VersionFloorStatus {
   required: string | null;
@@ -121,7 +126,7 @@ export function createCardLockfile(graph: ProjectLockGraph): ProjectLockV1 {
   return validateCardLockfile({
     schema: "drwn.project-lock",
     schemaVersion: 1,
-    store: { minDrwnVersion: PROJECT_WORKER_MIN_DRWN_VERSION },
+    store: { minDrwnVersion: minimumDrwnVersionForManifests(cards.map((card) => card.manifest)) },
     workerRoots: graph.workerRoots,
     cards,
   });
@@ -185,6 +190,10 @@ function validateProjectLockValue(input: unknown, source: string): ProjectLockV1
   if (!Array.isArray(input.cards)) invalidLock(source, "cards must be an array");
 
   const cards = input.cards.map((entry, index) => validateCardLockEntry(entry, `${source} cards[${index}]`));
+  const requiredVersion = minimumDrwnVersionForManifests(cards.map((card) => card.manifest));
+  if (input.store.minDrwnVersion !== requiredVersion) {
+    invalidLock(source, `store.minDrwnVersion must be ${requiredVersion} for this Worker graph`);
+  }
   const cardsByName = new Map<string, CardLockEntry>();
   for (const card of cards) {
     if (cardsByName.has(card.name)) invalidLock(source, `Card ${card.name} appears more than once`);
@@ -277,6 +286,10 @@ function validateCardLockEntry(input: unknown, source: string): CardLockEntry {
   const persona = validateMindContentLockSection(input.persona, `${source}.persona`);
   const beliefs = validateMindContentLockSection(input.beliefs, `${source}.beliefs`);
   const memory = validateMemoryLock(input.memory, `${source}.memory`);
+  const manifestMemory = normalizeMemoryManifest(input.manifest.memory);
+  if (JSON.stringify(memory) !== JSON.stringify(manifestMemory)) {
+    throw new Error(`${source}.memory must match manifest.memory`);
+  }
   const hookConsent = validateHookConsent(input.hookConsent, source);
   if (input.registry !== null) throw new Error(`${source}.registry must be null`);
   const gitInfo = validateGitLockInfo(input.git, origin, source);
@@ -313,14 +326,28 @@ function validateMemoryLock(input: unknown, source: string): MemoryManifest | un
   if (input === undefined) return undefined;
   if (!isObject(input)) throw new Error(`${source} must be an object`);
   const memory: MemoryManifest = {};
-  for (const [layer, section] of Object.entries(input)) {
-    if (!(MEMORY_LAYER_NAMES as readonly string[]).includes(layer)) throw new Error(`${source}: unsupported memory layer ${layer}`);
-    if (!isObject(section)) throw new Error(`${source}.${layer} must be an object`);
-    if (section.include !== undefined) throw new Error(`${source}.${layer}: memory entries are DB-native and cannot include paths`);
-    const format = validateLockMemoryFormat(section.format, `${source}.${layer}.format`);
-    memory[layer as keyof MemoryManifest] = { ...(format ? { format } : {}) };
+  for (const [kind, section] of Object.entries(input)) {
+    if (kind === "raw_data") throw new Error(`${source}: memory kind raw_data is reserved but unsupported`);
+    if (!(MEMORY_KINDS as readonly string[]).includes(kind)) throw new Error(`${source}: unsupported memory kind ${kind}`);
+    if (!isObject(section)) throw new Error(`${source}.${kind} must be an object`);
+    const unknown = Object.keys(section).filter((key) => key !== "format");
+    if (unknown.length > 0) throw new Error(`${source}.${kind} has unsupported field(s): ${unknown.join(", ")}`);
+    const requiredFormat = kind === "observations" ? "jsonl" : "md";
+    if (section.format !== requiredFormat) {
+      throw new Error(`${source}.${kind}.format must be ${requiredFormat}`);
+    }
+    if (kind === "observations") memory.observations = { format: "jsonl" };
+    else memory.insights = { format: "md" };
   }
-  return Object.keys(memory).length > 0 ? memory : undefined;
+  return normalizeMemoryManifest(memory);
+}
+
+function normalizeMemoryManifest(input: MemoryManifest | undefined): MemoryManifest | undefined {
+  if (!input?.observations && !input?.insights) return undefined;
+  return {
+    ...(input.observations ? { observations: { format: "jsonl" as const } } : {}),
+    ...(input.insights ? { insights: { format: "md" as const } } : {}),
+  };
 }
 
 function validateLockStringArray(input: unknown, source: string): string[] | undefined {
@@ -332,12 +359,6 @@ function validateLockStringArray(input: unknown, source: string): string[] | und
 function validateLockVisibility(input: unknown, source: string): PersonaManifest["visibility"] | undefined {
   if (input === undefined) return undefined;
   if (input !== "private" && input !== "internal" && input !== "public") throw new Error(`${source} must be private, internal, or public`);
-  return input;
-}
-
-function validateLockMemoryFormat(input: unknown, source: string): MemoryFormat | undefined {
-  if (input === undefined) return undefined;
-  if (input !== "md" && input !== "jsonl" && input !== "mixed") throw new Error(`${source} must be md, jsonl, or mixed`);
   return input;
 }
 

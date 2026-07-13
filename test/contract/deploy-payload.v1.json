@@ -11,7 +11,7 @@
     "lockfile": {
       "lockfileVersion": 5,
       "store": {
-        "minDrwnVersion": "0.3.0"
+        "minDrwnVersion": "0.8.0"
       },
       "cards": [
         {
@@ -70,7 +70,7 @@
     "lockfile": {
       "lockfileVersion": 5,
       "store": {
-        "minDrwnVersion": "0.3.0"
+        "minDrwnVersion": "0.8.0"
       },
       "cards": [
         {

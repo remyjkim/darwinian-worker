@@ -7,7 +7,9 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
   PROJECT_WORKER_MIN_DRWN_VERSION,
+  WORKER_MIND_MIN_DRWN_VERSION,
   cardLockPath,
+  createCardLockfile,
   loadCardLock,
   persistCardLock,
   validateCardLockfile,
@@ -242,7 +244,7 @@ test("lock metadata preserves skills, hooks, consent, and mind sections", async 
       hooks: { include: ["audit"] },
       persona: { include: ["voice"], visibility: "internal" },
       beliefs: { include: ["engineering"], visibility: "public" },
-      memory: { l5: { format: "jsonl" } },
+      memory: { observations: { format: "jsonl" } },
     },
     skills: ["alpha"],
     hooks: ["audit"],
@@ -256,11 +258,50 @@ test("lock metadata preserves skills, hooks, consent, and mind sections", async 
   await writeCardLock(root, graph);
 
   const loaded = await loadCardLock(root);
-  expect(loaded?.store.minDrwnVersion).toBe(PROJECT_WORKER_MIN_DRWN_VERSION);
+  expect(loaded?.store.minDrwnVersion).toBe(WORKER_MIND_MIN_DRWN_VERSION);
   expect(loaded?.cards[0]?.skills).toEqual(["alpha"]);
   expect(loaded?.cards[0]?.hooks).toEqual(["audit"]);
   expect(loaded?.cards[0]?.hookConsent?.consentedRange).toBe("^1.0.0");
-  expect(loaded?.cards[0]?.memory?.l5).toEqual({ format: "jsonl" });
+  expect(loaded?.cards[0]?.memory?.observations).toEqual({ format: "jsonl" });
+});
+
+test("lock floor covers Mind capability in any installed root", () => {
+  const plain = card("@me/plain");
+  const mind = card("@me/mind", {
+    manifest: { name: "@me/mind", version: "1.0.0", memory: { insights: { format: "md" } } },
+  });
+  const graph = {
+    workerRoots: [
+      { name: plain.name, requested: plain.requested, kind: "card" as const, members: [] },
+      { name: mind.name, requested: mind.requested, kind: "card" as const, members: [] },
+    ],
+    cards: [plain, mind],
+  };
+
+  expect(createCardLockfile(graph).store.minDrwnVersion).toBe(WORKER_MIND_MIN_DRWN_VERSION);
+  expect(createCardLockfile({ workerRoots: graph.workerRoots.slice(0, 1), cards: [plain] }).store.minDrwnVersion)
+    .toBe(PROJECT_WORKER_MIN_DRWN_VERSION);
+});
+
+test("lock rejects inconsistent or prototype memory copies", () => {
+  const nested = card("@me/mind", {
+    manifest: { name: "@me/mind", version: "1.0.0", memory: { observations: { format: "jsonl" } } },
+    memory: { insights: { format: "md" } },
+  });
+  expect(() => validateCardLockfile(lock({
+    store: { minDrwnVersion: WORKER_MIND_MIN_DRWN_VERSION },
+    workerRoots: [{ name: nested.name, requested: nested.requested, kind: "card", members: [] }],
+    cards: [nested],
+  }))).toThrow(/memory.*match/i);
+
+  const prototype = card("@me/prototype", {
+    manifest: { name: "@me/prototype", version: "1.0.0" },
+    memory: { l5: { format: "jsonl" } } as never,
+  });
+  expect(() => validateCardLockfile(lock({
+    workerRoots: [{ name: prototype.name, requested: prototype.requested, kind: "card", members: [] }],
+    cards: [prototype],
+  }))).toThrow(/memory kind/i);
 });
 
 test("loadCardLock returns null when no lockfile exists", async () => {

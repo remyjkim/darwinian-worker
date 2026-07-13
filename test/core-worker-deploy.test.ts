@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
 import { seedStore } from "../cli/core/store-seed";
 import { buildWorkerDeployPayload, type WorkerDeployPayload } from "../cli/core/worker-deploy";
+import { WORKER_MIND_MIN_DRWN_VERSION } from "../cli/core/card-lock";
 import {
   cleanupTempRoots,
   envFor,
@@ -90,6 +91,21 @@ test("buildWorkerDeployPayload emits the v1 contract for a blueprint", async () 
   });
 
   expect(normalizeForFixture(payload)).toEqual(contractFixture.blueprint);
+});
+
+test("buildWorkerDeployPayload computes the semantic Mind floor for a direct closure", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  await publishBlueprint(fixture, "@me/mind-worker", [], {
+    memory: { observations: { format: "jsonl" } },
+  });
+
+  const payload = await buildWorkerDeployPayload({
+    agentsDir: fixture.agentsDir,
+    cardRef: "@me/mind-worker@^1.0.0",
+  });
+
+  expect(payload.lockfile.store.minDrwnVersion).toBe(WORKER_MIND_MIN_DRWN_VERSION);
 });
 
 test("buildWorkerDeployPayload storeExport decodes and seeds a store", async () => {
