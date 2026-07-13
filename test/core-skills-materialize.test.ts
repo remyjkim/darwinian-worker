@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { cleanupTempRoots, scaffoldCliFixture } from "./helpers";
 import { createEmptyMachineConfig, writeMachineConfigFile } from "../cli/core/machine-config";
 import { syncRepository } from "../cli/core/sync";
-import { loadWriteRecord, saveWriteRecord } from "../cli/core/write-record";
+import { loadWriteRecord } from "../cli/core/write-record";
 import { resolveGlobalWriteRecordPath, resolveMachineConfigPath } from "../cli/core/store-paths";
 
 const tempRoots: string[] = [];
@@ -44,21 +44,19 @@ test("rejects a pre-contract symlink projection without claiming or replacing it
   mkdirSync(join(fixture.homeDir, ".claude", "skills"), { recursive: true });
   symlinkSync(curatedAlpha, claudeAlpha, "dir");
   const recordPath = resolveGlobalWriteRecordPath(fixture.agentsDir);
-  saveWriteRecord(recordPath, {
+  writeFileSync(recordPath, `${JSON.stringify({
     writeRecordVersion: 1,
     lastWriteAt: "2026-01-01T00:00:00.000Z",
     lastWriteHarnessVersion: "0.0.0",
     managedPaths: [{ path: ".claude/skills/alpha", kind: "symlink", target: curatedAlpha }],
-  });
+  }, null, 2)}\n`);
 
   await expect(syncRepository(machineSyncOptions(fixture))).rejects.toMatchObject({
-    code: "MACHINE_PROJECTION_CONFLICT",
+    code: "WRITE_RECORD_INVALID",
   });
   expect(lstatSync(claudeAlpha).isSymbolicLink()).toBe(true);
   expect(readFileSync(join(claudeAlpha, "SKILL.md"), "utf8")).toContain("alpha");
-  expect(loadWriteRecord(recordPath)?.managedPaths).toEqual([
-    { path: ".claude/skills/alpha", kind: "symlink", target: curatedAlpha },
-  ]);
+  expect(() => loadWriteRecord(recordPath, "machine")).toThrow("Unsupported write record");
 });
 
 test("refuses to overwrite a hand-edited copied skill without --force, succeeds with it", async () => {
