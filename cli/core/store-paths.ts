@@ -17,7 +17,7 @@ export function resolveStoreRoot(agentsDir: string) {
  */
 export function assertStoreWritable() {
   if (process.env.DRWN_STORE_READONLY === "1" || process.env.DRWN_STORE_READONLY === "true") {
-    throw new DrwnError("STORE_READONLY", "drwn store is read-only; mutation refused");
+    throw new DrwnError("STORE_READONLY", "Managed inventory is read-only; mutation refused");
   }
 }
 
