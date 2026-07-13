@@ -3,8 +3,9 @@
 
 # Worker Mind Semantic Memory Implementation Plan
 
-**Status:** CLI Tasks 1-8 and the canonical base-Mind source pass are committed
-locally. Upstream BeginningDB parity, Card repositories, Believer Task 05,
+**Status:** CLI implementation through Task 8, the canonical base-Mind source
+pass, and the Task 9-10 Card source conversions are committed locally. Upstream
+BeginningDB parity, full isolated-Store Card gates, Believer Task 05,
 publication, and controlled reset remain open gates.
 
 **Goal:** Ship the first supported optional Worker Mind contract in `drwn
@@ -963,11 +964,15 @@ Card, package-manager, publication-integrity, runtime-schema, memory-reader,
 operation-journal, API, persistence, browser, script, documentation, and reset-
 runbook work.
 
-**Current local state:** The narrow Card/version/generated-content slice has been
-applied in the dirty Believer checkout. Its five focused suites pass 37 tests. A
-broader focused run passes 134 tests and fails one stale exact-byte assertion in
-`src/chief/consult-input.test.ts`. This is incomplete working-tree state, not a
-released Task 84 outcome.
+**Current local state:** Believer's Card baseline, Chief runtime, consultation
+and builder surfaces, validated analysis, and Task 05 plan are committed through
+`4b38c36`. Commit `f10c7fd` closes the CCH runtime-provider dependency closure,
+and `bedf034` records the current checkpoint. The current local gates pass 229
+root unit tests, 8 migration integration tests, 15 smoke tests, 25 web tests,
+root/web typechecks, the web production build, frozen install, and Wrangler dry
+deploy. Task 05 Phase 1 still requires its dedicated package-metadata and
+two-pass generated-content idempotence regressions; Phases 2-14 remain
+unstarted behind the prerequisite gate below.
 
 **Handoff prerequisites:**
 
