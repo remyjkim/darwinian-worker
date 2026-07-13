@@ -5,9 +5,10 @@ import { afterEach, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { resolveCard, writeMachineConfig } from "../cli/core/card-store";
-import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { writeMachineConfig } from "../cli/core/card-store";
+import { cleanupTempRoots, envFor, publishExactOperatorProfile, runAgentsCli, scaffoldCliFixture } from "./helpers";
 import { createEmptyMachineConfig } from "../cli/core/machine-config";
+import { DARWINIAN_OPERATOR_SKILL_IDS } from "../cli/core/operator-profile-contract";
 
 const tempRoots: string[] = [];
 
@@ -16,23 +17,7 @@ afterEach(async () => {
 });
 
 async function installCaptureProfile(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
-  await publishCardWithSkills(fixture, {
-    name: "@darwinian/operator",
-    version: "1.0.2",
-    skills: ["bootstrap-project"],
-  });
-  const resolved = await resolveCard(fixture.agentsDir, "@darwinian/operator@1.0.2");
-  return {
-    id: "darwinian-operator" as const,
-    source: "git+https://github.com/curation-labs/darwinian-operator.git#v1.0.2" as const,
-    name: "@darwinian/operator" as const,
-    version: "1.0.2" as const,
-    commit: resolved.git!.commit,
-    treeSha: resolved.treeSha!,
-    integrity: resolved.integrity as `sha256-${string}`,
-    skills: ["bootstrap-project"],
-    mcpServers: [],
-  };
+  return (await publishExactOperatorProfile(fixture)).profile;
 }
 
 test("card new --from-defaults captures explicit machine skills into a capability Card", async () => {
@@ -70,8 +55,10 @@ test("card new --from-defaults flattens profile and explicit skills without prof
   const sourceDir = join(fixture.agentsDir, "drwn", "sources", "@me", "everyday");
   const manifestText = await readFile(join(sourceDir, "card.json"), "utf8");
   const manifest = JSON.parse(manifestText);
-  expect(manifest.skills?.include).toEqual(["bootstrap-project", "alpha"]);
-  expect(existsSync(join(sourceDir, "skills", "bootstrap-project", "SKILL.md"))).toBe(true);
+  expect(manifest.skills?.include).toEqual([...DARWINIAN_OPERATOR_SKILL_IDS, "alpha"]);
+  for (const skill of DARWINIAN_OPERATOR_SKILL_IDS) {
+    expect(existsSync(join(sourceDir, "skills", skill, "SKILL.md"))).toBe(true);
+  }
   expect(manifest.profile).toBeUndefined();
   expect(manifest.instructions).toBeUndefined();
   expect(manifest.hooks).toBeUndefined();

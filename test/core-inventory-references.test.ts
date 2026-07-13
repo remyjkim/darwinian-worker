@@ -10,6 +10,7 @@ import {
   withLockedInventoryReferenceReport,
 } from "../cli/core/inventory-references";
 import { createEmptyMachineConfig, writeMachineConfigFile } from "../cli/core/machine-config";
+import { createDarwinianOperatorPin } from "../cli/core/operator-profile-contract";
 import { registerProject, resolveProjectsIndexPath } from "../cli/core/project-registry";
 import { resolveMachineConfigPath } from "../cli/core/store-paths";
 import { cleanupTempRoots, createTempRoot, writeSupportedProjectConfig } from "./helpers";
@@ -66,17 +67,7 @@ describe("standalone inventory reference discovery", () => {
   test("does not treat profile-owned capabilities as standalone references", async () => {
     const state = await fixture();
     const machine = createEmptyMachineConfig();
-    machine.capabilities.profile = {
-      id: "darwinian-operator",
-      source: "git+https://github.com/curation-labs/darwinian-operator.git#v1.0.2",
-      name: "@darwinian/operator",
-      version: "1.0.2",
-      commit: "6b2998c51b7c736c70c2e522cb8d7b3170e816d8",
-      treeSha: "2297dfc30783200a2b6a0da1189d7de20a01f23c",
-      integrity: "sha256-284cd3ba4880a60ba93b81c0be0dd15796b27a640ed697fdb1a18fe6b5ff30d9",
-      skills: ["bootstrap-project"],
-      mcpServers: [],
-    };
+    machine.capabilities.profile = createDarwinianOperatorPin();
     await writeMachineConfigFile(resolveMachineConfigPath(state.agentsDir), machine);
 
     expect(await scanInventoryReferences({ agentsDir: state.agentsDir, skillIds: ["bootstrap-project"] })).toEqual([]);

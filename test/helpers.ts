@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { CanonicalConfig, CanonicalRegistry, ProjectConfig } from "../cli/core/types";
 import { writeCardLock, type CardLockEntry, type ProjectLockGraph } from "../cli/core/card-lock";
+import { createDarwinianOperatorPin, DARWINIAN_OPERATOR_PROFILE } from "../cli/core/operator-profile-contract";
 
 export function projectLockGraph(cards: CardLockEntry[]): ProjectLockGraph {
   return {
@@ -211,6 +212,26 @@ export async function publishCardWithSkills(
   expect(published.exitCode).toBe(0);
   const { resolveCard } = await import("../cli/core/card-store");
   return (await resolveCard(fixture.agentsDir, `${scope}/${cardName}@${version}`)).dir;
+}
+
+export async function publishExactOperatorProfile(
+  fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>,
+) {
+  const sourceRoot = join(fixture.agentsDir, "drwn", "sources", "@darwinian", "operator");
+  await mkdir(dirname(sourceRoot), { recursive: true });
+  await cp(join(import.meta.dir, "..", "darwinian-worker-skills", "cards", "operator"), sourceRoot, {
+    recursive: true,
+  });
+  const published = await runAgentsCli(["card", "publish", DARWINIAN_OPERATOR_PROFILE.name], envFor(fixture));
+  expect(published.exitCode).toBe(0);
+  const { resolveCard } = await import("../cli/core/card-store");
+  const resolved = await resolveCard(
+    fixture.agentsDir,
+    `${DARWINIAN_OPERATOR_PROFILE.name}@${DARWINIAN_OPERATOR_PROFILE.version}`,
+  );
+  expect(resolved.treeSha).toBe(DARWINIAN_OPERATOR_PROFILE.treeSha);
+  expect(resolved.integrity).toBe(DARWINIAN_OPERATOR_PROFILE.integrity);
+  return { profile: createDarwinianOperatorPin(), resolved };
 }
 
 export async function createInstalledSkillBundle(

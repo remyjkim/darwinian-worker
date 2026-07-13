@@ -3,6 +3,9 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { isDeepStrictEqual } from "node:util";
+import { DARWINIAN_OPERATOR_PROFILE, DARWINIAN_OPERATOR_REGISTRY } from "../cli/core/operator-profile-contract";
+import { verifyOperatorContract } from "./verify-operator-contract";
 
 export type CheckResult = {
   name: string;
@@ -743,17 +746,18 @@ export function verifyMachineContract(root = repoRoot, overrides: SourceOverride
   if (profile) {
     if (profile.id !== "darwinian-operator") issues.push("Operator profile ID must be darwinian-operator");
     if (profile.name !== "@darwinian/operator") issues.push("Operator Card name must be @darwinian/operator");
-    if (profile.version !== "1.0.2") issues.push("Operator version must be 1.0.2");
-    if (profile.source !== "git+https://github.com/curation-labs/darwinian-operator.git#v1.0.2") {
+    if (profile.version !== DARWINIAN_OPERATOR_PROFILE.version) issues.push(`Operator version must be ${DARWINIAN_OPERATOR_PROFILE.version}`);
+    if (profile.source !== DARWINIAN_OPERATOR_PROFILE.source) {
       issues.push("Operator profile must use the exact Operator source");
     }
-    if (profile.commit !== "6b2998c51b7c736c70c2e522cb8d7b3170e816d8") issues.push("Operator commit pin changed");
-    if (profile.treeSha !== "2297dfc30783200a2b6a0da1189d7de20a01f23c") issues.push("Operator tree pin changed");
-    if (profile.integrity !== "sha256-284cd3ba4880a60ba93b81c0be0dd15796b27a640ed697fdb1a18fe6b5ff30d9") {
+    if (profile.commit !== DARWINIAN_OPERATOR_PROFILE.commit) issues.push("Operator commit pin changed");
+    if (profile.treeSha !== DARWINIAN_OPERATOR_PROFILE.treeSha) issues.push("Operator tree pin changed");
+    if (profile.integrity !== DARWINIAN_OPERATOR_PROFILE.integrity) {
       issues.push("Operator integrity pin changed");
     }
-    if (!Array.isArray(profile.skills) || profile.skills.length !== 17) issues.push("Operator profile must expose exactly 17 approved skills");
-    if (!Array.isArray(profile.mcpServers) || profile.mcpServers.length !== 0) issues.push("Operator profile must expose zero MCP servers");
+    if (!isDeepStrictEqual(profile, DARWINIAN_OPERATOR_REGISTRY.profiles[0])) {
+      issues.push("Operator profile must deep-equal the centralized contract");
+    }
   }
 
   const index = source("cli/index.ts");
@@ -790,7 +794,6 @@ export function verifyMachineContract(root = repoRoot, overrides: SourceOverride
     '"schema": "drwn.machine"',
     '"schemaVersion": 1',
     "Recommended Darwinian Operator",
-    "@darwinian/operator@1.0.2",
     "drwn machine skill enable",
     "drwn machine mcp enable",
     "drwn write --scope machine",
@@ -1252,6 +1255,7 @@ async function main() {
   checks.push(verifyWorkerContract());
   checks.push(verifySemanticMindContract());
   checks.push(verifyMachineContract());
+  checks.push(await verifyOperatorContract());
   checks.push(verifyMachineInventoryContract());
   checks.push(verifyPortableInventoryTransferContract());
   checks.push(verifyAmbientMcpPolicy());

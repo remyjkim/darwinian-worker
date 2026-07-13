@@ -7,30 +7,11 @@ import { z } from "zod";
 import { DrwnError } from "./errors";
 import { writeAtomically } from "./fs";
 import { withInventoryLock, withMachineLock } from "./inventory-lock";
+import { DARWINIAN_OPERATOR_SKILL_IDS, operatorProfilePinSchema } from "./operator-profile-contract";
 import { resolveMachineConfigPath } from "./store-paths";
 import type { MachineConfig } from "./types";
 
-export const DARWINIAN_OPERATOR_SKILL_IDS = [
-  "bootstrap-project",
-  "apply-mind-card",
-  "author-mind-card",
-  "install-project",
-  "inspect-minds",
-  "materialize-minds",
-  "manage-library",
-  "repair-minds",
-  "manage-defaults",
-  "recommend-minds",
-  "share-mind-card",
-  "support-minds",
-  "sync-card-skills",
-  "import-mcp-from-claude",
-  "manage-active-mind-stack",
-  "author-mind-content",
-  "audit-mind-visibility",
-] as const;
-
-const approvedOperatorSkills = new Set<string>(DARWINIAN_OPERATOR_SKILL_IDS);
+export { DARWINIAN_OPERATOR_SKILL_IDS } from "./operator-profile-contract";
 const capabilityId = z.string().min(1).refine((value) => value.trim() === value, "must not have surrounding whitespace");
 const uniqueIds = z.array(capabilityId).superRefine((values, context) => {
   const seen = new Set<string>();
@@ -85,23 +66,7 @@ const trustedSourcesSchema = z.object({
   refs: z.array(z.string().min(1)).optional(),
 }).strict();
 
-const profileSchema = z.object({
-  id: z.literal("darwinian-operator"),
-  source: z.literal("git+https://github.com/curation-labs/darwinian-operator.git#v1.0.2"),
-  name: z.literal("@darwinian/operator"),
-  version: z.literal("1.0.2"),
-  commit: z.string().regex(/^[a-f0-9]{40}$/),
-  treeSha: z.string().regex(/^[a-f0-9]{40}$/),
-  integrity: z.string().regex(/^sha256-[a-f0-9]{64}$/),
-  skills: uniqueIds.superRefine((skills, context) => {
-    for (const [index, skill] of skills.entries()) {
-      if (!approvedOperatorSkills.has(skill)) {
-        context.addIssue({ code: "custom", path: [index], message: `unapproved Operator skill: ${skill}` });
-      }
-    }
-  }),
-  mcpServers: uniqueIds.refine((ids) => ids.length === 0, "the approved Operator profile provides no MCP servers"),
-}).strict();
+const profileSchema = operatorProfilePinSchema;
 
 const machineConfigSchema = z.object({
   schema: z.literal("drwn.machine"),

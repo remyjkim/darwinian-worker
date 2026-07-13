@@ -5,6 +5,7 @@ import { afterEach, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { createEmptyMachineConfig, initializeMachineConfig, readMachineConfigFile, writeMachineConfigFile } from "../cli/core/machine-config";
+import { createDarwinianOperatorPin } from "../cli/core/operator-profile-contract";
 import { findStandaloneSkillPackageByName } from "../cli/core/inventory";
 import { registerProject } from "../cli/core/project-registry";
 import { resolveMachineConfigPath } from "../cli/core/store-paths";
@@ -161,17 +162,7 @@ test("machine skill enable and disable mutate only explicit intent and report re
 
   const machinePath = resolveMachineConfigPath(state.agentsDir);
   const machine = (await readMachineConfigFile(machinePath))!;
-  machine.capabilities.profile = {
-    id: "darwinian-operator",
-    source: "git+https://github.com/curation-labs/darwinian-operator.git#v1.0.2",
-    name: "@darwinian/operator",
-    version: "1.0.2",
-    commit: "6b2998c51b7c736c70c2e522cb8d7b3170e816d8",
-    treeSha: "2297dfc30783200a2b6a0da1189d7de20a01f23c",
-    integrity: "sha256-284cd3ba4880a60ba93b81c0be0dd15796b27a640ed697fdb1a18fe6b5ff30d9",
-    skills: ["bootstrap-project"],
-    mcpServers: [],
-  };
+  machine.capabilities.profile = createDarwinianOperatorPin();
   machine.capabilities.skills.push("bootstrap-project");
   await writeMachineConfigFile(machinePath, machine);
   const disabled = await runAgentsCli(["machine", "skill", "disable", "bootstrap-project", "--json"], envFor(state));

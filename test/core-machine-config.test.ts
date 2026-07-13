@@ -15,6 +15,7 @@ import {
   writeMachineConfigFile,
 } from "../cli/core/machine-config";
 import { resolveMachineConfigPath } from "../cli/core/store-paths";
+import { createDarwinianOperatorPin } from "../cli/core/operator-profile-contract";
 import { cleanupTempRoots, createTempRoot } from "./helpers";
 
 const tempRoots: string[] = [];
@@ -24,17 +25,7 @@ afterEach(async () => {
 });
 
 function validProfile() {
-  return {
-    id: "darwinian-operator" as const,
-    source: "git+https://github.com/curation-labs/darwinian-operator.git#v1.0.2" as const,
-    name: "@darwinian/operator" as const,
-    version: "1.0.2" as const,
-    commit: "6b2998c51b7c736c70c2e522cb8d7b3170e816d8",
-    treeSha: "2297dfc30783200a2b6a0da1189d7de20a01f23c",
-    integrity: "sha256-284cd3ba4880a60ba93b81c0be0dd15796b27a640ed697fdb1a18fe6b5ff30d9" as const,
-    skills: ["bootstrap-project", "manage-defaults"],
-    mcpServers: [],
-  };
+  return createDarwinianOperatorPin();
 }
 
 function expectInvalid(value: unknown) {
@@ -57,7 +48,7 @@ describe("machine config V1", () => {
     });
   });
 
-  test("accepts strict policy and a pinned approved profile subset", () => {
+  test("accepts strict policy and the exact pinned Operator profile", () => {
     const config = {
       schema: "drwn.machine" as const,
       schemaVersion: 1 as const,

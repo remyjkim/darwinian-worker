@@ -4,9 +4,10 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
-import { resolveCard, writeMachineConfig } from "../cli/core/card-store";
+import { cleanupTempRoots, envFor, publishCardWithSkills, publishExactOperatorProfile, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
+import { writeMachineConfig } from "../cli/core/card-store";
 import { createEmptyMachineConfig } from "../cli/core/machine-config";
+import { DARWINIAN_OPERATOR_SKILL_IDS } from "../cli/core/operator-profile-contract";
 
 const tempRoots: string[] = [];
 
@@ -15,23 +16,7 @@ afterEach(async () => {
 });
 
 async function installStatusProfile(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
-  await publishCardWithSkills(fixture, {
-    name: "@darwinian/operator",
-    version: "1.0.2",
-    skills: ["bootstrap-project"],
-  });
-  const resolved = await resolveCard(fixture.agentsDir, "@darwinian/operator@1.0.2");
-  return {
-    id: "darwinian-operator" as const,
-    source: "git+https://github.com/curation-labs/darwinian-operator.git#v1.0.2" as const,
-    name: "@darwinian/operator" as const,
-    version: "1.0.2" as const,
-    commit: resolved.git!.commit,
-    treeSha: resolved.treeSha!,
-    integrity: resolved.integrity as `sha256-${string}`,
-    skills: ["bootstrap-project"],
-    mcpServers: [],
-  };
+  return (await publishExactOperatorProfile(fixture)).profile;
 }
 
 describe("drwn status", () => {
@@ -235,20 +220,30 @@ describe("drwn status", () => {
     expect(parsed.profile).toMatchObject({
       id: "darwinian-operator",
       name: "@darwinian/operator",
-      version: "1.0.2",
+      version: "2.0.0",
       commit: profile.commit,
       treeSha: profile.treeSha,
       integrity: profile.integrity,
       status: "verified",
     });
-    expect(parsed.capabilities.skills).toEqual([
-      expect.objectContaining({ id: "bootstrap-project", provenance: "profile", profileId: "darwinian-operator", status: "resolved" }),
+    expect(parsed.capabilities.skills).toHaveLength(DARWINIAN_OPERATOR_SKILL_IDS.length + 1);
+    for (const id of DARWINIAN_OPERATOR_SKILL_IDS) {
+      expect(parsed.capabilities.skills).toContainEqual(
+        expect.objectContaining({ id, provenance: "profile", profileId: "darwinian-operator", status: "resolved" }),
+      );
+    }
+    expect(parsed.capabilities.skills).toContainEqual(
       expect.objectContaining({ id: "alpha", provenance: "explicit", status: "resolved" }),
-    ]);
+    );
     expect(parsed.capabilities.mcpServers).toEqual([
       expect.objectContaining({ id: "github", provenance: "explicit", status: "resolved" }),
     ]);
-    expect(parsed.capabilities.counts).toEqual({ resolvedSkills: 2, missingSkills: 0, resolvedMcpServers: 1, missingMcpServers: 0 });
+    expect(parsed.capabilities.counts).toEqual({
+      resolvedSkills: DARWINIAN_OPERATOR_SKILL_IDS.length + 1,
+      missingSkills: 0,
+      resolvedMcpServers: 1,
+      missingMcpServers: 0,
+    });
     expect(result.stdout).not.toContain("status-secret-sentinel");
     expect(result.stdout).not.toContain("GITHUB_TOKEN");
   });

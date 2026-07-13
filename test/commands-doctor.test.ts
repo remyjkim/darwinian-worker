@@ -5,9 +5,9 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { chmod, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
+import { cleanupTempRoots, envFor, publishCardWithSkills, publishExactOperatorProfile, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 import { createEmptyMachineConfig } from "../cli/core/machine-config";
-import { resolveCard, writeMachineConfig } from "../cli/core/card-store";
+import { writeMachineConfig } from "../cli/core/card-store";
 import { resolveExtractedPath } from "../cli/core/store-paths";
 
 const tempRoots: string[] = [];
@@ -32,23 +32,7 @@ describe("drwn doctor", () => {
   test("reports missing pinned profile bytes without fetching or repairing", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
-    await publishCardWithSkills(fixture, {
-      name: "@darwinian/operator",
-      version: "1.0.2",
-      skills: ["bootstrap-project"],
-    });
-    const resolved = await resolveCard(fixture.agentsDir, "@darwinian/operator@1.0.2");
-    const profile = {
-      id: "darwinian-operator" as const,
-      source: "git+https://github.com/curation-labs/darwinian-operator.git#v1.0.2" as const,
-      name: "@darwinian/operator" as const,
-      version: "1.0.2" as const,
-      commit: resolved.git!.commit,
-      treeSha: resolved.treeSha!,
-      integrity: resolved.integrity as `sha256-${string}`,
-      skills: ["bootstrap-project"],
-      mcpServers: [],
-    };
+    const { profile } = await publishExactOperatorProfile(fixture);
     await writeMachineConfig(fixture.agentsDir, {
       ...createEmptyMachineConfig(),
       capabilities: { profile, skills: [], mcpServers: [] },
@@ -66,23 +50,7 @@ describe("drwn doctor", () => {
   test("reports mutated pinned profile bytes without repairing them", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
-    await publishCardWithSkills(fixture, {
-      name: "@darwinian/operator",
-      version: "1.0.2",
-      skills: ["bootstrap-project"],
-    });
-    const resolved = await resolveCard(fixture.agentsDir, "@darwinian/operator@1.0.2");
-    const profile = {
-      id: "darwinian-operator" as const,
-      source: "git+https://github.com/curation-labs/darwinian-operator.git#v1.0.2" as const,
-      name: "@darwinian/operator" as const,
-      version: "1.0.2" as const,
-      commit: resolved.git!.commit,
-      treeSha: resolved.treeSha!,
-      integrity: resolved.integrity as `sha256-${string}`,
-      skills: ["bootstrap-project"],
-      mcpServers: [],
-    };
+    const { profile } = await publishExactOperatorProfile(fixture);
     await writeMachineConfig(fixture.agentsDir, {
       ...createEmptyMachineConfig(),
       capabilities: { profile, skills: [], mcpServers: [] },

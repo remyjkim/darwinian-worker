@@ -5,9 +5,10 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { resolveMachineCapabilities } from "../cli/core/defaults";
-import { resolveCard, writeMachineConfig } from "../cli/core/card-store";
+import { writeMachineConfig } from "../cli/core/card-store";
 import { createEmptyMachineConfig } from "../cli/core/machine-config";
-import { cleanupTempRoots, publishCardWithSkills, scaffoldCliFixture } from "./helpers";
+import { DARWINIAN_OPERATOR_SKILL_IDS } from "../cli/core/operator-profile-contract";
+import { cleanupTempRoots, publishExactOperatorProfile, scaffoldCliFixture } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -16,24 +17,7 @@ afterEach(async () => {
 });
 
 async function installProfileFixture(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
-  await publishCardWithSkills(fixture, {
-    name: "@darwinian/operator",
-    version: "1.0.2",
-    skills: ["bootstrap-project"],
-    servers: {},
-  });
-  const resolved = await resolveCard(fixture.agentsDir, "@darwinian/operator@1.0.2");
-  const profile = {
-    id: "darwinian-operator" as const,
-    source: "git+https://github.com/curation-labs/darwinian-operator.git#v1.0.2" as const,
-    name: "@darwinian/operator" as const,
-    version: "1.0.2" as const,
-    commit: resolved.git!.commit,
-    treeSha: resolved.treeSha!,
-    integrity: resolved.integrity as `sha256-${string}`,
-    skills: ["bootstrap-project"],
-    mcpServers: [],
-  };
+  const { profile, resolved } = await publishExactOperatorProfile(fixture);
   await writeMachineConfig(fixture.agentsDir, {
     ...createEmptyMachineConfig(),
     capabilities: { profile, skills: [], mcpServers: [] },
@@ -89,13 +73,14 @@ describe("machine capability resolution", () => {
       agentsDir: fixture.agentsDir,
     });
 
-    expect(capabilities.skills).toEqual([{
+    expect(capabilities.skills).toContainEqual({
       id: "bootstrap-project",
       source: "profile",
       profileId: "darwinian-operator",
       path: join(profileCard.dir, "skills", "bootstrap-project"),
       scope: "shared",
-    }]);
+    });
+    expect(capabilities.skills.map((skill) => skill.id)).toEqual([...DARWINIAN_OPERATOR_SKILL_IDS]);
   });
 
   test("fails with stable errors for missing explicit capabilities", async () => {
