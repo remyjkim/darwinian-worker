@@ -5,6 +5,7 @@ import { afterEach, expect, test } from "bun:test";
 import { join } from "node:path";
 import { writeFile } from "node:fs/promises";
 import { resolveProjectCards } from "../cli/core/card-project";
+import { resolveWorkerGraph } from "../cli/core/worker-graph";
 import type { CardLockEntry } from "../cli/core/card-lock";
 import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture } from "./helpers";
 
@@ -70,9 +71,21 @@ test("a blueprint composing another blueprint is refused", async () => {
   await publishBlueprint(fixture, { name: "@me/inner", composedFrom: ["@me/a@^1.0.0"] });
   await publishBlueprint(fixture, { name: "@me/outer", composedFrom: ["@me/inner@^1.0.0"] });
 
-  await expect(resolveProjectCards(fixture.agentsDir, ["@me/outer@^1.0.0"])).rejects.toThrow(
-    /recursion is not supported/,
-  );
+  await expect(resolveProjectCards(fixture.agentsDir, ["@me/outer@^1.0.0"])).rejects.toMatchObject({
+    code: "BLUEPRINT_MEMBER_IS_BLUEPRINT",
+  });
+});
+
+test("nested Blueprints use the stable graph-boundary diagnostic", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  await publishCardWithSkills(fixture, { name: "@me/a", skills: ["alpha"] });
+  await publishBlueprint(fixture, { name: "@me/inner", composedFrom: ["@me/a@^1.0.0"] });
+  await publishBlueprint(fixture, { name: "@me/outer", composedFrom: ["@me/inner@^1.0.0"] });
+
+  await expect(resolveWorkerGraph(fixture.agentsDir, ["@me/outer@^1.0.0"])).rejects.toMatchObject({
+    code: "BLUEPRINT_MEMBER_IS_BLUEPRINT",
+  });
 });
 
 test("a member shared by a direct spec and a blueprint appears once (first wins)", async () => {
