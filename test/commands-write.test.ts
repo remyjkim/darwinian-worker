@@ -23,6 +23,8 @@ describe("drwn write", () => {
       AGENTS_DIR: fixture.agentsDir,
     };
 
+    expect((await runAgentsCli(["library", "defaults", "add", "skill", "alpha"], env)).exitCode).toBe(0);
+
     const write = await runAgentsCli(["write", "--dry-run"], env);
 
     expect(write.exitCode).toBe(0);
@@ -37,6 +39,7 @@ describe("drwn write", () => {
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,
     };
+    expect((await runAgentsCli(["library", "defaults", "add", "mcp", "context7"], env)).exitCode).toBe(0);
 
     const json = await runAgentsCli(["write", "--dry-run", "--json"], env);
     expect(json.exitCode).toBe(0);
@@ -69,10 +72,8 @@ describe("drwn write", () => {
   test("global default skills write without curated symlinks", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
-    await mkdir(join(fixture.agentsDir, "drwn"), { recursive: true });
-    const repoConfig = JSON.parse(await readFile(join(fixture.repoRoot, "registry", "config.json"), "utf8"));
-    repoConfig.defaults = { skills: ["alpha"], mcpServers: ["context7"] };
-    await writeFile(join(fixture.agentsDir, "drwn", "config.json"), JSON.stringify(repoConfig, null, 2));
+    expect((await runAgentsCli(["library", "defaults", "add", "skill", "alpha"], envFor(fixture))).exitCode).toBe(0);
+    expect((await runAgentsCli(["library", "defaults", "add", "mcp", "context7"], envFor(fixture))).exitCode).toBe(0);
 
     const result = await runAgentsCli(["write", "--dry-run"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
@@ -130,7 +131,9 @@ describe("drwn write", () => {
   test("global default user library MCP servers render during write", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
+    const { ensureStoreInitialized } = await import("../cli/core/card-store");
     const { saveMcpLibrary } = await import("../cli/core/mcp-library");
+    await ensureStoreInitialized(fixture.agentsDir);
     await saveMcpLibrary(fixture.agentsDir, {
       version: 1,
       servers: {
@@ -143,10 +146,7 @@ describe("drwn write", () => {
         },
       },
     });
-    await mkdir(join(fixture.agentsDir, "drwn"), { recursive: true });
-    const repoConfig = JSON.parse(await readFile(join(fixture.repoRoot, "registry", "config.json"), "utf8"));
-    repoConfig.defaults = { mcpServers: ["github"] };
-    await writeFile(join(fixture.agentsDir, "drwn", "config.json"), JSON.stringify(repoConfig, null, 2));
+    expect((await runAgentsCli(["library", "defaults", "add", "mcp", "github"], envFor(fixture))).exitCode).toBe(0);
 
     const result = await runAgentsCli(["write", "--dry-run"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,

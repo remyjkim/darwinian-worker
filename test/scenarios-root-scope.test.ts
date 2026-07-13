@@ -3,7 +3,7 @@
 
 import { afterEach, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { lstat, mkdir, readFile, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture } from "./helpers";
 
@@ -43,6 +43,13 @@ test("write --root surgically adds default MCPs to user-scope tool configs", asy
     },
     projects: { "/tmp/project": { lastActive: "2026-06-24" } },
   });
+  await writeFile(
+    fixture.codexConfig,
+    'personality = "pragmatic"\n\n[mcp_servers.manual]\nurl = "https://manual.example/mcp"\nenabled = true\n',
+  );
+  await writeJson(fixture.cursorConfig, {
+    mcpServers: { manual: { url: "https://manual.example/mcp" } },
+  });
 
   const result = await runWriteRoot(fixture);
 
@@ -61,14 +68,81 @@ test("write --root surgically adds default MCPs to user-scope tool configs", asy
   expect(claude._drwn).toBeUndefined();
 
   expect(await readFile(fixture.codexConfig, "utf8")).toContain("[mcp_servers.context7]");
+  expect(await readFile(fixture.codexConfig, "utf8")).toContain("[mcp_servers.manual]");
   expect((await lstat(fixture.cursorConfig)).isFile()).toBe(true);
   expect((await readJson(fixture.cursorConfig)).mcpServers.context7).toBeDefined();
+  expect((await readJson(fixture.cursorConfig)).mcpServers.manual).toEqual({ url: "https://manual.example/mcp" });
 
   const record = await readJson(join(fixture.agentsDir, "drwn", "global-write-record.json"));
   const claudeEntry = record.managedPaths.find((entry: any) => entry.path === ".claude.json");
   expect(claudeEntry?.kind).toBe("managed-fields");
   expect(claudeEntry?.fields).toEqual(["mcpServers:context7"]);
   expect(claudeEntry?.fieldHashes?.["mcpServers:context7"]).toStartWith("sha256-");
+  const cursorEntry = record.managedPaths.find((entry: any) => entry.path === ".cursor/mcp.json");
+  expect(cursorEntry?.kind).toBe("managed-fields");
+  expect(cursorEntry?.fields).toEqual(["mcpServers:context7"]);
+});
+
+test("doctor ignores unrelated Cursor MCP siblings after a machine write", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  await ensureContext7Default(fixture);
+  await writeJson(fixture.cursorConfig, {
+    mcpServers: { manual: { url: "https://manual.example/mcp" } },
+  });
+  expect((await runWriteRoot(fixture)).exitCode).toBe(0);
+
+  const doctor = await runAgentsCli(["doctor", "--json"], envFor(fixture));
+
+  expect(doctor.exitCode).toBe(0);
+  const report = JSON.parse(doctor.stdout) as { mcpDrift: string[] };
+  expect(report.mcpDrift.some((entry) => entry.startsWith("cursor:"))).toBe(false);
+});
+
+const foreignMcpTargets = ["claude", "codex", "cursor"] as const;
+
+for (const target of foreignMcpTargets) {
+  test(`first machine write rejects a foreign same-ID ${target} MCP entry`, async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    await ensureContext7Default(fixture);
+    if (target === "claude") {
+      await writeJson(fixture.claudeUserMcp, { mcpServers: { context7: { command: "foreign" } } });
+    } else if (target === "codex") {
+      await writeFile(fixture.codexConfig, '[mcp_servers.context7]\ncommand = "foreign"\n');
+    } else {
+      await writeJson(fixture.cursorConfig, { mcpServers: { context7: { command: "foreign" } } });
+    }
+    const targetPath = target === "claude" ? fixture.claudeUserMcp : target === "codex" ? fixture.codexConfig : fixture.cursorConfig;
+    const before = await readFile(targetPath, "utf8");
+
+    const result = await runWriteRoot(fixture, [`--target=${target}`]);
+
+    expect(result.exitCode).not.toBe(0);
+    expect(`${result.stdout}\n${result.stderr}`).toContain("MACHINE_PROJECTION_CONFLICT");
+    expect(await readFile(targetPath, "utf8")).toBe(before);
+  });
+}
+
+test("foreign conflict preflight prevents mutation of every selected target, including dry-run and force", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  await ensureContext7Default(fixture);
+  await writeJson(fixture.cursorConfig, { mcpServers: { context7: { command: "foreign" } } });
+  const before = {
+    claude: await readFile(fixture.claudeUserMcp, "utf8"),
+    codex: await readFile(fixture.codexConfig, "utf8"),
+    cursor: await readFile(fixture.cursorConfig, "utf8"),
+  };
+
+  for (const args of [[], ["--dry-run"], ["--force"]]) {
+    const result = await runWriteRoot(fixture, args);
+    expect(result.exitCode).not.toBe(0);
+    expect(`${result.stdout}\n${result.stderr}`).toContain("MACHINE_PROJECTION_CONFLICT");
+    expect(await readFile(fixture.claudeUserMcp, "utf8")).toBe(before.claude);
+    expect(await readFile(fixture.codexConfig, "utf8")).toBe(before.codex);
+    expect(await readFile(fixture.cursorConfig, "utf8")).toBe(before.cursor);
+  }
 });
 
 test("write --root detects drift only for drwn-owned MCP server entries", async () => {
@@ -122,8 +196,52 @@ test("write --root removes the last drwn-owned MCP entry without touching hand-m
   const claude = await readJson(fixture.claudeUserMcp);
   expect(claude.mcpServers.context7).toBeUndefined();
   expect(claude.mcpServers.manual).toEqual({ type: "http", url: "https://manual.example/mcp" });
+  expect((await readJson(fixture.cursorConfig)).mcpServers?.context7).toBeUndefined();
+  expect(await readFile(fixture.codexConfig, "utf8")).not.toContain("[mcp_servers.context7]");
   const record = await readJson(join(fixture.agentsDir, "drwn", "global-write-record.json"));
   expect(record.managedPaths.some((entry: any) => entry.path === ".claude.json")).toBe(false);
+});
+
+test("removing a capability preserves drifted prior-owned MCP entries for every target", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  await ensureContext7Default(fixture);
+  expect((await runWriteRoot(fixture)).exitCode).toBe(0);
+
+  const claude = await readJson(fixture.claudeUserMcp);
+  claude.mcpServers.context7.command = "drifted-claude";
+  await writeJson(fixture.claudeUserMcp, claude);
+  await writeFile(fixture.codexConfig, (await readFile(fixture.codexConfig, "utf8")).replace('command = "npx"', 'command = "drifted-codex"'));
+  const cursor = await readJson(fixture.cursorConfig);
+  cursor.mcpServers.context7.command = "drifted-cursor";
+  await writeJson(fixture.cursorConfig, cursor);
+  expect((await runAgentsCli(["library", "defaults", "remove", "mcp", "context7"], envFor(fixture))).exitCode).toBe(0);
+
+  const result = await runWriteRoot(fixture);
+
+  expect(result.exitCode).toBe(0);
+  expect((await readJson(fixture.claudeUserMcp)).mcpServers.context7.command).toBe("drifted-claude");
+  expect(await readFile(fixture.codexConfig, "utf8")).toContain('command = "drifted-codex"');
+  expect((await readJson(fixture.cursorConfig)).mcpServers.context7.command).toBe("drifted-cursor");
+  expect((JSON.parse(result.stdout).warnings as string[]).some((warning) => warning.includes("preserved user-owned path"))).toBe(true);
+});
+
+test("removing a capability preserves a prior-owned MCP config whose path changed type", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  await ensureContext7Default(fixture);
+  expect((await runWriteRoot(fixture, ["--target=cursor"])).exitCode).toBe(0);
+  expect((await runAgentsCli(["library", "defaults", "remove", "mcp", "context7"], envFor(fixture))).exitCode).toBe(0);
+  await rm(fixture.cursorConfig, { force: true });
+  await mkdir(fixture.cursorConfig, { recursive: true });
+  await writeFile(join(fixture.cursorConfig, "sentinel"), "foreign\n");
+
+  const result = await runWriteRoot(fixture, ["--target=cursor"]);
+
+  expect(result.exitCode).toBe(0);
+  expect((await lstat(fixture.cursorConfig)).isDirectory()).toBe(true);
+  expect(await readFile(join(fixture.cursorConfig, "sentinel"), "utf8")).toBe("foreign\n");
+  expect((JSON.parse(result.stdout).warnings as string[]).some((warning) => warning.includes("preserved user-owned path"))).toBe(true);
 });
 
 test("write --root with no machine MCP defaults leaves user-scope MCP files unchanged", async () => {
@@ -319,6 +437,43 @@ test("write --root --target=cursor writes only ~/.cursor/mcp.json", async () => 
   expect((await readJson(fixture.cursorConfig)).mcpServers.context7).toBeDefined();
   expect(await readFile(fixture.claudeUserMcp, "utf8")).toBe(beforeClaude);
   expect(await readFile(fixture.codexConfig, "utf8")).toBe(beforeCodex);
+});
+
+test("target-limited machine writes retain ownership and bytes for unselected targets", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  await ensureContext7Default(fixture);
+  expect((await runWriteRoot(fixture)).exitCode).toBe(0);
+  const beforeCodex = await readFile(fixture.codexConfig, "utf8");
+  const beforeCursor = await readFile(fixture.cursorConfig, "utf8");
+
+  const result = await runWriteRoot(fixture, ["--target=claude"]);
+
+  expect(result.exitCode).toBe(0);
+  expect(await readFile(fixture.codexConfig, "utf8")).toBe(beforeCodex);
+  expect(await readFile(fixture.cursorConfig, "utf8")).toBe(beforeCursor);
+  const record = await readJson(join(fixture.agentsDir, "drwn", "global-write-record.json"));
+  expect(record.managedPaths.some((entry: any) => entry.path === ".codex/config.toml")).toBe(true);
+  expect(record.managedPaths.some((entry: any) => entry.path === ".cursor/mcp.json")).toBe(true);
+});
+
+test("mode-limited machine writes retain ownership for the unselected capability surface", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  expect((await runAgentsCli(["library", "defaults", "add", "skill", "alpha"], envFor(fixture))).exitCode).toBe(0);
+  await ensureContext7Default(fixture);
+  expect((await runAgentsCli(["write", "--scope", "machine"], envFor(fixture))).exitCode).toBe(0);
+  expect((await runAgentsCli(["library", "defaults", "remove", "skill", "alpha"], envFor(fixture))).exitCode).toBe(0);
+  expect((await runAgentsCli(["library", "defaults", "remove", "mcp", "context7"], envFor(fixture))).exitCode).toBe(0);
+
+  const skillsOnly = await runAgentsCli(["write", "--scope", "machine", "--skills-only"], envFor(fixture));
+  expect(skillsOnly.exitCode).toBe(0);
+  expect(existsSync(join(fixture.homeDir, ".claude", "skills", "alpha"))).toBe(false);
+  expect((await readJson(fixture.claudeUserMcp)).mcpServers.context7).toBeDefined();
+
+  const mcpOnly = await runAgentsCli(["write", "--scope", "machine", "--mcp-only"], envFor(fixture));
+  expect(mcpOnly.exitCode).toBe(0);
+  expect((await readJson(fixture.claudeUserMcp)).mcpServers?.context7).toBeUndefined();
 });
 
 test("write --root with empty defaults but prior ownership prunes without emitting the no-defaults warning", async () => {

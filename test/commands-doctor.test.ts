@@ -5,6 +5,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
+import { createEmptyMachineConfig } from "../cli/core/machine-config";
 
 const tempRoots: string[] = [];
 
@@ -77,6 +78,22 @@ describe("drwn doctor", () => {
     expect(result.stdout).toContain("Stale skill symlinks:");
     expect(result.stdout).toContain("alpha");
     expect(result.stdout).toMatch(/^\s*-\s/m);
+  });
+
+  test("reports foreign machine projection conflicts without mutating them", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    await runAgentsCli(["library", "defaults", "add", "skill", "alpha"], envFor(fixture));
+    const destination = join(fixture.homeDir, ".claude", "skills", "alpha");
+    await mkdir(destination, { recursive: true });
+    await writeFile(join(destination, "SKILL.md"), "foreign content\n");
+
+    const result = await runAgentsCli(["doctor", "--json"], envFor(fixture));
+
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout) as { machineProjectionConflicts: string[] };
+    expect(parsed.machineProjectionConflicts.some((item) => item.includes(destination))).toBe(true);
+    expect(await readFile(join(destination, "SKILL.md"), "utf8")).toBe("foreign content\n");
   });
 
   test("reports broken symlinks and supports --json output", async () => {
@@ -295,13 +312,14 @@ describe("drwn doctor", () => {
     expect(result.stdout).toContain("parallel-search");
   });
 
-  test("reports unknown global default references", async () => {
+  test("reports unresolved explicit machine capability references", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
-    const config = JSON.parse(await Bun.file(join(fixture.repoRoot, "registry", "config.json")).text());
-    config.defaults = { skills: ["missing-skill"], mcpServers: ["missing-mcp"] };
+    const config = createEmptyMachineConfig();
+    config.capabilities.skills = ["missing-skill"];
+    config.capabilities.mcpServers = ["missing-mcp"];
     await mkdir(join(fixture.agentsDir, "drwn"), { recursive: true });
-    await writeFile(join(fixture.agentsDir, "drwn", "config.json"), JSON.stringify(config, null, 2));
+    await writeFile(join(fixture.agentsDir, "drwn", "machine.json"), JSON.stringify(config, null, 2));
 
     const result = await runAgentsCli(["doctor", "--json"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
@@ -310,9 +328,9 @@ describe("drwn doctor", () => {
     });
 
     expect(result.exitCode).toBe(0);
-    const parsed = JSON.parse(result.stdout) as { projectConfigIssues: string[] };
-    expect(parsed.projectConfigIssues).toContain('Unknown default skill: "missing-skill"');
-    expect(parsed.projectConfigIssues).toContain('Unknown default MCP server: "missing-mcp"');
+    const parsed = JSON.parse(result.stdout) as { machineCapabilityIssues: string[] };
+    expect(parsed.machineCapabilityIssues).toContain('Unresolved explicit machine skill: "missing-skill"');
+    expect(parsed.machineCapabilityIssues).toContain('Unresolved explicit machine MCP server: "missing-mcp"');
   });
 
   test("does not falsely report card-bundled-only skills as unknown", async () => {

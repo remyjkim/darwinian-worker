@@ -70,3 +70,54 @@ test("diffWriteRecord computes additions, removals, and retained entries", () =>
     toVerify: [previous.managedPaths[1]!],
   });
 });
+
+test("diffWriteRecord diffs managed fields as independent ownership units", () => {
+  const previous = {
+    writeRecordVersion: 1 as const,
+    lastWriteAt: "2026-05-20T00:00:00.000Z",
+    lastWriteHarnessVersion: "0.1.0",
+    managedPaths: [
+      {
+        path: ".cursor/mcp.json",
+        kind: "managed-fields" as const,
+        fields: ["mcpServers:context7", "mcpServers:removed"],
+        fieldHashes: {
+          "mcpServers:context7": "sha256-context7",
+          "mcpServers:removed": "sha256-removed",
+        },
+      },
+    ],
+  };
+  const desired = [
+    {
+      path: ".cursor/mcp.json",
+      kind: "managed-fields" as const,
+      fields: ["mcpServers:context7", "mcpServers:added"],
+      fieldHashes: {
+        "mcpServers:context7": "sha256-next-context7",
+        "mcpServers:added": "sha256-added",
+      },
+    },
+  ];
+
+  expect(diffWriteRecord(previous, desired)).toEqual({
+    toRemove: [{
+      path: ".cursor/mcp.json",
+      kind: "managed-fields",
+      fields: ["mcpServers:removed"],
+      fieldHashes: { "mcpServers:removed": "sha256-removed" },
+    }],
+    toAdd: [{
+      path: ".cursor/mcp.json",
+      kind: "managed-fields",
+      fields: ["mcpServers:added"],
+      fieldHashes: { "mcpServers:added": "sha256-added" },
+    }],
+    toVerify: [{
+      path: ".cursor/mcp.json",
+      kind: "managed-fields",
+      fields: ["mcpServers:context7"],
+      fieldHashes: { "mcpServers:context7": "sha256-context7" },
+    }],
+  });
+});

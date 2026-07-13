@@ -9,7 +9,7 @@ import { resolveSkillSource } from "./card-skill-resolver";
 import { buildEffectiveState, selectedAmbientCollisions } from "./effective-state";
 import { inspectAmbientCapabilities } from "./ambient-capabilities";
 import { loadConfig } from "./config";
-import { buildActiveServers, hashCodexManagedServers, mergeClaudeSettingsText, mergeCodexTomlText, renderCursorConfig, renderJsonMcpConfig } from "./mcp";
+import { buildActiveServers, claudeMcpServerHashKey, hashClaudeManagedServers, hashCodexManagedServers, mergeClaudeSettingsText, mergeCodexTomlText, mergeCursorConfigText, renderCursorConfig, renderJsonMcpConfig } from "./mcp";
 import { hasExplicitSkillDefaults, mergeUserMcpLibrary, validateDefaultReferences } from "./defaults";
 import { expandHomePath, resolveToolPaths } from "./paths";
 import { resolveHomeDir } from "./home";
@@ -33,6 +33,9 @@ import { loadWriteRecord, resolveProjectWriteRecordPath, type ManagedPath } from
 import { isHookConsentValid } from "./hook-consent";
 import { DRWN_VERSION } from "./version";
 import type { CanonicalConfig, RegistryServer } from "./types";
+import { collectMachineProjectionConflicts } from "./sync";
+import { readMachineConfig } from "./card-store";
+import { DrwnError } from "./errors";
 
 export interface PlatformCheck {
   name: string;
@@ -44,6 +47,8 @@ export interface DoctorReport {
   brokenSymlinks: string[];
   staleSkillSymlinks: string[];
   mcpDrift: string[];
+  machineProjectionConflicts: string[];
+  machineCapabilityIssues: string[];
   missingGeneratedFiles: string[];
   hookIssues: string[];
   projectConfigIssues: string[];
@@ -675,9 +680,28 @@ async function detectMcpDrift(
 
     if (targetName === "cursor" && existsSync(configPath)) {
       const current = readFileSync(configPath, "utf8");
-      const expected = renderCursorConfig(activeServers);
-      if (current !== expected) {
-        drifts.push(`cursor:${configPath}`);
+      if (scope === "project") {
+        if (current !== renderCursorConfig(activeServers)) {
+          drifts.push(`cursor:${configPath}`);
+        }
+      } else {
+        try {
+          const previous = previousManagedPaths.find(
+            (entry): entry is Extract<ManagedPath, { kind: "managed-fields" }> =>
+              entry.path === ".cursor/mcp.json" && entry.kind === "managed-fields",
+          );
+          const expected = mergeCursorConfigText(current, activeServers, {
+            priorFieldHashes: previous?.fieldHashes ?? {},
+            preserveRemovedOwnedServers: true,
+          });
+          const names = Object.keys(activeServers);
+          const currentHashes = hashClaudeManagedServers(current, names);
+          if (names.some((name) => currentHashes[claudeMcpServerHashKey(name)] !== expected.fieldHashes[claudeMcpServerHashKey(name)])) {
+            drifts.push(`cursor:${configPath}`);
+          }
+        } catch {
+          drifts.push(`cursor:${configPath}`);
+        }
       }
     }
   }
@@ -802,6 +826,34 @@ export async function buildDoctorReport(repoRoot: string, agentsDir: string, hom
   const defaultSkillOverrides = hasExplicitSkillDefaults(config) ? { include: config.defaults?.skills ?? [] } : undefined;
 
   const sections = await buildDiagnosticsSections(repoRoot, agentsDir, homeDir);
+  const machineConfig = await readMachineConfig(agentsDir);
+  const machineCapabilityIssues = [
+    ...machineConfig.capabilities.skills
+      .filter((id) => !skillInventory.some((skill) => skill.name === id))
+      .map((id) => `Unresolved explicit machine skill: "${id}"`),
+    ...machineConfig.capabilities.mcpServers
+      .filter((id) => !registry.servers[id] || registry.servers[id]?.transport === "platform-provided")
+      .map((id) => `Unresolved explicit machine MCP server: "${id}"`),
+  ];
+  const machineRecord = loadWriteRecord(resolveGlobalWriteRecordPath(agentsDir));
+  let machineProjectionConflicts: string[] = [];
+  if (machineCapabilityIssues.length === 0) {
+    try {
+      const machineState = await buildEffectiveState({
+        repoRoot,
+        agentsDir,
+        homeDir,
+        dryRun: true,
+        forceMachineScope: true,
+        scope: "machine",
+      });
+      machineProjectionConflicts = collectMachineProjectionConflicts(machineState, machineRecord)
+        .map((conflict) => conflict.message);
+    } catch (error) {
+      if (!(error instanceof DrwnError)) throw error;
+      machineCapabilityIssues.push(`${error.code}: ${error.message}`);
+    }
+  }
   return {
     brokenSymlinks: await detectBrokenSymlinks([
       ...((existsSync(toolPaths.claudeSkills) ? Object.keys(readDirLinks(toolPaths.claudeSkills)) : []) as string[]).map((name) =>
@@ -821,6 +873,8 @@ export async function buildDoctorReport(repoRoot: string, agentsDir: string, hom
       "machine",
       loadWriteRecord(resolveGlobalWriteRecordPath(agentsDir))?.managedPaths ?? [],
     ),
+    machineProjectionConflicts,
+    machineCapabilityIssues,
     missingGeneratedFiles: await detectMissingGeneratedFiles(config, generatedDir),
     hookIssues: [],
     projectConfigIssues: defaultIssues,

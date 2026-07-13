@@ -258,6 +258,7 @@ export interface MergeClaudeSettingsOptions {
   inlineMeta?: boolean;
   mcpServerOwnership?: "field" | "per-server" | "none";
   priorFieldHashes?: Record<string, string>;
+  preserveRemovedOwnedServers?: boolean;
 }
 
 export interface MergeClaudeSettingsResult {
@@ -355,11 +356,12 @@ export function mergeClaudeSettingsText(
     const driftedServers = options.force
       ? []
       : ownedClaudeMcpServerNames(recordedHashes).filter((name) => {
+          if (!(name in desiredServers)) {
+            return false;
+          }
           const priorHash = recordedHashes[claudeMcpServerHashKey(name)];
           const currentValue = currentServers[name];
-          if (currentValue === undefined) {
-            return name in desiredServers;
-          }
+          if (currentValue === undefined) return true;
           return Boolean(priorHash && canonicalJsonHash(currentValue) !== priorHash);
         });
     if (driftedServers.length > 0) {
@@ -368,9 +370,14 @@ export function mergeClaudeSettingsText(
       );
     }
 
-    for (const name of ownedClaudeMcpServerNames(recordedHashes)) {
-      if (!(name in desiredServers)) {
-        delete currentServers[name];
+    if (!options.preserveRemovedOwnedServers) {
+      for (const name of ownedClaudeMcpServerNames(recordedHashes)) {
+        if (name in desiredServers) continue;
+        const priorHash = recordedHashes[claudeMcpServerHashKey(name)];
+        const currentValue = currentServers[name];
+        if (currentValue !== undefined && priorHash && canonicalJsonHash(currentValue) === priorHash) {
+          delete currentServers[name];
+        }
       }
     }
     for (const [name, value] of Object.entries(desiredServers)) {
@@ -434,6 +441,55 @@ export function mergeClaudeSettingsText(
     delete parsed._drwn;
   }
 
+  return { text: `${JSON.stringify(parsed, null, 2)}\n`, fieldHashes };
+}
+
+export function mergeCursorConfigText(
+  currentText: string,
+  servers: Record<string, RegistryServer>,
+  options: {
+    force?: boolean;
+    priorFieldHashes?: Record<string, string>;
+    preserveRemovedOwnedServers?: boolean;
+  } = {},
+): MergeClaudeSettingsResult {
+  const parsed = JSON.parse(currentText) as Record<string, unknown>;
+  const currentServers = readClaudeMcpServers(parsed);
+  const desiredServers = Object.fromEntries(
+    Object.entries(servers).map(([name, server]) => [name, toCursorServerConfig(server)]),
+  );
+  const recordedHashes = options.priorFieldHashes ?? {};
+  const driftedServers = options.force
+    ? []
+    : ownedClaudeMcpServerNames(recordedHashes).filter((name) => {
+        if (!(name in desiredServers)) return false;
+        const priorHash = recordedHashes[claudeMcpServerHashKey(name)];
+        const currentValue = currentServers[name];
+        return currentValue === undefined || Boolean(priorHash && canonicalJsonHash(currentValue) !== priorHash);
+      });
+  if (driftedServers.length > 0) {
+    throw new Error(
+      `Drift detected in Cursor managed MCP server(s): ${driftedServers.join(", ")}. Rerun drwn write --root --force to overwrite.`,
+    );
+  }
+
+  if (!options.preserveRemovedOwnedServers) {
+    for (const name of ownedClaudeMcpServerNames(recordedHashes)) {
+      if (name in desiredServers) continue;
+      const priorHash = recordedHashes[claudeMcpServerHashKey(name)];
+      const currentValue = currentServers[name];
+      if (currentValue !== undefined && priorHash && canonicalJsonHash(currentValue) === priorHash) {
+        delete currentServers[name];
+      }
+    }
+  }
+  const fieldHashes: Record<string, string> = {};
+  for (const [name, value] of Object.entries(desiredServers)) {
+    currentServers[name] = value;
+    fieldHashes[claudeMcpServerHashKey(name)] = canonicalJsonHash(value);
+  }
+  parsed.mcpServers = currentServers;
+  delete parsed._drwn;
   return { text: `${JSON.stringify(parsed, null, 2)}\n`, fieldHashes };
 }
 

@@ -129,8 +129,27 @@ export function diffWriteRecord(previous: WriteRecord | null, desired: ManagedPa
   const toVerify: ManagedPath[] = [];
 
   for (const [path, previousEntry] of previousMap) {
-    if (!desiredMap.has(path)) {
+    const desiredEntry = desiredMap.get(path);
+    if (!desiredEntry) {
       toRemove.push(previousEntry);
+    } else if (previousEntry.kind === "managed-fields" && desiredEntry.kind === "managed-fields") {
+      const previousFields = new Set(previousEntry.fields);
+      const desiredFields = new Set(desiredEntry.fields);
+      const removedFields = previousEntry.fields.filter((field) => !desiredFields.has(field));
+      const addedFields = desiredEntry.fields.filter((field) => !previousFields.has(field));
+      const retainedFields = previousEntry.fields.filter((field) => desiredFields.has(field));
+      if (removedFields.length > 0) {
+        toRemove.push(managedFieldsSubset(previousEntry, removedFields));
+      }
+      if (addedFields.length > 0) {
+        toAdd.push(managedFieldsSubset(desiredEntry, addedFields));
+      }
+      if (retainedFields.length > 0) {
+        toVerify.push(managedFieldsSubset(previousEntry, retainedFields));
+      }
+    } else if (previousEntry.kind !== desiredEntry.kind) {
+      toRemove.push(previousEntry);
+      toAdd.push(desiredEntry);
     } else {
       toVerify.push(previousEntry);
     }
@@ -143,4 +162,16 @@ export function diffWriteRecord(previous: WriteRecord | null, desired: ManagedPa
   }
 
   return { toRemove, toAdd, toVerify };
+}
+
+function managedFieldsSubset(
+  entry: Extract<ManagedPath, { kind: "managed-fields" }>,
+  fields: string[],
+): Extract<ManagedPath, { kind: "managed-fields" }> {
+  return {
+    path: entry.path,
+    kind: "managed-fields",
+    fields,
+    fieldHashes: Object.fromEntries(fields.map((field) => [field, entry.fieldHashes[field]!])),
+  };
 }

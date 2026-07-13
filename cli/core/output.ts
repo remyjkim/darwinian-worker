@@ -85,6 +85,8 @@ export function renderDoctorReport(report: {
   brokenSymlinks: string[];
   staleSkillSymlinks: string[];
   mcpDrift: string[];
+  machineProjectionConflicts?: string[];
+  machineCapabilityIssues?: string[];
   missingGeneratedFiles: string[];
   hookIssues?: string[];
   projectConfigIssues?: string[];
@@ -98,6 +100,8 @@ export function renderDoctorReport(report: {
     { label: "Broken symlinks", items: report.brokenSymlinks },
     { label: "Stale skill symlinks", items: report.staleSkillSymlinks },
     { label: "MCP drift", items: report.mcpDrift },
+    { label: "Machine projection conflicts", items: report.machineProjectionConflicts ?? [] },
+    { label: "Machine capability issues", items: report.machineCapabilityIssues ?? [] },
     { label: "Missing generated files", items: report.missingGeneratedFiles },
     { label: "Hook issues", items: report.hookIssues ?? [] },
     { label: "Project config issues", items: report.projectConfigIssues ?? [] },

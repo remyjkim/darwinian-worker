@@ -7,12 +7,14 @@ import { join } from "node:path";
 import { expandHomePath, resolveToolPaths } from "./paths";
 import {
   CLAUDE_MCP_SERVER_HASH_PREFIX,
+  claudeMcpServerHashKey,
   codexUnsupportedHeaderKeys,
   hashCodexManagedServers,
   mergeClaudeSettingsText,
   mergeCodexTomlText,
+  mergeCursorConfigText,
   ownedClaudeMcpServerNames,
-  renderCursorConfig,
+  renderMcpServerForTarget,
   renderJsonMcpConfig,
 } from "./mcp";
 import { syncSkills as syncSkillsCore } from "./skills";
@@ -28,11 +30,12 @@ import {
   saveWriteRecord,
   type ManagedPath,
 } from "./write-record";
-import { assertAmbientMcpPreflight, buildEffectiveState, recomputeContentRootsByCard } from "./effective-state";
+import { assertAmbientMcpPreflight, buildEffectiveState, recomputeContentRootsByCard, type EffectiveState } from "./effective-state";
 import { computeOptionalMcpReport } from "./mcp-report";
 import { reconcileVendorTrees } from "./vendor-reconcile";
 import { DRWN_VERSION } from "./version";
 import { canonicalJsonHash } from "./managed-fields";
+import { DrwnError } from "./errors";
 import type {
   CanonicalConfig,
   NormalizedSyncOptions,
@@ -75,14 +78,244 @@ function isCodexMcpEntry(entry: ManagedFieldsPath) {
   return entry.path.endsWith(".codex/config.toml");
 }
 
-export function cleanupRemovedManagedPaths(scopeRoot: string, previous: ManagedPath[], dryRun: boolean, result: SyncResult) {
+function machineMcpRecordPath(target: TargetName) {
+  if (target === "claude") return ".claude.json";
+  if (target === "codex") return ".codex/config.toml";
+  return ".cursor/mcp.json";
+}
+
+function managedPathTarget(pathValue: string): TargetName | null {
+  if (pathValue === ".claude.json" || pathValue.startsWith(".claude/")) return "claude";
+  if (pathValue === ".codex/config.toml" || pathValue.startsWith(".codex/")) return "codex";
+  if (pathValue === ".cursor/mcp.json" || pathValue.startsWith(".cursor/")) return "cursor";
+  return null;
+}
+
+function machineManagedCapability(pathValue: string): "mcp" | "skill" | "other" {
+  if (pathValue === ".claude.json" || pathValue === ".codex/config.toml" || pathValue === ".cursor/mcp.json") return "mcp";
+  if (pathValue.startsWith(".claude/skills/") || pathValue.startsWith(".codex/skills/")) return "skill";
+  return "other";
+}
+
+function retainUnselectedMachineOwnership(
+  state: EffectiveState,
+  previous: ManagedPath[],
+  desired: ManagedPath[],
+) {
+  if (state.scopedOptions.writeScope !== "machine") return desired;
+  const retained = previous.filter((entry) => {
+    const target = managedPathTarget(entry.path);
+    if (state.scopedOptions.target && target !== state.scopedOptions.target) return true;
+    const capability = machineManagedCapability(entry.path);
+    if (state.scopedOptions.mcpOnly && capability !== "mcp") return true;
+    if (state.scopedOptions.skillsOnly && capability !== "skill") return true;
+    return false;
+  });
+  return uniqueManagedPaths([...retained, ...desired]);
+}
+
+function selectedMachineTargets(state: EffectiveState) {
+  return (Object.keys(state.effectiveConfig.targets) as TargetName[]).filter((target) => {
+    if (state.scopedOptions.target && state.scopedOptions.target !== target) return false;
+    return state.effectiveConfig.targets[target].enabled;
+  });
+}
+
+function machineTargetConfigPath(state: EffectiveState, target: TargetName) {
+  const targetConfig = state.effectiveConfig.targets[target];
+  return expandHomePath(
+    target === "claude" ? (targetConfig.userMcpPath ?? targetConfig.configPath) : targetConfig.configPath,
+    state.scopedOptions.homeDir,
+  );
+}
+
+export function planMachineManagedPaths(state: EffectiveState): ManagedPath[] {
+  if (state.scopedOptions.writeScope !== "machine") return [];
+  const planned: ManagedPath[] = [];
+
+  if (!state.scopedOptions.skillsOnly) {
+    for (const target of selectedMachineTargets(state)) {
+      const fields = Object.keys(state.activeServers).sort().map((id) => target === "codex" ? id : claudeMcpServerHashKey(id));
+      if (fields.length === 0) continue;
+      planned.push({
+        path: machineMcpRecordPath(target),
+        kind: "managed-fields",
+        fields,
+        fieldHashes: Object.fromEntries(
+          Object.entries(state.activeServers).map(([id, server]) => [
+            target === "codex" ? id : claudeMcpServerHashKey(id),
+            canonicalJsonHash(renderMcpServerForTarget(target, server)),
+          ]),
+        ),
+      });
+    }
+  }
+
+  if (!state.scopedOptions.mcpOnly) {
+    for (const skill of state.machineCapabilities?.skills ?? []) {
+      if ((!state.scopedOptions.target || state.scopedOptions.target === "claude") && (skill.scope === "shared" || skill.scope === "claude-only")) {
+        planned.push({ path: `.claude/skills/${skill.id}`, kind: "managed-directory", contentHash: "sha256-planned" });
+      }
+      if ((!state.scopedOptions.target || state.scopedOptions.target === "codex") && (skill.scope === "shared" || skill.scope === "codex-only")) {
+        planned.push({ path: `.codex/skills/${skill.id}`, kind: "managed-directory", contentHash: "sha256-planned" });
+      }
+    }
+  }
+
+  return uniqueManagedPaths(planned);
+}
+
+export interface MachineProjectionConflict {
+  kind: "foreign" | "drift";
+  path: string;
+  field?: string;
+  message: string;
+}
+
+function managedPathAbsolute(state: EffectiveState, entry: ManagedPath) {
+  if (entry.path === ".claude.json") return machineTargetConfigPath(state, "claude");
+  if (entry.path === ".codex/config.toml") return machineTargetConfigPath(state, "codex");
+  if (entry.path === ".cursor/mcp.json") return machineTargetConfigPath(state, "cursor");
+  return managedPathToAbsolute(state.scopeRoot, entry.path);
+}
+
+function inspectManagedFields(
+  absolutePath: string,
+  entry: ManagedFieldsPath,
+): { invalid: boolean; values: Record<string, { present: boolean; hash: string }> } {
+  const stats = lstatSafe(absolutePath);
+  if (!stats) return { invalid: false, values: {} };
+  if (!stats.isFile() && !stats.isSymbolicLink()) return { invalid: true, values: {} };
+  if (isCodexMcpEntry(entry)) {
+    const hashes = hashCodexManagedServers(readFileSync(absolutePath, "utf8"), entry.fields);
+    if (entry.fields.some((field) => !(field in hashes))) return { invalid: true, values: {} };
+    return {
+      invalid: false,
+      values: Object.fromEntries(entry.fields.map((field) => [field, { present: hashes[field] !== "absent", hash: hashes[field]! }])),
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(readFileSync(absolutePath, "utf8")) as Record<string, unknown>;
+    const servers = parsed.mcpServers && typeof parsed.mcpServers === "object" && !Array.isArray(parsed.mcpServers)
+      ? parsed.mcpServers as Record<string, unknown>
+      : {};
+    return {
+      invalid: false,
+      values: Object.fromEntries(entry.fields.map((field) => {
+        const id = field.startsWith(CLAUDE_MCP_SERVER_HASH_PREFIX)
+          ? field.slice(CLAUDE_MCP_SERVER_HASH_PREFIX.length)
+          : field;
+        const value = servers[id];
+        return [field, { present: value !== undefined, hash: value === undefined ? "absent" : canonicalJsonHash(value) }];
+      })),
+    };
+  } catch {
+    return { invalid: true, values: {} };
+  }
+}
+
+export function collectMachineProjectionConflicts(
+  state: EffectiveState,
+  previousRecord: import("./write-record").WriteRecord | null,
+): MachineProjectionConflict[] {
+  if (state.scopedOptions.writeScope !== "machine") return [];
+  const desired = planMachineManagedPaths(state);
+  const { toAdd, toVerify } = diffWriteRecord(previousRecord, desired);
+  const conflicts: MachineProjectionConflict[] = [];
+
+  for (const entry of toAdd) {
+    const absolutePath = managedPathAbsolute(state, entry);
+    if (entry.kind === "managed-fields") {
+      const current = inspectManagedFields(absolutePath, entry);
+      if (current.invalid) {
+        conflicts.push({ kind: "foreign", path: absolutePath, message: `foreign machine projection config cannot be inspected: ${absolutePath}` });
+        continue;
+      }
+      for (const field of entry.fields) {
+        if (current.values[field]?.present) {
+          conflicts.push({
+            kind: "foreign",
+            path: absolutePath,
+            field,
+            message: `foreign machine projection destination is not recorded as drwn-owned: ${absolutePath} (${field})`,
+          });
+        }
+      }
+      continue;
+    }
+    if (lstatSafe(absolutePath) !== null) {
+      conflicts.push({
+        kind: "foreign",
+        path: absolutePath,
+        message: `foreign machine projection destination is not recorded as drwn-owned: ${absolutePath}`,
+      });
+    }
+  }
+
+  for (const entry of toVerify) {
+    const absolutePath = managedPathAbsolute(state, entry);
+    if (entry.kind === "managed-fields") {
+      const current = inspectManagedFields(absolutePath, entry);
+      for (const field of entry.fields) {
+        if (current.invalid || current.values[field]?.hash !== entry.fieldHashes[field]) {
+          conflicts.push({
+            kind: "drift",
+            path: absolutePath,
+            field,
+            message: `recorded machine projection drift at ${absolutePath} (${field})`,
+          });
+        }
+      }
+      continue;
+    }
+    if (entry.kind === "managed-directory") {
+      const stats = lstatSafe(absolutePath);
+      if (!stats?.isDirectory() || hashManagedDirectory(absolutePath) !== entry.contentHash) {
+        conflicts.push({ kind: "drift", path: absolutePath, message: `recorded machine projection drift at ${absolutePath}` });
+      }
+      continue;
+    }
+    if (entry.kind === "managed-content") {
+      if (!existsSync(absolutePath) || hashManagedContent(readFileSync(absolutePath)) !== entry.contentHash) {
+        conflicts.push({ kind: "drift", path: absolutePath, message: `recorded machine projection drift at ${absolutePath}` });
+      }
+    }
+  }
+
+  return conflicts.filter((conflict, index) =>
+    conflicts.findIndex((candidate) => candidate.kind === conflict.kind && candidate.path === conflict.path && candidate.field === conflict.field) === index
+  );
+}
+
+export function assertMachineProjectionPreflight(
+  state: EffectiveState,
+  previousRecord: import("./write-record").WriteRecord | null,
+) {
+  const conflicts = collectMachineProjectionConflicts(state, previousRecord)
+    .filter((conflict) => conflict.kind === "foreign" || !state.normalized.force);
+  if (conflicts.length === 0) return;
+  throw new DrwnError(
+    "MACHINE_PROJECTION_CONFLICT",
+    conflicts.map((conflict) => conflict.message).join("; "),
+  );
+}
+
+export function cleanupRemovedManagedPaths(
+  scopeRoot: string,
+  previous: ManagedPath[],
+  dryRun: boolean,
+  result: SyncResult,
+  resolveAbsolute?: (entry: ManagedPath) => string,
+) {
   for (const entry of previous) {
-    const absolutePath = managedPathToAbsolute(scopeRoot, entry.path);
+    const absolutePath = resolveAbsolute?.(entry) ?? managedPathToAbsolute(scopeRoot, entry.path);
     if (!existsSync(absolutePath) && lstatSafe(absolutePath) === null) {
       continue;
     }
     if (entry.kind === "managed-content") {
-      if (hashManagedContent(readFileSync(absolutePath)) === entry.contentHash) {
+      const stats = lstatSafe(absolutePath);
+      if (stats?.isFile() && hashManagedContent(readFileSync(absolutePath)) === entry.contentHash) {
         result.changes.push(`remove ${absolutePath}`);
         if (!dryRun) {
           rmSync(absolutePath, { recursive: true, force: true });
@@ -105,10 +338,11 @@ export function cleanupRemovedManagedPaths(scopeRoot: string, previous: ManagedP
       continue;
     }
     if (entry.kind === "managed-fields" && hasClaudePerServerHashes(entry)) {
-      const text = readFileSync(absolutePath, "utf8");
       let parsed: Record<string, unknown>;
       try {
-        parsed = JSON.parse(text) as Record<string, unknown>;
+        const stats = lstatSafe(absolutePath);
+        if (!stats?.isFile()) throw new Error("managed config is not a file");
+        parsed = JSON.parse(readFileSync(absolutePath, "utf8")) as Record<string, unknown>;
       } catch {
         result.warnings.push(`preserved user-owned path: ${absolutePath}`);
         continue;
@@ -143,9 +377,22 @@ export function cleanupRemovedManagedPaths(scopeRoot: string, previous: ManagedP
       continue;
     }
     if (entry.kind === "managed-fields" && isCodexMcpEntry(entry) && Object.keys(entry.fieldHashes).length > 0) {
+      const stats = lstatSafe(absolutePath);
+      if (!stats?.isFile()) {
+        result.warnings.push(`preserved user-owned path: ${absolutePath}`);
+        continue;
+      }
       const current = readFileSync(absolutePath, "utf8");
-      const next = mergeCodexTomlText(current, {}, Object.keys(entry.fieldHashes));
-      writeManagedFile(absolutePath, next, dryRun, result);
+      const currentHashes = hashCodexManagedServers(current, entry.fields);
+      const removable = entry.fields.filter((name) => currentHashes[name] === entry.fieldHashes[name]);
+      const drifted = entry.fields.filter((name) => currentHashes[name] !== "absent" && currentHashes[name] !== entry.fieldHashes[name]);
+      if (drifted.length > 0) {
+        result.warnings.push(`preserved user-owned path: ${absolutePath} (${drifted.join(", ")})`);
+      }
+      if (removable.length > 0) {
+        const next = mergeCodexTomlText(current, {}, removable);
+        writeManagedFile(absolutePath, next, dryRun, result);
+      }
       continue;
     }
     if (entry.kind === "symlink" || entry.kind === "generated-symlink") {
@@ -244,23 +491,22 @@ export async function syncMcp(
   config: CanonicalConfig,
   servers: Record<string, RegistryServer>,
   previousManagedPaths: ManagedPath[] = [],
-  ownedServerNames: string[] = [],
 ): Promise<SyncResult> {
   const managedPaths: ManagedPath[] = [];
   const result: SyncResult = { changes: [], warnings: [], managedPaths };
   const toolRoot = options.toolRoot ?? options.homeDir;
   const toolPaths = resolveToolPaths(toolRoot);
-  const generatedDir = options.generatedDir ?? join(options.agentsDir, "generated");
   const serverCount = Object.keys(servers).length;
   const previousClaude = previousManagedPaths.find(
     (entry): entry is ManagedFieldsPath =>
       entry.kind === "managed-fields" && entry.path === ".claude.json" && hasClaudePerServerHashes(entry),
   );
   const previousClaudeHashes = previousClaude?.kind === "managed-fields" ? previousClaude.fieldHashes : {};
-  const previousCodexNames = previousManagedPaths
-    .filter((entry): entry is ManagedFieldsPath => entry.kind === "managed-fields" && isCodexMcpEntry(entry))
-    .flatMap((entry) => (entry.kind === "managed-fields" ? Object.keys(entry.fieldHashes) : []));
-  const codexManagedNames = [...new Set([...previousCodexNames, ...ownedServerNames.filter((name) => name in servers)])];
+  const previousCursor = previousManagedPaths.find(
+    (entry): entry is ManagedFieldsPath =>
+      entry.kind === "managed-fields" && entry.path === ".cursor/mcp.json" && hasClaudePerServerHashes(entry),
+  );
+  const previousCursorHashes = previousCursor?.fieldHashes ?? {};
   const hasPriorMcpOwnership = previousManagedPaths.some((entry) =>
     (entry.kind === "managed-fields" && hasClaudePerServerHashes(entry)) ||
     (entry.kind === "managed-fields" && isCodexMcpEntry(entry)) ||
@@ -293,6 +539,7 @@ export async function syncMcp(
   for (const targetName of selectedTargets) {
     const target = config.targets[targetName];
     const configPath = targetConfigPath(targetName, target);
+    if (serverCount === 0) continue;
 
     if (targetName === "claude") {
       if (options.writeScope === "project") {
@@ -308,6 +555,7 @@ export async function syncMcp(
         mcpServerOwnership: "per-server",
         priorFieldHashes: previousClaudeHashes,
         force: options.force ?? false,
+        preserveRemovedOwnedServers: true,
       });
       writeManagedFile(configPath, merged.text, options.dryRun, result);
       if (Object.keys(merged.fieldHashes).length > 0) {
@@ -331,7 +579,7 @@ export async function syncMcp(
         }
       }
       const current = await readTextIfExists(configPath, "");
-      const mergedCodex = mergeCodexTomlText(current, servers, codexManagedNames);
+      const mergedCodex = mergeCodexTomlText(current, servers);
       writeManagedFile(configPath, mergedCodex, options.dryRun, result);
       const fieldHashes = hashCodexManagedServers(mergedCodex, Object.keys(servers));
       if (Object.keys(fieldHashes).length > 0) {
@@ -341,20 +589,21 @@ export async function syncMcp(
     }
 
     if (targetName === "cursor") {
-      if (Object.keys(servers).length === 0) {
-        continue;
+      const current = await readTextIfExists(configPath, "{}\n");
+      const merged = mergeCursorConfigText(current, servers, {
+        priorFieldHashes: previousCursorHashes,
+        force: options.force ?? false,
+        preserveRemovedOwnedServers: true,
+      });
+      writeManagedFile(configPath, merged.text, options.dryRun, result);
+      if (Object.keys(merged.fieldHashes).length > 0) {
+        managedPaths.push({
+          path: ".cursor/mcp.json",
+          kind: "managed-fields",
+          fields: Object.keys(merged.fieldHashes),
+          fieldHashes: merged.fieldHashes,
+        });
       }
-      const content = renderCursorConfig(servers);
-      const existing = lstatSafe(configPath);
-      if (existing?.isSymbolicLink() && !options.dryRun) {
-        rmSync(configPath, { force: true });
-      }
-      writeManagedFile(configPath, content, options.dryRun, result);
-      // One-time cleanup of the pre-de-symlink generated artifact.
-      if (!options.dryRun) {
-        rmSync(join(generatedDir, "cursor-mcp.json"), { force: true });
-      }
-      managedPaths.push({ path: ".cursor/mcp.json", kind: "managed-content", contentHash: hashManagedContent(content) });
     }
   }
 
@@ -393,10 +642,14 @@ export async function syncRepository(options: SyncOptions = {}): Promise<SyncRes
   }
   result.cardModes = cardModes;
   const previousRecord = loadWriteRecord(state.recordPath);
-  verifyManagedPaths(state.scopeRoot, previousRecord?.managedPaths ?? [], {
-    force: state.normalized.force ?? false,
-    lockedCards: state.lockedCards,
-  });
+  if (state.scopedOptions.writeScope === "machine") {
+    assertMachineProjectionPreflight(state, previousRecord);
+  } else {
+    verifyManagedPaths(state.scopeRoot, previousRecord?.managedPaths ?? [], {
+      force: state.normalized.force ?? false,
+      lockedCards: state.lockedCards,
+    });
+  }
 
   if (state.projectRoot && !state.normalized.dryRun) {
     const { ensureGitignoreEntries, ensureVendorGitattributes } = await import("./git-hygiene");
@@ -421,7 +674,6 @@ export async function syncRepository(options: SyncOptions = {}): Promise<SyncRes
       state.effectiveConfig,
       state.activeServers,
       previousRecord?.managedPaths ?? [],
-      Object.keys(state.activeServers),
     );
     result.changes.push(...mcpResult.changes);
     result.warnings.push(...mcpResult.warnings);
@@ -448,9 +700,19 @@ export async function syncRepository(options: SyncOptions = {}): Promise<SyncRes
     result.managedPaths?.push(...(hooksResult.managedPaths ?? []));
   }
 
-  const desiredManagedPaths = uniqueManagedPaths(result.managedPaths ?? []);
+  const desiredManagedPaths = retainUnselectedMachineOwnership(
+    state,
+    previousRecord?.managedPaths ?? [],
+    uniqueManagedPaths(result.managedPaths ?? []),
+  );
   const { toRemove } = diffWriteRecord(previousRecord, desiredManagedPaths);
-  cleanupRemovedManagedPaths(state.scopeRoot, toRemove, state.normalized.dryRun, result);
+  cleanupRemovedManagedPaths(
+    state.scopeRoot,
+    toRemove,
+    state.normalized.dryRun,
+    result,
+    state.scopedOptions.writeScope === "machine" ? (entry) => managedPathAbsolute(state, entry) : undefined,
+  );
   result.managedPaths = desiredManagedPaths;
   if (!state.normalized.dryRun) {
     saveWriteRecord(state.recordPath, {

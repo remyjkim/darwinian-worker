@@ -12,11 +12,20 @@ import {
   recordHookConsentAck,
 } from "../core/hook-consent-ack";
 import { renderJson, renderOptionalMcpReport, renderSyncResult } from "../core/output";
+import { DrwnError } from "../core/errors";
 import { findProjectConfig, resolveProjectRootFromConfigPath } from "../core/project";
 import { syncRepository } from "../core/sync";
 import { isTargetName } from "../core/targets";
 import { startWriteWatch } from "../core/write-watch";
 import { BaseCommand } from "./base";
+
+function renderWriteError(error: unknown, json: boolean) {
+  if (error instanceof DrwnError) {
+    return json ? renderJson(error.toJSON()) : `${error.code}: ${error.message}\n`;
+  }
+  if (json && error instanceof AmbientMcpCollisionError) return renderJson(error.toJSON());
+  return `${error instanceof Error ? error.message : String(error)}\n`;
+}
 
 export class WriteCommand extends BaseCommand {
   static override paths = [["write"]];
@@ -133,11 +142,7 @@ export class WriteCommand extends BaseCommand {
       });
       assertAmbientMcpPreflight(preflightState);
     } catch (error) {
-      this.context.stderr.write(
-        this.json && error instanceof AmbientMcpCollisionError
-          ? renderJson(error.toJSON())
-          : `${error instanceof Error ? error.message : String(error)}\n`,
-      );
+      this.context.stderr.write(renderWriteError(error, this.json));
       return 1;
     }
 
@@ -236,11 +241,7 @@ export class WriteCommand extends BaseCommand {
     try {
       await runOnce();
     } catch (error) {
-      this.context.stderr.write(
-        this.json && error instanceof AmbientMcpCollisionError
-          ? renderJson(error.toJSON())
-          : `${error instanceof Error ? error.message : String(error)}\n`,
-      );
+      this.context.stderr.write(renderWriteError(error, this.json));
       return 1;
     }
     return 0;
