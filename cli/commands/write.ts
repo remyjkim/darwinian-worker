@@ -3,7 +3,7 @@
 
 import { Option, UsageError } from "clipanion";
 import { evaluateVersionFloor, formatVersionFloorWarning, loadCardLock } from "../core/card-lock";
-import { assertMachineWriteScopeAllowed, buildEffectiveState, recomputeContentRootsByCard } from "../core/effective-state";
+import { assertMachineWriteScopeAllowed, buildEffectiveState } from "../core/effective-state";
 import {
   buildHookConsentAckKey,
   computeHookPolicyDigest,
@@ -11,13 +11,10 @@ import {
   recordHookConsentAck,
 } from "../core/hook-consent-ack";
 import { renderJson, renderOptionalMcpReport, renderSyncResult } from "../core/output";
-import { ensureGitignoreEntries, ensureVendorGitattributes } from "../core/git-hygiene";
 import { findProjectConfig, resolveProjectRootFromConfigPath } from "../core/project";
 import { syncRepository } from "../core/sync";
 import { isTargetName } from "../core/targets";
-import { reconcileVendorTrees } from "../core/vendor-reconcile";
 import { startWriteWatch } from "../core/write-watch";
-import { migrateSymlinkLayerToVendor, hasLegacyGeneratedSymlinks } from "../core/migrate-vendor";
 import { BaseCommand } from "./base";
 
 export class WriteCommand extends BaseCommand {
@@ -112,6 +109,32 @@ export class WriteCommand extends BaseCommand {
       throw new UsageError("--scope project cannot be combined with --root/--user.");
     }
 
+    let preflightState: Awaited<ReturnType<typeof buildEffectiveState>>;
+    try {
+      preflightState = await buildEffectiveState({
+        repoRoot: this.context.repoRoot,
+        agentsDir: this.context.agentsDir,
+        homeDir: this.context.homeDir,
+        cwd: this.context.cwd,
+        dryRun: this.dryRun,
+        mcpOnly: this.mcpOnly,
+        skillsOnly: this.skillsOnly,
+        target: this.target as "claude" | "codex" | "cursor" | undefined,
+        force: this.force,
+        strictHooks: this.strictHooks,
+        forceMachineScope: this.root || this.user || this.scope === "machine",
+        scope: this.scope as "machine" | "project" | undefined,
+      });
+      assertMachineWriteScopeAllowed({
+        writeScope: preflightState.scopedOptions.writeScope,
+        forceMachineScope: preflightState.normalized.forceMachineScope,
+        scope: this.scope as "machine" | "project" | undefined,
+      });
+    } catch (error) {
+      this.context.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
+
     if (!(this.root || this.user)) {
       const projectConfigPath = findProjectConfig(this.context.cwd);
       const projectRoot = projectConfigPath ? resolveProjectRootFromConfigPath(projectConfigPath) : null;
@@ -125,30 +148,8 @@ export class WriteCommand extends BaseCommand {
           }
         }
         if (!this.dryRun) {
-          await ensureGitignoreEntries(projectRoot);
-          await ensureVendorGitattributes(projectRoot);
-          if (hasLegacyGeneratedSymlinks(projectRoot)) {
-            const migration = await migrateSymlinkLayerToVendor(projectRoot, {
-              repoRoot: this.context.repoRoot,
-              agentsDir: this.context.agentsDir,
-              homeDir: this.context.homeDir,
-            });
-            if (migration.migrated) {
-              this.context.stderr.write(
-                `Migrated legacy generated symlinks: replaced=${migration.replacedSymlinks} vendorTrees=${migration.vendorTreesCreated}\n`,
-              );
-            }
-          }
-          const consentState = await buildEffectiveState({
-            repoRoot: this.context.repoRoot,
-            agentsDir: this.context.agentsDir,
-            homeDir: this.context.homeDir,
-            cwd: this.context.cwd,
-          });
-          const consentScratch = { changes: [] as string[], warnings: [] as string[], managedPaths: [] as [] };
-          await reconcileVendorTrees(consentState, consentScratch);
-          consentState.contentRootsByCard = recomputeContentRootsByCard(consentState, { allowPlanningFallback: false });
-          for (const card of lock?.cards ?? []) {
+          const consentState = preflightState;
+          for (const card of consentState.activeCards) {
             if (!card.hookConsent || card.hooks.length === 0) {
               continue;
             }

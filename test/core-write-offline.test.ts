@@ -23,6 +23,7 @@ import {
   createTempRoot,
   envFor,
   scaffoldCliFixture,
+  writeSupportedProjectConfig,
   writeTestCardLock,
 } from "./helpers";
 
@@ -92,10 +93,7 @@ test("drwn write materializes from committed vendor with an empty machine store"
   );
 
   await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(
-    join(projectDir, ".agents", "drwn", "config.json"),
-    JSON.stringify({ version: 1, cards: ["@me/tool@1.0.0"], activeWorkers: ["@me/tool"] }, null, 2),
-  );
+  await writeSupportedProjectConfig(projectDir, { workers: ["@me/tool@1.0.0"], activeWorker: "@me/tool" });
   await writeTestCardLock(projectDir, [
     {
       name: resolved.name,
@@ -116,6 +114,11 @@ test("drwn write materializes from committed vendor with an empty machine store"
   await rm(join(agentsDir, "drwn", "cards"), { recursive: true, force: true });
   await rm(join(agentsDir, "drwn", "extracted"), { recursive: true, force: true });
 
+  const configPath = join(projectDir, ".agents", "drwn", "config.json");
+  const lockPath = join(projectDir, ".agents", "drwn", "card.lock");
+  const configBytes = await readFile(configPath, "utf8");
+  const lockBytes = await readFile(lockPath, "utf8");
+
   const result = await syncRepository({
     repoRoot,
     agentsDir,
@@ -125,6 +128,8 @@ test("drwn write materializes from committed vendor with an empty machine store"
 
   expect(result.changes.some((change) => change.startsWith("vendor "))).toBe(false);
   expect(existsSync(join(projectDir, ".claude", "skills", "alpha", "SKILL.md"))).toBe(true);
+  expect(await readFile(configPath, "utf8")).toBe(configBytes);
+  expect(await readFile(lockPath, "utf8")).toBe(lockBytes);
 });
 
 test("missing vendor and missing store fails with a repair signpost", async () => {
@@ -132,7 +137,7 @@ test("missing vendor and missing store fails with a repair signpost", async () =
   tempRoots.push(fixture.root);
   const projectDir = join(fixture.root, "project");
   await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1, cards: ["@me/tool@1.0.0"] }, null, 2));
+  await writeSupportedProjectConfig(projectDir, { workers: ["@me/tool@1.0.0"], activeWorker: "@me/tool" });
   await writeTestCardLock(projectDir, [
     {
       name: "@me/tool",

@@ -408,6 +408,12 @@ export async function syncRepository(options: SyncOptions = {}): Promise<SyncRes
     lockedCards: state.lockedCards,
   });
 
+  if (state.projectRoot && !state.normalized.dryRun) {
+    const { ensureGitignoreEntries, ensureVendorGitattributes } = await import("./git-hygiene");
+    await ensureGitignoreEntries(state.projectRoot);
+    await ensureVendorGitattributes(state.projectRoot);
+  }
+
   if (state.projectRoot) {
     await reconcileVendorTrees(state, result);
     state.contentRootsByCard = recomputeContentRootsByCard(state, {

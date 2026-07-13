@@ -6,7 +6,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { updateProjectCardLock } from "../cli/core/card-project";
 import { syncRepository } from "../cli/core/sync";
-import { cleanupTempRoots, publishCardWithSkills, scaffoldCliFixture, writeTestCardLock } from "./helpers";
+import { cleanupTempRoots, publishCardWithSkills, scaffoldCliFixture, writeSupportedProjectConfig, writeTestCardLock } from "./helpers";
 
 const tempRoots: string[] = [];
 afterEach(async () => cleanupTempRoots(tempRoots));
@@ -17,10 +17,7 @@ test("update lock refresh followed by write reconciles vendor trees", async () =
   await publishCardWithSkills(fixture, { name: "@me/revendor", skills: ["alpha"] });
   const projectDir = join(fixture.root, "project");
   await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(
-    join(projectDir, ".agents", "drwn", "config.json"),
-    `${JSON.stringify({ version: 1, cards: ["@me/revendor@1.0.0"] }, null, 2)}\n`,
-  );
+  await writeSupportedProjectConfig(projectDir, { workers: ["@me/revendor@1.0.0"], activeWorker: "@me/revendor" });
   const { resolveCard } = await import("../cli/core/card-store");
   const resolved = await resolveCard(fixture.agentsDir, "@me/revendor@1.0.0");
   await writeTestCardLock(projectDir, [

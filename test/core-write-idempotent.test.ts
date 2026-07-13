@@ -22,6 +22,10 @@ test("two consecutive writes produce no material changes on a vendored project",
 
   const first = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);
   expect(first.exitCode).toBe(0);
+  const configPath = join(projectDir, ".agents", "drwn", "config.json");
+  const lockPath = join(projectDir, ".agents", "drwn", "card.lock");
+  const configBytes = await readFile(configPath, "utf8");
+  const lockBytes = await readFile(lockPath, "utf8");
   const second = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);
   expect(second.exitCode).toBe(0);
 
@@ -35,4 +39,6 @@ test("two consecutive writes produce no material changes on a vendored project",
   expect(third.exitCode).toBe(0);
   const after = await readFile(workerJson, "utf8");
   expect(after).toBe(before);
+  expect(await readFile(configPath, "utf8")).toBe(configBytes);
+  expect(await readFile(lockPath, "utf8")).toBe(lockBytes);
 });
