@@ -2,10 +2,13 @@
 // ABOUTME: Protects the safe-by-default diagnostics contract for the new CLI.
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { chmod, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 import { createEmptyMachineConfig } from "../cli/core/machine-config";
+import { resolveCard, writeMachineConfig } from "../cli/core/card-store";
+import { resolveExtractedPath } from "../cli/core/store-paths";
 
 const tempRoots: string[] = [];
 
@@ -14,6 +17,88 @@ afterEach(async () => {
 });
 
 describe("drwn doctor", () => {
+  test("rejects prototype machine state with the stable schema error", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    await mkdir(join(fixture.agentsDir, "drwn"), { recursive: true });
+    await writeFile(join(fixture.agentsDir, "drwn", "machine.json"), `${JSON.stringify({ version: 2, defaults: {} }, null, 2)}\n`);
+
+    const result = await runAgentsCli(["doctor", "--json"], envFor(fixture));
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({ code: "MACHINE_CONFIG_INVALID" });
+  });
+
+  test("reports missing pinned profile bytes without fetching or repairing", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    await publishCardWithSkills(fixture, {
+      name: "@darwinian/operator",
+      version: "1.0.2",
+      skills: ["bootstrap-project"],
+    });
+    const resolved = await resolveCard(fixture.agentsDir, "@darwinian/operator@1.0.2");
+    const profile = {
+      id: "darwinian-operator" as const,
+      source: "git+https://github.com/curation-labs/darwinian-operator.git#v1.0.2" as const,
+      name: "@darwinian/operator" as const,
+      version: "1.0.2" as const,
+      commit: resolved.git!.commit,
+      treeSha: resolved.treeSha!,
+      integrity: resolved.integrity as `sha256-${string}`,
+      skills: ["bootstrap-project"],
+      mcpServers: [],
+    };
+    await writeMachineConfig(fixture.agentsDir, {
+      ...createEmptyMachineConfig(),
+      capabilities: { profile, skills: [], mcpServers: [] },
+    });
+    await rm(resolveExtractedPath(fixture.agentsDir, profile.treeSha), { recursive: true, force: true });
+
+    const result = await runAgentsCli(["doctor", "--json"], envFor(fixture));
+
+    expect(result.exitCode).toBe(0);
+    const report = JSON.parse(result.stdout) as { machineCapabilityIssues: string[] };
+    expect(report.machineCapabilityIssues.some((issue) => issue.includes("MACHINE_PROFILE_NOT_AVAILABLE"))).toBe(true);
+    expect(existsSync(resolveExtractedPath(fixture.agentsDir, profile.treeSha))).toBe(false);
+  });
+
+  test("reports mutated pinned profile bytes without repairing them", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    await publishCardWithSkills(fixture, {
+      name: "@darwinian/operator",
+      version: "1.0.2",
+      skills: ["bootstrap-project"],
+    });
+    const resolved = await resolveCard(fixture.agentsDir, "@darwinian/operator@1.0.2");
+    const profile = {
+      id: "darwinian-operator" as const,
+      source: "git+https://github.com/curation-labs/darwinian-operator.git#v1.0.2" as const,
+      name: "@darwinian/operator" as const,
+      version: "1.0.2" as const,
+      commit: resolved.git!.commit,
+      treeSha: resolved.treeSha!,
+      integrity: resolved.integrity as `sha256-${string}`,
+      skills: ["bootstrap-project"],
+      mcpServers: [],
+    };
+    await writeMachineConfig(fixture.agentsDir, {
+      ...createEmptyMachineConfig(),
+      capabilities: { profile, skills: [], mcpServers: [] },
+    });
+    const skillPath = join(resolveExtractedPath(fixture.agentsDir, profile.treeSha), "skills", "bootstrap-project", "SKILL.md");
+    await chmod(skillPath, 0o644);
+    await writeFile(skillPath, "mutated profile bytes\n");
+
+    const result = await runAgentsCli(["doctor", "--json"], envFor(fixture));
+
+    expect(result.exitCode).toBe(0);
+    const report = JSON.parse(result.stdout) as { machineCapabilityIssues: string[] };
+    expect(report.machineCapabilityIssues.some((issue) => issue.includes("MACHINE_PROFILE_INVALID"))).toBe(true);
+    expect(await readFile(skillPath, "utf8")).toBe("mutated profile bytes\n");
+  });
+
   test("reports the supported error code for an invalid project schema", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
@@ -57,7 +142,7 @@ describe("drwn doctor", () => {
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,
     });
-    await runAgentsCli(["write", "--skills-only"], {
+    await runAgentsCli(["write", "--scope", "machine", "--skills-only"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
       AGENTS_DIR: fixture.agentsDir,
@@ -115,32 +200,48 @@ describe("drwn doctor", () => {
     expect(parsed.brokenSymlinks.some((value) => value.includes("broken-link"))).toBe(true);
   });
 
-  test("reports MCP drift", async () => {
+  test("does not report unrelated user MCP entries as machine drift", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
 
     await writeFile(fixture.claudeSettings, JSON.stringify({ model: "sonnet", mcpServers: { rogue: { url: "x" } } }, null, 2));
 
-    const result = await runAgentsCli(["doctor"], {
-      AGENTS_REPO_ROOT: fixture.repoRoot,
-      AGENTS_HOME_DIR: fixture.homeDir,
-      AGENTS_DIR: fixture.agentsDir,
-    });
+    const result = await runAgentsCli(["doctor", "--json"], envFor(fixture));
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("MCP drift:");
+    const parsed = JSON.parse(result.stdout) as { mcpDrift: string[]; machineProjectionConflicts: string[] };
+    expect(parsed.mcpDrift).toEqual([]);
+    expect(parsed.machineProjectionConflicts).toEqual([]);
+  });
+
+  test("reports drift in a recorded machine-owned MCP field", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    expect((await runAgentsCli(["library", "defaults", "add", "mcp", "context7"], envFor(fixture))).exitCode).toBe(0);
+    expect((await runAgentsCli(["write", "--scope", "machine", "--mcp-only"], envFor(fixture))).exitCode).toBe(0);
+    const config = JSON.parse(await readFile(fixture.claudeUserMcp, "utf8"));
+    config.mcpServers.context7.command = "mutated-command";
+    await writeFile(fixture.claudeUserMcp, `${JSON.stringify(config, null, 2)}\n`);
+
+    const result = await runAgentsCli(["doctor", "--json"], envFor(fixture));
+
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout) as { mcpDrift: string[]; machineProjectionConflicts: string[] };
+    expect(parsed.mcpDrift).toContain(`claude:${fixture.claudeUserMcp}`);
+    expect(parsed.machineProjectionConflicts.some((item) => item.includes(fixture.claudeUserMcp))).toBe(true);
   });
 
   test("detects MCP drift when config uses tilde paths", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
 
-    const configWithTildes = {
-      version: 1,
-      targets: {
+    const configWithTildes = createEmptyMachineConfig();
+    configWithTildes.capabilities.mcpServers = ["context7"];
+    configWithTildes.policy.targets = {
         claude: {
           enabled: true,
           configPath: "~/.claude/settings.json",
+          userMcpPath: "~/.claude/settings.json",
           format: "json-merge",
           mcpKey: "mcpServers",
         },
@@ -156,16 +257,14 @@ describe("drwn doctor", () => {
           format: "json-standalone",
           mcpKey: "mcpServers",
         },
-      },
-      optional: {},
-      parallel: { cli: { enabled: true }, mcp: { enabled: false } },
     };
 
-    await writeFile(join(fixture.repoRoot, "registry", "config.json"), JSON.stringify(configWithTildes, null, 2));
-    await writeFile(
-      join(fixture.homeDir, ".claude", "settings.json"),
-      JSON.stringify({ model: "sonnet", mcpServers: { rogue: { url: "x" } } }, null, 2),
-    );
+    await writeMachineConfig(fixture.agentsDir, configWithTildes);
+    expect((await runAgentsCli(["write", "--scope", "machine", "--mcp-only"], envFor(fixture))).exitCode).toBe(0);
+    const tildeConfigPath = join(fixture.homeDir, ".claude", "settings.json");
+    const projected = JSON.parse(await readFile(tildeConfigPath, "utf8"));
+    projected.mcpServers.context7.command = "mutated-command";
+    await writeFile(tildeConfigPath, `${JSON.stringify(projected, null, 2)}\n`);
 
     const result = await runAgentsCli(["doctor", "--json"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
@@ -175,7 +274,7 @@ describe("drwn doctor", () => {
 
     expect(result.exitCode).toBe(0);
     const parsed = JSON.parse(result.stdout) as { mcpDrift: string[] };
-    expect(parsed.mcpDrift.length).toBeGreaterThan(0);
+    expect(parsed.mcpDrift).toContain(`claude:${tildeConfigPath}`);
   });
 
   test("returns unhealthy for fatal ambient MCP collisions with redacted remediation", async () => {
@@ -329,8 +428,11 @@ describe("drwn doctor", () => {
 
     expect(result.exitCode).toBe(0);
     const parsed = JSON.parse(result.stdout) as { machineCapabilityIssues: string[] };
-    expect(parsed.machineCapabilityIssues).toContain('Unresolved explicit machine skill: "missing-skill"');
-    expect(parsed.machineCapabilityIssues).toContain('Unresolved explicit machine MCP server: "missing-mcp"');
+    expect(parsed.machineCapabilityIssues).toEqual(expect.arrayContaining([
+      expect.stringContaining("MACHINE_CAPABILITY_NOT_FOUND"),
+      expect.stringContaining("missing-skill"),
+      expect.stringContaining("missing-mcp"),
+    ]));
   });
 
   test("does not falsely report card-bundled-only skills as unknown", async () => {

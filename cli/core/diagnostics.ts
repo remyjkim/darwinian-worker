@@ -6,11 +6,11 @@ import { join } from "node:path";
 import { evaluateVersionFloor, loadCardLock, type CardLockEntry, type VersionFloorStatus } from "./card-lock";
 import type { AmbientCollision } from "./ambient-policy";
 import { resolveSkillSource } from "./card-skill-resolver";
-import { buildEffectiveState, selectedAmbientCollisions } from "./effective-state";
+import { buildEffectiveState, selectedAmbientCollisions, type EffectiveState } from "./effective-state";
 import { inspectAmbientCapabilities } from "./ambient-capabilities";
 import { loadConfig } from "./config";
-import { buildActiveServers, claudeMcpServerHashKey, hashClaudeManagedServers, hashCodexManagedServers, mergeClaudeSettingsText, mergeCodexTomlText, mergeCursorConfigText, renderCursorConfig, renderJsonMcpConfig } from "./mcp";
-import { hasExplicitSkillDefaults, mergeUserMcpLibrary, validateDefaultReferences } from "./defaults";
+import { hashCodexManagedServers, mergeCodexTomlText, renderCursorConfig, renderJsonMcpConfig } from "./mcp";
+import { mergeUserMcpLibrary } from "./defaults";
 import { expandHomePath, resolveToolPaths } from "./paths";
 import { resolveHomeDir } from "./home";
 import { ALL_TARGET_NAMES, getTargetDescriptor } from "./targets";
@@ -19,9 +19,7 @@ import { loadMcpLibrary } from "./mcp-library";
 import {
   buildSkillInventory,
   findStaleManagedEntries,
-  listCuratedSkills,
   listRepoSkills,
-  listSkillsByScope,
 } from "./skills";
 import { lstatSafe } from "./fs";
 import { resolveProjectRootFromConfigPath, summarizeProjectConfig, isServerToggle } from "./project";
@@ -29,13 +27,14 @@ import { loadEffectiveConfig } from "./user-config";
 import { getExtension } from "./extensions/registry";
 import { getStoreStatus } from "./migration";
 import { resolveGlobalWriteRecordPath, resolveStoreGeneratedDir } from "./store-paths";
-import { loadWriteRecord, resolveProjectWriteRecordPath, type ManagedPath } from "./write-record";
+import { diffWriteRecord, loadWriteRecord, resolveProjectWriteRecordPath } from "./write-record";
 import { isHookConsentValid } from "./hook-consent";
 import { DRWN_VERSION } from "./version";
 import type { CanonicalConfig, RegistryServer } from "./types";
-import { collectMachineProjectionConflicts } from "./sync";
+import { collectMachineProjectionConflicts, planMachineManagedPaths, type MachineProjectionConflict } from "./sync";
 import { readMachineConfig } from "./card-store";
 import { DrwnError } from "./errors";
+import { verifyMachineProfilePin } from "./machine-profiles";
 
 export interface PlatformCheck {
   name: string;
@@ -90,8 +89,8 @@ export interface DiagnosticsSections {
     lastWriteHarnessVersion?: string;
   };
   skills: {
-    repoCount: number;
-    curatedCount: number;
+    inventoryCount: number;
+    activeCount: number;
     projectIncludes: string[];
     projectExcludes: string[];
     cardIncludes: Array<{ card: string; skill: string }>;
@@ -156,6 +155,172 @@ export interface ProjectStatusV1 {
     enforcement: "target-native";
   };
   projection: { current: boolean; issues: string[] };
+}
+
+export interface MachineStatusCapability {
+  id: string;
+  provenance: "profile" | "explicit";
+  profileId?: "darwinian-operator";
+  source: "profile" | "repo" | "package" | "registry" | "library";
+  status: "resolved" | "missing";
+}
+
+export interface MachineStatusV1 {
+  schema: "drwn.machine-status";
+  schemaVersion: 1;
+  repoRoot: string;
+  agentsDir: string;
+  homeDir: string;
+  enabledTargets: string[];
+  config: { schema: "drwn.machine"; schemaVersion: 1 };
+  profile: (NonNullable<Awaited<ReturnType<typeof readMachineConfig>>["capabilities"]["profile"]> & {
+    status: "verified" | "missing" | "invalid";
+    issueCode?: string;
+  }) | null;
+  capabilities: {
+    skills: MachineStatusCapability[];
+    mcpServers: MachineStatusCapability[];
+    counts: {
+      resolvedSkills: number;
+      missingSkills: number;
+      resolvedMcpServers: number;
+      missingMcpServers: number;
+    };
+  };
+  projection: {
+    healthy: boolean;
+    current: boolean;
+    recordPresent: boolean;
+    conflicts: MachineProjectionConflict[];
+    issues: string[];
+  };
+  inventory: { skillCount: number; mcpServerCount: number };
+}
+
+export async function buildMachineStatusV1(
+  repoRoot: string,
+  agentsDir: string,
+  homeDir: string,
+): Promise<MachineStatusV1> {
+  const [machine, repoConfig, builtInRegistry, skillInventory, userMcpLibrary] = await Promise.all([
+    readMachineConfig(agentsDir),
+    loadConfig(repoRoot),
+    loadRegistry(repoRoot),
+    buildSkillInventory(repoRoot, agentsDir, homeDir),
+    loadMcpLibrary(agentsDir),
+  ]);
+  const { config: effectiveConfig } = await loadEffectiveConfig(repoConfig, agentsDir);
+  const registry = mergeUserMcpLibrary(builtInRegistry, userMcpLibrary);
+  const skillById = new Map(skillInventory.map((skill) => [skill.name, skill]));
+  const profileSkillIds = new Set(machine.capabilities.profile?.skills ?? []);
+  const profileMcpIds = new Set(machine.capabilities.profile?.mcpServers ?? []);
+  const issues: string[] = [];
+  let profileStatus: "verified" | "missing" | "invalid" = "verified";
+  let profileIssueCode: string | undefined;
+
+  if (machine.capabilities.profile) {
+    try {
+      await verifyMachineProfilePin(agentsDir, machine.capabilities.profile);
+    } catch (error) {
+      if (!(error instanceof DrwnError)) throw error;
+      profileStatus = error.code === "MACHINE_PROFILE_NOT_AVAILABLE" ? "missing" : "invalid";
+      profileIssueCode = error.code;
+      issues.push(`${error.code}: ${error.message}`);
+    }
+  }
+
+  const skills: MachineStatusCapability[] = [
+    ...(machine.capabilities.profile?.skills ?? []).map((id) => ({
+      id,
+      provenance: "profile" as const,
+      profileId: "darwinian-operator" as const,
+      source: "profile" as const,
+      status: profileStatus === "verified" ? "resolved" as const : "missing" as const,
+    })),
+    ...machine.capabilities.skills
+      .filter((id) => !profileSkillIds.has(id))
+      .map((id) => {
+        const skill = skillById.get(id);
+        return {
+          id,
+          provenance: "explicit" as const,
+          source: skill?.sourceType === "npm" ? "package" as const : "repo" as const,
+          status: skill ? "resolved" as const : "missing" as const,
+        };
+      }),
+  ];
+  const mcpServers: MachineStatusCapability[] = [
+    ...(machine.capabilities.profile?.mcpServers ?? []).map((id) => ({
+      id,
+      provenance: "profile" as const,
+      profileId: "darwinian-operator" as const,
+      source: "profile" as const,
+      status: profileStatus === "verified" ? "resolved" as const : "missing" as const,
+    })),
+    ...machine.capabilities.mcpServers
+      .filter((id) => !profileMcpIds.has(id))
+      .map((id) => {
+        const server = registry.servers[id];
+        const resolved = Boolean(server && server.transport !== "platform-provided");
+        return {
+          id,
+          provenance: "explicit" as const,
+          source: userMcpLibrary.servers[id] ? "library" as const : "registry" as const,
+          status: resolved ? "resolved" as const : "missing" as const,
+        };
+      }),
+  ];
+  for (const skill of skills.filter((entry) => entry.status === "missing" && entry.provenance === "explicit")) {
+    issues.push(`MACHINE_CAPABILITY_NOT_FOUND: Explicit machine skill is not available in the local Library: ${skill.id}`);
+  }
+  for (const server of mcpServers.filter((entry) => entry.status === "missing" && entry.provenance === "explicit")) {
+    issues.push(`MACHINE_CAPABILITY_NOT_FOUND: Explicit machine MCP server is not available in the local Library: ${server.id}`);
+  }
+
+  const record = loadWriteRecord(resolveGlobalWriteRecordPath(agentsDir));
+  let conflicts: MachineProjectionConflict[] = [];
+  let current = false;
+  if (issues.length === 0) {
+    const state = await buildEffectiveState({
+      repoRoot,
+      agentsDir,
+      homeDir,
+      dryRun: true,
+      forceMachineScope: true,
+      scope: "machine",
+    });
+    conflicts = collectMachineProjectionConflicts(state, record);
+    const difference = diffWriteRecord(record, planMachineManagedPaths(state));
+    current = conflicts.length === 0 && difference.toAdd.length === 0 && difference.toRemove.length === 0;
+  }
+
+  const counts = {
+    resolvedSkills: skills.filter((entry) => entry.status === "resolved").length,
+    missingSkills: skills.filter((entry) => entry.status === "missing").length,
+    resolvedMcpServers: mcpServers.filter((entry) => entry.status === "resolved").length,
+    missingMcpServers: mcpServers.filter((entry) => entry.status === "missing").length,
+  };
+  return {
+    schema: "drwn.machine-status",
+    schemaVersion: 1,
+    repoRoot,
+    agentsDir,
+    homeDir,
+    enabledTargets: Object.entries(effectiveConfig.targets).filter(([, target]) => target.enabled).map(([id]) => id),
+    config: { schema: machine.schema, schemaVersion: machine.schemaVersion },
+    profile: machine.capabilities.profile
+      ? { ...machine.capabilities.profile, status: profileStatus, ...(profileIssueCode ? { issueCode: profileIssueCode } : {}) }
+      : null,
+    capabilities: { skills, mcpServers, counts },
+    projection: {
+      healthy: issues.length === 0 && conflicts.length === 0,
+      current,
+      recordPresent: record !== null,
+      conflicts,
+      issues,
+    },
+    inventory: { skillCount: skillInventory.length, mcpServerCount: Object.keys(userMcpLibrary.servers).length },
+  };
 }
 
 function projectItem(
@@ -283,17 +448,7 @@ export async function buildProjectStatusV1(options: {
 }
 
 export async function buildStatusReport(repoRoot: string, agentsDir: string, homeDir: string, projectConfigPath?: string | null) {
-  const [config, registry, curatedSkills, repoSkills] = await Promise.all([
-    loadConfig(repoRoot),
-    loadRegistry(repoRoot),
-    listCuratedSkills(agentsDir),
-    listRepoSkills(repoRoot),
-  ]);
-  const userMcpLibrary = await loadMcpLibrary(agentsDir);
-  const mergedRegistry = mergeUserMcpLibrary(registry, userMcpLibrary);
-  const loadedConfig = await loadEffectiveConfig(config, agentsDir);
-  let effectiveConfig = loadedConfig.config;
-  let effectiveRegistry = mergedRegistry;
+  const machineStatus = await buildMachineStatusV1(repoRoot, agentsDir, homeDir);
   let projectSummary: ReturnType<typeof summarizeProjectConfig> | undefined;
 
   if (projectConfigPath) {
@@ -303,26 +458,11 @@ export async function buildStatusReport(repoRoot: string, agentsDir: string, hom
       homeDir,
       cwd: resolveProjectRootFromConfigPath(projectConfigPath),
     });
-    effectiveConfig = state.effectiveConfig;
-    effectiveRegistry = state.effectiveRegistry;
     projectSummary = state.projectConfig ? summarizeProjectConfig(state.projectConfig) : undefined;
   }
 
-  const activeServers = buildActiveServers(effectiveRegistry, effectiveConfig);
-
   return {
-    repoRoot,
-    agentsDir,
-    homeDir,
-    enabledTargets: Object.entries(effectiveConfig.targets)
-      .filter(([, target]) => target.enabled)
-      .map(([name]) => name),
-    curatedSkillCount: curatedSkills.length,
-    repoSkillCount: repoSkills.length,
-    activeMcpServerCount: Object.keys(activeServers).length,
-    globalDefaultSkillCount: loadedConfig.config.defaults?.skills?.length ?? 0,
-    globalDefaultMcpServerCount: loadedConfig.config.defaults?.mcpServers?.length ?? 0,
-    userLibraryMcpServerCount: Object.keys(userMcpLibrary.servers).length,
+    ...machineStatus,
     project: projectSummary && projectConfigPath
       ? {
           configPath: projectConfigPath,
@@ -351,16 +491,13 @@ export async function buildDiagnosticsSections(
   homeDir: string,
   projectConfigPath?: string | null,
 ): Promise<DiagnosticsSections> {
-  const [repoConfig, registry, curatedSkills, repoSkills, store] = await Promise.all([
+  const [repoConfig, repoSkills, store, machineStatus] = await Promise.all([
     loadConfig(repoRoot),
-    loadRegistry(repoRoot),
-    listCuratedSkills(agentsDir),
     listRepoSkills(repoRoot),
     getStoreStatus(agentsDir),
+    buildMachineStatusV1(repoRoot, agentsDir, homeDir),
   ]);
-  const userMcpLibrary = await loadMcpLibrary(agentsDir);
   const loadedConfig = await loadEffectiveConfig(repoConfig, agentsDir);
-  const baseRegistry = mergeUserMcpLibrary(registry, userMcpLibrary);
   const projectState = projectConfigPath
     ? await buildEffectiveState({
         repoRoot,
@@ -373,7 +510,7 @@ export async function buildDiagnosticsSections(
   const projectConfig = projectState?.projectConfig ?? null;
   const cardLocks = projectState?.activeCards ?? [];
   const effectiveConfig = projectState?.effectiveConfig ?? loadedConfig.config;
-  const activeServers = projectState?.activeServers ?? buildActiveServers(baseRegistry, effectiveConfig);
+  const activeServers = projectState?.activeServers ?? {};
   const lock = projectRoot ? await loadCardLock(projectRoot) : null;
   const writeRecordPath = projectRoot ? resolveProjectWriteRecordPath(projectRoot) : resolveGlobalWriteRecordPath(agentsDir);
 
@@ -392,14 +529,18 @@ export async function buildDiagnosticsSections(
     store,
     writeRecord: readWriteRecordStatus(writeRecordPath),
     skills: {
-      repoCount: repoSkills.length,
-      curatedCount: curatedSkills.length,
+      inventoryCount: repoSkills.length,
+      activeCount: projectState
+        ? new Set(stateSkillNames(projectState)).size
+        : machineStatus.capabilities.counts.resolvedSkills,
       projectIncludes: projectConfig?.skills?.include ?? [],
       projectExcludes: projectConfig?.skills?.exclude ?? [],
       cardIncludes,
     },
     mcp: {
-      activeServerCount: Object.keys(activeServers).length,
+      activeServerCount: projectState
+        ? Object.keys(activeServers).length
+        : machineStatus.capabilities.counts.resolvedMcpServers,
       projectServers: Object.keys(projectConfig?.mcpServers ?? {}),
       cardServers,
     },
@@ -421,6 +562,10 @@ export async function buildDiagnosticsSections(
       ),
     },
   };
+}
+
+function stateSkillNames(state: Pick<EffectiveState, "skillSelection">) {
+  return state.skillSelection?.include ?? [];
 }
 
 export interface WhyAnswer {
@@ -467,32 +612,42 @@ async function collectWhyMatches(
   const cardLocks = projectState?.activeCards ?? [];
   const effectiveConfig = projectState?.effectiveConfig ?? loadedConfig.config;
   const effectiveRegistry = projectState?.effectiveRegistry ?? baseRegistry;
-  const activeServers = projectState?.activeServers ?? buildActiveServers(effectiveRegistry, effectiveConfig);
+  const machineStatus = projectState ? null : await buildMachineStatusV1(repoRoot, agentsDir, homeDir);
+  const activeServerNames = new Set(
+    projectState
+      ? Object.keys(projectState.activeServers)
+      : machineStatus?.capabilities.mcpServers.filter((server) => server.status === "resolved").map((server) => server.id),
+  );
 
   const cardSkill = cardLocks.find((card) => card.manifest.skills?.include?.includes(name));
   const projectSkill = projectConfig?.skills?.include?.includes(name);
+  const machineSkill = machineStatus?.capabilities.skills.find((skill) => skill.id === name);
   const inventorySkill = skillInventory.find((skill) => skill.name === name);
-  if (cardSkill || projectSkill || inventorySkill) {
+  if (cardSkill || projectSkill || machineSkill || inventorySkill) {
     const source = cardSkill
       ? `card ${cardSkill.name}@${cardSkill.version}`
       : projectSkill
         ? "project config"
-        : inventorySkill?.curated
-          ? "machine curation"
+        : machineSkill
+          ? machineSkill.provenance === "profile" ? "machine profile" : "explicit machine selection"
           : "repo or installed skill library";
-    matches.push({ kind: "skill", name, message: `skill:${name} is active or available from ${source}.\n` });
+    const state = cardSkill || projectSkill || (machineSkill?.status === "resolved") ? "active" : "available";
+    matches.push({ kind: "skill", name, message: `skill:${name} is ${state} from ${source}.\n` });
   }
 
   const cardServer = cardLocks.find((card) => Object.hasOwn(card.manifest.servers ?? {}, name));
   const projectServer = projectConfig?.mcpServers && Object.hasOwn(projectConfig.mcpServers, name);
+  const machineServer = machineStatus?.capabilities.mcpServers.find((server) => server.id === name);
   const registryServer = effectiveRegistry.servers[name];
-  if (cardServer || projectServer || registryServer) {
-    const active = Object.hasOwn(activeServers, name);
+  if (cardServer || projectServer || machineServer || registryServer) {
+    const active = activeServerNames.has(name);
     const source = cardServer
       ? `card ${cardServer.name}@${cardServer.version}`
       : projectServer
         ? "project config"
-        : "registry or machine library";
+        : machineServer
+          ? machineServer.provenance === "profile" ? "machine profile" : "explicit machine selection"
+          : "registry or machine library";
     matches.push({ kind: "server", name, message: `server:${name} is ${active ? "active" : "available"} from ${source}.\n` });
   }
 
@@ -579,8 +734,6 @@ async function detectStaleSkillSymlinks(
   lockedCards: CardLockEntry[] = [],
 ) {
   const toolPaths = resolveToolPaths(toolRoot);
-  const curated = await listCuratedSkills(agentsDir);
-  const scopes = await listSkillsByScope(repoRoot);
   const excluded = new Set(skillOverrides?.exclude ?? []);
   const resolvedSources = await Promise.all(
     (skillOverrides?.include ?? [])
@@ -591,8 +744,6 @@ async function detectStaleSkillSymlinks(
       })),
   );
   const desiredClaude = new Set([
-    ...curated.map((entry) => entry.name).filter((name) => !excluded.has(name)),
-    ...scopes.claudeOnly.map((skill) => skill.name).filter((name) => !excluded.has(name)),
     ...resolvedSources
       .filter((entry) =>
         entry.source.layer === "card" ||
@@ -601,8 +752,6 @@ async function detectStaleSkillSymlinks(
       .map((entry) => entry.name),
   ]);
   const desiredCodex = new Set([
-    ...curated.map((entry) => entry.name).filter((name) => !excluded.has(name)),
-    ...scopes.codexOnly.map((skill) => skill.name).filter((name) => !excluded.has(name)),
     ...resolvedSources
       .filter((entry) =>
         entry.source.layer === "card" ||
@@ -620,48 +769,25 @@ async function detectStaleSkillSymlinks(
 async function detectMcpDrift(
   config: CanonicalConfig,
   activeServers: Record<string, RegistryServer>,
-  homeDir: string,
   toolRoot: string,
-  generatedDir: string,
-  scope: "machine" | "project" = "machine",
-  previousManagedPaths: ManagedPath[] = [],
 ) {
   const drifts: string[] = [];
   const toolPaths = resolveToolPaths(toolRoot);
-  const targetConfigPath = (targetName: string, target: { configPath: string; userMcpPath?: string }) => {
-    if (scope === "project") {
-      if (targetName === "claude") return toolPaths.claudeMcp;
-      if (targetName === "codex") return toolPaths.codexConfig;
-      return toolPaths.cursorMcp;
-    }
-    return expandHomePath(targetName === "claude" ? (target.userMcpPath ?? target.configPath) : target.configPath, homeDir);
-  };
 
   for (const [targetName, target] of Object.entries(config.targets)) {
     if (!target.enabled) {
       continue;
     }
 
-    const configPath = targetConfigPath(targetName, target);
+    const configPath = targetName === "claude"
+      ? toolPaths.claudeMcp
+      : targetName === "codex"
+        ? toolPaths.codexConfig
+        : toolPaths.cursorMcp;
 
     if (targetName === "claude" && existsSync(configPath)) {
       const current = readFileSync(configPath, "utf8");
-      let expected: string;
-      try {
-        expected = scope === "project"
-          ? renderJsonMcpConfig(activeServers)
-          : mergeClaudeSettingsText(current, activeServers, {
-              inlineMeta: false,
-              mcpServerOwnership: "per-server",
-              priorFieldHashes: previousManagedPaths.find(
-                (entry): entry is Extract<ManagedPath, { kind: "managed-fields" }> =>
-                  entry.path === ".claude.json" && entry.kind === "managed-fields",
-              )?.fieldHashes ?? {},
-            }).text;
-      } catch {
-        drifts.push(`claude:${configPath}`);
-        continue;
-      }
+      const expected = renderJsonMcpConfig(activeServers);
       if (current !== expected) {
         drifts.push(`claude:${configPath}`);
       }
@@ -680,28 +806,8 @@ async function detectMcpDrift(
 
     if (targetName === "cursor" && existsSync(configPath)) {
       const current = readFileSync(configPath, "utf8");
-      if (scope === "project") {
-        if (current !== renderCursorConfig(activeServers)) {
-          drifts.push(`cursor:${configPath}`);
-        }
-      } else {
-        try {
-          const previous = previousManagedPaths.find(
-            (entry): entry is Extract<ManagedPath, { kind: "managed-fields" }> =>
-              entry.path === ".cursor/mcp.json" && entry.kind === "managed-fields",
-          );
-          const expected = mergeCursorConfigText(current, activeServers, {
-            priorFieldHashes: previous?.fieldHashes ?? {},
-            preserveRemovedOwnedServers: true,
-          });
-          const names = Object.keys(activeServers);
-          const currentHashes = hashClaudeManagedServers(current, names);
-          if (names.some((name) => currentHashes[claudeMcpServerHashKey(name)] !== expected.fieldHashes[claudeMcpServerHashKey(name)])) {
-            drifts.push(`cursor:${configPath}`);
-          }
-        } catch {
-          drifts.push(`cursor:${configPath}`);
-        }
+      if (current !== renderCursorConfig(activeServers)) {
+        drifts.push(`cursor:${configPath}`);
       }
     }
   }
@@ -809,51 +915,29 @@ function buildPlatformChecks(): PlatformCheck[] {
 export async function buildDoctorReport(repoRoot: string, agentsDir: string, homeDir: string): Promise<DoctorReport> {
   const toolPaths = resolveToolPaths(homeDir);
   const generatedDir = resolveStoreGeneratedDir(agentsDir);
-  const [repoConfig, builtInRegistry, userMcpLibrary, skillInventory] = await Promise.all([
+  const [repoConfig, sections, machineStatus] = await Promise.all([
     loadConfig(repoRoot),
-    loadRegistry(repoRoot),
-    loadMcpLibrary(agentsDir),
-    buildSkillInventory(repoRoot, agentsDir, homeDir),
+    buildDiagnosticsSections(repoRoot, agentsDir, homeDir),
+    buildMachineStatusV1(repoRoot, agentsDir, homeDir),
   ]);
-  const registry = mergeUserMcpLibrary(builtInRegistry, userMcpLibrary);
   const { config } = await loadEffectiveConfig(repoConfig, agentsDir);
-  const activeServers = buildActiveServers(registry, config);
-  const defaultIssues = await validateDefaultReferences({
-    config,
-    registry,
-    skillNames: new Set(skillInventory.map((skill) => skill.name)),
-  });
-  const defaultSkillOverrides = hasExplicitSkillDefaults(config) ? { include: config.defaults?.skills ?? [] } : undefined;
-
-  const sections = await buildDiagnosticsSections(repoRoot, agentsDir, homeDir);
-  const machineConfig = await readMachineConfig(agentsDir);
-  const machineCapabilityIssues = [
-    ...machineConfig.capabilities.skills
-      .filter((id) => !skillInventory.some((skill) => skill.name === id))
-      .map((id) => `Unresolved explicit machine skill: "${id}"`),
-    ...machineConfig.capabilities.mcpServers
-      .filter((id) => !registry.servers[id] || registry.servers[id]?.transport === "platform-provided")
-      .map((id) => `Unresolved explicit machine MCP server: "${id}"`),
-  ];
   const machineRecord = loadWriteRecord(resolveGlobalWriteRecordPath(agentsDir));
-  let machineProjectionConflicts: string[] = [];
-  if (machineCapabilityIssues.length === 0) {
-    try {
-      const machineState = await buildEffectiveState({
-        repoRoot,
-        agentsDir,
-        homeDir,
-        dryRun: true,
-        forceMachineScope: true,
-        scope: "machine",
-      });
-      machineProjectionConflicts = collectMachineProjectionConflicts(machineState, machineRecord)
-        .map((conflict) => conflict.message);
-    } catch (error) {
-      if (!(error instanceof DrwnError)) throw error;
-      machineCapabilityIssues.push(`${error.code}: ${error.message}`);
-    }
+  let staleSkillSymlinks: string[] = [];
+  if (machineStatus.projection.issues.length === 0) {
+    const machineState = await buildEffectiveState({
+      repoRoot,
+      agentsDir,
+      homeDir,
+      dryRun: true,
+      forceMachineScope: true,
+      scope: "machine",
+    });
+    staleSkillSymlinks = diffWriteRecord(machineRecord, planMachineManagedPaths(machineState)).toRemove
+      .filter((entry) => entry.kind === "managed-directory" && isMachineSkillPath(entry.path))
+      .map((entry) => join(homeDir, entry.path))
+      .filter((pathValue) => lstatSafe(pathValue) !== null);
   }
+  const machineProjectionConflicts = machineStatus.projection.conflicts.map((conflict) => conflict.message);
   return {
     brokenSymlinks: await detectBrokenSymlinks([
       ...((existsSync(toolPaths.claudeSkills) ? Object.keys(readDirLinks(toolPaths.claudeSkills)) : []) as string[]).map((name) =>
@@ -863,21 +947,15 @@ export async function buildDoctorReport(repoRoot: string, agentsDir: string, hom
         join(toolPaths.codexSkills, name),
       ),
     ]),
-    staleSkillSymlinks: await detectStaleSkillSymlinks(repoRoot, agentsDir, homeDir, defaultSkillOverrides),
-    mcpDrift: await detectMcpDrift(
-      config,
-      activeServers,
-      homeDir,
-      homeDir,
-      generatedDir,
-      "machine",
-      loadWriteRecord(resolveGlobalWriteRecordPath(agentsDir))?.managedPaths ?? [],
-    ),
+    staleSkillSymlinks,
+    mcpDrift: machineStatus.projection.conflicts
+      .filter((conflict) => conflict.kind === "drift")
+      .flatMap((conflict) => machineMcpDriftLabel(config, homeDir, conflict.path)),
     machineProjectionConflicts,
-    machineCapabilityIssues,
+    machineCapabilityIssues: machineStatus.projection.issues,
     missingGeneratedFiles: await detectMissingGeneratedFiles(config, generatedDir),
     hookIssues: [],
-    projectConfigIssues: defaultIssues,
+    projectConfigIssues: [],
     surfaceNotes: buildSurfaceNotes(config),
     platformChecks: buildPlatformChecks(),
     ambientMcpCollisions: [],
@@ -885,6 +963,20 @@ export async function buildDoctorReport(repoRoot: string, agentsDir: string, hom
     store: sections.store,
     writeRecord: sections.writeRecord,
   };
+}
+
+function isMachineSkillPath(pathValue: string) {
+  return pathValue.startsWith(".claude/skills/") || pathValue.startsWith(".codex/skills/");
+}
+
+function machineMcpDriftLabel(config: CanonicalConfig, homeDir: string, pathValue: string): string[] {
+  return Object.entries(config.targets).flatMap(([target, targetConfig]) => {
+    const configPath = expandHomePath(
+      target === "claude" ? (targetConfig.userMcpPath ?? targetConfig.configPath) : targetConfig.configPath,
+      homeDir,
+    );
+    return configPath === pathValue ? [`${target}:${pathValue}`] : [];
+  });
 }
 
 export async function buildDoctorReportWithProject(
@@ -916,7 +1008,6 @@ export async function buildDoctorReportWithProject(
   if (!project || !projectWithCards || !projectRoot) {
     return report;
   }
-  const centrallyActiveServers = buildActiveServers(builtInRegistry, repoConfig);
   const knownServerNames = new Set([
     ...Object.keys(builtInRegistry.servers),
     ...state.cardServerDefinitions.map((definition) => definition.serverName),
@@ -933,7 +1024,7 @@ export async function buildDoctorReportWithProject(
         issues.push(`Unknown server reference: "${name}"`);
         continue;
       }
-      const centrallyActive = Boolean(centrallyActiveServers[name]);
+      const centrallyActive = false;
       if (centrallyActive === override.enabled) {
         issues.push(`Stale override: server "${name}" is already ${centrallyActive ? "enabled" : "disabled"} centrally`);
       }
@@ -965,10 +1056,7 @@ export async function buildDoctorReportWithProject(
     mcpDrift: await detectMcpDrift(
       state.effectiveConfig,
       state.activeServers,
-      homeDir,
       projectRoot,
-      generatedDir,
-      "project",
     ),
     missingGeneratedFiles: await detectMissingGeneratedFiles(state.effectiveConfig, generatedDir),
     hookIssues: detectHookIssues(cardLocks, generatedDir),

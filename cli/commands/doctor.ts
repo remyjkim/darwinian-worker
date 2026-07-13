@@ -15,7 +15,7 @@ export class DoctorCommand extends BaseCommand {
     description: "Report drift, stale state, and broken symlinks without mutating anything.",
     details: `
       Inspects local harness state for broken symlinks, stale generated files,
-      MCP drift, unknown defaults, and project config issues. This command is
+      MCP drift, machine capability issues, and project config issues. This command is
       read-only and never mutates files.
 
       Reportable issues are rendered in the output; use --json if automation

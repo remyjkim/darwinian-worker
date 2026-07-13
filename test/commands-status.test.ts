@@ -5,12 +5,34 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
+import { resolveCard, writeMachineConfig } from "../cli/core/card-store";
+import { createEmptyMachineConfig } from "../cli/core/machine-config";
 
 const tempRoots: string[] = [];
 
 afterEach(async () => {
   await cleanupTempRoots(tempRoots);
 });
+
+async function installStatusProfile(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
+  await publishCardWithSkills(fixture, {
+    name: "@darwinian/operator",
+    version: "1.0.2",
+    skills: ["bootstrap-project"],
+  });
+  const resolved = await resolveCard(fixture.agentsDir, "@darwinian/operator@1.0.2");
+  return {
+    id: "darwinian-operator" as const,
+    source: "git+https://github.com/curation-labs/darwinian-operator.git#v1.0.2" as const,
+    name: "@darwinian/operator" as const,
+    version: "1.0.2" as const,
+    commit: resolved.git!.commit,
+    treeSha: resolved.treeSha!,
+    integrity: resolved.integrity as `sha256-${string}`,
+    skills: ["bootstrap-project"],
+    mcpServers: [],
+  };
+}
 
 describe("drwn status", () => {
   test("project JSON reports the supported declared-state and diagnostic ambient contract", async () => {
@@ -115,8 +137,8 @@ describe("drwn status", () => {
     expect(result.stdout).not.toContain("USER_SECRET_SENTINEL");
   });
 
-  test("reports repo root, agents dir, and counts", async () => {
-    const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
+  test("human output reports the supported machine schema and capability counts", async () => {
+    const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
 
     const result = await runAgentsCli(["status"], {
@@ -128,11 +150,13 @@ describe("drwn status", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain(fixture.repoRoot);
     expect(result.stdout).toContain(fixture.agentsDir);
-    expect(result.stdout).toContain("curatedSkillCount");
+    expect(result.stdout).toContain("machineSchema");
+    expect(result.stdout).toContain("drwn.machine@1");
+    expect(result.stdout).toContain("resolvedSkillCount");
   });
 
-  test("supports --json output", async () => {
-    const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
+  test("machine JSON uses the namespaced status schema and explicit empty intent", async () => {
+    const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
 
     const result = await runAgentsCli(["status", "--json"], {
@@ -142,15 +166,28 @@ describe("drwn status", () => {
     });
 
     expect(result.exitCode).toBe(0);
-    const parsed = JSON.parse(result.stdout) as { repoRoot: string; curatedSkillCount: number };
-    expect(parsed.repoRoot).toBe(fixture.repoRoot);
-    expect(parsed.curatedSkillCount).toBe(1);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed).toMatchObject({
+      schema: "drwn.machine-status",
+      schemaVersion: 1,
+      config: { schema: "drwn.machine", schemaVersion: 1 },
+      profile: null,
+      capabilities: {
+        skills: [],
+        mcpServers: [],
+        counts: { resolvedSkills: 0, missingSkills: 0, resolvedMcpServers: 0, missingMcpServers: 0 },
+      },
+      projection: { healthy: true, current: true, conflicts: [] },
+    });
   });
 
-  test("json output includes global default and user MCP library counts", async () => {
+  test("machine JSON reports profile and explicit provenance without secret-bearing definitions", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
+    const profile = await installStatusProfile(fixture);
+    const { ensureStoreInitialized } = await import("../cli/core/card-store");
     const { saveMcpLibrary } = await import("../cli/core/mcp-library");
+    await ensureStoreInitialized(fixture.agentsDir);
     await saveMcpLibrary(fixture.agentsDir, {
       version: 1,
       servers: {
@@ -158,14 +195,15 @@ describe("drwn status", () => {
           description: "GitHub",
           transport: "stdio",
           command: "npx",
+          env: { GITHUB_TOKEN: "status-secret-sentinel" },
           optional: true,
         },
       },
     });
-    const config = JSON.parse(await readFile(join(fixture.repoRoot, "registry", "config.json"), "utf8"));
-    config.defaults = { skills: ["alpha"], mcpServers: ["context7"] };
-    await mkdir(join(fixture.agentsDir, "drwn"), { recursive: true });
-    await writeFile(join(fixture.agentsDir, "drwn", "config.json"), JSON.stringify(config, null, 2));
+    await writeMachineConfig(fixture.agentsDir, {
+      ...createEmptyMachineConfig(),
+      capabilities: { profile, skills: ["alpha"], mcpServers: ["github"] },
+    });
 
     const result = await runAgentsCli(["status", "--json"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,
@@ -174,14 +212,53 @@ describe("drwn status", () => {
     });
 
     expect(result.exitCode).toBe(0);
-    const parsed = JSON.parse(result.stdout) as {
-      globalDefaultSkillCount?: number;
-      globalDefaultMcpServerCount?: number;
-      userLibraryMcpServerCount?: number;
-    };
-    expect(parsed.globalDefaultSkillCount).toBe(1);
-    expect(parsed.globalDefaultMcpServerCount).toBe(1);
-    expect(parsed.userLibraryMcpServerCount).toBe(1);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.profile).toMatchObject({
+      id: "darwinian-operator",
+      name: "@darwinian/operator",
+      version: "1.0.2",
+      commit: profile.commit,
+      treeSha: profile.treeSha,
+      integrity: profile.integrity,
+      status: "verified",
+    });
+    expect(parsed.capabilities.skills).toEqual([
+      expect.objectContaining({ id: "bootstrap-project", provenance: "profile", profileId: "darwinian-operator", status: "resolved" }),
+      expect.objectContaining({ id: "alpha", provenance: "explicit", status: "resolved" }),
+    ]);
+    expect(parsed.capabilities.mcpServers).toEqual([
+      expect.objectContaining({ id: "github", provenance: "explicit", status: "resolved" }),
+    ]);
+    expect(parsed.capabilities.counts).toEqual({ resolvedSkills: 2, missingSkills: 0, resolvedMcpServers: 1, missingMcpServers: 0 });
+    expect(result.stdout).not.toContain("status-secret-sentinel");
+    expect(result.stdout).not.toContain("GITHUB_TOKEN");
+  });
+
+  test("machine JSON reports unresolved explicit capabilities without exposing definitions", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    await writeMachineConfig(fixture.agentsDir, {
+      ...createEmptyMachineConfig(),
+      capabilities: { profile: null, skills: ["missing-skill"], mcpServers: ["missing-mcp"] },
+    });
+
+    const result = await runAgentsCli(["status", "--json"], envFor(fixture));
+
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.capabilities.counts).toEqual({
+      resolvedSkills: 0,
+      missingSkills: 1,
+      resolvedMcpServers: 0,
+      missingMcpServers: 1,
+    });
+    expect(parsed.projection).toMatchObject({ healthy: false, current: false, conflicts: [] });
+    expect(parsed.projection.issues).toEqual(expect.arrayContaining([
+      expect.stringContaining("missing-skill"),
+      expect.stringContaining("missing-mcp"),
+    ]));
+    expect(result.stdout).not.toContain("command");
+    expect(result.stdout).not.toContain("env");
   });
 
   test("shows project section when project config exists", async () => {

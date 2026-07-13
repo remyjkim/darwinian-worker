@@ -93,6 +93,16 @@ export class StatusCommand extends BaseCommand {
     );
 
     if (this.json) {
+      const projectStatus = await buildProjectStatusV1({
+        repoRoot: this.context.repoRoot,
+        agentsDir: this.context.agentsDir,
+        homeDir: this.context.homeDir,
+        projectConfigPath: this.context.projectConfigPath,
+      });
+      if (!projectStatus) {
+        this.context.stdout.write(renderJson(status));
+        return 0;
+      }
       const sections = await buildDiagnosticsSections(
         this.context.repoRoot,
         this.context.agentsDir,
@@ -122,17 +132,11 @@ export class StatusCommand extends BaseCommand {
           };
         }
       }
-      const projectStatus = await buildProjectStatusV1({
-        repoRoot: this.context.repoRoot,
-        agentsDir: this.context.agentsDir,
-        homeDir: this.context.homeDir,
-        projectConfigPath: this.context.projectConfigPath,
-      });
       this.context.stdout.write(renderJson({
         ...status,
         sections,
         ...(cardModes ? { cardModes } : {}),
-        ...(projectStatus ?? {}),
+        ...projectStatus,
       }));
       return 0;
     }
@@ -143,10 +147,15 @@ export class StatusCommand extends BaseCommand {
         ["repoRoot", status.repoRoot],
         ["agentsDir", status.agentsDir],
         ["homeDir", status.homeDir],
+        ["machineSchema", `${status.config.schema}@${status.config.schemaVersion}`],
+        ["machineProfile", status.profile?.id ?? "none"],
         ["enabledTargets", status.enabledTargets.join(",")],
-        ["curatedSkillCount", String(status.curatedSkillCount)],
-        ["repoSkillCount", String(status.repoSkillCount)],
-        ["activeMcpServerCount", String(status.activeMcpServerCount)],
+        ["resolvedSkillCount", String(status.capabilities.counts.resolvedSkills)],
+        ["missingSkillCount", String(status.capabilities.counts.missingSkills)],
+        ["resolvedMcpServerCount", String(status.capabilities.counts.resolvedMcpServers)],
+        ["missingMcpServerCount", String(status.capabilities.counts.missingMcpServers)],
+        ["projectionHealthy", String(status.projection.healthy)],
+        ["projectionCurrent", String(status.projection.current)],
       ],
     );
     if (status.project) {

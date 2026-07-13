@@ -91,7 +91,7 @@ test("captureProjectAsCard snapshots only the selected closure and explicit over
   );
   const machinePath = join(fixture.agentsDir, "drwn", "machine.json");
   const machine = JSON.parse(await readFile(machinePath, "utf8"));
-  machine.defaults = { skills: ["alpha"], mcpServers: ["context7"] };
+  machine.capabilities = { profile: null, skills: ["alpha"], mcpServers: ["context7"] };
   await writeFile(machinePath, `${JSON.stringify(machine, null, 2)}\n`);
   await writeFile(fixture.codexConfig, '[mcp_servers.ambient]\ncommand = "ambient"\n');
   const generatedSecret = "generated-secret-value";

@@ -4,7 +4,7 @@
 import { Option } from "clipanion";
 import { createInterface } from "node:readline/promises";
 import { captureProjectAsCard } from "../../core/card-capture";
-import { createProfileCardFromDefaults } from "../../core/card-from-defaults";
+import { createCapabilityCardFromDefaults } from "../../core/card-from-defaults";
 import { isCardUnscopedName } from "../../core/card-manifest";
 import { createCardSource, readMachineConfig } from "../../core/card-store";
 import { probeAuthoringScope, resolveScopeForCardNew } from "../../core/authoring-scope";
@@ -23,11 +23,14 @@ export class CardNewCommand extends BaseCommand {
       By default the source directory is initialized as a git repository.
       Use --from-project to snapshot the current project's selected Worker
       closure and explicit overlays as a self-contained card source.
+      Use --from-defaults to flatten the effective machine-safe skills and MCP
+      definitions into a normal Card without machine profile identity or policy.
     `,
     examples: [
       ["Create a scoped card source", "drwn card new backend --scope @your-handle"],
       ["Create a fully-qualified card source", "drwn card new @your-handle/backend --no-git"],
       ["Capture the current project", "drwn card new @your-handle/project-harness --from-project ."],
+      ["Capture machine capabilities", "drwn card new @your-handle/machine-capabilities --from-defaults"],
     ],
   });
 
@@ -39,7 +42,7 @@ export class CardNewCommand extends BaseCommand {
   });
 
   fromDefaults = Option.Boolean("--from-defaults", false, {
-    description: "Capture machine default skills into a profile card source.",
+    description: "Capture effective machine-safe capabilities into a Card source.",
   });
 
   scope = Option.String("--scope", {
@@ -93,7 +96,7 @@ export class CardNewCommand extends BaseCommand {
     if (this.fromDefaults) {
       let captured;
       try {
-        captured = await createProfileCardFromDefaults({
+        captured = await createCapabilityCardFromDefaults({
           agentsDir: this.context.agentsDir,
           repoRoot: this.context.repoRoot,
           homeDir: this.context.homeDir,
@@ -105,8 +108,9 @@ export class CardNewCommand extends BaseCommand {
         this.context.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
         return 1;
       }
-      this.context.stdout.write(`Created profile card ${captured.name}: ${captured.sourceDir}\n`);
+      this.context.stdout.write(`Created capability card ${captured.name}: ${captured.sourceDir}\n`);
       this.context.stdout.write(`Skills captured: ${captured.skillCount}\n`);
+      this.context.stdout.write(`MCP servers captured: ${captured.serverCount}\n`);
       this.context.stdout.write(`Next: drwn card publish ${captured.name}\n`);
       return 0;
     }

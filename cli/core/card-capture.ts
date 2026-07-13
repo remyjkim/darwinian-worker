@@ -62,7 +62,7 @@ function sanitizeSensitiveValue(value: string, field: string) {
   throw new Error(`CAPTURE_SECRET_LITERAL: ${field} must reference an environment variable`);
 }
 
-function sanitizeServerForCapture(name: string, server: RegistryServer): RegistryServer {
+export function sanitizeServerForCapture(name: string, server: RegistryServer): RegistryServer {
   const next: RegistryServer = JSON.parse(JSON.stringify(server));
   next.args = next.args?.map((value, index, args) => {
     const previous = args[index - 1] ?? "";
