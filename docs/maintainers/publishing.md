@@ -124,6 +124,16 @@ rm -f "$TMP_NPMRC"
 - Earlier published names (`beginning-agents`, `beginning-harness`) are deprecated; mark them as such on npm now that `darwinian` is installable.
 - If future CI publishing is added, prefer trusted publishing over long-lived tokens.
 
+## Trusted Publishing
+
+The `darwinian` and `drwn-command-bridge` npm packages use separate GitHub
+Actions trusted-publisher bindings. Each binding names its exact workflow,
+`remyjkim/darwinian-worker`, and the `npm-publish` environment. Publish jobs
+must retain `id-token: write` and an npm CLI version that supports OIDC.
+
+No `NPM_TOKEN` secret is required for the normal GitHub Actions path. The token
+procedure above remains an emergency local fallback only.
+
 ## Publishing `drwn-command-bridge`
 
 Prefer the manually dispatched `Command Bridge Release` workflow. It uses the
