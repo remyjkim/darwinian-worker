@@ -39,3 +39,29 @@ the `npm-publish` environment or publishing to npm.
 If GitHub Actions is unavailable during a release window, run
 `bun run verify:release` locally first, then publish with a maintainer-owned npm
 token using the guarded manual process in `docs/maintainers/publishing.md`.
+
+## Releasing `drwn-command-bridge`
+
+`drwn-command-bridge` is a separate npm package with an independent version and
+release decision. The CLI release workflow verifies its typecheck, tests, Node
+bundle, and dry-run tarball, but does not publish it.
+
+Before publishing a bridge version:
+
+1. Run `bun install --frozen-lockfile` in `drwn-command-bridge/`, followed by
+   `bun run verify`.
+2. Record a native macOS end-to-end smoke through Claude Desktop or an equivalent
+   MCP stdio client. Verify initialization, tool listing, one allowlisted command,
+   one denied command, and the audit chain. Exercise `sandbox-exec` when present.
+3. Keep Linux and Windows native-validation gaps explicit in the package README.
+4. Confirm the intended version is absent with
+   `npm view drwn-command-bridge@<version> version`.
+5. From `drwn-command-bridge/`, publish with the maintainer-owned npm credentials:
+
+   ```bash
+   npm publish --access public
+   ```
+
+Do not add or enable an `npx`-backed registry entry until the referenced bridge
+version is available on npm. Local validation should invoke the built file with
+`node /absolute/path/to/drwn-command-bridge/dist/index.js`.

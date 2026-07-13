@@ -50,9 +50,10 @@
   ],
   "scripts": {
     "drwn": "bun run cli/index.ts",
-    "test": "bun test",
+    "test": "bun test test",
     "typecheck": "tsc --noEmit",
     "verify:release": "bun run scripts/verify-release-readiness.ts",
+    "verify:bridge": "bun run --cwd drwn-command-bridge verify",
     "docs:dev": "cd docs-docusaurus && bun run start",
     "docs:build": "cd docs-docusaurus && bun run build",
     "docs:deploy": "cd docs-docusaurus && bun run deploy:pages"

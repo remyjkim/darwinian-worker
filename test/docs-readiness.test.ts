@@ -186,5 +186,8 @@ describe("documentation readiness", () => {
     expect(releaseProcess).toContain("git tag -a v");
     expect(releaseProcess).toContain("npm-publish");
     expect(releaseProcess).toContain("npm view darwinian@");
+    expect(releaseProcess).toContain("drwn-command-bridge");
+    expect(releaseProcess).toContain("native macOS");
+    expect(releaseProcess).toContain("npm publish --access public");
   });
 });

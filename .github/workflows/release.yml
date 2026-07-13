@@ -47,6 +47,10 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Install bridge dependencies
+        working-directory: drwn-command-bridge
+        run: bun install --frozen-lockfile
+
       - name: Read package version
         id: read_version
         run: |
@@ -73,7 +77,10 @@ jobs:
         run: bun run typecheck
 
       - name: Unit + integration tests
-        run: bun test
+        run: bun run test
+
+      - name: Verify bridge package
+        run: bun run verify:bridge
 
       - name: Release-readiness gate
         run: bun run verify:release
@@ -109,6 +116,13 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Install bridge dependencies
+        working-directory: drwn-command-bridge
+        run: bun install --frozen-lockfile
+
+      - name: Verify bridge package
+        run: bun run verify:bridge
 
       - name: Re-run release-readiness gate
         run: bun run verify:release

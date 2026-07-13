@@ -95,6 +95,22 @@ describe("package readiness", () => {
     expect(workflow).not.toContain("paths-ignore:");
   });
 
+  test("command bridge verification is isolated and release-gated", () => {
+    const pkg = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as {
+      scripts: Record<string, string>;
+    };
+    const ciWorkflow = readFileSync(join(process.cwd(), ".github", "workflows", "ci.yml"), "utf8");
+    const releaseWorkflow = readFileSync(join(process.cwd(), ".github", "workflows", "release.yml"), "utf8");
+
+    expect(pkg.scripts.test).toBe("bun test test");
+    expect(pkg.scripts["verify:bridge"]).toBe("bun run --cwd drwn-command-bridge verify");
+    expect(ciWorkflow).toContain("name: Command bridge (${{ matrix.os }})");
+    expect(ciWorkflow).toContain("working-directory: drwn-command-bridge");
+    expect(ciWorkflow).toContain("bun run verify:bridge");
+    expect(releaseWorkflow).toContain("working-directory: drwn-command-bridge");
+    expect(releaseWorkflow).toContain("bun run verify:bridge");
+  });
+
   test("release workflow gates npm publish and keeps dry runs outside the protected environment", () => {
     const workflow = readFileSync(join(process.cwd(), ".github", "workflows", "release.yml"), "utf8");
 
