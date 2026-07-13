@@ -5,7 +5,7 @@ import { afterEach, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { cleanupTempRoots, envFor, publishCardWithSkills, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, envFor, installProjectWorkers, publishCardWithSkills, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -21,10 +21,11 @@ test("cards bundle skills not in skills/shared/ and copy them into the project s
     skills: ["polish", "animate", "alpha"],
   });
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(
-    join(projectDir, ".agents", "drwn", "config.json"),
-    JSON.stringify({ version: 1, cards: ["@me/frontend-design@^1.0.0"], activeWorkers: ["@me/frontend-design"] }, null, 2),
+  await installProjectWorkers(
+    projectDir,
+    fixture.agentsDir,
+    ["@me/frontend-design@^1.0.0"],
+    "@me/frontend-design",
   );
 
   const write = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);
@@ -43,15 +44,11 @@ test("drwn write fails loud when a project skill include is not available from a
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(
-    join(projectDir, ".agents", "drwn", "config.json"),
-    JSON.stringify({ version: 1, skills: { include: ["ghost-skill"] } }, null, 2),
-  );
+  await writeSupportedProjectConfig(projectDir, { skills: { include: ["ghost-skill"] } });
 
   const write = await runAgentsCli(["write"], envFor(fixture), projectDir);
 
   expect(write.exitCode).not.toBe(0);
   expect(write.stderr).toContain("ghost-skill");
-  expect(write.stderr).toContain("not provided by any applied card");
+  expect(write.stderr).toContain("not provided by the selected Worker closure");
 });

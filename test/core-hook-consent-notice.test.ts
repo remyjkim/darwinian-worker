@@ -11,7 +11,7 @@ import {
   recordHookConsentAck,
   resolveHookConsentAckPath,
 } from "../cli/core/hook-consent-ack";
-import { cleanupTempRoots, publishCardWithSkills, runAgentsCli, scaffoldCliFixture, writeTestCardLock } from "./helpers";
+import { cleanupTempRoots, publishCardWithSkills, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig, writeTestCardLock } from "./helpers";
 
 const tempRoots: string[] = [];
 afterEach(async () => cleanupTempRoots(tempRoots));
@@ -19,8 +19,10 @@ afterEach(async () => cleanupTempRoots(tempRoots));
 async function scaffoldHookProject(fixture: Awaited<ReturnType<typeof scaffoldCliFixture>>) {
   const resolvedDir = await publishCardWithSkills(fixture, { name: "@me/hooks", skills: ["alpha"] });
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), `${JSON.stringify({ version: 1, cards: ["@me/hooks@1.0.0"] }, null, 2)}\n`);
+  await writeSupportedProjectConfig(projectDir, {
+    workers: ["@me/hooks@1.0.0"],
+    activeWorker: "@me/hooks",
+  });
   const policyDir = join(resolvedDir, "hooks", "guard");
   await mkdir(policyDir, { recursive: true });
   await writeFile(join(policyDir, "policy.ts"), "export default { name: 'guard' };\n");

@@ -4,8 +4,8 @@
 import { afterEach, expect, test } from "bun:test";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { buildDesiredGitignoreEntries, ensureGitignoreEntries } from "../cli/core/git-hygiene";
-import { cleanupTempRoots, createTempRoot } from "./helpers";
+import { buildDesiredGitignoreEntries, committedSurfacesEnabled, ensureGitignoreEntries } from "../cli/core/git-hygiene";
+import { cleanupTempRoots, createTempRoot, writeSupportedProjectConfig } from "./helpers";
 
 const tempRoots: string[] = [];
 afterEach(async () => cleanupTempRoots(tempRoots));
@@ -13,17 +13,23 @@ afterEach(async () => cleanupTempRoots(tempRoots));
 test("committedSurfacesEnabled reads project config flag", async () => {
   const root = await createTempRoot("committed-surfaces-");
   tempRoots.push(root);
+  await writeSupportedProjectConfig(root, { committedSurfaces: true });
+  expect(await committedSurfacesEnabled(root)).toBe(true);
+});
+
+test("committedSurfacesEnabled rejects prototype project config", async () => {
+  const root = await createTempRoot("committed-surfaces-prototype-");
+  tempRoots.push(root);
   await mkdir(join(root, ".agents", "drwn"), { recursive: true });
   await writeFile(join(root, ".agents", "drwn", "config.json"), `${JSON.stringify({ version: 1, committedSurfaces: true }, null, 2)}\n`);
-  const { committedSurfacesEnabled } = await import("../cli/core/migrate-vendor");
-  expect(await committedSurfacesEnabled(root)).toBe(true);
+
+  await expect(committedSurfacesEnabled(root)).rejects.toMatchObject({ code: "PROJECT_CONFIG_INVALID" });
 });
 
 test("committedSurfaces omits projection surfaces from drwn gitignore block", async () => {
   const root = await createTempRoot("committed-surfaces-block-");
   tempRoots.push(root);
-  await mkdir(join(root, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(root, ".agents", "drwn", "config.json"), `${JSON.stringify({ version: 1, committedSurfaces: true }, null, 2)}\n`);
+  await writeSupportedProjectConfig(root, { committedSurfaces: true });
   const entries = await buildDesiredGitignoreEntries(root);
   expect(entries).toContain(".agents/drwn/generated/");
   expect(entries).not.toContain(".claude/skills/");
@@ -34,13 +40,12 @@ test("committedSurfaces omits projection surfaces from drwn gitignore block", as
 test("ensureGitignoreEntries rewrites drwn block when committedSurfaces toggles", async () => {
   const root = await createTempRoot("committed-surfaces-toggle-");
   tempRoots.push(root);
-  await mkdir(join(root, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(root, ".agents", "drwn", "config.json"), `${JSON.stringify({ version: 1 }, null, 2)}\n`);
+  await writeSupportedProjectConfig(root);
   await ensureGitignoreEntries(root);
   const first = await readFile(join(root, ".gitignore"), "utf8");
   expect(first).toContain(".claude/skills/");
 
-  await writeFile(join(root, ".agents", "drwn", "config.json"), `${JSON.stringify({ version: 1, committedSurfaces: true }, null, 2)}\n`);
+  await writeSupportedProjectConfig(root, { committedSurfaces: true });
   await ensureGitignoreEntries(root);
   const second = await readFile(join(root, ".gitignore"), "utf8");
   expect(second).toContain("# drwn");

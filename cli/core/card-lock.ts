@@ -63,6 +63,7 @@ export type ProjectLockGraph = Pick<ProjectLockV1, "workerRoots" | "cards">;
 
 export const HOOKS_MIN_DRWN_VERSION = "0.3.0";
 export const MINDS_MIN_DRWN_VERSION = "0.7.0";
+export const PROJECT_WORKER_MIN_DRWN_VERSION = "0.8.0";
 
 export interface VersionFloorStatus {
   required: string | null;
@@ -117,11 +118,10 @@ export function createCardLockfile(graph: ProjectLockGraph): ProjectLockV1 {
       );
     }
   }
-  const hasMindContent = cards.some((card) => card.persona || card.beliefs || card.memory);
   return validateCardLockfile({
     schema: "drwn.project-lock",
     schemaVersion: 1,
-    store: { minDrwnVersion: hasMindContent ? MINDS_MIN_DRWN_VERSION : HOOKS_MIN_DRWN_VERSION },
+    store: { minDrwnVersion: PROJECT_WORKER_MIN_DRWN_VERSION },
     workerRoots: graph.workerRoots,
     cards,
   });

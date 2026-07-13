@@ -269,5 +269,5 @@ test("drwn write honors project hooks.exclude entries", async () => {
   expect(existsSync(join(projectDir, ".agents", "drwn", "generated", "hooks", "claude", "composer.mjs"))).toBe(false);
   expect(existsSync(join(projectDir, ".claude", "settings.json"))).toBe(false);
   const claudeMcp = JSON.parse(await readFile(join(projectDir, ".mcp.json"), "utf8"));
-  expect(claudeMcp.mcpServers.context7).toBeDefined();
+  expect(claudeMcp.mcpServers.context7).toBeUndefined();
 });

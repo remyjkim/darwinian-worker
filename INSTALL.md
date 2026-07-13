@@ -12,6 +12,11 @@
 - Git for Card publication/resolution;
 - any optional third-party runtimes used by selected skills or MCP servers.
 
+| Goal | Requirements |
+| --- | --- |
+| Run the published package | **Bun 1.2+** and **npm** |
+| Develop from source | **Bun 1.2+**, **npm**, and **Git** |
+
 ## Install
 
 ```bash

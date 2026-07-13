@@ -2,10 +2,10 @@
 // ABOUTME: Uses a real temp dir for the sink; injects card resolution and the clock.
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { emitCardUsage, emitSkillMarker } from "../cli/core/hook-runner";
+import { emitCardUsage, emitSkillMarker, resolveActiveCardsFromLock } from "../cli/core/hook-runner";
 
 const dirs: string[] = [];
 function tempTranscript(): { transcriptPath: string; sinkPath: string; sessionId: string } {
@@ -154,5 +154,18 @@ describe("emitCardUsage", () => {
     const t = tempTranscript();
     await emitCardUsage({ session_id: t.sessionId, transcript_path: t.transcriptPath, cwd: "/p" }, deps(null));
     expect(existsSync(t.sinkPath)).toBe(false);
+  });
+
+  test("skips a prototype card.lock instead of reading it", async () => {
+    const root = mkdtempSync(join(tmpdir(), "drwn-hook-prototype-lock-"));
+    dirs.push(root);
+    const stateDir = join(root, ".agents", "drwn");
+    mkdirSync(stateDir, { recursive: true });
+    writeFileSync(
+      join(stateDir, "card.lock"),
+      JSON.stringify({ lockfileVersion: 2, cards: [{ name: "@scope/improve", version: "1.2.3" }] }),
+    );
+
+    expect(await resolveActiveCardsFromLock(root)).toBeNull();
   });
 });

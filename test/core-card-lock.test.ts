@@ -6,8 +6,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
-  HOOKS_MIN_DRWN_VERSION,
-  MINDS_MIN_DRWN_VERSION,
+  PROJECT_WORKER_MIN_DRWN_VERSION,
   cardLockPath,
   loadCardLock,
   persistCardLock,
@@ -52,7 +51,7 @@ function lock(overrides: Partial<ProjectLockV1> = {}): ProjectLockV1 {
   return {
     schema: "drwn.project-lock",
     schemaVersion: 1,
-    store: { minDrwnVersion: HOOKS_MIN_DRWN_VERSION },
+    store: { minDrwnVersion: PROJECT_WORKER_MIN_DRWN_VERSION },
     workerRoots: [
       { name: entry.name, requested: entry.requested, kind: "card", members: [] },
     ],
@@ -73,6 +72,7 @@ test("writeCardLock writes and reads the namespaced V1 Worker graph", async () =
   const raw = JSON.parse(await readFile(path, "utf8"));
   expect(raw.schema).toBe("drwn.project-lock");
   expect(raw.schemaVersion).toBe(1);
+  expect(raw.store.minDrwnVersion).toBe(PROJECT_WORKER_MIN_DRWN_VERSION);
   expect(raw.lockfileVersion).toBeUndefined();
   expect(await loadCardLock(root)).toEqual(graph);
 });
@@ -256,7 +256,7 @@ test("lock metadata preserves skills, hooks, consent, and mind sections", async 
   await writeCardLock(root, graph);
 
   const loaded = await loadCardLock(root);
-  expect(loaded?.store.minDrwnVersion).toBe(MINDS_MIN_DRWN_VERSION);
+  expect(loaded?.store.minDrwnVersion).toBe(PROJECT_WORKER_MIN_DRWN_VERSION);
   expect(loaded?.cards[0]?.skills).toEqual(["alpha"]);
   expect(loaded?.cards[0]?.hooks).toEqual(["audit"]);
   expect(loaded?.cards[0]?.hookConsent?.consentedRange).toBe("^1.0.0");

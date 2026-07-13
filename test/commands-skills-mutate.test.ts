@@ -4,7 +4,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { access, lstat, mkdir, symlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { cleanupTempRoots, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -127,24 +127,14 @@ describe("drwn skills mutate", () => {
     tempRoots.push(fixture.root);
     await addParallelSkills(fixture.repoRoot);
     const projectDir = join(fixture.root, "project");
-    const projectConfigPath = join(projectDir, ".agents", "drwn", "config.json");
-    await mkdir(dirname(projectConfigPath), { recursive: true });
-    await writeFile(
-      projectConfigPath,
-      JSON.stringify(
-        {
-          version: 1,
-          extensions: {
-            parallel: { enabled: true, skills: true, mcp: false },
-          },
-          skills: {
-            exclude: ["parallel-web-extract"],
-          },
-        },
-        null,
-        2,
-      ),
-    );
+    await writeSupportedProjectConfig(projectDir, {
+      extensions: {
+        parallel: { enabled: true, skills: true, mcp: false },
+      },
+      skills: {
+        exclude: ["parallel-web-extract"],
+      },
+    });
 
     const result = await runAgentsCli(["write", "--skills-only"], {
       AGENTS_REPO_ROOT: fixture.repoRoot,

@@ -5,7 +5,7 @@ import { afterEach, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { lstat, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { cleanupTempRoots, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -25,9 +25,10 @@ test("project write targets project-local agent files and leaves home files unch
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   const projectDir = join(fixture.root, "project");
-  const configPath = join(projectDir, ".agents", "drwn", "config.json");
-  await mkdir(dirname(configPath), { recursive: true });
-  await writeFile(configPath, JSON.stringify({ version: 1, skills: { include: ["alpha"] } }, null, 2));
+  await writeSupportedProjectConfig(projectDir, {
+    skills: { include: ["alpha"] },
+    mcpServers: { context7: { enabled: true } },
+  });
   const beforeHomeClaude = await readFile(fixture.claudeSettings, "utf8");
   const beforeHomeUserMcp = await readFile(fixture.claudeUserMcp, "utf8");
 

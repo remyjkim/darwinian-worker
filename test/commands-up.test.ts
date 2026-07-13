@@ -4,7 +4,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { cleanupTempRoots, publishCardWithSkills, runAgentsCli, scaffoldCliFixture, writeTestCardLock } from "./helpers";
+import { cleanupTempRoots, publishCardWithSkills, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig, writeTestCardLock } from "./helpers";
 
 const tempRoots: string[] = [];
 afterEach(async () => cleanupTempRoots(tempRoots));
@@ -14,11 +14,10 @@ test("up reports nothing to update for current lock", async () => {
   tempRoots.push(fixture.root);
   await publishCardWithSkills(fixture, { name: "@me/up", skills: ["alpha"] });
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(
-    join(projectDir, ".agents", "drwn", "config.json"),
-    `${JSON.stringify({ version: 1, cards: ["@me/up@1.0.0"] }, null, 2)}\n`,
-  );
+  await writeSupportedProjectConfig(projectDir, {
+    workers: ["@me/up@1.0.0"],
+    activeWorker: "@me/up",
+  });
   const { resolveCard } = await import("../cli/core/card-store");
   const resolved = await resolveCard(fixture.agentsDir, "@me/up@1.0.0");
   await writeTestCardLock(projectDir, [

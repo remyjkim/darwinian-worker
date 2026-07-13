@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { syncSkills } from "../cli/core/skills";
 import { normalizeSyncPathOptions } from "../cli/core/paths";
 import { applyProjectCardSpecs } from "../cli/core/card-project";
-import { cleanupTempRoots, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 import { assertWorkerCapabilityCompatibility } from "../cli/core/card-skill-resolver";
 
 const tempRoots: string[] = [];
@@ -136,10 +136,10 @@ test("skills.exclude drops a duplicate skill deterministically with a warning", 
     repoRoot: fixture.repoRoot,
     cwd: projectDir,
   });
-  await writeFile(
-    join(projectDir, ".agents", "drwn", "config.json"),
-    JSON.stringify({ version: 1, cards: ["@me/first@1.0.0", "@me/second@1.0.0"], skills: { exclude: [skillName] } }, null, 2) + "\n",
-  );
+  await writeSupportedProjectConfig(projectDir, {
+    workers: ["@me/first@1.0.0", "@me/second@1.0.0"],
+    skills: { exclude: [skillName] },
+  });
 
   const normalized = normalizeSyncPathOptions(
     { repoRoot: fixture.repoRoot, agentsDir: fixture.agentsDir, homeDir: fixture.homeDir, cwd: projectDir },

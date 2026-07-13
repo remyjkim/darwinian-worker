@@ -1,0 +1,62 @@
+// ABOUTME: Verifies release readiness enforces the first supported project Worker contract.
+// ABOUTME: Keeps prototype surfaces, machine leakage, member-root generation, and unsafe export out of releases.
+
+import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { verifyWorkerContract } from "../scripts/verify-release-readiness";
+
+const repoRoot = join(import.meta.dir, "..");
+
+describe("Worker contract release gate", () => {
+  test("accepts the current first-supported contract", () => {
+    expect(verifyWorkerContract(repoRoot)).toEqual({
+      name: "project Worker contract",
+      ok: true,
+      details: undefined,
+    });
+  });
+
+  test("detects prototype readers, retired command registrations, and stale docs", () => {
+    const projectSource = readFileSync(join(repoRoot, "cli/core/project.ts"), "utf8");
+    const indexSource = readFileSync(join(repoRoot, "cli/index.ts"), "utf8");
+    const readme = readFileSync(join(repoRoot, "README.md"), "utf8");
+    const result = verifyWorkerContract(repoRoot, {
+      "cli/core/project.ts": `${projectSource}\nconst oldSelection = input.activeWorkers;\n`,
+      "cli/index.ts": `${indexSource}\ncli.register(CardApplyCommand);\n`,
+      "README.md": `${readme}\ndrwn worker stack list\n`,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.details).toContain("prototype project field activeWorkers");
+    expect(result.details).toContain("retired project command CardApplyCommand");
+    expect(result.details).toContain("prototype documentation");
+  });
+
+  test("detects migration adapters", () => {
+    const result = verifyWorkerContract(repoRoot, {
+      "cli/core/migrate-vendor.ts": "export function migratePrototypeProject() {}\n",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.details).toContain("prototype migration adapter");
+  });
+
+  test("release JSON includes the Worker contract gate", async () => {
+    const proc = Bun.spawn(["bun", "run", "verify:release", "--json"], {
+      cwd: repoRoot,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: { ...process.env, QUALITY_GATE_TEST_MODE: "1" },
+    });
+    const stdout = await new Response(proc.stdout).text();
+    const report = JSON.parse(stdout) as {
+      ok: boolean;
+      checks: Array<{ name: string; ok: boolean }>;
+    };
+
+    expect(await proc.exited).toBe(0);
+    expect(report.ok).toBe(true);
+    expect(report.checks).toContainEqual({ name: "project Worker contract", ok: true });
+  });
+});

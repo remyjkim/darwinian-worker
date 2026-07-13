@@ -3,6 +3,7 @@
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { validateCardLockfile } from "./card-lock";
 import {
   buildCardUsageRecord,
   buildSkillRecord,
@@ -45,19 +46,15 @@ function findCardLock(startDir: string): string | null {
   }
 }
 
-/** Default card resolution: nearest `card.lock` read directly; null when there is no lock. */
+/** Default card resolution: nearest supported `card.lock`; null when absent or invalid. */
 export async function resolveActiveCardsFromLock(cwd: string): Promise<CardRef[] | null> {
   if (!cwd) return null;
   const lockPath = findCardLock(cwd);
   if (!lockPath) return null;
-  // Permissive hot-path reader (avoids loading the semver-backed lockfile validator):
-  // skip entirely on unparseable/shape-invalid locks rather than emit a misleading row.
+  // Hooks stay silent on invalid state rather than disrupting the host process.
   try {
-    const lock = JSON.parse(readFileSync(lockPath, "utf8")) as { cards?: unknown };
-    if (!Array.isArray(lock.cards)) return null;
-    return (lock.cards as Array<{ name?: unknown; version?: unknown }>)
-      .filter((c): c is CardRef => typeof c.name === "string" && typeof c.version === "string")
-      .map((c) => ({ name: c.name, version: c.version }));
+    const lock = validateCardLockfile(JSON.parse(readFileSync(lockPath, "utf8")), lockPath);
+    return lock.cards.map((card) => ({ name: card.name, version: card.version }));
   } catch {
     return null;
   }

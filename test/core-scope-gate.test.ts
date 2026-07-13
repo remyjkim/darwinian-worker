@@ -6,7 +6,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { buildEffectiveState } from "../cli/core/effective-state";
 import { assertMachineWriteScopeAllowed } from "../cli/core/effective-state";
-import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -66,8 +66,7 @@ test("drwn write inside a project does not require --scope machine", async () =>
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1 }, null, 2) + "\n");
+  await writeSupportedProjectConfig(projectDir);
   const result = await runAgentsCli(["write", "--dry-run"], envFor(fixture), projectDir);
   expect(result.exitCode).toBe(0);
 });

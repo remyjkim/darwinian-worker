@@ -64,7 +64,12 @@ async function waitForStableValue<T>(read: () => T, stableMs = 150, timeoutMs = 
 }
 
 function localConfigText(overrides: Record<string, string>, watchNonce: number) {
-  return `${JSON.stringify({ overrides, _watchNonce: watchNonce }, null, 2)}\n`;
+  return `${JSON.stringify({
+    schema: "drwn.project-local",
+    schemaVersion: 1,
+    activeWorker: watchNonce % 2 === 0 ? null : "@watch/placeholder",
+    sourceOverrides: overrides,
+  }, null, 2)}\n`;
 }
 
 describe("write-watch helpers", () => {

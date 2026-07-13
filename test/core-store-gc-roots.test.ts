@@ -5,7 +5,7 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdir, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeVendorManifestSidecar, buildVendorManifestSidecar } from "../cli/core/vendor-manifest";
-import { cleanupTempRoots, createTempRoot } from "./helpers";
+import { cleanupTempRoots, createTempRoot, writeTestCardLock } from "./helpers";
 
 const tempRoots: string[] = [];
 afterEach(async () => cleanupTempRoots(tempRoots));
@@ -16,34 +16,15 @@ test("planGc keeps referenced treeSha extractions", async () => {
   const agentsDir = join(root, "agents");
   const projectRoot = join(root, "project");
   const treeSha = "a".repeat(40);
-  await mkdir(join(projectRoot, ".agents", "drwn"), { recursive: true });
-  await writeFile(
-    join(projectRoot, ".agents", "drwn", "card.lock"),
-    `${JSON.stringify({
-      lockfileVersion: 5,
-      cards: [{ name: "@me/x", requested: "x", version: "1.0.0", path: "/x", integrity: "sha256-x", treeSha, manifest: { name: "@me/x", version: "1.0.0" }, skills: [], hooks: [], registry: null, origin: "store", git: { commit: "b".repeat(40) } }],
-    }, null, 2)}\n`,
-  );
+  const card = { name: "@me/x", requested: "x", version: "1.0.0", path: "/x", integrity: "sha256-x", treeSha, manifest: { name: "@me/x", version: "1.0.0" }, skills: [], hooks: [], registry: null, origin: "store" as const, git: { commit: "b".repeat(40) } };
+  await writeTestCardLock(projectRoot, [card]);
   await mkdir(join(agentsDir, "drwn", "extracted", treeSha), { recursive: true });
   await mkdir(join(agentsDir, "drwn", "extracted", "c".repeat(40)), { recursive: true });
   const sidecarPath = join(projectRoot, ".agents", "drwn", "vendor-manifests", "@me", "x", `${treeSha.slice(0, 12)}.json`);
   await writeVendorManifestSidecar(
     sidecarPath,
     buildVendorManifestSidecar(
-      {
-        name: "@me/x",
-        requested: "x",
-        version: "1.0.0",
-        path: "/x",
-        integrity: "sha256-x",
-        treeSha,
-        manifest: { name: "@me/x", version: "1.0.0" },
-        skills: [],
-        hooks: [],
-        registry: null,
-        origin: "store",
-        git: { commit: "b".repeat(40) },
-      },
+      card,
       { files: [] },
     ),
   );

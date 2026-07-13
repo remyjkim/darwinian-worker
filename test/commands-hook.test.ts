@@ -20,7 +20,29 @@ function project(withLock: boolean) {
     mkdirSync(drwnDir, { recursive: true });
     writeFileSync(
       join(drwnDir, "card.lock"),
-      JSON.stringify({ lockfileVersion: 2, cards: [{ name: "@scope/improve", version: "1.2.3" }] }),
+      JSON.stringify({
+        schema: "drwn.project-lock",
+        schemaVersion: 1,
+        store: { minDrwnVersion: "0.8.0" },
+        workerRoots: [{
+          name: "@scope/improve",
+          requested: "@scope/improve@1.2.3",
+          kind: "card",
+          members: [],
+        }],
+        cards: [{
+          name: "@scope/improve",
+          requested: "@scope/improve@1.2.3",
+          version: "1.2.3",
+          path: "/tmp/improve",
+          integrity: "sha256-test",
+          manifest: { name: "@scope/improve", version: "1.2.3" },
+          skills: [],
+          hooks: [],
+          registry: null,
+          origin: "file",
+        }],
+      }),
     );
   }
   const sessionId = "sess-x";

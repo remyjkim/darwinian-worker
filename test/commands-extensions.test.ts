@@ -5,7 +5,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { cleanupTempRoots, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -108,12 +108,9 @@ describe("drwn extensions", () => {
     tempRoots.push(fixture.root);
     await addParallelSkills(fixture.repoRoot);
     const projectDir = join(fixture.root, "project");
-    const projectConfigPath = join(projectDir, ".agents", "drwn", "config.json");
-    await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-    await writeFile(
-      projectConfigPath,
-      JSON.stringify({ version: 1, extensions: { parallel: { enabled: true, skills: true, mcp: true } } }, null, 2),
-    );
+    await writeSupportedProjectConfig(projectDir, {
+      extensions: { parallel: { enabled: true, skills: true, mcp: true } },
+    });
     const binDir = join(fixture.root, "bin");
     await mkdir(binDir, { recursive: true });
     await createExecutable(binDir, "parallel-cli", "echo parallel");

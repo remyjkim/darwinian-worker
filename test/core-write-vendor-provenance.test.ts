@@ -13,7 +13,7 @@ import { syncRepository } from "../cli/core/sync";
 import { resolveExtractedPath, resolveCardBareRepoPath } from "../cli/core/store-paths";
 import { resolveProjectVendorTree } from "../cli/core/vendor";
 import { reconcileVendorTrees } from "../cli/core/vendor-reconcile";
-import { cleanupTempRoots, createFixtureConfig, createFixtureRegistry, createTempRoot, writeTestCardLock } from "./helpers";
+import { cleanupTempRoots, createFixtureConfig, createFixtureRegistry, createTempRoot, writeSupportedProjectConfig, writeTestCardLock } from "./helpers";
 
 const tempRoots: string[] = [];
 afterEach(async () => cleanupTempRoots(tempRoots));
@@ -52,11 +52,10 @@ async function scaffoldVendoredProject() {
   const treeSha = await git.getCommitTree(barePath, resolved.git!.commit);
   const extractedDir = resolveExtractedPath(agentsDir, treeSha);
 
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(
-    join(projectDir, ".agents", "drwn", "config.json"),
-    JSON.stringify({ version: 1, cards: ["@me/prov@1.0.0"], activeWorkers: ["@me/prov"] }, null, 2),
-  );
+  await writeSupportedProjectConfig(projectDir, {
+    workers: ["@me/prov@1.0.0"],
+    activeWorker: "@me/prov",
+  });
   await writeTestCardLock(projectDir, [
     {
       name: resolved.name,

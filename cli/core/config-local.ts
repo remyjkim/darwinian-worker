@@ -5,8 +5,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
-  HOOKS_MIN_DRWN_VERSION,
-  MINDS_MIN_DRWN_VERSION,
+  PROJECT_WORKER_MIN_DRWN_VERSION,
   loadCardLock,
   validateCardLockfile,
   type ProjectLockGraph,
@@ -118,11 +117,10 @@ export async function loadCardLockLocal(projectRoot: string): Promise<ProjectLoc
 export async function writeCardLockLocal(projectRoot: string, graph: ProjectLockGraph) {
   await ensureGitignoreEntries(projectRoot);
   const path = cardLockLocalPath(projectRoot);
-  const hasMindContent = graph.cards.some((card) => card.persona || card.beliefs || card.memory);
   const lock = validateCardLockfile({
     schema: "drwn.project-lock",
     schemaVersion: 1,
-    store: { minDrwnVersion: hasMindContent ? MINDS_MIN_DRWN_VERSION : HOOKS_MIN_DRWN_VERSION },
+    store: { minDrwnVersion: PROJECT_WORKER_MIN_DRWN_VERSION },
     workerRoots: graph.workerRoots,
     cards: graph.cards,
   }, path);

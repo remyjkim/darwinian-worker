@@ -4,7 +4,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-type CheckResult = {
+export type CheckResult = {
   name: string;
   ok: boolean;
   details?: string;
@@ -214,6 +214,189 @@ function verifyStoreExportSecurity() {
   } satisfies CheckResult;
 }
 
+type SourceOverrides = Record<string, string>;
+
+export function verifyWorkerContract(root = repoRoot, overrides: SourceOverrides = {}): CheckResult {
+  const issues: string[] = [];
+  const source = (pathValue: string) => {
+    if (Object.hasOwn(overrides, pathValue)) return overrides[pathValue]!;
+    const absolutePath = join(root, pathValue);
+    if (!existsSync(absolutePath)) {
+      issues.push(`missing contract source ${pathValue}`);
+      return "";
+    }
+    return readFileSync(absolutePath, "utf8");
+  };
+  const requireTokens = (pathValue: string, tokens: string[]) => {
+    const content = source(pathValue);
+    for (const token of tokens) {
+      if (!content.includes(token)) issues.push(`${pathValue} is missing ${token}`);
+    }
+  };
+
+  requireTokens("cli/core/project.ts", [
+    'schema: "drwn.project-config"',
+    "schemaVersion: 1",
+    'input.schema !== "drwn.project-config"',
+    "input.schemaVersion !== 1",
+  ]);
+  requireTokens("cli/core/card-lock.ts", [
+    'schema: "drwn.project-lock"',
+    "schemaVersion: 1",
+    'input.schema !== "drwn.project-lock"',
+    "input.schemaVersion !== 1",
+    'PROJECT_WORKER_MIN_DRWN_VERSION = "0.8.0"',
+  ]);
+  requireTokens("cli/core/config-local.ts", ["PROJECT_WORKER_MIN_DRWN_VERSION"]);
+
+  const projectReaders = [
+    "cli/core/project.ts",
+    "cli/core/card-lock.ts",
+    "cli/core/worker-project.ts",
+    "cli/core/effective-state.ts",
+    "cli/core/project-writes.ts",
+    "cli/core/config-local.ts",
+    "cli/commands/install.ts",
+  ];
+  for (const pathValue of projectReaders) {
+    const content = source(pathValue);
+    for (const field of ["activeWorkers", "defaultActiveWorkers", "selectActiveCards", "lockfileVersion"]) {
+      if (new RegExp(`\\b${field}\\b`).test(content)) {
+        issues.push(`${pathValue} reads prototype project field ${field}`);
+      }
+    }
+  }
+
+  const index = source("cli/index.ts");
+  for (const command of [
+    "CardApplyCommand",
+    "CardAddCommand",
+    "CardPinCommand",
+    "CardRemoveCommand",
+    "CardDetachCommand",
+    "CardUpdateCommand",
+    "WorkerStackListCommand",
+    "WorkerStackUseCommand",
+    "WorkerStackClearCommand",
+  ]) {
+    if (index.includes(command)) issues.push(`cli/index.ts registers retired project command ${command}`);
+  }
+  for (const pathValue of [
+    "cli/commands/card/add.ts",
+    "cli/commands/card/apply.ts",
+    "cli/commands/card/detach.ts",
+    "cli/commands/card/pin.ts",
+    "cli/commands/card/remove.ts",
+    "cli/commands/card/update.ts",
+    "cli/commands/worker/stack/list.ts",
+    "cli/commands/worker/stack/use.ts",
+    "cli/commands/worker/stack/clear.ts",
+  ]) {
+    if (existsSync(join(root, pathValue))) issues.push(`retired command file remains: ${pathValue}`);
+  }
+  for (const pathValue of ["cli/core/migrate-vendor.ts"]) {
+    const exists = Object.hasOwn(overrides, pathValue) || existsSync(join(root, pathValue));
+    if (exists) issues.push(`prototype migration adapter remains: ${pathValue}`);
+  }
+  if (/--no-apply|\bnoApply\b/.test(source("cli/commands/install.ts"))) {
+    issues.push("install still accepts retired --no-apply");
+  }
+
+  const generator = source("cli/core/worker-generator/sync-worker.ts");
+  if (!generator.includes("for (const root of selection.installedRoots)")) {
+    issues.push("generated Worker sync does not iterate installed roots");
+  }
+  if (/for\s*\(const card of state\.lockedCards\)/.test(generator)) {
+    issues.push("generated Worker sync treats locked member Cards as roots");
+  }
+
+  const projectEvaluation = source("cli/core/effective-state.ts") + source("cli/core/sync.ts");
+  for (const machinePath of ["listCuratedSkills", "resolveCuratedSkillsDir", "claude-only", "codex-only"]) {
+    if (projectEvaluation.includes(machinePath)) {
+      issues.push(`project evaluation scans machine compatibility source ${machinePath}`);
+    }
+  }
+  requireTokens("cli/core/effective-state.ts", [
+    "projectBaseConfig(repoConfig)",
+    "projectBaseRegistry(builtInRegistry, projectConfig)",
+  ]);
+
+  for (const pathValue of [
+    "cli/commands/status.ts",
+    "cli/commands/mcp/list.ts",
+    "cli/commands/add/mcp.ts",
+    "cli/commands/write.ts",
+  ]) {
+    if (!source(pathValue).includes("buildEffectiveState")) {
+      issues.push(`${pathValue} does not consume buildEffectiveState`);
+    }
+  }
+  if (!source("cli/core/diagnostics.ts").includes("buildEffectiveState")) {
+    issues.push("doctor/status diagnostics do not consume buildEffectiveState");
+  }
+  const commandConsumers = [
+    "cli/commands/status.ts",
+    "cli/commands/doctor.ts",
+    "cli/commands/mcp/list.ts",
+    "cli/commands/add/mcp.ts",
+    "cli/commands/add/skill.ts",
+  ].map(source).join("\n");
+  for (const alternate of ["loadEffectiveConfig", "mergeProjectConfig", "buildActiveServers"]) {
+    if (commandConsumers.includes(alternate)) issues.push(`command consumer rebuilds state with ${alternate}`);
+  }
+  requireTokens("cli/commands/add/mcp.ts", [
+    "inactiveCardServerDefinitions",
+    "MCP_DEFINITION_NOT_EFFECTIVE",
+  ]);
+
+  const forwardDocPaths = [
+    "README.md",
+    "INSTALL.md",
+    "docs/cli-quickref.md",
+    "docs/contracts/project-worker-v1.md",
+    "docs/prelaunch-project-reset.md",
+    ".ai/knowledges/01_agents-cli-usage-guide.md",
+    ".ai/knowledges/02_per-project-config-guide.md",
+    ".ai/knowledges/09_cards-manual-test-guide.md",
+    ".ai/knowledges/10_drwn-cli-architecture.md",
+    ".ai/knowledges/11_card-usage-guide.html",
+    ...Array.from(new Bun.Glob("**/*.{md,mdx,html}").scanSync({ cwd: join(root, "docs-docusaurus", "docs") }))
+      .map((pathValue) => `docs-docusaurus/docs/${pathValue}`),
+  ];
+  const staleDocPatterns = [
+    /activeWorkers/,
+    /drwn worker stack/,
+    /active worker stack/i,
+    /all installed workers are active/i,
+    /drwn card (?:add|apply|remove|pin|update|detach)/,
+    /--no-apply/,
+    /COMMAND_MOVED/,
+    /config\.json\.cards/,
+    /"lockfileVersion"/,
+    /activeMinds/,
+    /active mind stack/i,
+    /drwn mind (?:list|use|clear)/,
+  ];
+  for (const pathValue of forwardDocPaths) {
+    const content = source(pathValue);
+    if (staleDocPatterns.some((pattern) => pattern.test(content))) {
+      issues.push(`prototype documentation remains in ${pathValue}`);
+    }
+  }
+
+  const pkg = JSON.parse(source("package.json")) as { version?: string };
+  if (pkg.version !== "0.8.0") issues.push("package version must be 0.8.0");
+  if (!source("cli/core/version.ts").includes('DRWN_VERSION = "0.8.0"')) {
+    issues.push("runtime version must be 0.8.0");
+  }
+
+  return {
+    name: "project Worker contract",
+    ok: issues.length === 0,
+    details: issues.join("; ") || undefined,
+  };
+}
+
 async function verifySchemaPackageReachable() {
   const pkg = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8")) as {
     dependencies?: Record<string, string>;
@@ -279,6 +462,7 @@ async function main() {
   warnings.push(...packageResult.warnings);
 
   checks.push(verifyDocsPresence());
+  checks.push(verifyWorkerContract());
   checks.push(verifyStoreExportSecurity());
   checks.push(await verifySchemaPackageReachable());
   checks.push(await verifyPackageContents());
@@ -303,4 +487,4 @@ async function main() {
   process.exitCode = report.ok ? 0 : 1;
 }
 
-await main();
+if (import.meta.main) await main();

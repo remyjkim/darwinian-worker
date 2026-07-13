@@ -4,7 +4,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { cleanupTempRoots, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -78,12 +78,9 @@ describe("command output contracts", () => {
     const fixture = await scaffoldCliFixture({ curatedSkillNames: ["alpha"] });
     tempRoots.push(fixture.root);
     const projectDir = join(fixture.root, "project");
-    const projectConfigPath = join(projectDir, ".agents", "drwn", "config.json");
-    await mkdir(dirname(projectConfigPath), { recursive: true });
-    await writeFile(
-      projectConfigPath,
-      JSON.stringify({ version: 1, skills: { include: ["beta"], exclude: ["alpha"] } }, null, 2),
-    );
+    await writeSupportedProjectConfig(projectDir, {
+      skills: { include: ["beta"], exclude: ["alpha"] },
+    });
 
     const env = {
       AGENTS_REPO_ROOT: fixture.repoRoot,

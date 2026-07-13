@@ -6,7 +6,7 @@ import { afterEach, expect, test as baseTest } from "bun:test";
 import { existsSync } from "node:fs";
 import { cp, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { loadCardLock, MINDS_MIN_DRWN_VERSION } from "../cli/core/card-lock";
+import { loadCardLock, PROJECT_WORKER_MIN_DRWN_VERSION } from "../cli/core/card-lock";
 import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
 const MIND_TOOLS_SOURCE = "/Users/pureicis/dev/darwinian-cards/mind-tools";
@@ -25,7 +25,7 @@ async function scaffoldProject(root: string) {
   return projectDir;
 }
 
-test("@darwinian/mind-tools applies from file:, locks with the minds floor (no persona/beliefs), and passes doctor + publish", async () => {
+test("@darwinian/mind-tools applies from file:, locks with the project floor (no persona/beliefs), and passes doctor + publish", async () => {
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
 
@@ -43,7 +43,7 @@ test("@darwinian/mind-tools applies from file:, locks with the minds floor (no p
   expect(entry?.beliefs).toBeUndefined();
   expect(entry?.memory).toEqual({ l4: { format: "md" }, l5: { format: "jsonl" } });
   expect(entry?.skills).toEqual(["mind-read", "mind-remember", "mind-share", "mind-forget", "mind-search"]);
-  expect(lock?.store?.minDrwnVersion).toBe(MINDS_MIN_DRWN_VERSION);
+  expect(lock?.store?.minDrwnVersion).toBe(PROJECT_WORKER_MIN_DRWN_VERSION);
 
   const sourcesDir = join(fixture.agentsDir, "drwn", "sources", "@darwinian", "mind-tools");
   await cp(MIND_TOOLS_SOURCE, sourcesDir, { recursive: true, filter: (src) => !src.includes("/.git") });
@@ -72,7 +72,7 @@ test("@darwinian/mind-starter applies alone, provisions a complete mind (voice +
   expect(entry?.beliefs).toEqual({ include: ["collaboration"], visibility: "internal" });
   expect(entry?.memory).toEqual({ l4: { format: "md" }, l5: { format: "jsonl" } });
   expect(entry?.skills).toEqual(["mind-read", "mind-remember", "mind-share", "mind-forget", "mind-search"]);
-  expect(lock?.store?.minDrwnVersion).toBe(MINDS_MIN_DRWN_VERSION);
+  expect(lock?.store?.minDrwnVersion).toBe(PROJECT_WORKER_MIN_DRWN_VERSION);
 
   const sourcesDir = join(fixture.agentsDir, "drwn", "sources", "@darwinian", "mind-starter");
   await cp(MIND_STARTER_SOURCE, sourcesDir, { recursive: true, filter: (src) => !src.includes("/.git") });

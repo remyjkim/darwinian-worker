@@ -32,7 +32,9 @@ drwn card push @team/mind          # visibility gate blocks private→public rem
 Manifest rules: persona/beliefs `include` entries require `visibility`;
 `memory` declares layers/formats only (`l4` md reflections, `l5` jsonl
 observations; `l6` reserved for V2) — memory entries never ship in cards.
-Locks with mind content require drwn >= 0.7.0.
+Mind content retains its original 0.7.0 feature floor, but every supported
+project Worker lock uses the first-contract local floor and requires drwn >=
+0.8.0.
 
 ## Runtime lifecycle
 

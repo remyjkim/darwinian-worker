@@ -15,7 +15,7 @@ import {
   resolveStoreRoot,
 } from "../cli/core/store-paths";
 import { readUrlCardName, writeUrlCardName } from "../cli/core/url-card-map";
-import { cleanupTempRoots, createTempRoot } from "./helpers";
+import { cleanupTempRoots, createTempRoot, writeSupportedProjectConfig } from "./helpers";
 import { createLocalCardRepo, tagAdditionalVersion } from "./fixtures/git-helpers";
 
 const tempRoots: string[] = [];
@@ -85,8 +85,7 @@ describe("Git-backed card store", () => {
     tempRoots.push(root);
     const agentsDir = join(root, ".agents");
     const projectRoot = join(root, "project");
-    await mkdir(join(projectRoot, ".agents", "drwn"), { recursive: true });
-    await writeFile(join(projectRoot, ".agents", "drwn", "config.json"), JSON.stringify({ version: 1 }, null, 2));
+    await writeSupportedProjectConfig(projectRoot);
     await createSource(agentsDir);
     await publishCard(agentsDir, "@me/backend");
 

@@ -4,7 +4,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -24,28 +24,19 @@ async function setupConflictFixture() {
 
   // Project overlay defines notion as a token-authenticated stdio server.
   const projectDir = join(fixture.root, "project");
-  const configPath = join(projectDir, ".agents", "drwn", "config.json");
-  await mkdir(dirname(configPath), { recursive: true });
-  await writeFile(
-    configPath,
-    JSON.stringify(
-      {
-        version: 1,
-        servers: {
-          notion: {
-            description: "Notion via token",
-            transport: "stdio",
-            command: "npx",
-            args: ["-y", "@notionhq/notion-mcp-server"],
-            env: { NOTION_TOKEN: "${NOTION_TOKEN}" },
-            optional: false,
-          },
-        },
+  await writeSupportedProjectConfig(projectDir, {
+    mcpServers: {
+      context7: { enabled: true },
+      notion: {
+        description: "Notion via token",
+        transport: "stdio",
+        command: "npx",
+        args: ["-y", "@notionhq/notion-mcp-server"],
+        env: { NOTION_TOKEN: "${NOTION_TOKEN}" },
+        optional: false,
       },
-      null,
-      2,
-    ),
-  );
+    },
+  });
 
   return { fixture, projectDir };
 }

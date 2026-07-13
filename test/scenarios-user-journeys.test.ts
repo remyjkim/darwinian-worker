@@ -5,7 +5,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { mkdir, rm, writeFile, symlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { cleanupTempRoots, runAgentsCli, runSyncWrapper, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, runAgentsCli, runSyncWrapper, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -146,29 +146,21 @@ describe("user journeys", () => {
     expect(result.exitCode).toBe(0);
 
     const projectConfigPath = join(projectDir, ".agents", "drwn", "config.json");
-    await writeFile(
-      projectConfigPath,
-      JSON.stringify(
-        {
-          version: 1,
-          servers: {
-            context7: { enabled: false },
-            localdb: {
-              description: "Project DB",
-              transport: "stdio",
-              command: "node",
-              args: ["db-mcp.js"],
-              optional: false,
-            },
-          },
-          skills: {
-            include: ["beta"],
-          },
+    await writeSupportedProjectConfig(projectDir, {
+      mcpServers: {
+        context7: { enabled: false },
+        localdb: {
+          description: "Project DB",
+          transport: "stdio",
+          command: "node",
+          args: ["db-mcp.js"],
+          optional: false,
         },
-        null,
-        2,
-      ),
-    );
+      },
+      skills: {
+        include: ["beta"],
+      },
+    });
 
     result = await runAgentsCli(["write", "--dry-run"], env, projectDir);
     expect(result.exitCode).toBe(0);
@@ -191,24 +183,14 @@ describe("user journeys", () => {
     tempRoots.push(fixture.root);
     await addParallelSkills(fixture.repoRoot);
     const projectDir = join(fixture.root, "project");
-    const projectConfigPath = join(projectDir, ".agents", "drwn", "config.json");
-    await mkdir(dirname(projectConfigPath), { recursive: true });
-    await writeFile(
-      projectConfigPath,
-      JSON.stringify(
-        {
-          version: 1,
-          extensions: {
-            parallel: { enabled: true, skills: true, mcp: false },
-          },
-          skills: {
-            exclude: ["parallel-web-extract"],
-          },
-        },
-        null,
-        2,
-      ),
-    );
+    await writeSupportedProjectConfig(projectDir, {
+      extensions: {
+        parallel: { enabled: true, skills: true, mcp: false },
+      },
+      skills: {
+        exclude: ["parallel-web-extract"],
+      },
+    });
     const env = {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,
@@ -231,24 +213,14 @@ describe("user journeys", () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);
     const projectDir = join(fixture.root, "project");
-    const projectConfigPath = join(projectDir, ".agents", "drwn", "config.json");
-    await mkdir(dirname(projectConfigPath), { recursive: true });
-    await writeFile(
-      projectConfigPath,
-      JSON.stringify(
-        {
-          version: 1,
-          servers: {
-            nonexistentServer: { enabled: true },
-          },
-          skills: {
-            include: ["deleted-skill"],
-          },
-        },
-        null,
-        2,
-      ),
-    );
+    await writeSupportedProjectConfig(projectDir, {
+      mcpServers: {
+        nonexistentServer: { enabled: true },
+      },
+      skills: {
+        include: ["deleted-skill"],
+      },
+    });
     const env = {
       AGENTS_REPO_ROOT: fixture.repoRoot,
       AGENTS_HOME_DIR: fixture.homeDir,

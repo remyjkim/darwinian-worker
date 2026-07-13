@@ -4,7 +4,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { committedSurfacesEnabled } from "./migrate-vendor";
+import { loadProjectConfig } from "./project";
 
 export const DRWN_GITIGNORE_MARKER = "# drwn";
 
@@ -22,6 +22,12 @@ const PROJECTION_SURFACE_ENTRIES = [
   ".mcp.json",
   ".cursor/mcp.json",
 ];
+
+export async function committedSurfacesEnabled(projectRoot: string) {
+  const configPath = join(projectRoot, ".agents", "drwn", "config.json");
+  if (!existsSync(configPath)) return false;
+  return (await loadProjectConfig(configPath)).committedSurfaces === true;
+}
 
 export async function buildDesiredGitignoreEntries(projectRoot: string) {
   const entries = [...ALWAYS_IGNORED_ENTRIES];

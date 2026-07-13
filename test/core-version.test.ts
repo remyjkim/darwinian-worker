@@ -5,7 +5,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DRWN_VERSION } from "../cli/core/version";
-import { HOOKS_MIN_DRWN_VERSION } from "../cli/core/card-lock";
+import { PROJECT_WORKER_MIN_DRWN_VERSION } from "../cli/core/card-lock";
 import { gte } from "../cli/core/semver-utils";
 
 describe("drwn version reconciliation", () => {
@@ -15,6 +15,6 @@ describe("drwn version reconciliation", () => {
   });
 
   test("running version is at least the highest floor drwn can emit", () => {
-    expect(gte(DRWN_VERSION, HOOKS_MIN_DRWN_VERSION)).toBe(true);
+    expect(gte(DRWN_VERSION, PROJECT_WORKER_MIN_DRWN_VERSION)).toBe(true);
   });
 });

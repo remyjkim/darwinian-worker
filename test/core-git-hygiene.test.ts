@@ -5,7 +5,7 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ensureGitignoreEntries, ensureVendorGitattributes } from "../cli/core/git-hygiene";
-import { cleanupTempRoots, createTempRoot } from "./helpers";
+import { cleanupTempRoots, createTempRoot, writeSupportedProjectConfig } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -34,12 +34,11 @@ test("ensureGitignoreEntries appends drwn block once and preserves user lines", 
 test("ensureGitignoreEntries rewrites drwn block contents in place", async () => {
   const root = await createTempRoot("git-hygiene-rewrite-");
   tempRoots.push(root);
-  await mkdir(join(root, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(root, ".agents", "drwn", "config.json"), `${JSON.stringify({ version: 1, committedSurfaces: true }, null, 2)}\n`);
+  await writeSupportedProjectConfig(root, { committedSurfaces: true });
   await ensureGitignoreEntries(root);
   const first = await readFile(join(root, ".gitignore"), "utf8");
   expect(first).not.toContain(".claude/skills/");
-  await writeFile(join(root, ".agents", "drwn", "config.json"), `${JSON.stringify({ version: 1 }, null, 2)}\n`);
+  await writeSupportedProjectConfig(root);
   await ensureGitignoreEntries(root);
   const second = await readFile(join(root, ".gitignore"), "utf8");
   expect(second).toContain(".claude/skills/");

@@ -5,7 +5,7 @@ import { afterEach, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
 const tempRoots: string[] = [];
 
@@ -36,9 +36,7 @@ test("card source authoring commands can publish, apply, and preview materializa
   expect(existsSync(join(fixture.agentsDir, "drwn", "cards", "@me", "example.git"))).toBe(true);
 
   const projectDir = join(fixture.root, "project");
-  const configPath = join(projectDir, ".agents", "drwn", "config.json");
-  await mkdir(dirname(configPath), { recursive: true });
-  await writeFile(configPath, JSON.stringify({ version: 1 }, null, 2));
+  await writeSupportedProjectConfig(projectDir);
 
   const applied = await runAgentsCli(["apply", "@me/example@^0.1.0"], envFor(fixture), projectDir);
   expect(applied.exitCode).toBe(0);

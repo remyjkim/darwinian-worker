@@ -4,7 +4,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { cleanupTempRoots, publishCardWithSkills, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { cleanupTempRoots, publishCardWithSkills, runAgentsCli, scaffoldCliFixture, writeSupportedProjectConfig } from "./helpers";
 
 const tempRoots: string[] = [];
 afterEach(async () => cleanupTempRoots(tempRoots));
@@ -13,8 +13,7 @@ test("card link bootstraps unpublished local source into card.lock.local", async
   const fixture = await scaffoldCliFixture();
   tempRoots.push(fixture.root);
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), `${JSON.stringify({ version: 1 }, null, 2)}\n`);
+  await writeSupportedProjectConfig(projectDir);
   const sourceDir = join(fixture.root, "unpublished");
   await mkdir(join(sourceDir, "skills", "alpha"), { recursive: true });
   await writeFile(join(sourceDir, "card.json"), `${JSON.stringify({ name: "@me/local", version: "0.1.0", skills: { include: ["alpha"] } }, null, 2)}\n`);
@@ -40,8 +39,7 @@ test("card link writes a single override to config.local.json", async () => {
   tempRoots.push(fixture.root);
   await publishCardWithSkills(fixture, { name: "@me/link", skills: ["alpha"] });
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), `${JSON.stringify({ version: 1 }, null, 2)}\n`);
+  await writeSupportedProjectConfig(projectDir);
   const sourceDir = join(fixture.root, "source");
   await mkdir(sourceDir, { recursive: true });
   await writeFile(join(sourceDir, "card.json"), `${JSON.stringify({ name: "@me/link", version: "1.0.0" }, null, 2)}\n`);
@@ -58,8 +56,8 @@ test("card link writes a single override to config.local.json", async () => {
   expect(result.exitCode).toBe(0);
   const config = JSON.parse(await readFile(join(projectDir, ".agents", "drwn", "config.json"), "utf8"));
   const local = JSON.parse(await readFile(join(projectDir, ".agents", "drwn", "config.local.json"), "utf8"));
-  expect(config.overrides).toBeUndefined();
-  expect(local.overrides["@me/link"]).toBe(`file:${sourceDir}`);
+  expect(config.sourceOverrides).toBeUndefined();
+  expect(local.sourceOverrides["@me/link"]).toBe(`file:${sourceDir}`);
 });
 
 test("card link --all-from bulk links scoped card directories", async () => {
@@ -67,8 +65,7 @@ test("card link --all-from bulk links scoped card directories", async () => {
   tempRoots.push(fixture.root);
   await publishCardWithSkills(fixture, { name: "@me/bulk", skills: ["alpha"] });
   const projectDir = join(fixture.root, "project");
-  await mkdir(join(projectDir, ".agents", "drwn"), { recursive: true });
-  await writeFile(join(projectDir, ".agents", "drwn", "config.json"), `${JSON.stringify({ version: 1 }, null, 2)}\n`);
+  await writeSupportedProjectConfig(projectDir);
   const sourcesRoot = join(fixture.root, "sources");
   const cardDir = join(sourcesRoot, "@me", "bulk");
   await mkdir(cardDir, { recursive: true });
@@ -85,5 +82,5 @@ test("card link --all-from bulk links scoped card directories", async () => {
   );
   expect(result.exitCode).toBe(0);
   const local = JSON.parse(await readFile(join(projectDir, ".agents", "drwn", "config.local.json"), "utf8"));
-  expect(local.overrides["@me/bulk"]).toBe(`file:${cardDir}`);
+  expect(local.sourceOverrides["@me/bulk"]).toBe(`file:${cardDir}`);
 });
