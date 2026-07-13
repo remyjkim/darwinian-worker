@@ -16,6 +16,13 @@
       "args": ["-y", "chrome-devtools-mcp@^1.0.0"],
       "optional": false
     },
+    "drwn-command-bridge": {
+      "description": "Host CLI bridge for Claude Cowork - allowlisted, consent-gated, audited host command execution",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "drwn-command-bridge@^0.1.0", "--policy", "${DRWN_COMMAND_BRIDGE_POLICY}"],
+      "optional": true
+    },
     "markdownify": {
       "description": "HTML to Markdown conversion",
       "transport": "stdio",

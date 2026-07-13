@@ -188,6 +188,60 @@ describe("buildActiveServers", () => {
       url: "https://mcp.notion.com/mcp",
     });
   });
+
+  test("real packaged registry exposes the command bridge as disabled-by-default", async () => {
+    const registry = JSON.parse(
+      await readFile(join(import.meta.dir, "..", "registry", "mcp-servers.json"), "utf8"),
+    ) as CanonicalRegistry;
+    const config = JSON.parse(
+      await readFile(join(import.meta.dir, "..", "registry", "config.json"), "utf8"),
+    ) as CanonicalConfig;
+
+    expect(registry.servers["drwn-command-bridge"]).toMatchObject({
+      transport: "stdio",
+      command: "npx",
+      args: ["-y", "drwn-command-bridge@^0.1.0", "--policy", "${DRWN_COMMAND_BRIDGE_POLICY}"],
+      optional: true,
+    });
+    expect(config.optional["drwn-command-bridge"]).toBe(false);
+    expect(buildActiveServers(registry, config)["drwn-command-bridge"]).toBeUndefined();
+
+    const optedIn = {
+      ...config,
+      optional: { ...config.optional, "drwn-command-bridge": true },
+    };
+    expect(buildActiveServers(registry, optedIn)["drwn-command-bridge"]).toBeDefined();
+  });
+
+  test("command bridge renderers preserve the policy placeholder argument", () => {
+    const bridge = {
+      description: "Host CLI bridge",
+      transport: "stdio" as const,
+      command: "npx",
+      args: ["-y", "drwn-command-bridge@^0.1.0", "--policy", "${DRWN_COMMAND_BRIDGE_POLICY}"],
+      optional: true,
+    };
+
+    const cursor = JSON.parse(renderCursorConfig({ "drwn-command-bridge": bridge })) as {
+      mcpServers: Record<string, { args: string[] }>;
+    };
+    const claude = JSON.parse(
+      mergeClaudeSettingsText("{}", { "drwn-command-bridge": bridge }).text,
+    ) as { mcpServers: Record<string, { args: string[] }> };
+    const codex = parseToml(mergeCodexTomlText("", { "drwn-command-bridge": bridge })) as {
+      mcp_servers: Record<string, { args: string[] }>;
+    };
+    const expectedArgs = [
+      "-y",
+      "drwn-command-bridge@^0.1.0",
+      "--policy",
+      "${DRWN_COMMAND_BRIDGE_POLICY}",
+    ];
+
+    expect(cursor.mcpServers["drwn-command-bridge"]?.args).toEqual(expectedArgs);
+    expect(claude.mcpServers["drwn-command-bridge"]?.args).toEqual(expectedArgs);
+    expect(codex.mcp_servers["drwn-command-bridge"]?.args).toEqual(expectedArgs);
+  });
 });
 
 describe("renderCursorConfig", () => {
