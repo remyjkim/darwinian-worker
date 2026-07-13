@@ -62,9 +62,9 @@ const REQUIRED_SNIPPETS: Record<string, string[]> = {
   "extensions setup": ["Beads only", "MarkItDown only", "--no-install"],
   "extensions doctor": ["all extensions"],
   "mcp list": ["Project-aware"],
-  "library defaults add skill": ["explicit machine capability"],
-  "library defaults add mcp": ["safe no-op"],
-  "store export": ["disabled", "credentials", "no unrestricted override"],
+  "machine skill enable": ["explicit machine capability"],
+  "machine mcp enable": ["explicit machine capability"],
+  "machine inventory gc": ["dry-run", "current inventory"],
   worker: ["one selected project Worker", "drwn use", "Cards compose"],
 };
 
