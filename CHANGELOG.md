@@ -3,6 +3,41 @@
 All notable changes to `darwinian-minds` (the `drwn` CLI) are documented here. This
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-07-13
+
+First supported semantic Worker Mind contract. This is a clean prelaunch
+replacement for the prototype numbered-memory model, with no migration reader
+or persisted-state migration.
+
+### Added
+
+- Strict Card memory declarations for `observations` (`jsonl`) and `insights`
+  (`md`). A valid declaration in the selected Worker's locked Blueprint closure
+  opts that Worker into the optional Mind capability.
+- Strict `drwn.mind-index` schema version 1, canonical semantic pool paths,
+  by-date Mind views, and inode-aware diagnostics for pool/view health.
+- Real BeginningDB coverage for semantic observation and insight placement,
+  shared inode identity, strict index readback, DB-first edits, sync, and
+  checkpoint.
+
+### Changed
+
+- Mind-bearing project locks require `drwn` `0.9.0`; non-Mind Worker graphs
+  retain the first supported project floor of `0.8.0`.
+- Mind commands seed only from the selected Worker's valid locked closure and
+  fail before network access when that closure does not declare the capability.
+- `@darwinian/mind-tools`, `@darwinian/mind-starter`, and the dedicated
+  `@darwinian/base-mind` sources use observations and insights exclusively.
+
+### Removed
+
+- Numbered memory kinds, paths, formats, source readers, and migration-specific
+  diagnostics.
+- The deprecated multi-Mind selection workflow and its
+  `manage-active-mind-stack` skill.
+- Card-owned runtime memory entries. Live memory is BeginningDB-native and has
+  no Card visibility field.
+
 ## [0.7.0] — 2026-07-07
 
 Mind cards: persona and beliefs return to card manifests as versioned seeds, and

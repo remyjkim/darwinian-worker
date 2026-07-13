@@ -854,6 +854,9 @@ export function verifyWorkerContract(root = repoRoot, overrides: SourceOverrides
     "schemaVersion: 1",
     'input.schema !== "drwn.project-lock"',
     "input.schemaVersion !== 1",
+    "minimumDrwnVersionForManifests",
+  ]);
+  requireTokens("cli/core/mind-capability.ts", [
     'PROJECT_WORKER_MIN_DRWN_VERSION = "0.8.0"',
   ]);
   requireTokens("cli/core/config-local.ts", ["PROJECT_WORKER_MIN_DRWN_VERSION"]);
@@ -1000,13 +1003,93 @@ export function verifyWorkerContract(root = repoRoot, overrides: SourceOverrides
   }
 
   const pkg = JSON.parse(source("package.json")) as { version?: string };
-  if (pkg.version !== "0.8.0") issues.push("package version must be 0.8.0");
-  if (!source("cli/core/version.ts").includes('DRWN_VERSION = "0.8.0"')) {
-    issues.push("runtime version must be 0.8.0");
+  if (pkg.version !== "0.9.0") issues.push("package version must be 0.9.0");
+  if (!source("cli/core/version.ts").includes('DRWN_VERSION = "0.9.0"')) {
+    issues.push("runtime version must be 0.9.0");
   }
 
   return {
     name: "project Worker contract",
+    ok: issues.length === 0,
+    details: issues.join("; ") || undefined,
+  };
+}
+
+export function verifySemanticMindContract(root = repoRoot, overrides: SourceOverrides = {}): CheckResult {
+  const issues: string[] = [];
+  const source = (pathValue: string) => {
+    if (Object.hasOwn(overrides, pathValue)) return overrides[pathValue]!;
+    const absolutePath = join(root, pathValue);
+    if (!existsSync(absolutePath)) {
+      issues.push(`missing semantic Mind source ${pathValue}`);
+      return "";
+    }
+    return readFileSync(absolutePath, "utf8");
+  };
+  const requireTokens = (pathValue: string, tokens: Array<[string, string]>) => {
+    const content = source(pathValue);
+    for (const [token, issue] of tokens) {
+      if (!content.includes(token)) issues.push(issue);
+    }
+  };
+
+  let packageVersion: string | undefined;
+  try {
+    packageVersion = (JSON.parse(source("package.json")) as { version?: string }).version;
+  } catch {
+    issues.push("package.json must be valid JSON");
+  }
+  if (packageVersion !== "0.9.0") issues.push("package version must be 0.9.0");
+
+  requireTokens("cli/core/version.ts", [
+    ['DRWN_VERSION = "0.9.0"', "runtime version must be 0.9.0"],
+  ]);
+  requireTokens("cli/core/mind-capability.ts", [
+    ['PROJECT_WORKER_MIN_DRWN_VERSION = "0.8.0"', "base project Worker floor must remain 0.8.0"],
+    ['WORKER_MIND_MIN_DRWN_VERSION = "0.9.0"', "semantic Worker Mind floor must be 0.9.0"],
+    ["minimumDrwnVersionForManifests", "lock-wide semantic Mind floor selection is missing"],
+  ]);
+  requireTokens("cli/core/card-manifest.ts", [
+    ['MemoryKind = "observations" | "insights"', "semantic memory kind union is missing"],
+    ['["observations", "insights"]', "closed semantic memory kind inventory is missing"],
+    ['observations?: { format: "jsonl" }', "observations JSONL manifest contract is missing"],
+    ['insights?: { format: "md" }', "insights Markdown manifest contract is missing"],
+    ['memory kind raw_data is reserved but unsupported', "raw_data reservation is missing"],
+  ]);
+  requireTokens("cli/core/mind-store/mind-index.ts", [
+    ['z.literal("drwn.mind-index")', "strict mind index schema is missing"],
+    ["schemaVersion: z.literal(1)", "strict mind index version is missing"],
+    ["MIND_INDEX_INVALID", "invalid mind index diagnostic is missing"],
+    ["MIND_INDEX_UNSUPPORTED", "unsupported mind index diagnostic is missing"],
+  ]);
+  requireTokens("cli/core/mind-store/paths.ts", [
+    ["/pool/observations", "canonical observations pool path is missing"],
+    ["/pool/insights", "canonical insights pool path is missing"],
+    ["parseCanonicalPoolPath", "strict canonical pool parser is missing"],
+  ]);
+  requireTokens("test/worker-mind-semantic-residue.test.ts", [
+    ["numbered contract residue", "numbered-memory residue gate is missing"],
+  ]);
+  requireTokens("test/e2e-mind-journey.test.ts", [
+    ["semantic observations and insights preserve inode identity", "real semantic placement E2E coverage is missing"],
+  ]);
+  requireTokens("CHANGELOG.md", [
+    ["## [0.9.0]", "0.9.0 changelog entry is missing"],
+    ["no migration", "0.9.0 changelog must state the no migration policy"],
+  ]);
+
+  const hardCutSources = [
+    "cli/core/card-manifest.ts",
+    "cli/core/mind-capability.ts",
+    "cli/core/mind-store/mind-index.ts",
+    "cli/core/mind-store/paths.ts",
+  ].map(source).join("\n");
+  if (/MemoryLayerName|MEMORY_LAYER_NAMES|memoryLayerRoot|\b[lL][456]\b/.test(hardCutSources)) {
+    issues.push("numbered-memory reader or symbol remains in the supported runtime");
+  }
+
+  return {
+    name: "semantic Worker Mind contract",
     ok: issues.length === 0,
     details: issues.join("; ") || undefined,
   };
@@ -1167,6 +1250,7 @@ async function main() {
 
   checks.push(verifyDocsPresence());
   checks.push(verifyWorkerContract());
+  checks.push(verifySemanticMindContract());
   checks.push(verifyMachineContract());
   checks.push(verifyMachineInventoryContract());
   checks.push(verifyPortableInventoryTransferContract());
