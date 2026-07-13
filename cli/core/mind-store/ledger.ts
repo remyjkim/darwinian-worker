@@ -1,37 +1,11 @@
 // ABOUTME: Reads and writes the mind.json index and computes per-file drift states.
 // ABOUTME: The ledger records what was seeded from which card version under which ETag; drift compares it to live state.
 
-import type { MemoryManifest } from "../card-manifest";
 import { DrwnError } from "../errors";
-import { mindIndexPath } from "./paths";
 import type { MindDbClient } from "./client";
-
-export interface LedgerRow {
-  path: string;
-  card: string;
-  cardVersion: string;
-  section: "persona" | "beliefs";
-  entry: string;
-  etag: string;
-}
-
-export interface MindCardProvenance {
-  card: string;
-  version: string;
-  integrity: string;
-}
-
-export interface MindIndex {
-  schemaVersion: 1;
-  mindId: string;
-  worker: MindCardProvenance;
-  cards: MindCardProvenance[];
-  persona: { path: string | null; entries: Array<{ card: string; entry: string }> };
-  beliefs: { entries: Array<{ card: string; entry: string; path: string }> };
-  memory: MemoryManifest;
-  ledger: LedgerRow[];
-  drwnVersion: string;
-}
+import type { MindCardProvenance, MindIndex } from "./mind-index";
+export { readMindIndex, writeMindIndex } from "./mind-index";
+export type { LedgerRow, MindCardProvenance, MindIndex } from "./mind-index";
 
 export function mindCardProvenance(
   cards: Array<{ name: string; version: string; integrity: string }>,
@@ -52,18 +26,6 @@ export interface DriftRow {
   section: "persona" | "beliefs";
   entry: string;
   state: DriftState;
-}
-
-export async function readMindIndex(client: MindDbClient, mindId: string): Promise<MindIndex | null> {
-  const file = await client.get(mindIndexPath(mindId));
-  if (!file) {
-    return null;
-  }
-  return JSON.parse(file.content) as MindIndex;
-}
-
-export async function writeMindIndex(client: MindDbClient, index: MindIndex): Promise<void> {
-  await client.put(mindIndexPath(index.mindId), `${JSON.stringify(index, null, 2)}\n`);
 }
 
 export async function computeDrift(

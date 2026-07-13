@@ -1,40 +1,71 @@
-// ABOUTME: Verifies mind and pool path conventions: mind roots, date-sharded pool entries, view paths.
-// ABOUTME: Protects the layout contract shared by seed, skills, doctor, and the conventions doc.
+// ABOUTME: Verifies semantic Mind and pool path conventions and strict destructive-path parsing.
+// ABOUTME: Protects the layout contract shared by seed, skills, doctor, and retirement.
 
 import { expect, test } from "bun:test";
 import {
   beliefSeedPath,
+  memoryKindRoot,
   memoryViewPath,
   mindRoot,
   mindIndexPath,
+  parseCanonicalPoolPath,
   personaSeedPath,
   poolEntryPath,
 } from "../cli/core/mind-store/paths";
 
 const now = new Date("2026-07-07T14:03:00Z");
+const observationId = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
+const insightId = "01ARZ3NDEKTSV4RRFFQ69G5FAW";
 
-test("mind paths are rooted per mind id", () => {
+test("Mind paths are rooted per Mind ID and semantic kind", () => {
   expect(mindRoot("mind_abc")).toBe("/minds/mind_abc");
   expect(personaSeedPath("mind_abc")).toBe("/minds/mind_abc/persona.md");
   expect(beliefSeedPath("mind_abc", "@team/mind-card", "collaboration")).toBe(
     "/minds/mind_abc/beliefs/@team/mind-card/collaboration/BELIEF.md",
   );
   expect(mindIndexPath("mind_abc")).toBe("/minds/mind_abc/mind.json");
+  expect(memoryKindRoot("mind_abc", "observations")).toBe("/minds/mind_abc/memory/observations");
+  expect(memoryKindRoot("mind_abc", "insights")).toBe("/minds/mind_abc/memory/insights");
 });
 
-test("pool entries are date-sharded with HHmm-ulid filenames", () => {
-  const path = poolEntryPath({ layer: "l5", now, entryId: "01J0EXAMPLEULID0000000000" });
-  expect(path).toBe("/pool/l5/2026-07-07/1403-01J0EXAMPLEULID0000000000.jsonl");
-
-  const reflection = poolEntryPath({ layer: "l4", now, entryId: "01J0EXAMPLEULID0000000001" });
-  expect(reflection).toBe("/pool/l4/2026-07-07/1403-01J0EXAMPLEULID0000000001.md");
-});
-
-test("memory view paths mirror the pool filename under the mind", () => {
-  const pool = poolEntryPath({ layer: "l5", now, entryId: "01J0EXAMPLEULID0000000000" });
-  expect(memoryViewPath("mind_abc", "l5", pool)).toBe(
-    "/minds/mind_abc/memory/l5/by-date/2026-07-07/1403-01J0EXAMPLEULID0000000000.jsonl",
+test("semantic pool entries use fixed extensions and date shards", () => {
+  expect(poolEntryPath({ kind: "observations", now, entryId: observationId })).toBe(
+    `/pool/observations/2026-07-07/1403-${observationId}.jsonl`,
   );
-  const l4 = poolEntryPath({ layer: "l4", now, entryId: "X" });
-  expect(memoryViewPath("mind_abc", "l4", l4)).toBe("/minds/mind_abc/memory/l4/2026-07-07/1403-X.md");
+  expect(poolEntryPath({ kind: "insights", now, entryId: insightId })).toBe(
+    `/pool/insights/2026-07-07/1403-${insightId}.md`,
+  );
+});
+
+test("both default Mind views are grouped by date", () => {
+  const observation = poolEntryPath({ kind: "observations", now, entryId: observationId });
+  expect(memoryViewPath("mind_abc", "observations", observation)).toBe(
+    `/minds/mind_abc/memory/observations/by-date/2026-07-07/1403-${observationId}.jsonl`,
+  );
+  const insight = poolEntryPath({ kind: "insights", now, entryId: insightId });
+  expect(memoryViewPath("mind_abc", "insights", insight)).toBe(
+    `/minds/mind_abc/memory/insights/by-date/2026-07-07/1403-${insightId}.md`,
+  );
+});
+
+test("strict pool parser accepts only canonical semantic files", () => {
+  const path = `/pool/observations/2026-07-07/1403-${observationId}.jsonl`;
+  expect(parseCanonicalPoolPath(path)).toEqual({
+    kind: "observations",
+    date: "2026-07-07",
+    filename: `1403-${observationId}.jsonl`,
+  });
+
+  for (const invalid of [
+    `/pool/l5/2026-07-07/1403-${observationId}.jsonl`,
+    `/pool/raw_data/2026-07-07/1403-${observationId}.jsonl`,
+    `/pool/observations/2026-02-30/1403-${observationId}.jsonl`,
+    `/pool/observations/2026-07-07/2460-${observationId}.jsonl`,
+    `/pool/observations/2026-07-07/1403-${observationId}.md`,
+    `/pool/observations/extra/2026-07-07/1403-${observationId}.jsonl`,
+    `/minds/mind_abc/memory/observations/by-date/2026-07-07/1403-${observationId}.jsonl`,
+    "/pool/observations/../../escape.jsonl",
+  ]) {
+    expect(() => parseCanonicalPoolPath(invalid)).toThrow(/canonical semantic pool file/);
+  }
 });
