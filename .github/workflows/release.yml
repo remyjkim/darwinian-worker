@@ -39,6 +39,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          submodules: true
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -102,6 +103,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          submodules: true
 
       - uses: oven-sh/setup-bun@v2
         with:

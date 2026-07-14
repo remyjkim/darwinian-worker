@@ -95,6 +95,14 @@ describe("package readiness", () => {
     expect(workflow).not.toContain("paths-ignore:");
   });
 
+  test("CLI validation and release gates check out the pinned skills submodule", () => {
+    const ciWorkflow = readFileSync(join(process.cwd(), ".github", "workflows", "ci.yml"), "utf8");
+    const releaseWorkflow = readFileSync(join(process.cwd(), ".github", "workflows", "release.yml"), "utf8");
+
+    expect(ciWorkflow.match(/submodules: true/g)).toHaveLength(1);
+    expect(releaseWorkflow.match(/submodules: true/g)).toHaveLength(2);
+  });
+
   test("command bridge verification is isolated and release-gated", () => {
     const pkg = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as {
       scripts: Record<string, string>;
