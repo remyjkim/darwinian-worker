@@ -136,6 +136,34 @@ modes, and session lifecycle. This is the long-run convergence horizon, not the 
   inferring it. Not needed for any single option below — noted to avoid painting into a
   corner.
 
+## Decision criteria
+
+Score any option against these before arguing mechanics. The first two decide the shape;
+the rest decide the winner within a shape.
+
+1. **Delivery guarantee.** Must the spine be unconditionally present at system-prompt
+   strength, or is best-effort pull acceptable? This single criterion separates Families
+   1/2/4 from Family 3 — no amount of convention fixes pull's probabilistic ceiling.
+2. **Context commitment.** Which of the three delivery contexts (subagent, main-agent,
+   deployed) do we commit to serving *now*? Choosing the mechanism before choosing the
+   contexts is how the current gap happened.
+3. **Target parity.** Is claude-only acceptable for v1? Only C is push-everywhere; A/O/G
+   are claude-only. If codex/cursor parity is a hard requirement, most of Family 1 is out.
+4. **Trust posture.** A projected system prompt from a third-party card is silent prompt
+   injection at the highest privilege. Any push option must answer: consent gating
+   (hookConsent-style), trusted-source-only, or accepted risk — "ungated" is not an answer.
+5. **Single source of truth.** Does the mechanism keep the generator's canonical artifact
+   as the only spine composer? Two composers (or authored text duplicated between local and
+   deploy surfaces) guarantee drift.
+6. **Authoring ergonomics.** One text, written once, reviewable in the card source, no
+   synthesis magic the author can't predict. The A+O synthesis exists because A alone
+   synthesizes frontmatter and O alone leaves `instructions` inert.
+7. **Architecture boundary.** Does drwn stay a materializer? Only F makes it a runtime
+   participant; that is a philosophy change, not a feature, and should be decided as one.
+8. **Reversibility.** Prefer options that add a managed surface (removable by sync, like
+   skills today) over options that change the manifest contract or the runtime model —
+   surfaces can be retired; published schema semantics effectively cannot.
+
 ## Comparison
 
 | Option | Strength | Scope | Targets | Change size | Key risk |
