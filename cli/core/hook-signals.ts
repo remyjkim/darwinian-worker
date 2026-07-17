@@ -3,7 +3,7 @@
 
 import { basename, dirname, join } from "node:path";
 
-export const SIGNAL_SCHEMA_VERSION = 1 as const;
+export const SIGNAL_SCHEMA_VERSION = 2 as const;
 
 export type SkillPhase = "pre" | "post" | "fail" | "expansion";
 
@@ -27,6 +27,22 @@ export interface HookPayload {
 export interface CardRef {
   name: string;
   version: string;
+  /** Content signature from the lock. Optional: v1 stamps predate it. */
+  integrity?: string;
+}
+
+/** A Worker root, joined to the version and signature of its Card entry. */
+export interface WorkerRootRef {
+  name: string;
+  version: string;
+  kind: "card" | "blueprint";
+  integrity: string;
+}
+
+/** The active Worker graph: the roots a session runs, plus every Card they reach. */
+export interface ActiveWorkerGraph {
+  cards: CardRef[];
+  workerRoots: WorkerRootRef[];
 }
 
 const PHASE_EVENT: Record<SkillPhase, string> = {
@@ -62,7 +78,7 @@ function transcriptBasename(payload: HookPayload): string {
   return payload.transcript_path ? basename(payload.transcript_path) : "";
 }
 
-export function buildCardUsageRecord(payload: HookPayload, cards: CardRef[], nowIso: string) {
+export function buildCardUsageRecord(payload: HookPayload, graph: ActiveWorkerGraph, nowIso: string) {
   return {
     schema_version: SIGNAL_SCHEMA_VERSION,
     type: "card_usage",
@@ -72,7 +88,8 @@ export function buildCardUsageRecord(payload: HookPayload, cards: CardRef[], now
     cwd: payload.cwd,
     transcript_basename: transcriptBasename(payload),
     ...agentFields(payload),
-    cards,
+    worker_roots: graph.workerRoots,
+    cards: graph.cards,
   };
 }
 
@@ -146,7 +163,8 @@ export function parseLastCardUsageCards(sinkText: string): CardRef[] | null {
 
 export function cardsEqual(a: CardRef[], b: CardRef[]): boolean {
   if (a.length !== b.length) return false;
-  const key = (c: CardRef) => `${c.name}@${c.version}`;
+  // Integrity is part of the key: a local Card can be edited without its version moving.
+  const key = (c: CardRef) => `${c.name}@${c.version}#${c.integrity ?? ""}`;
   const sortedA = [...a].map(key).sort();
   const sortedB = [...b].map(key).sort();
   return sortedA.every((value, index) => value === sortedB[index]);
