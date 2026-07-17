@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeCardLock, type CardLockEntry, type ProjectLockGraph } from "../cli/core/card-lock";
+import { minimumDrwnVersionForManifests } from "../cli/core/mind-capability";
 import { emitCardUsage, emitSkillMarker, resolveActiveGraphFromLock } from "../cli/core/hook-runner";
 import type { ActiveWorkerGraph, CardRef } from "../cli/core/hook-signals";
 
@@ -207,6 +208,33 @@ describe("emitCardUsage", () => {
     expect(stamps.map((line) => line.cards[0].integrity)).toEqual(["sha256-before", "sha256-after"]);
   });
 
+  // The two below pin write-on-change to the whole Card closure rather than to the
+  // roots: a Blueprint root is a stable name over members that move underneath it.
+  const blueprintGraph = (memberIntegrity: string): ActiveWorkerGraph => ({
+    cards: [card("@scope/team", "1.0.0", "sha256-team"), card("@scope/member", "3.1.0", memberIntegrity)],
+    workerRoots: [{ name: "@scope/team", version: "1.0.0", kind: "blueprint", integrity: "sha256-team" }],
+  });
+
+  test("stays quiet when a blueprint's members are unchanged", async () => {
+    const t = tempTranscript();
+    const payload = { session_id: t.sessionId, transcript_path: t.transcriptPath, cwd: "/p" };
+    await emitCardUsage(payload, deps(blueprintGraph("sha256-member")));
+    await emitCardUsage(payload, deps(blueprintGraph("sha256-member")));
+    expect(readLines(t.sinkPath)).toHaveLength(1);
+  });
+
+  test("re-stamps when a blueprint's member is edited even though the root is untouched", async () => {
+    const t = tempTranscript();
+    const payload = { session_id: t.sessionId, transcript_path: t.transcriptPath, cwd: "/p" };
+    await emitCardUsage(payload, deps(blueprintGraph("sha256-member-before")));
+    await emitCardUsage(payload, deps(blueprintGraph("sha256-member-after")));
+    const stamps = readLines(t.sinkPath);
+    expect(stamps).toHaveLength(2);
+    // The root looks identical across both stamps; only the closure moved.
+    expect(stamps.map((line) => line.worker_roots[0].integrity)).toEqual(["sha256-team", "sha256-team"]);
+    expect(stamps.map((line) => line.cards[1].integrity)).toEqual(["sha256-member-before", "sha256-member-after"]);
+  });
+
   test("re-stamps a v1 sidecar once integrity is available", async () => {
     const t = tempTranscript();
     const payload = { session_id: t.sessionId, transcript_path: t.transcriptPath, cwd: "/p" };
@@ -307,7 +335,9 @@ describe("resolveActiveGraphFromLock", () => {
       JSON.stringify({
         schema: "drwn.project-lock",
         schemaVersion: 1,
-        store: { minDrwnVersion: "0.1.0" },
+        // Must be the real floor for this graph, or the lock is rejected on that
+        // instead and the missing-root path is never reached.
+        store: { minDrwnVersion: minimumDrwnVersionForManifests([]) },
         workerRoots: [{ name: "@scope/ghost", requested: "file:../ghost", kind: "card", members: [] }],
         cards: [],
       }),

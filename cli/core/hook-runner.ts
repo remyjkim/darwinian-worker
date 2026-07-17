@@ -52,7 +52,9 @@ function joinWorkerRoots(lock: ProjectLockV1): WorkerRootRef[] {
   const cardsByName = new Map(lock.cards.map((card) => [card.name, card]));
   return lock.workerRoots.map((root) => {
     const card = cardsByName.get(root.name);
-    // The lock validator guarantees this; a lock that slips through is treated as invalid.
+    // Unreachable through validateCardLockfile, which already rejects a root that is
+    // missing from cards. Kept so that a lock which somehow slips past it still
+    // no-ops rather than stamping a root with invented version and integrity.
     if (!card) throw new Error(`Worker root ${root.name} is missing from cards`);
     return { name: root.name, version: card.version, kind: root.kind, integrity: card.integrity };
   });

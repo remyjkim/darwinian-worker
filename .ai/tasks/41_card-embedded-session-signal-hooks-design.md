@@ -163,6 +163,13 @@ registration) and/or `hook_event_name`:
 
 ## 4. Signal contract
 
+> **Schema status:** the records below are v1, as shipped. `schema_version` is now **2**, which
+> added two attribution stamps additively: `card_usage` carries `worker_roots`
+> (`[{name, version, kind, integrity}]`, joined from `card.lock`), and `cards[]` entries carry
+> `integrity`, which `slash_expansion` inherits. No v1 field was removed or reshaped, and v1
+> records still parse. See the PR that introduced the worker-root and integrity stamps for the
+> v2 field table.
+
 One JSON object per line. All records carry `schema_version`, `type`, `hook_event_name`,
 `session_id`, `ts` (ISO-8601 UTC), `transcript_basename` (basename of `transcript_path`), and
 `agent_id`/`agent_type` when present. Markers are flags (identifiers only), not payloads.
