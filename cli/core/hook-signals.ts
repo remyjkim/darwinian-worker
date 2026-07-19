@@ -141,8 +141,12 @@ export function buildSkillRecord(payload: HookPayload, phase: SkillPhase, nowIso
   };
 }
 
-/** Parse the cards from the LAST `card_usage` line in a (possibly mixed) sink. */
-export function parseLastCardUsageCards(sinkText: string): CardRef[] | null {
+/**
+ * The graph recorded by the LAST `card_usage` line in a (possibly mixed) sink: its flattened
+ * cards AND its worker roots. `workerRoots` is empty for a v1 stamp (or a malformed field),
+ * which reads as "changed" against any real root set. Null when the sink has no `card_usage`.
+ */
+export function parseLastCardUsageGraph(sinkText: string): { cards: CardRef[]; workerRoots: WorkerRootRef[] } | null {
   const lines = sinkText.split("\n");
   for (let i = lines.length - 1; i >= 0; i -= 1) {
     const line = lines[i]?.trim();
@@ -155,16 +159,40 @@ export function parseLastCardUsageCards(sinkText: string): CardRef[] | null {
     }
     if (parsed && typeof parsed === "object" && (parsed as { type?: string }).type === "card_usage") {
       const cards = (parsed as { cards?: unknown }).cards;
-      return Array.isArray(cards) ? (cards as CardRef[]) : [];
+      const workerRoots = (parsed as { worker_roots?: unknown }).worker_roots;
+      return {
+        cards: Array.isArray(cards) ? (cards as CardRef[]) : [],
+        workerRoots: Array.isArray(workerRoots) ? (workerRoots as WorkerRootRef[]) : [],
+      };
     }
   }
   return null;
+}
+
+/** Parse the cards from the LAST `card_usage` line in a (possibly mixed) sink. */
+export function parseLastCardUsageCards(sinkText: string): CardRef[] | null {
+  return parseLastCardUsageGraph(sinkText)?.cards ?? null;
 }
 
 export function cardsEqual(a: CardRef[], b: CardRef[]): boolean {
   if (a.length !== b.length) return false;
   // Integrity is part of the key: a local Card can be edited without its version moving.
   const key = (c: CardRef) => `${c.name}@${c.version}#${c.integrity ?? ""}`;
+  const sortedA = [...a].map(key).sort();
+  const sortedB = [...b].map(key).sort();
+  return sortedA.every((value, index) => value === sortedB[index]);
+}
+
+/**
+ * Compares the Worker root graph as a SET. The flattened card list does NOT pin the root
+ * membership: `validateCardLockfile` checks a Blueprint's member COUNT but never member identity,
+ * so a count-preserving member swap admits a different root set over a byte-identical card closure
+ * (dw#52 follow-up). Root ORDER is cosmetic and ignored; `kind`/`integrity` are part of the key
+ * because the stamp attributes a session by them.
+ */
+export function workerRootsEqual(a: WorkerRootRef[], b: WorkerRootRef[]): boolean {
+  if (a.length !== b.length) return false;
+  const key = (r: WorkerRootRef) => `${r.name}@${r.version}#${r.kind}#${r.integrity}`;
   const sortedA = [...a].map(key).sort();
   const sortedB = [...b].map(key).sort();
   return sortedA.every((value, index) => value === sortedB[index]);

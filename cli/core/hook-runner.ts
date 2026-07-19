@@ -8,8 +8,9 @@ import {
   buildCardUsageRecord,
   buildSkillRecord,
   cardsEqual,
-  parseLastCardUsageCards,
+  parseLastCardUsageGraph,
   resolveSinkPath,
+  workerRootsEqual,
   type ActiveWorkerGraph,
   type HookPayload,
   type SkillPhase,
@@ -96,9 +97,13 @@ export async function emitCardUsage(payload: HookPayload, deps: CardUsageHookDep
   if (graph === null) return; // no card.lock → skip silently
 
   if (existsSync(sinkPath)) {
-    const last = parseLastCardUsageCards(readFileSync(sinkPath, "utf8"));
-    // The card keys carry integrity, which pins each manifest — and so the roots derived from them.
-    if (last !== null && cardsEqual(last, graph.cards)) return; // write-on-change
+    const last = parseLastCardUsageGraph(readFileSync(sinkPath, "utf8"));
+    // Write-on-change keys on the whole root graph, not the flattened card list: a Blueprint's
+    // members can swap at a fixed count, so validateCardLockfile admits a different root set over a
+    // byte-identical closure (dw#52 follow-up). Suppress only when BOTH cards and roots are unchanged.
+    if (last !== null && cardsEqual(last.cards, graph.cards) && workerRootsEqual(last.workerRoots, graph.workerRoots)) {
+      return;
+    }
   }
 
   appendLine(sinkPath, buildCardUsageRecord(payload, graph, nowIso(deps)));

@@ -8,7 +8,10 @@ import {
   buildSkillRecord,
   cardsEqual,
   parseLastCardUsageCards,
+  parseLastCardUsageGraph,
   resolveSinkPath,
+  workerRootsEqual,
+  type WorkerRootRef,
 } from "../cli/core/hook-signals";
 
 const NOW = "2026-06-23T12:00:00.000Z";
@@ -439,5 +442,73 @@ describe("cardsEqual", () => {
     expect(
       cardsEqual([{ name: "a", version: "1.0.0" }], [{ name: "a", version: "1.0.0", integrity: "sha256-aaa" }]),
     ).toBe(false);
+  });
+});
+
+describe("parseLastCardUsageGraph", () => {
+  const root = (name: string, kind: "card" | "blueprint", integrity: string): WorkerRootRef => ({ name, version: "1.0.0", kind, integrity });
+
+  test("returns both the cards and the worker_roots of the last card_usage line", () => {
+    const sink = [
+      JSON.stringify({ type: "card_usage", cards: [{ name: "a", version: "1.0.0", integrity: "sha256-a" }], worker_roots: [root("a", "card", "sha256-a")] }),
+      JSON.stringify({ type: "skill_invocation", tool_use_id: "t1" }),
+      JSON.stringify({
+        type: "card_usage",
+        cards: [{ name: "b", version: "1.0.0", integrity: "sha256-b" }, { name: "x", version: "1.0.0", integrity: "sha256-x" }],
+        worker_roots: [root("b", "blueprint", "sha256-b")],
+      }),
+    ].join("\n") + "\n";
+    expect(parseLastCardUsageGraph(sink)).toEqual({
+      cards: [{ name: "b", version: "1.0.0", integrity: "sha256-b" }, { name: "x", version: "1.0.0", integrity: "sha256-x" }],
+      workerRoots: [root("b", "blueprint", "sha256-b")],
+    });
+  });
+
+  test("yields empty worker_roots for a v1 stamp that predates the field", () => {
+    const sink = JSON.stringify({ schema_version: 1, type: "card_usage", cards: [{ name: "a", version: "1.0.0" }] }) + "\n";
+    expect(parseLastCardUsageGraph(sink)).toEqual({ cards: [{ name: "a", version: "1.0.0" }], workerRoots: [] });
+  });
+
+  test("coerces a malformed (non-array) worker_roots to empty rather than throwing", () => {
+    const sink = JSON.stringify({ type: "card_usage", cards: [], worker_roots: "oops" }) + "\n";
+    expect(parseLastCardUsageGraph(sink)).toEqual({ cards: [], workerRoots: [] });
+  });
+
+  test("returns null when there is no card_usage line", () => {
+    expect(parseLastCardUsageGraph(JSON.stringify({ type: "skill_invocation", tool_use_id: "t1" }) + "\n")).toBeNull();
+  });
+});
+
+describe("workerRootsEqual", () => {
+  const root = (name: string, kind: "card" | "blueprint", integrity: string, version = "1.0.0"): WorkerRootRef => ({ name, version, kind, integrity });
+
+  test("is order-insensitive (membership is a set)", () => {
+    expect(workerRootsEqual([root("b", "blueprint", "s-b"), root("z", "card", "s-z")], [root("z", "card", "s-z"), root("b", "blueprint", "s-b")])).toBe(true);
+  });
+
+  test("detects a membership change even when the card closure is identical", () => {
+    // {b, z} -> {b, y}: exactly the count-preserving member swap the flat card list stays blind to.
+    expect(workerRootsEqual([root("b", "blueprint", "s-b"), root("z", "card", "s-z")], [root("b", "blueprint", "s-b"), root("y", "card", "s-y")])).toBe(false);
+  });
+
+  test("detects an edited root whose version never moves", () => {
+    expect(workerRootsEqual([root("b", "blueprint", "s-before")], [root("b", "blueprint", "s-after")])).toBe(false);
+  });
+
+  test("detects a root that changes kind at the same integrity", () => {
+    expect(workerRootsEqual([root("b", "card", "s-b")], [root("b", "blueprint", "s-b")])).toBe(false);
+  });
+
+  test("detects a version change", () => {
+    expect(workerRootsEqual([root("b", "blueprint", "s-b", "1.0.0")], [root("b", "blueprint", "s-b", "1.1.0")])).toBe(false);
+  });
+
+  test("holds for identical root graphs", () => {
+    expect(workerRootsEqual([root("b", "blueprint", "s-b"), root("z", "card", "s-z")], [root("b", "blueprint", "s-b"), root("z", "card", "s-z")])).toBe(true);
+  });
+
+  test("treats an empty (v1) root set as changed once roots appear", () => {
+    expect(workerRootsEqual([], [root("b", "blueprint", "s-b")])).toBe(false);
+    expect(workerRootsEqual([], [])).toBe(true);
   });
 });
