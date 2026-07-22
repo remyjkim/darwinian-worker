@@ -53,6 +53,15 @@ describe("drwn write", () => {
     const mcpOnly = await runAgentsCli(["write", "--dry-run", "--mcp-only"], env);
     expect(mcpOnly.exitCode).toBe(0);
     expect(mcpOnly.stdout).not.toContain(".claude/skills");
+
+    const opencode = await runAgentsCli(["write", "--dry-run", "--target=opencode"], env);
+    expect(opencode.exitCode).toBe(0);
+    expect(opencode.stdout).toContain("opencode.json");
+    expect(opencode.stdout).not.toContain("config.toml");
+
+    const bogus = await runAgentsCli(["write", "--dry-run", "--target=gemini"], env);
+    expect(bogus.exitCode).not.toBe(0);
+    expect(bogus.stdout).toContain("Unsupported target: gemini");
   });
 
   test("rejects mutually exclusive mode flags", async () => {

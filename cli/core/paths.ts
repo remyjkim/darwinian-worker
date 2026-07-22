@@ -73,6 +73,7 @@ export function resolveToolPaths(scope: string | ToolScope) {
     claudeSettings: join(root, ".claude", "settings.json"),
     codexConfig: join(root, ".codex", "config.toml"),
     cursorMcp: join(root, ".cursor", "mcp.json"),
+    opencodeConfig: join(root, "opencode.json"),
   };
 }
 

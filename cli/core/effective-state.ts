@@ -405,6 +405,7 @@ export async function buildEffectiveState(options: SyncOptions = {}): Promise<Ef
       claude: projectPaths.claudeMcp,
       codex: projectPaths.codexConfig,
       cursor: projectPaths.cursorMcp,
+      opencode: projectPaths.opencodeConfig,
     } as const;
     ambientCollisions = classifyAmbientMcpCollisions(
       inspected.definitions.flatMap((ambient) => {

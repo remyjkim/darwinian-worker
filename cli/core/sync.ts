@@ -7,13 +7,14 @@ import { join } from "node:path";
 import { expandHomePath, resolveToolPaths } from "./paths";
 import {
   CLAUDE_MCP_SERVER_HASH_PREFIX,
-  claudeMcpServerHashKey,
+  mcpServerHashKey,
   codexUnsupportedHeaderKeys,
   hashCodexManagedServers,
   mergeClaudeSettingsText,
   mergeCodexTomlText,
   mergeCursorConfigText,
-  ownedClaudeMcpServerNames,
+  mergeOpencodeConfigText,
+  ownedMcpServerNames,
   renderMcpServerForTarget,
   renderJsonMcpConfig,
 } from "./mcp";
@@ -83,6 +84,7 @@ function isCodexMcpEntry(entry: ManagedFieldsPath) {
 function machineMcpRecordPath(target: TargetName) {
   if (target === "claude") return ".claude.json";
   if (target === "codex") return ".codex/config.toml";
+  if (target === "opencode") return ".config/opencode/opencode.json";
   return ".cursor/mcp.json";
 }
 
@@ -107,7 +109,7 @@ export function planMachineManagedPaths(state: EffectiveState): ManagedPath[] {
 
   if (!state.scopedOptions.skillsOnly) {
     for (const target of selectedMachineTargets(state)) {
-      const fields = Object.keys(state.activeServers).sort().map((id) => target === "codex" ? id : claudeMcpServerHashKey(id));
+      const fields = Object.keys(state.activeServers).sort().map((id) => target === "codex" ? id : mcpServerHashKey(id));
       if (fields.length === 0) continue;
       planned.push({
         path: machineMcpRecordPath(target),
@@ -117,7 +119,7 @@ export function planMachineManagedPaths(state: EffectiveState): ManagedPath[] {
         fields,
         fieldHashes: Object.fromEntries(
           Object.entries(state.activeServers).map(([id, server]) => [
-            target === "codex" ? id : claudeMcpServerHashKey(id),
+            target === "codex" ? id : mcpServerHashKey(id),
             canonicalJsonHash(renderMcpServerForTarget(target, server)),
           ]),
         ),
@@ -150,6 +152,7 @@ function managedPathAbsolute(state: EffectiveState, entry: ManagedPath) {
   if (entry.path === ".claude.json") return machineTargetConfigPath(state, "claude");
   if (entry.path === ".codex/config.toml") return machineTargetConfigPath(state, "codex");
   if (entry.path === ".cursor/mcp.json") return machineTargetConfigPath(state, "cursor");
+  if (entry.path === ".config/opencode/opencode.json") return machineTargetConfigPath(state, "opencode");
   return managedPathToAbsolute(state.scopeRoot, entry.path);
 }
 
@@ -171,8 +174,10 @@ function inspectManagedFields(
 
   try {
     const parsed = JSON.parse(readFileSync(absolutePath, "utf8")) as Record<string, unknown>;
-    const servers = parsed.mcpServers && typeof parsed.mcpServers === "object" && !Array.isArray(parsed.mcpServers)
-      ? parsed.mcpServers as Record<string, unknown>
+    const serversKey = entry.path.endsWith("opencode.json") ? "mcp" : "mcpServers";
+    const rawServers = parsed[serversKey];
+    const servers = rawServers && typeof rawServers === "object" && !Array.isArray(rawServers)
+      ? rawServers as Record<string, unknown>
       : {};
     return {
       invalid: false,
@@ -321,14 +326,16 @@ export function cleanupRemovedManagedPaths(
         result.warnings.push(`preserved user-owned path: ${absolutePath}`);
         continue;
       }
+      const serversKey = entry.path.endsWith("opencode.json") ? "mcp" : "mcpServers";
+      const rawServers = parsed[serversKey];
       const mcpServers = (
-        parsed.mcpServers && typeof parsed.mcpServers === "object" && !Array.isArray(parsed.mcpServers)
-          ? parsed.mcpServers
+        rawServers && typeof rawServers === "object" && !Array.isArray(rawServers)
+          ? rawServers
           : {}
       ) as Record<string, unknown>;
       let changed = false;
       let drifted = false;
-      for (const name of ownedClaudeMcpServerNames(entry.fieldHashes)) {
+      for (const name of ownedMcpServerNames(entry.fieldHashes)) {
         const currentValue = mcpServers[name];
         if (currentValue === undefined) {
           continue;
@@ -345,7 +352,7 @@ export function cleanupRemovedManagedPaths(
         result.warnings.push(`preserved user-owned path: ${absolutePath}`);
       }
       if (changed) {
-        parsed.mcpServers = mcpServers;
+        parsed[serversKey] = mcpServers;
         writeManagedFile(absolutePath, `${JSON.stringify(parsed, null, 2)}\n`, dryRun, result);
       }
       continue;
@@ -481,6 +488,11 @@ export async function syncMcp(
       entry.kind === "managed-fields" && entry.path === ".cursor/mcp.json" && hasClaudePerServerHashes(entry),
   );
   const previousCursorHashes = previousCursor?.fieldHashes ?? {};
+  const previousOpencode = previousManagedPaths.find(
+    (entry): entry is ManagedFieldsPath =>
+      entry.kind === "managed-fields" && entry.path.endsWith("opencode.json") && hasClaudePerServerHashes(entry),
+  );
+  const previousOpencodeHashes = previousOpencode?.fieldHashes ?? {};
   const hasPriorMcpOwnership = previousManagedPaths.some((entry) =>
     (entry.kind === "managed-fields" && hasClaudePerServerHashes(entry)) ||
     (entry.kind === "managed-fields" && isCodexMcpEntry(entry)) ||
@@ -498,6 +510,7 @@ export async function syncMcp(
     if (options.writeScope === "project") {
       if (targetName === "claude") return toolPaths.claudeMcp;
       if (targetName === "codex") return toolPaths.codexConfig;
+      if (targetName === "opencode") return toolPaths.opencodeConfig;
       return toolPaths.cursorMcp;
     }
     return expandHomePath(targetName === "claude" ? (target.userMcpPath ?? target.configPath) : target.configPath, options.homeDir);
@@ -560,6 +573,34 @@ export async function syncMcp(
       const fieldHashes = hashCodexManagedServers(mergedCodex, Object.keys(servers));
       if (Object.keys(fieldHashes).length > 0) {
         managedPaths.push({ path: ".codex/config.toml", kind: "managed-fields", surface: "mcp", target: "codex", fields: Object.keys(fieldHashes), fieldHashes });
+      }
+      continue;
+    }
+
+    if (targetName === "opencode") {
+      const jsoncSibling = configPath.replace(/opencode\.json$/, "opencode.jsonc");
+      if (existsSync(jsoncSibling)) {
+        result.warnings.push(
+          `Skipping opencode MCP write: ${jsoncSibling} exists and drwn only manages opencode.json. Migrate the config or manage MCP manually.`,
+        );
+        continue;
+      }
+      const current = await readTextIfExists(configPath, `{\n  "$schema": "https://opencode.ai/config.json"\n}\n`);
+      const merged = mergeOpencodeConfigText(current, servers, {
+        priorFieldHashes: previousOpencodeHashes,
+        force: options.force ?? false,
+        preserveRemovedOwnedServers: true,
+      });
+      writeManagedFile(configPath, merged.text, options.dryRun, result);
+      if (Object.keys(merged.fieldHashes).length > 0) {
+        managedPaths.push({
+          path: options.writeScope === "project" ? "opencode.json" : ".config/opencode/opencode.json",
+          kind: "managed-fields",
+          surface: "mcp",
+          target: "opencode",
+          fields: Object.keys(merged.fieldHashes),
+          fieldHashes: merged.fieldHashes,
+        });
       }
       continue;
     }
@@ -666,6 +707,7 @@ export async function syncRepository(options: SyncOptions = {}): Promise<SyncRes
       state.skillApplyOrderCards,
       state.contentRootsByCard,
       Object.fromEntries((state.machineCapabilities?.skills ?? []).map((skill) => [skill.id, skill])),
+      state.effectiveConfig,
     );
     result.changes.push(...skillsResult.changes);
     result.warnings.push(...skillsResult.warnings);
@@ -673,7 +715,7 @@ export async function syncRepository(options: SyncOptions = {}): Promise<SyncRes
   }
 
   if (!state.normalized.mcpOnly && !state.normalized.skillsOnly) {
-    const hooksResult = await syncHooks(state);
+    const hooksResult = await syncHooks(state, previousRecord?.managedPaths ?? []);
     result.changes.push(...hooksResult.changes);
     result.warnings.push(...hooksResult.warnings);
     result.managedPaths?.push(...(hooksResult.managedPaths ?? []));

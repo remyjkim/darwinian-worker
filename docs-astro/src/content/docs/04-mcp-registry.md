@@ -60,6 +60,7 @@ Limit to one target:
 
 ```bash
 drwn mcp write --target=cursor
+drwn mcp write --target=opencode
 ```
 
 ## Notes

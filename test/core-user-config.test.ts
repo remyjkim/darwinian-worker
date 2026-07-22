@@ -66,6 +66,33 @@ describe("machine runtime config", () => {
     expect(loaded.config.defaults).toEqual(repoConfig.defaults);
   });
 
+  test("machine policy can enable the opencode target", async () => {
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    const { loadConfig } = await import("../cli/core/config");
+    const { loadEffectiveConfig } = await import("../cli/core/user-config");
+    const repoConfig = await loadConfig(fixture.repoRoot);
+    repoConfig.targets.opencode = {
+      enabled: false,
+      configPath: "~/.config/opencode/opencode.json",
+      format: "json-merge",
+      mcpKey: "mcp",
+    };
+    await mkdir(join(fixture.agentsDir, "drwn"), { recursive: true });
+    await writeFile(
+      resolveMachineConfigPath(fixture.agentsDir),
+      `${JSON.stringify({
+        ...createEmptyMachineConfig(),
+        policy: { targets: { opencode: { enabled: true } } },
+      }, null, 2)}\n`,
+    );
+
+    const loaded = await loadEffectiveConfig(repoConfig, fixture.agentsDir);
+
+    expect(loaded.config.targets.opencode.enabled).toBe(true);
+    expect(loaded.config.targets.opencode.mcpKey).toBe("mcp");
+  });
+
   test("does not read the prototype config.json fallback", async () => {
     const fixture = await scaffoldCliFixture();
     tempRoots.push(fixture.root);

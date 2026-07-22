@@ -10,13 +10,14 @@ import {
 } from "../cli/core/targets";
 import type { CanonicalConfig } from "../cli/core/types";
 
-function targetsConfig(enabled: Partial<Record<"claude" | "codex" | "cursor", boolean>>): Pick<CanonicalConfig, "targets"> {
+function targetsConfig(enabled: Partial<Record<"claude" | "codex" | "cursor" | "opencode", boolean>>): Pick<CanonicalConfig, "targets"> {
   const base = { configPath: "x", format: "json-merge" as const, mcpKey: "mcpServers" };
   return {
     targets: {
       claude: { ...base, enabled: enabled.claude ?? false },
       codex: { ...base, format: "toml-merge", enabled: enabled.codex ?? false },
       cursor: { ...base, format: "json-standalone", enabled: enabled.cursor ?? false },
+      opencode: { ...base, mcpKey: "mcp", enabled: enabled.opencode ?? false },
     },
   };
 }
@@ -33,11 +34,19 @@ describe("target descriptors", () => {
   test("should not annotate codex or cursor with the cowork surface", () => {
     expect(getTargetDescriptor("codex").surfaces).not.toContain("cowork");
     expect(getTargetDescriptor("cursor").surfaces).not.toContain("cowork");
-    expect(getTargetDescriptor("cursor").hookRuntime).toBeNull();
+    expect(getTargetDescriptor("cursor").hookRuntime).toBe("cursor");
   });
 
   test("should expose all target names", () => {
-    expect(ALL_TARGET_NAMES).toEqual(["claude", "codex", "cursor"]);
+    expect(ALL_TARGET_NAMES).toEqual(["claude", "codex", "cursor", "opencode"]);
+  });
+
+  test("opencode target descriptor", () => {
+    const opencode = getTargetDescriptor("opencode");
+    expect(opencode.surfaces).toEqual(["opencode"]);
+    expect(opencode.mcpFormat).toBe("json-merge");
+    expect(opencode.hookRuntime).toBe("opencode");
+    expect(opencode.skillSurfaces).toEqual([]);
   });
 
   test("should recognize valid target names and reject others", () => {
@@ -45,6 +54,12 @@ describe("target descriptors", () => {
     expect(isTargetName("cursor")).toBe(true);
     expect(isTargetName("cowork")).toBe(false);
     expect(isTargetName("nonsense")).toBe(false);
+  });
+
+  test("targets declare which skill surface directories their harness reads", () => {
+    expect(getTargetDescriptor("claude").skillSurfaces).toEqual(["claude"]);
+    expect(getTargetDescriptor("codex").skillSurfaces).toEqual(["codex"]);
+    expect(getTargetDescriptor("cursor").skillSurfaces).toEqual(["claude", "codex"]);
   });
 
   test("descriptorsFor should return only enabled targets", () => {

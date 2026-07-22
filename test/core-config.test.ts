@@ -53,6 +53,35 @@ describe("core config and registry", () => {
     expect(config.parallel?.cli?.enabled).toBe(true);
   });
 
+  test("a target map without opencode still writes without throwing", async () => {
+    const { cleanupTempRoots: cleanup, envFor, runAgentsCli, scaffoldCliFixture } = await import("./helpers");
+    const { readFile: read, writeFile: write } = await import("node:fs/promises");
+    const fixture = await scaffoldCliFixture();
+    tempRoots.push(fixture.root);
+    void cleanup;
+    const registryConfigPath = join(fixture.repoRoot, "registry", "config.json");
+    const registryConfig = JSON.parse(await read(registryConfigPath, "utf8"));
+    delete registryConfig.targets.opencode;
+    await write(registryConfigPath, `${JSON.stringify(registryConfig, null, 2)}\n`);
+
+    const result = await runAgentsCli(["write", "--dry-run", "--json"], envFor(fixture));
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).not.toContain("opencode.json");
+  });
+
+  test("packaged registry declares the opencode target disabled by default", async () => {
+    const { loadConfig } = await import("../cli/core/config");
+    const repoRoot = join(import.meta.dir, "..");
+    const config = await loadConfig(repoRoot);
+    expect(config.targets.opencode).toMatchObject({
+      enabled: false,
+      configPath: "~/.config/opencode/opencode.json",
+      format: "json-merge",
+      mcpKey: "mcp",
+    });
+  });
+
   test("loads packaged registry from repo root", async () => {
     const root = await createTempRoot();
     const repoRoot = join(root, "repo");

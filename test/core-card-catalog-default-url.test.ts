@@ -12,6 +12,7 @@ function configWithDefaults(defaults: NonNullable<CanonicalConfig["defaults"]>):
       claude: { enabled: true, configPath: "/c", format: "json-merge", mcpKey: "mcpServers" },
       codex: { enabled: true, configPath: "/d", format: "toml-merge", mcpKey: "mcp_servers" },
       cursor: { enabled: true, configPath: "/u", format: "json-standalone", mcpKey: "mcpServers" },
+      opencode: { enabled: false, configPath: "/o", format: "json-merge", mcpKey: "mcp" },
     },
     optional: {},
     defaults,
@@ -41,6 +42,7 @@ describe("resolveDefaultCommunityCatalogUrl", () => {
         claude: { enabled: true, configPath: "/c", format: "json-merge", mcpKey: "mcpServers" },
         codex: { enabled: true, configPath: "/d", format: "toml-merge", mcpKey: "mcp_servers" },
         cursor: { enabled: true, configPath: "/u", format: "json-standalone", mcpKey: "mcpServers" },
+      opencode: { enabled: false, configPath: "/o", format: "json-merge", mcpKey: "mcp" },
       },
       optional: {},
     };

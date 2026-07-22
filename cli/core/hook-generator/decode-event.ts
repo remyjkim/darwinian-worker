@@ -32,6 +32,15 @@ const CODEX_KNOWN_FIELDS = new Set([
   "cwd",
 ]);
 
+const CURSOR_KNOWN_FIELDS = new Set([
+  "tool_name",
+  "tool_input",
+  "tool_response",
+  "tool_error",
+  "cwd",
+  "conversation_id",
+]);
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
@@ -106,6 +115,86 @@ export function decodeCodexEvent(payload: Record<string, unknown>, phase?: Phase
     ...(decodeError(payload.tool_error) ? { error: decodeError(payload.tool_error) } : {}),
     ...(typeof payload.cwd === "string" ? { cwd: payload.cwd } : {}),
     ...(metadataFrom(payload, CODEX_KNOWN_FIELDS) ? { metadata: metadataFrom(payload, CODEX_KNOWN_FIELDS) } : {}),
+  };
+  return event;
+}
+
+// Cursor emits camelCase event names in hooks.json (preToolUse/postToolUse); payloads are
+// normalized case-insensitively because Cursor also loads Claude-Code-style hooks.
+function cursorEventPhase(payload: Record<string, unknown>, explicitPhase?: Phase): Phase {
+  if (explicitPhase) {
+    return explicitPhase;
+  }
+  const name = String(payload.hook_event_name ?? "").toLowerCase();
+  if (name === "pretooluse") {
+    return "pre-tool";
+  }
+  if (name === "posttooluse") {
+    return "post-tool";
+  }
+  throw new Error(`Unsupported hook_event_name: ${String(payload.hook_event_name)}`);
+}
+
+// Cursor names its shell tool "Shell"; policies match the canonical "Bash" name shared
+// by the other runtimes. Remaining cursor tool types already use canonical names.
+const CURSOR_TOOL_NAMES: Record<string, string> = {
+  Shell: "Bash",
+};
+
+export function decodeCursorEvent(payload: Record<string, unknown>, phase?: Phase): ToolPolicyEvent {
+  const decodedPhase = cursorEventPhase(payload, phase);
+  const rawToolName = requireToolName(payload);
+  const event: ToolPolicyEvent = {
+    runtime: "cursor",
+    phase: decodedPhase,
+    toolName: CURSOR_TOOL_NAMES[rawToolName] ?? rawToolName,
+    input: payload.tool_input,
+    ...(payload.tool_response !== undefined ? { output: payload.tool_response } : {}),
+    ...(decodeError(payload.tool_error) ? { error: decodeError(payload.tool_error) } : {}),
+    ...(typeof payload.cwd === "string" ? { cwd: payload.cwd } : {}),
+    ...(typeof payload.conversation_id === "string" ? { sessionId: payload.conversation_id } : {}),
+    ...(metadataFrom(payload, CURSOR_KNOWN_FIELDS) ? { metadata: metadataFrom(payload, CURSOR_KNOWN_FIELDS) } : {}),
+  };
+  return event;
+}
+
+// OpenCode plugin hooks receive (input, output) pairs in-process; tool ids are lowercase
+// built-ins that normalize to the canonical names card policy matchers are written against.
+const OPENCODE_TOOL_NAMES: Record<string, string> = {
+  bash: "Bash",
+  read: "Read",
+  edit: "Edit",
+  write: "Write",
+  glob: "Glob",
+  grep: "Grep",
+  task: "Task",
+  webfetch: "WebFetch",
+  skill: "Skill",
+  todowrite: "TodoWrite",
+  todoread: "TodoRead",
+};
+
+const OPENCODE_KNOWN_INPUT_FIELDS = new Set(["sessionID"]);
+
+export function decodeOpencodeEvent(
+  hookInput: Record<string, unknown>,
+  hookOutput: Record<string, unknown>,
+  phase: Phase,
+): ToolPolicyEvent {
+  const rawTool = typeof hookInput.tool === "string" && hookInput.tool.length > 0
+    ? hookInput.tool
+    : (() => {
+        throw new Error("Hook payload missing tool");
+      })();
+  const output = hookOutput.output ?? hookOutput.result;
+  const event: ToolPolicyEvent = {
+    runtime: "opencode",
+    phase,
+    toolName: OPENCODE_TOOL_NAMES[rawTool] ?? rawTool,
+    input: hookOutput.args,
+    ...(phase === "post-tool" && output !== undefined ? { output } : {}),
+    ...(typeof hookInput.sessionID === "string" ? { sessionId: hookInput.sessionID } : {}),
+    ...(metadataFrom(hookInput, OPENCODE_KNOWN_INPUT_FIELDS) ? { metadata: metadataFrom(hookInput, OPENCODE_KNOWN_INPUT_FIELDS) } : {}),
   };
   return event;
 }

@@ -12,7 +12,8 @@ export type AmbientReasonCode =
   | "CODEX_PROJECT_AUGMENTS_USER"
   | "CODEX_INCOMPATIBLE_TRANSPORTS"
   | "CURSOR_PROJECT_MERGES_USER"
-  | "CURSOR_PROJECT_TRANSPORT_OVERRIDE";
+  | "CURSOR_PROJECT_TRANSPORT_OVERRIDE"
+  | "OPENCODE_PROJECT_OVERRIDES_USER";
 
 export type AmbientDefinitionSource = "user" | "project" | "local";
 export type AmbientTransport = "stdio" | "http" | "sse" | "ws" | "invalid";
@@ -106,6 +107,21 @@ function normalizeJsonDefinition(value: unknown): NormalizedDefinition | null {
   return { transport, value: normalized };
 }
 
+// OpenCode definitions use type local/remote with a combined command array; there is no
+// alias normalization because the shape is already canonical.
+function normalizeOpencodeDefinition(value: unknown): NormalizedDefinition | null {
+  if (!isObject(value)) return null;
+  const hasCommand = Array.isArray(value.command);
+  const hasUrl = typeof value.url === "string";
+  if (value.type === "local" || (value.type === undefined && hasCommand && !hasUrl)) {
+    return hasCommand ? { transport: "stdio", value: structuredClone(value) } : null;
+  }
+  if (value.type === "remote" || (value.type === undefined && hasUrl && !hasCommand)) {
+    return hasUrl ? { transport: "http", value: structuredClone(value) } : null;
+  }
+  return null;
+}
+
 function normalizeCodexDefinition(value: unknown): NormalizedDefinition | null {
   if (!isObject(value)) return null;
   const transport = normalizedTransport(value);
@@ -170,7 +186,11 @@ export function classifyAmbientMcpCollision(input: AmbientCollisionInput): Ambie
   }
 
   const target = input.declared.target;
-  const normalize = target === "codex" ? normalizeCodexDefinition : normalizeJsonDefinition;
+  const normalize = target === "codex"
+    ? normalizeCodexDefinition
+    : target === "opencode"
+      ? normalizeOpencodeDefinition
+      : normalizeJsonDefinition;
   const declared = normalize(input.declared.value);
   const ambient = normalize(input.ambient.value);
   if (!declared || !ambient) return null;
@@ -212,6 +232,17 @@ export function classifyAmbientMcpCollision(input: AmbientCollisionInput): Ambie
     );
   }
 
+  if (target === "opencode") {
+    return collision(
+      input,
+      declared,
+      ambient,
+      "warning",
+      "OPENCODE_PROJECT_OVERRIDES_USER",
+      "OpenCode uses the project opencode.json definition for a same-ID server; align or rename the duplicate if unintended.",
+    );
+  }
+
   const transportChanged = declared.transport !== ambient.transport;
   return collision(
     input,
@@ -225,7 +256,7 @@ export function classifyAmbientMcpCollision(input: AmbientCollisionInput): Ambie
   );
 }
 
-const targetOrder: Record<TargetName, number> = { claude: 0, codex: 1, cursor: 2 };
+const targetOrder: Record<TargetName, number> = { claude: 0, codex: 1, cursor: 2, opencode: 3 };
 const sourceOrder: Record<AmbientDefinitionSource, number> = { local: 0, project: 1, user: 2 };
 
 export function sortAmbientCollisions(collisions: AmbientCollision[]): AmbientCollision[] {

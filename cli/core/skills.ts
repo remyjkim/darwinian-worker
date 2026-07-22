@@ -9,7 +9,8 @@ import { resolveSkillSource } from "./card-skill-resolver";
 import { resolveSkillScopeDirs, resolveToolPaths } from "./paths";
 import { lstatSafe } from "./fs";
 import { materializeDir } from "./materialize";
-import type { NormalizedSyncOptions, SyncResult, TargetName } from "./types";
+import { ALL_TARGET_NAMES, DESCRIPTORS, descriptorsFor, type SkillSurfaceDir } from "./targets";
+import type { CanonicalConfig, NormalizedSyncOptions, SyncResult, TargetName } from "./types";
 import { ownManagedPath, type ManagedPath, type ProjectionTarget } from "./write-record";
 import { listInstalledSkillBundles } from "./skill-packages";
 
@@ -240,10 +241,19 @@ export async function syncSkills(
   lockedCards: CardLockEntry[] = [],
   contentRoots?: Record<string, string>,
   machineSources?: Record<string, import("./defaults").ResolvedMachineSkill>,
+  targetsConfig?: Pick<CanonicalConfig, "targets">,
 ): Promise<SyncResult> {
   const managedPaths: ManagedPath[] = [];
   const result: SyncResult = { changes: [], warnings: [], managedPaths };
   const toolPaths = resolveToolPaths(options.toolRoot ?? options.homeDir);
+  const selectedSurfaces = new Set<SkillSurfaceDir>(
+    (targetsConfig
+      ? descriptorsFor(targetsConfig, options.target)
+      : ALL_TARGET_NAMES
+          .filter((name) => (options.target ? name === options.target : true))
+          .map((name) => DESCRIPTORS[name])
+    ).flatMap((descriptor) => descriptor.skillSurfaces),
+  );
   const excluded = new Set(overrides?.exclude ?? []);
   result.warnings.push(...collectDuplicateSkillWarnings(lockedCards));
   for (const skill of excluded) {
@@ -285,7 +295,7 @@ export async function syncSkills(
         : source.layer === "machine-explicit"
           ? "explicit machine selection"
           : "user-default";
-    if (!options.target || options.target === "claude") {
+    if (selectedSurfaces.has("claude")) {
       if (scope === "shared" || scope === "claude-only") {
         desiredClaude.add(name);
         recordIntent(claudeIntents, {
@@ -297,7 +307,7 @@ export async function syncSkills(
         });
       }
     }
-    if (!options.target || options.target === "codex") {
+    if (selectedSurfaces.has("codex")) {
       if (scope === "shared" || scope === "codex-only") {
         desiredCodex.add(name);
         recordIntent(codexIntents, {
@@ -324,10 +334,10 @@ export async function syncSkills(
     managedPaths.push(ownManagedPath(record, { surface: "skill", target: intent.target }));
   }
 
-  const staleClaude = !options.target || options.target === "claude"
+  const staleClaude = selectedSurfaces.has("claude")
     ? await findStaleManagedEntries(toolPaths.claudeSkills, desiredClaude)
     : [];
-  const staleCodex = !options.target || options.target === "codex"
+  const staleCodex = selectedSurfaces.has("codex")
     ? await findStaleManagedEntries(toolPaths.codexSkills, desiredCodex)
     : [];
 

@@ -109,6 +109,12 @@ function createConfig(optionalSlack = false, parallelMcpEnabled = false): Canoni
         configPath: "~/.cursor/mcp.json",
         format: "json-standalone",
         mcpKey: "mcpServers",      },
+      opencode: {
+        enabled: false,
+        configPath: "~/.config/opencode/opencode.json",
+        format: "json-merge",
+        mcpKey: "mcp",
+      },
     },
     optional: {
       slack: optionalSlack,
@@ -691,13 +697,13 @@ describe("syncRepository", () => {
           ...createConfig(false),
           targets: {
             claude: {
-              enabled: false,
+              enabled: true,
               configPath: join(homeDir, ".claude", "settings.json"),
               format: "json-merge",
               mcpKey: "mcpServers",
             },
             codex: {
-              enabled: false,
+              enabled: true,
               configPath: join(homeDir, ".codex", "config.toml"),
               format: "toml-merge",
               mcpKey: "mcp_servers",

@@ -190,7 +190,7 @@ export function resolveGeneratedHooksDir(generatedDir: string, runtime: Runtime)
   if (runtime === "claude-code") {
     return join(generatedDir, "hooks", "claude");
   }
-  if (runtime === "codex" || runtime === "mastra") {
+  if (runtime === "codex" || runtime === "cursor" || runtime === "opencode" || runtime === "mastra") {
     return join(generatedDir, "hooks", runtime);
   }
   throw new Error(`Invalid hook runtime: ${String(runtime)}`);

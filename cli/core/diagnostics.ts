@@ -9,7 +9,15 @@ import { resolveSkillSource } from "./card-skill-resolver";
 import { buildEffectiveState, selectedAmbientCollisions, type EffectiveState } from "./effective-state";
 import { inspectAmbientCapabilities } from "./ambient-capabilities";
 import { loadConfig } from "./config";
-import { hashCodexManagedServers, mergeCodexTomlText, renderCursorConfig, renderJsonMcpConfig } from "./mcp";
+import { canonicalJsonHash } from "./managed-fields";
+import {
+  mcpServerHashKey,
+  hashClaudeManagedServers,
+  hashCodexManagedServers,
+  mergeCodexTomlText,
+  renderJsonMcpConfig,
+  renderMcpServerForTarget,
+} from "./mcp";
 import { mergeUserMcpLibrary } from "./defaults";
 import { expandHomePath, resolveToolPaths } from "./paths";
 import { resolveHomeDir } from "./home";
@@ -727,7 +735,7 @@ async function collectWhyMatches(
     matches.push({ kind: "extension", name, message: `extension:${name} is known from ${source}.\n` });
   }
 
-  if (name === "claude" || name === "codex" || name === "cursor") {
+  if (name === "claude" || name === "codex" || name === "cursor" || name === "opencode") {
     const override = projectConfig?.targets?.[name];
     const enabled = effectiveConfig.targets[name].enabled;
     matches.push({
@@ -837,7 +845,7 @@ async function detectStaleSkillSymlinks(
   ];
 }
 
-async function detectMcpDrift(
+export async function detectMcpDrift(
   config: CanonicalConfig,
   activeServers: Record<string, RegistryServer>,
   toolRoot: string,
@@ -854,7 +862,9 @@ async function detectMcpDrift(
       ? toolPaths.claudeMcp
       : targetName === "codex"
         ? toolPaths.codexConfig
-        : toolPaths.cursorMcp;
+        : targetName === "opencode"
+          ? toolPaths.opencodeConfig
+          : toolPaths.cursorMcp;
 
     if (targetName === "claude" && existsSync(configPath)) {
       const current = readFileSync(configPath, "utf8");
@@ -875,9 +885,38 @@ async function detectMcpDrift(
       }
     }
 
+    if (targetName === "opencode" && existsSync(configPath)) {
+      const names = Object.keys(activeServers);
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = JSON.parse(readFileSync(configPath, "utf8")) as Record<string, unknown>;
+      } catch {
+        drifts.push(`opencode:${configPath}`);
+        parsed = {};
+      }
+      const rawServers = parsed.mcp;
+      const currentServers = rawServers && typeof rawServers === "object" && !Array.isArray(rawServers)
+        ? rawServers as Record<string, unknown>
+        : {};
+      const drifted = names.some((name) => {
+        const currentValue = currentServers[name];
+        if (currentValue === undefined) return true;
+        return canonicalJsonHash(currentValue) !== canonicalJsonHash(renderMcpServerForTarget("opencode", activeServers[name]!));
+      });
+      if (drifted && !drifts.includes(`opencode:${configPath}`)) {
+        drifts.push(`opencode:${configPath}`);
+      }
+    }
+
     if (targetName === "cursor" && existsSync(configPath)) {
       const current = readFileSync(configPath, "utf8");
-      if (current !== renderCursorConfig(activeServers)) {
+      const names = Object.keys(activeServers);
+      const currentHashes = hashClaudeManagedServers(current, names);
+      const drifted = names.some((name) => {
+        const expected = canonicalJsonHash(renderMcpServerForTarget("cursor", activeServers[name]!));
+        return currentHashes[mcpServerHashKey(name)] !== expected;
+      });
+      if (drifted) {
         drifts.push(`cursor:${configPath}`);
       }
     }

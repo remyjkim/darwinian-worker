@@ -97,6 +97,10 @@ function toCursorEnvValue(value: string) {
   return value.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, "${env:$1}");
 }
 
+function toOpencodeEnvValue(value: string) {
+  return value.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, "{env:$1}");
+}
+
 // Matches an Authorization value of the exact form "Bearer ${VAR}", capturing VAR. Codex models
 // bearer auth as an env-var name (bearer_token_env_var), not a literal header value.
 const BEARER_PASSTHROUGH = /^Bearer\s+\$\{([A-Za-z_][A-Za-z0-9_]*)\}$/;
@@ -173,6 +177,33 @@ function toCursorServerConfig(server: RegistryServer) {
   };
 }
 
+function toOpencodeServerConfig(server: RegistryServer) {
+  const timeout = (server.startupTimeoutSec ?? 30) * 1000;
+  if (server.transport === "stdio") {
+    return {
+      type: "local",
+      command: [server.command, ...(server.args ?? [])],
+      enabled: true,
+      ...(server.env
+        ? {
+            environment: Object.fromEntries(
+              Object.entries(server.env).map(([key, value]) => [key, toOpencodeEnvValue(value)]),
+            ),
+          }
+        : {}),
+      timeout,
+    };
+  }
+
+  return {
+    type: "remote",
+    url: server.url,
+    enabled: true,
+    ...(server.headers ? { headers: mapHeaderValues(server.headers, toOpencodeEnvValue) } : {}),
+    timeout,
+  };
+}
+
 function toCodexServerConfig(server: RegistryServer) {
   if (server.transport === "stdio") {
     const { envVars, literalEnv } = partitionCodexEnv(server.env);
@@ -197,6 +228,7 @@ function toCodexServerConfig(server: RegistryServer) {
 export function renderMcpServerForTarget(target: TargetName, server: RegistryServer): Record<string, unknown> {
   if (target === "codex") return toCodexServerConfig(server);
   if (target === "cursor") return toCursorServerConfig(server);
+  if (target === "opencode") return toOpencodeServerConfig(server);
   return toJsonServerConfig(server);
 }
 
@@ -218,11 +250,11 @@ export function renderCursorConfig(servers: Record<string, RegistryServer>) {
 
 export const CLAUDE_MCP_SERVER_HASH_PREFIX = "mcpServers:";
 
-export function claudeMcpServerHashKey(name: string) {
+export function mcpServerHashKey(name: string) {
   return `${CLAUDE_MCP_SERVER_HASH_PREFIX}${name}`;
 }
 
-export function ownedClaudeMcpServerNames(fieldHashes: Record<string, string>) {
+export function ownedMcpServerNames(fieldHashes: Record<string, string>) {
   return Object.keys(fieldHashes)
     .filter((key) => key.startsWith(CLAUDE_MCP_SERVER_HASH_PREFIX))
     .map((key) => key.slice(CLAUDE_MCP_SERVER_HASH_PREFIX.length));
@@ -247,7 +279,7 @@ export function hashClaudeManagedServers(currentText: string, names: string[]): 
   return Object.fromEntries(
     names.map((name) => {
       const value = servers[name];
-      return [claudeMcpServerHashKey(name), value === undefined ? "absent" : canonicalJsonHash(value)];
+      return [mcpServerHashKey(name), value === undefined ? "absent" : canonicalJsonHash(value)];
     }),
   );
 }
@@ -355,11 +387,11 @@ export function mergeClaudeSettingsText(
 
     const driftedServers = options.force
       ? []
-      : ownedClaudeMcpServerNames(recordedHashes).filter((name) => {
+      : ownedMcpServerNames(recordedHashes).filter((name) => {
           if (!(name in desiredServers)) {
             return false;
           }
-          const priorHash = recordedHashes[claudeMcpServerHashKey(name)];
+          const priorHash = recordedHashes[mcpServerHashKey(name)];
           const currentValue = currentServers[name];
           if (currentValue === undefined) return true;
           return Boolean(priorHash && canonicalJsonHash(currentValue) !== priorHash);
@@ -371,9 +403,9 @@ export function mergeClaudeSettingsText(
     }
 
     if (!options.preserveRemovedOwnedServers) {
-      for (const name of ownedClaudeMcpServerNames(recordedHashes)) {
+      for (const name of ownedMcpServerNames(recordedHashes)) {
         if (name in desiredServers) continue;
-        const priorHash = recordedHashes[claudeMcpServerHashKey(name)];
+        const priorHash = recordedHashes[mcpServerHashKey(name)];
         const currentValue = currentServers[name];
         if (currentValue !== undefined && priorHash && canonicalJsonHash(currentValue) === priorHash) {
           delete currentServers[name];
@@ -382,7 +414,7 @@ export function mergeClaudeSettingsText(
     }
     for (const [name, value] of Object.entries(desiredServers)) {
       currentServers[name] = value;
-      fieldHashes[claudeMcpServerHashKey(name)] = canonicalJsonHash(value);
+      fieldHashes[mcpServerHashKey(name)] = canonicalJsonHash(value);
     }
     parsed.mcpServers = currentServers;
   } else if (mcpServerOwnership === "field") {
@@ -461,9 +493,9 @@ export function mergeCursorConfigText(
   const recordedHashes = options.priorFieldHashes ?? {};
   const driftedServers = options.force
     ? []
-    : ownedClaudeMcpServerNames(recordedHashes).filter((name) => {
+    : ownedMcpServerNames(recordedHashes).filter((name) => {
         if (!(name in desiredServers)) return false;
-        const priorHash = recordedHashes[claudeMcpServerHashKey(name)];
+        const priorHash = recordedHashes[mcpServerHashKey(name)];
         const currentValue = currentServers[name];
         return currentValue === undefined || Boolean(priorHash && canonicalJsonHash(currentValue) !== priorHash);
       });
@@ -474,9 +506,9 @@ export function mergeCursorConfigText(
   }
 
   if (!options.preserveRemovedOwnedServers) {
-    for (const name of ownedClaudeMcpServerNames(recordedHashes)) {
+    for (const name of ownedMcpServerNames(recordedHashes)) {
       if (name in desiredServers) continue;
-      const priorHash = recordedHashes[claudeMcpServerHashKey(name)];
+      const priorHash = recordedHashes[mcpServerHashKey(name)];
       const currentValue = currentServers[name];
       if (currentValue !== undefined && priorHash && canonicalJsonHash(currentValue) === priorHash) {
         delete currentServers[name];
@@ -486,10 +518,62 @@ export function mergeCursorConfigText(
   const fieldHashes: Record<string, string> = {};
   for (const [name, value] of Object.entries(desiredServers)) {
     currentServers[name] = value;
-    fieldHashes[claudeMcpServerHashKey(name)] = canonicalJsonHash(value);
+    fieldHashes[mcpServerHashKey(name)] = canonicalJsonHash(value);
   }
   parsed.mcpServers = currentServers;
   delete parsed._drwn;
+  return { text: `${JSON.stringify(parsed, null, 2)}\n`, fieldHashes };
+}
+
+// Merges managed servers into opencode.json under the `mcp` key. Every other key in the
+// file is user-owned configuration and passes through untouched.
+export function mergeOpencodeConfigText(
+  currentText: string,
+  servers: Record<string, RegistryServer>,
+  options: {
+    force?: boolean;
+    priorFieldHashes?: Record<string, string>;
+    preserveRemovedOwnedServers?: boolean;
+  } = {},
+): MergeClaudeSettingsResult {
+  const parsed = JSON.parse(currentText) as Record<string, unknown>;
+  const currentServers = (
+    parsed.mcp && typeof parsed.mcp === "object" && !Array.isArray(parsed.mcp) ? parsed.mcp : {}
+  ) as Record<string, unknown>;
+  const desiredServers = Object.fromEntries(
+    Object.entries(servers).map(([name, server]) => [name, toOpencodeServerConfig(server)]),
+  );
+  const recordedHashes = options.priorFieldHashes ?? {};
+  const driftedServers = options.force
+    ? []
+    : ownedMcpServerNames(recordedHashes).filter((name) => {
+        if (!(name in desiredServers)) return false;
+        const priorHash = recordedHashes[mcpServerHashKey(name)];
+        const currentValue = currentServers[name];
+        return currentValue === undefined || Boolean(priorHash && canonicalJsonHash(currentValue) !== priorHash);
+      });
+  if (driftedServers.length > 0) {
+    throw new Error(
+      `Drift detected in OpenCode managed MCP server(s): ${driftedServers.join(", ")}. Rerun drwn write --root --force to overwrite.`,
+    );
+  }
+
+  if (!options.preserveRemovedOwnedServers) {
+    for (const name of ownedMcpServerNames(recordedHashes)) {
+      if (name in desiredServers) continue;
+      const priorHash = recordedHashes[mcpServerHashKey(name)];
+      const currentValue = currentServers[name];
+      if (currentValue !== undefined && priorHash && canonicalJsonHash(currentValue) === priorHash) {
+        delete currentServers[name];
+      }
+    }
+  }
+  const fieldHashes: Record<string, string> = {};
+  for (const [name, value] of Object.entries(desiredServers)) {
+    currentServers[name] = value;
+    fieldHashes[mcpServerHashKey(name)] = canonicalJsonHash(value);
+  }
+  parsed.mcp = currentServers;
   return { text: `${JSON.stringify(parsed, null, 2)}\n`, fieldHashes };
 }
 

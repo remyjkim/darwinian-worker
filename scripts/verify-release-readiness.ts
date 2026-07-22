@@ -1123,6 +1123,7 @@ export function verifyAmbientMcpPolicy(root = repoRoot, overrides: SourceOverrid
     "CODEX_INCOMPATIBLE_TRANSPORTS",
     "CURSOR_PROJECT_MERGES_USER",
     "CURSOR_PROJECT_TRANSPORT_OVERRIDE",
+    "OPENCODE_PROJECT_OVERRIDES_USER",
     "classifyAmbientMcpCollisions",
   ]);
   requireTokens("cli/core/effective-state.ts", [

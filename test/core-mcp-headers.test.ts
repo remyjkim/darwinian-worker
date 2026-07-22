@@ -6,7 +6,7 @@ import { parse as parseToml } from "smol-toml";
 import type { CardLockEntry } from "../cli/core/card-lock";
 import { validateCardManifest } from "../cli/core/card-manifest";
 import { collectCardServerDefinitions, mergeCardServerDefinitionsIntoRegistry } from "../cli/core/card-mcp";
-import { codexUnsupportedHeaderKeys, mergeCodexTomlText, renderCursorConfig, renderJsonMcpConfig } from "../cli/core/mcp";
+import { codexUnsupportedHeaderKeys, mergeCodexTomlText, renderCursorConfig, renderJsonMcpConfig, renderMcpServerForTarget } from "../cli/core/mcp";
 import { validateMcpLibraryServer } from "../cli/core/mcp-library";
 import type { CanonicalRegistry, RegistryServer } from "../cli/core/types";
 
@@ -109,6 +109,53 @@ describe("HTTP MCP headers rendering", () => {
       url: "https://search.parallel.ai/mcp",
       enabled: true,
     });
+  });
+});
+
+describe("OpenCode MCP rendering", () => {
+  test("stdio servers render as local with a combined command array", () => {
+    expect(renderMcpServerForTarget("opencode", {
+      description: "Docs",
+      transport: "stdio",
+      command: "npx",
+      args: ["-y", "tool"],
+      env: { API_KEY: "${MY_KEY}" },
+      optional: false,
+    })).toEqual({
+      type: "local",
+      command: ["npx", "-y", "tool"],
+      enabled: true,
+      environment: { API_KEY: "{env:MY_KEY}" },
+      timeout: 30000,
+    });
+  });
+
+  test("http and sse servers both render as remote with {env:VAR} headers", () => {
+    for (const transport of ["http", "sse"] as const) {
+      expect(renderMcpServerForTarget("opencode", {
+        description: "fal.ai hosted MCP",
+        transport,
+        url: "https://mcp.fal.ai/mcp",
+        headers: { Authorization: "Bearer ${FAL_KEY}", "X-Trace": "on" },
+        optional: false,
+      })).toEqual({
+        type: "remote",
+        url: "https://mcp.fal.ai/mcp",
+        enabled: true,
+        headers: { Authorization: "Bearer {env:FAL_KEY}", "X-Trace": "on" },
+        timeout: 30000,
+      });
+    }
+  });
+
+  test("startupTimeoutSec overrides the timeout in milliseconds", () => {
+    expect(renderMcpServerForTarget("opencode", {
+      description: "Slow start",
+      transport: "stdio",
+      command: "npx",
+      startupTimeoutSec: 60,
+      optional: false,
+    })).toMatchObject({ timeout: 60000 });
   });
 });
 

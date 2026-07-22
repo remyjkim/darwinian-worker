@@ -49,6 +49,8 @@ describe("Git-backed store paths", () => {
       .toBe("/project/.agents/drwn/generated/hooks/codex");
     expect(resolveGeneratedHooksDir("/project/.agents/drwn/generated", "mastra"))
       .toBe("/project/.agents/drwn/generated/hooks/mastra");
-    expect(() => resolveGeneratedHooksDir("/generated", "cursor" as never)).toThrow("Invalid hook runtime: cursor");
+    expect(resolveGeneratedHooksDir("/project/.agents/drwn/generated", "cursor"))
+      .toBe("/project/.agents/drwn/generated/hooks/cursor");
+    expect(() => resolveGeneratedHooksDir("/generated", "gemini" as never)).toThrow("Invalid hook runtime: gemini");
   });
 });

@@ -130,6 +130,7 @@ claiming foreign paths.
 - `~/.claude`
 - `~/.codex`
 - `~/.cursor`
+- `~/.config/opencode` (when the opencode target is enabled)
 - `<project>/.agents/drwn/config.json`
 
 The normal write path is conservative:
@@ -272,7 +273,7 @@ Card hooks:
 - Authors scaffold policies with `drwn card source add-hook <card> <policyName>`. This creates `hooks/<policyName>/policy.ts` and adds the policy to `card.json` under `hooks.include`.
 - Consumers must explicitly consent before hook code is materialized: `drwn card trust <card> --hooks`. Consent is stored in `card.lock` with a semver range; `card untrust <card> --hooks` clears it.
 - `drwn write` silently skips hook policies without valid consent and reports a warning. Use `drwn write --strict-hooks` in CI when missing hook consent should fail the write.
-- Claude Code and Codex hook generation follow the existing `targets.claude.enabled` and `targets.codex.enabled` settings. Cursor has no hook runtime in this release.
+- Claude Code, Codex, Cursor, and OpenCode hook generation follow the corresponding `targets.<name>.enabled` settings. Cursor hooks are written to `.cursor/hooks.json`; a pre-existing hooks.json that drwn does not own is left untouched with a warning (rerun with `--force` to overwrite). OpenCode hooks materialize as an in-process plugin at `.opencode/plugins/drwn-hooks.js` that blocks denied tools by throwing; `ask` decisions fail closed because OpenCode plugins have no interactive approval channel. Consent flows through `drwn card trust <card> --hooks` for every runtime.
 - Mastra hook generation is opt-in per project with `hooks.runtimes.mastra.enabled: true` in `<project>/.agents/drwn/config.json`.
 - `hooks.exclude` can skip a policy by bare policy name or by `@scope/card:policy-name`.
 - drwn hook consent only gates drwn materialization. Codex project-local hooks may still require Codex's own `/hooks` review/trust flow before they run.
@@ -432,7 +433,17 @@ Limit write to one target:
 ```bash
 drwn write --target=claude
 drwn mcp write --target=cursor
+drwn mcp write --target=opencode
 ```
+
+The opencode target ships disabled. Enable it per scope: machine writes via
+machine policy (`policy.targets.opencode.enabled: true` in
+`~/.agents/drwn/machine.json`), project writes via project config
+(`targets.opencode.enabled: true` in `<project>/.agents/drwn/config.json`).
+drwn merges managed servers into `opencode.json` under the `mcp` key and
+preserves every user-owned key; when `opencode.jsonc` exists the write is
+skipped with a warning. Trusted card hook policies additionally generate an
+OpenCode plugin at `.opencode/plugins/drwn-hooks.js`.
 
 ### Target-native ambient MCP collisions
 

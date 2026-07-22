@@ -75,8 +75,9 @@ export async function inspectAmbientMcpDefinitions(options: {
   const definitions: AmbientMcpDefinition[] = [];
   const errors: AmbientMcpInspectionError[] = [];
 
-  for (const target of ["claude", "codex", "cursor"] as const) {
+  for (const target of ["claude", "codex", "cursor", "opencode"] as const) {
     const targetConfig = options.config.targets[target];
+    if (!targetConfig) continue;
     const path = expandHomePath(
       target === "claude" ? (targetConfig.userMcpPath ?? targetConfig.configPath) : targetConfig.configPath,
       options.homeDir,
@@ -141,6 +142,7 @@ export async function inspectAmbientCapabilities(options: {
     claude: toolPaths.claudeSkills,
     codex: toolPaths.codexSkills,
     cursor: null,
+    opencode: null,
   };
   const observations: AmbientCapabilityObservation[] = [];
 
@@ -149,7 +151,7 @@ export async function inspectAmbientCapabilities(options: {
     homeDir: options.homeDir,
   });
 
-  for (const target of ["claude", "codex", "cursor"] as const) {
+  for (const target of ["claude", "codex", "cursor", "opencode"] as const) {
     for (const definition of ambientMcp.definitions.filter((entry) => entry.target === target && entry.source === "user")) {
       const id = definition.id;
       const sameIdDeclared = declaredMcp.has(id);

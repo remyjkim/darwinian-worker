@@ -4,8 +4,9 @@
 import type { Runtime } from "./hook-policy/types";
 import type { CanonicalConfig, TargetName } from "./types";
 
-export type Surface = "claude-code" | "cowork" | "codex" | "cursor";
+export type Surface = "claude-code" | "cowork" | "codex" | "cursor" | "opencode";
 export type McpFormat = "json-merge" | "toml-merge" | "json-standalone";
+export type SkillSurfaceDir = "claude" | "codex";
 
 export interface TargetDescriptor {
   name: TargetName;
@@ -13,6 +14,7 @@ export interface TargetDescriptor {
   surfaces: Surface[];
   mcpFormat: McpFormat;
   hookRuntime: Runtime | null;
+  skillSurfaces: SkillSurfaceDir[];
 }
 
 export const DESCRIPTORS: Record<TargetName, TargetDescriptor> = {
@@ -22,6 +24,7 @@ export const DESCRIPTORS: Record<TargetName, TargetDescriptor> = {
     surfaces: ["claude-code", "cowork"],
     mcpFormat: "json-merge",
     hookRuntime: "claude-code",
+    skillSurfaces: ["claude"],
   },
   codex: {
     name: "codex",
@@ -29,13 +32,23 @@ export const DESCRIPTORS: Record<TargetName, TargetDescriptor> = {
     surfaces: ["codex"],
     mcpFormat: "toml-merge",
     hookRuntime: "codex",
+    skillSurfaces: ["codex"],
   },
   cursor: {
     name: "cursor",
     family: "cursor",
     surfaces: ["cursor"],
     mcpFormat: "json-standalone",
-    hookRuntime: null,
+    hookRuntime: "cursor",
+    skillSurfaces: ["claude", "codex"],
+  },
+  opencode: {
+    name: "opencode",
+    family: "opencode",
+    surfaces: ["opencode"],
+    mcpFormat: "json-merge",
+    hookRuntime: "opencode",
+    skillSurfaces: [],
   },
 };
 

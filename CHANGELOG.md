@@ -3,6 +3,37 @@
 All notable changes to `darwinian-minds` (the `drwn` CLI) are documented here. This
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- OpenCode target (disabled by default). `drwn write` merges managed MCP servers
+  into `opencode.json` (project) and `~/.config/opencode/opencode.json`
+  (machine) under the `mcp` key with per-server ownership, foreign-key
+  passthrough, drift detection, and an `opencode.jsonc` guard. Enable per scope:
+  machine policy (`policy.targets.opencode.enabled`) for machine writes, project
+  config (`targets.opencode.enabled`) for project writes.
+- Cursor hook runtime. Trusted card hook policies now generate a cursor
+  composer and `.cursor/hooks.json` (preToolUse/postToolUse) with native ask
+  support; a pre-existing hooks.json that drwn does not own is preserved with
+  a warning.
+- OpenCode hook runtime. Trusted card hook policies generate an in-process
+  OpenCode plugin (`.opencode/plugins/drwn-hooks.js` re-exporting the bundled
+  composer) implementing `tool.execute.before`/`tool.execute.after`: deny
+  throws, allow rewrites `output.args`, `ask` fails closed with an
+  explanatory message, and built-in tool ids are normalized to the canonical
+  policy matcher names.
+- Skill surfaces are materialized for every enabled reader target. Cursor
+  reads `.claude/skills/` and `.codex/skills/`, so `drwn write --target=cursor`
+  and cursor-only projects now receive skills; targets with no enabled reader
+  no longer receive skill writes.
+
+### Fixed
+
+- `drwn doctor` no longer reports false cursor MCP drift when user-authored
+  servers coexist with in-sync managed servers; drift is now compared per
+  managed server for cursor and opencode.
+
 ## [0.9.0] - 2026-07-13
 
 First supported semantic Worker Mind contract. This is a clean prelaunch

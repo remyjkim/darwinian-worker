@@ -97,9 +97,16 @@ under the project root:
 <project>/.claude/skills/
 <project>/.codex/config.toml
 <project>/.codex/skills/
+<project>/.codex/hooks.json
 <project>/.cursor/mcp.json
-<project>/.agents/drwn/generated/cursor-mcp.json
+<project>/.cursor/hooks.json
+<project>/opencode.json                    # opencode target enabled
+<project>/.opencode/plugins/drwn-hooks.js  # opencode target enabled, trusted hooks
 ```
+
+Cursor reads `.claude/skills/` and `.codex/skills/` directly, so skill
+materialization covers every enabled target that reads those directories,
+including cursor-only projects.
 
 ## Skill Include / Exclude
 
