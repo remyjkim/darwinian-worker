@@ -114,7 +114,6 @@ describe("drwn.write-record V1", () => {
     const cases: unknown[] = [
       { ...base, surface: "mcp", target: undefined },
       { ...base, surface: "skill", target: "cursor" },
-      { ...base, surface: "hook", target: "cursor" },
       { ...base, surface: "worker", target: "claude" },
       { ...base, surface: "vendor" },
     ];
@@ -123,6 +122,18 @@ describe("drwn.write-record V1", () => {
       await writeFile(recordPath, `${JSON.stringify({ ...validRecord(), managedPaths: [entry] })}\n`);
       expectInvalid(() => loadWriteRecord(recordPath, "project"), "managedPaths");
     }
+  });
+
+  test("accepts cursor hook ownership", async () => {
+    const root = await createTempRoot("write-record-v1-");
+    tempRoots.push(root);
+    const recordPath = join(root, "write-record.json");
+    const base = validRecord().managedPaths[0]!;
+    await writeFile(
+      recordPath,
+      `${JSON.stringify({ ...validRecord(), managedPaths: [{ ...base, surface: "hook", target: "cursor" }] })}\n`,
+    );
+    expect(loadWriteRecord(recordPath, "project")?.managedPaths[0]).toMatchObject({ surface: "hook", target: "cursor" });
   });
 
   test("machine records permit only machine skill and MCP ownership", async () => {

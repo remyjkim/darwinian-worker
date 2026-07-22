@@ -13,7 +13,7 @@ import { inspectAmbientMcpDefinitions } from "../cli/core/ambient-capabilities";
 import { cleanupTempRoots, createFixtureConfig, scaffoldCliFixture } from "./helpers";
 
 function definition(
-  target: "claude" | "codex" | "cursor",
+  target: "claude" | "codex" | "cursor" | "opencode",
   source: "user" | "project" | "local",
   id: string,
   value: unknown,
@@ -28,7 +28,7 @@ function definition(
 }
 
 function classify(
-  target: "claude" | "codex" | "cursor",
+  target: "claude" | "codex" | "cursor" | "opencode",
   projectValue: unknown,
   userValue: unknown,
 ) {
@@ -164,6 +164,35 @@ describe("Cursor ambient MCP policy", () => {
       declared: expect.objectContaining({ transport: "stdio" }),
       ambient: expect.objectContaining({ transport: "http" }),
     }));
+  });
+});
+
+describe("OpenCode ambient MCP policy", () => {
+  test("classifies equal normalized entries as identical", () => {
+    expect(classify(
+      "opencode",
+      { type: "local", command: ["npx", "server"], enabled: true },
+      { type: "local", command: ["npx", "server"], enabled: true },
+    )?.reasonCode).toBe("AMBIENT_IDENTICAL");
+  });
+
+  test("classifies a same-id project definition as a project-wins warning", () => {
+    expect(classify(
+      "opencode",
+      { type: "local", command: ["npx", "project"] },
+      { type: "local", command: ["npx", "user"] },
+    )).toEqual(expect.objectContaining({
+      disposition: "warning",
+      reasonCode: "OPENCODE_PROJECT_OVERRIDES_USER",
+    }));
+  });
+
+  test("classifies cross-transport same-id definitions as the same project-wins warning", () => {
+    expect(classify(
+      "opencode",
+      { type: "local", command: ["npx", "server"] },
+      { type: "remote", url: "https://example.test/mcp" },
+    )?.reasonCode).toBe("OPENCODE_PROJECT_OVERRIDES_USER");
   });
 });
 

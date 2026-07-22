@@ -45,6 +45,18 @@ test("ensureGitignoreEntries rewrites drwn block contents in place", async () =>
   expect(second.match(/# drwn/g)?.length).toBe(1);
 });
 
+test("opencode hygiene ignores only the generated plugin, never opencode.json", async () => {
+  const root = await createTempRoot("git-hygiene-opencode-");
+  tempRoots.push(root);
+  await writeSupportedProjectConfig(root);
+  await ensureGitignoreEntries(root);
+  const contents = await readFile(join(root, ".gitignore"), "utf8");
+  const entries = contents.split("\n").map((line) => line.trim());
+  expect(entries).not.toContain("opencode.json");
+  expect(entries).not.toContain(".opencode/");
+  expect(entries).toContain(".opencode/plugins/drwn-hooks.js");
+});
+
 test("ensureVendorGitattributes writes vendor hygiene attributes", async () => {
   const root = await createTempRoot("git-hygiene-attrs-");
   tempRoots.push(root);

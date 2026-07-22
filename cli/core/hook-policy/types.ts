@@ -1,7 +1,7 @@
 // ABOUTME: Runtime-agnostic policy contract types for Card hooks.
 // ABOUTME: Imported by author policy modules and generated composition runtimes.
 
-export type Runtime = "claude-code" | "codex" | "mastra";
+export type Runtime = "claude-code" | "codex" | "cursor" | "opencode" | "mastra";
 
 export interface ToolPolicyEvent {
   runtime: Runtime;

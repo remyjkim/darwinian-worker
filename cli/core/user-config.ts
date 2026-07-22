@@ -6,7 +6,8 @@ import {
   initializeMachineConfig,
   readMachineConfigFile,
 } from "./machine-config";
-import type { CanonicalConfig, CanonicalRegistry, MachineConfig, TargetName } from "./types";
+import { ALL_TARGET_NAMES } from "./targets";
+import type { CanonicalConfig, CanonicalRegistry, MachineConfig } from "./types";
 
 export async function loadOrInitializeMachineConfig(options: {
   repoConfig: CanonicalConfig;
@@ -33,7 +34,7 @@ function mergeMachinePolicy(repoConfig: CanonicalConfig, machineConfig: MachineC
   const merged: CanonicalConfig = structuredClone(repoConfig);
   const policy = machineConfig.policy;
 
-  for (const target of ["claude", "codex", "cursor"] as TargetName[]) {
+  for (const target of ALL_TARGET_NAMES) {
     if (policy.targets?.[target]) {
       merged.targets[target] = { ...merged.targets[target], ...policy.targets[target] };
     }

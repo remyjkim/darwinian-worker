@@ -11,11 +11,11 @@ export interface HookRuntimeSelectionInput {
   target?: TargetName;
 }
 
-const ORDERED_RUNTIMES: Runtime[] = ["claude-code", "codex", "mastra"];
+const ORDERED_RUNTIMES: Runtime[] = ["claude-code", "codex", "cursor", "opencode", "mastra"];
 
 function defaultEnabled(runtime: Runtime, config: Pick<CanonicalConfig, "targets">) {
   const owningTarget = ALL_TARGET_NAMES.find((name) => getTargetDescriptor(name).hookRuntime === runtime);
-  return owningTarget ? config.targets[owningTarget].enabled : false;
+  return owningTarget ? (config.targets[owningTarget]?.enabled ?? false) : false;
 }
 
 function targetAllowsRuntime(target: TargetName | undefined, runtime: Runtime) {

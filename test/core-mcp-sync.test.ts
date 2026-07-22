@@ -72,6 +72,12 @@ function createConfig(parallelMcpEnabled = false): CanonicalConfig {
         configPath: "~/.cursor/mcp.json",
         format: "json-standalone",
         mcpKey: "mcpServers",      },
+      opencode: {
+        enabled: false,
+        configPath: "~/.config/opencode/opencode.json",
+        format: "json-merge",
+        mcpKey: "mcp",
+      },
     },
     parallel: {
       cli: { enabled: true },

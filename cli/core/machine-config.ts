@@ -35,6 +35,7 @@ const targetsSchema = z.object({
   claude: targetOverrideSchema.optional(),
   codex: targetOverrideSchema.optional(),
   cursor: targetOverrideSchema.optional(),
+  opencode: targetOverrideSchema.optional(),
 }).strict();
 
 const catalogsSchema = z.object({

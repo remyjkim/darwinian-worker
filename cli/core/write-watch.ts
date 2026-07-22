@@ -23,6 +23,7 @@ const IGNORE_PREFIXES = [
   ".claude/",
   ".codex/",
   ".cursor/",
+  ".opencode/",
 ];
 
 export function linkedRootOverlapsProject(projectRoot: string, linkedRoots: string[]) {

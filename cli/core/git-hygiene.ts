@@ -21,6 +21,7 @@ const PROJECTION_SURFACE_ENTRIES = [
   ".cursor/",
   ".mcp.json",
   ".cursor/mcp.json",
+  ".opencode/plugins/drwn-hooks.js",
 ];
 
 export async function committedSurfacesEnabled(projectRoot: string) {

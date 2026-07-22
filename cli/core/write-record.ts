@@ -30,7 +30,7 @@ export interface WriteRecord {
 
 export type WriteRecordScope = "project" | "machine";
 export type ProjectionSurface = "worker" | "mcp" | "skill" | "hook";
-export type ProjectionTarget = "claude" | "codex" | "cursor" | "mastra";
+export type ProjectionTarget = "claude" | "codex" | "cursor" | "opencode" | "mastra";
 
 export interface ManagedOwnership {
   surface: ProjectionSurface;
@@ -64,7 +64,7 @@ const safeRelativePath = z.string().min(1).superRefine((value, context) => {
 const hash = z.string().regex(/^sha256-[a-f0-9]{64}$/);
 const ownership = {
   surface: z.enum(["worker", "mcp", "skill", "hook"]),
-  target: z.enum(["claude", "codex", "cursor", "mastra"]).optional(),
+  target: z.enum(["claude", "codex", "cursor", "opencode", "mastra"]).optional(),
 };
 const managedPathSchema = z.discriminatedUnion("kind", [
   z.object({ path: safeRelativePath, kind: z.literal("symlink"), linkTarget: z.string().min(1), ...ownership }).strict(),
@@ -82,10 +82,10 @@ const managedPathSchema = z.discriminatedUnion("kind", [
   const valid = entry.surface === "worker"
     ? entry.target === undefined
     : entry.surface === "mcp"
-      ? entry.target === "claude" || entry.target === "codex" || entry.target === "cursor"
+      ? entry.target === "claude" || entry.target === "codex" || entry.target === "cursor" || entry.target === "opencode"
       : entry.surface === "skill"
         ? entry.target === "claude" || entry.target === "codex"
-        : entry.target === "claude" || entry.target === "codex" || entry.target === "mastra";
+        : entry.target === "claude" || entry.target === "codex" || entry.target === "cursor" || entry.target === "opencode" || entry.target === "mastra";
   if (!valid) {
     context.addIssue({ code: "custom", message: `invalid ${entry.surface} target ownership` });
   }

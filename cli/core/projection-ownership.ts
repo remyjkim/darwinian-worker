@@ -6,7 +6,7 @@ import { dedupeManagedPathsByPath, type ManagedPath, type ProjectionTarget } fro
 export interface ProjectionSelection {
   mcpOnly?: boolean;
   skillsOnly?: boolean;
-  target?: Extract<ProjectionTarget, "claude" | "codex" | "cursor">;
+  target?: Extract<ProjectionTarget, "claude" | "codex" | "cursor" | "opencode">;
 }
 
 export function isProjectionOwnershipSelected(

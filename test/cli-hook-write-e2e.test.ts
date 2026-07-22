@@ -96,6 +96,13 @@ test("drwn write materializes card hook composers and runtime settings", async (
   expect(claudeSettings.hooks.PreToolUse[0].hooks[0].args).toEqual([resolvedClaudeComposer]);
   const codexHooks = JSON.parse(await readFile(join(projectDir, ".codex", "hooks.json"), "utf8"));
   expect(codexHooks.hooks.PreToolUse[0].hooks[0].command).toContain(resolvedCodexComposer);
+  const cursorComposer = join(projectDir, ".agents", "drwn", "generated", "hooks", "cursor", "composer.mjs");
+  expect(existsSync(cursorComposer)).toBe(true);
+  const resolvedCursorComposer = await realpath(cursorComposer);
+  const cursorHooks = JSON.parse(await readFile(join(projectDir, ".cursor", "hooks.json"), "utf8"));
+  expect(cursorHooks.version).toBe(1);
+  expect(cursorHooks.hooks.preToolUse[0].command).toContain(resolvedCursorComposer);
+  expect(cursorHooks.hooks.postToolUse[0].command).toContain(resolvedCursorComposer);
 
   const composer = await runComposer(claudeComposer, {
     hook_event_name: "PreToolUse",
@@ -107,6 +114,72 @@ test("drwn write materializes card hook composers and runtime settings", async (
     permissionDecision: "deny",
     permissionDecisionReason: "blocked by claude-code",
   });
+
+  const cursorRun = await runComposer(cursorComposer, {
+    hook_event_name: "preToolUse",
+    tool_name: "Bash",
+    tool_input: { command: "rm -rf /" },
+  });
+  expect(cursorRun.exitCode).toBe(0);
+  expect(JSON.parse(cursorRun.stdout)).toMatchObject({
+    permission: "deny",
+    agent_message: "blocked by cursor",
+  });
+});
+
+test("drwn write materializes an opencode plugin that blocks denied tools in-process", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  const manifest = await publishHookPolicyCard(fixture);
+  const projectDir = join(fixture.root, "project");
+  await installProjectWorkers(projectDir, fixture.agentsDir, [`@me/policy@${manifest.version}`], "@me/policy", {
+    targets: { opencode: { enabled: true } },
+  });
+  expect((await runAgentsCli(["card", "trust", "@me/policy", "--hooks"], envFor(fixture), projectDir)).exitCode).toBe(0);
+
+  const write = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);
+
+  expect(write.exitCode).toBe(0);
+  const opencodeComposer = join(projectDir, ".agents", "drwn", "generated", "hooks", "opencode", "composer.mjs");
+  expect(existsSync(opencodeComposer)).toBe(true);
+  const pluginPath = join(projectDir, ".opencode", "plugins", "drwn-hooks.js");
+  const pluginSource = await readFile(pluginPath, "utf8");
+  expect(pluginSource).toContain("DrwnHooks");
+  expect(pluginSource).toContain(await realpath(opencodeComposer));
+
+  const { DrwnHooks } = await import(pluginPath);
+  const hooks = await DrwnHooks();
+  await expect(
+    hooks["tool.execute.before"]({ tool: "bash", sessionID: "s1" }, { args: { command: "rm -rf /" } }),
+  ).rejects.toThrow("blocked");
+  await expect(
+    hooks["tool.execute.before"]({ tool: "read", sessionID: "s1" }, { args: { filePath: "a.txt" } }),
+  ).resolves.toBeUndefined();
+  await expect(
+    hooks["tool.execute.after"]({ tool: "bash", sessionID: "s1" }, { args: { command: "ls" }, output: "done" }),
+  ).resolves.toBeUndefined();
+
+  const record = loadWriteRecord(resolveProjectWriteRecordPath(projectDir), "project")!;
+  expect(record.managedPaths).toContainEqual(
+    expect.objectContaining({ path: ".opencode/plugins/drwn-hooks.js", surface: "hook", target: "opencode" }),
+  );
+});
+
+test("drwn write leaves a foreign cursor hooks.json untouched with a warning", async () => {
+  const fixture = await scaffoldCliFixture();
+  tempRoots.push(fixture.root);
+  const projectDir = await createProjectWithTrustedHookCard(fixture);
+  const cursorHooksPath = join(projectDir, ".cursor", "hooks.json");
+  const foreign = `${JSON.stringify({ version: 1, hooks: { afterFileEdit: [{ command: "./hooks/format.sh" }] } }, null, 2)}\n`;
+  await mkdir(join(projectDir, ".cursor"), { recursive: true });
+  await writeFile(cursorHooksPath, foreign);
+
+  const write = await runAgentsCli(["write", "--json"], envFor(fixture), projectDir);
+
+  expect(write.exitCode).toBe(0);
+  const result = JSON.parse(write.stdout);
+  expect(result.warnings.join("\n")).toContain("Skipping cursor hooks");
+  expect(await readFile(cursorHooksPath, "utf8")).toBe(foreign);
 });
 
 test("drwn write skips untrusted hooks and --strict-hooks fails", async () => {

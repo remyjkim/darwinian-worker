@@ -30,6 +30,7 @@ Machine-scope writes materialize into:
 ~/.claude/
 ~/.codex/
 ~/.cursor/
+~/.config/opencode/opencode.json   # when the opencode target is enabled
 ~/.agents/drwn/generated/
 ~/.agents/drwn/global-write-record.json
 ```
@@ -52,6 +53,7 @@ Project-scope writes materialize into:
 <project>/.claude/
 <project>/.codex/
 <project>/.cursor/
+<project>/opencode.json            # when the opencode target is enabled
 <project>/.agents/drwn/generated/
 <project>/.agents/drwn/write-record.json
 ```

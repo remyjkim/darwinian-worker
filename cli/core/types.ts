@@ -4,7 +4,7 @@
 import type { OptionalMcpReport } from "./mcp-report";
 
 export type Transport = "stdio" | "http" | "sse" | "platform-provided";
-export type TargetName = "claude" | "codex" | "cursor";
+export type TargetName = "claude" | "codex" | "cursor" | "opencode";
 
 export interface RegistryServer {
   description: string;
@@ -151,6 +151,8 @@ export interface ProjectConfig {
     runtimes?: {
       "claude-code"?: { enabled: boolean };
       codex?: { enabled: boolean };
+      cursor?: { enabled: boolean };
+      opencode?: { enabled: boolean };
       mastra?: { enabled: boolean };
     };
     signals?: {

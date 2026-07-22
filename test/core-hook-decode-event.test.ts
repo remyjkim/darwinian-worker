@@ -2,7 +2,7 @@
 // ABOUTME: Keeps host-specific fields preserved under metadata for policy authors.
 
 import { describe, expect, it } from "bun:test";
-import { decodeClaudeEvent, decodeCodexEvent, decodeMastraEvent } from "../cli/core/hook-generator/decode-event";
+import { decodeClaudeEvent, decodeCodexEvent, decodeCursorEvent, decodeMastraEvent, decodeOpencodeEvent } from "../cli/core/hook-generator/decode-event";
 
 describe("decodeClaudeEvent", () => {
   it("maps Claude PreToolUse payloads", () => {
@@ -89,6 +89,96 @@ describe("decodeCodexEvent", () => {
       input: { q: "hooks" },
       output: { ok: true },
     });
+  });
+});
+
+describe("decodeCursorEvent", () => {
+  it("maps cursor preToolUse payloads and sources the session from the conversation", () => {
+    expect(decodeCursorEvent({
+      hook_event_name: "preToolUse",
+      tool_name: "Shell",
+      tool_input: { command: "ls" },
+      cwd: "/repo",
+      conversation_id: "c1",
+      workspace_roots: ["/repo"],
+    })).toEqual({
+      runtime: "cursor",
+      phase: "pre-tool",
+      toolName: "Bash",
+      input: { command: "ls" },
+      cwd: "/repo",
+      sessionId: "c1",
+      metadata: {
+        hook_event_name: "preToolUse",
+        workspace_roots: ["/repo"],
+      },
+    });
+  });
+
+  it("accepts PascalCase event names and maps post-tool output", () => {
+    expect(decodeCursorEvent({
+      hook_event_name: "PostToolUse",
+      tool_name: "Read",
+      tool_input: { path: "a.txt" },
+      tool_response: "contents",
+    })).toMatchObject({
+      runtime: "cursor",
+      phase: "post-tool",
+      toolName: "Read",
+      input: { path: "a.txt" },
+      output: "contents",
+    });
+  });
+
+  it("accepts camelCase postToolUse event names", () => {
+    expect(decodeCursorEvent({
+      hook_event_name: "postToolUse",
+      tool_name: "Read",
+      tool_input: {},
+    }).phase).toBe("post-tool");
+  });
+
+  it("normalizes cursor tool types to canonical policy names", () => {
+    expect(decodeCursorEvent({ hook_event_name: "preToolUse", tool_name: "Shell", tool_input: {} }).toolName).toBe("Bash");
+    expect(decodeCursorEvent({ hook_event_name: "preToolUse", tool_name: "Read", tool_input: {} }).toolName).toBe("Read");
+    expect(decodeCursorEvent({ hook_event_name: "preToolUse", tool_name: "MCP:notion-search", tool_input: {} }).toolName).toBe("MCP:notion-search");
+  });
+});
+
+describe("decodeOpencodeEvent", () => {
+  it("maps tool.execute.before payloads and normalizes built-in tool ids", () => {
+    expect(decodeOpencodeEvent(
+      { tool: "bash", sessionID: "s1", callID: "c1" },
+      { args: { command: "ls" } },
+      "pre-tool",
+    )).toEqual({
+      runtime: "opencode",
+      phase: "pre-tool",
+      toolName: "Bash",
+      input: { command: "ls" },
+      sessionId: "s1",
+      metadata: { tool: "bash", callID: "c1" },
+    });
+  });
+
+  it("passes through unknown tool ids and maps post-tool output", () => {
+    expect(decodeOpencodeEvent(
+      { tool: "mymcp_search" },
+      { args: { q: "hooks" }, output: "results" },
+      "post-tool",
+    )).toMatchObject({
+      runtime: "opencode",
+      phase: "post-tool",
+      toolName: "mymcp_search",
+      input: { q: "hooks" },
+      output: "results",
+    });
+  });
+
+  it("normalizes the other built-in tool ids", () => {
+    for (const [raw, canonical] of [["read", "Read"], ["edit", "Edit"], ["write", "Write"], ["glob", "Glob"], ["grep", "Grep"], ["task", "Task"], ["webfetch", "WebFetch"], ["skill", "Skill"]] as const) {
+      expect(decodeOpencodeEvent({ tool: raw }, { args: {} }, "pre-tool").toolName).toBe(canonical);
+    }
   });
 });
 

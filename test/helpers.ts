@@ -93,7 +93,7 @@ export function createFixtureRegistry(): CanonicalRegistry {
 }
 
 export function createFixtureConfig(
-  paths: { claudeSettings: string; codexConfig: string; cursorConfig: string; claudeUserMcp?: string },
+  paths: { claudeSettings: string; codexConfig: string; cursorConfig: string; claudeUserMcp?: string; opencodeConfig?: string },
   parallelMcpEnabled = false,
 ): CanonicalConfig {
   return {
@@ -108,6 +108,12 @@ export function createFixtureConfig(
       },
       codex: { enabled: true, configPath: paths.codexConfig, format: "toml-merge", mcpKey: "mcp_servers" },
       cursor: { enabled: true, configPath: paths.cursorConfig, format: "json-standalone", mcpKey: "mcpServers" },
+      opencode: {
+        enabled: true,
+        configPath: paths.opencodeConfig ?? "~/.config/opencode/opencode.json",
+        format: "json-merge",
+        mcpKey: "mcp",
+      },
     },
     catalogs: {
       npmSkills: { enabled: true, searchLimit: 20 },
@@ -127,6 +133,7 @@ export async function scaffoldCliFixture(options?: { parallelMcpEnabled?: boolea
   const claudeUserMcp = join(homeDir, ".claude.json");
   const codexConfig = join(homeDir, ".codex", "config.toml");
   const cursorConfig = join(homeDir, ".cursor", "mcp.json");
+  const opencodeConfig = join(homeDir, ".config", "opencode", "opencode.json");
 
   await mkdir(join(repoRoot, "registry"), { recursive: true });
   await mkdir(join(repoRoot, "skills", "shared"), { recursive: true });
@@ -142,7 +149,7 @@ export async function scaffoldCliFixture(options?: { parallelMcpEnabled?: boolea
   await writeFile(
     join(repoRoot, "registry", "config.json"),
     JSON.stringify(
-      createFixtureConfig({ claudeSettings, codexConfig, cursorConfig, claudeUserMcp }, options?.parallelMcpEnabled ?? false),
+      createFixtureConfig({ claudeSettings, codexConfig, cursorConfig, claudeUserMcp, opencodeConfig }, options?.parallelMcpEnabled ?? false),
       null,
       2,
     ),
@@ -162,7 +169,7 @@ export async function scaffoldCliFixture(options?: { parallelMcpEnabled?: boolea
     await cp(join(repoRoot, "skills", "shared", name), join(agentsDir, "skills", name), { recursive: true });
   }
 
-  return { root, repoRoot, homeDir, agentsDir, claudeSettings, claudeUserMcp, codexConfig, cursorConfig };
+  return { root, repoRoot, homeDir, agentsDir, claudeSettings, claudeUserMcp, codexConfig, cursorConfig, opencodeConfig };
 }
 
 export function envFor(fixture: { repoRoot: string; homeDir: string; agentsDir: string }) {

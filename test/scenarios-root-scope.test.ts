@@ -6,6 +6,8 @@ import { existsSync } from "node:fs";
 import { lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { cleanupTempRoots, envFor, runAgentsCli, scaffoldCliFixture } from "./helpers";
+import { loadWriteRecord } from "../cli/core/write-record";
+import { resolveGlobalWriteRecordPath } from "../cli/core/store-paths";
 
 const tempRoots: string[] = [];
 
@@ -418,6 +420,32 @@ test("write --root --target=codex writes only ~/.codex/config.toml", async () =>
   expect(result.exitCode).toBe(0);
   expect(await readFile(fixture.codexConfig, "utf8")).toContain("[mcp_servers.context7]");
   expect(await readFile(fixture.claudeUserMcp, "utf8")).toBe(beforeClaude);
+});
+
+test("write --root --target=opencode merges into the machine opencode config", async () => {
+  const fixture = await scaffoldCliFixture({ curatedSkillNames: [] });
+  tempRoots.push(fixture.root);
+  await ensureContext7Default(fixture);
+  const beforeClaude = await readFile(fixture.claudeUserMcp, "utf8");
+
+  const result = await runAgentsCli(
+    ["write", "--root", "--target=opencode", "--mcp-only", "--json"],
+    envFor(fixture),
+  );
+
+  expect(result.exitCode).toBe(0);
+  const opencode = await readJson(fixture.opencodeConfig);
+  expect(opencode.$schema).toBe("https://opencode.ai/config.json");
+  expect(opencode.mcp.context7).toMatchObject({ type: "local", enabled: true });
+  expect(await readFile(fixture.claudeUserMcp, "utf8")).toBe(beforeClaude);
+  const record = loadWriteRecord(resolveGlobalWriteRecordPath(fixture.agentsDir), "machine");
+  expect(record?.managedPaths).toContainEqual(
+    expect.objectContaining({
+      path: ".config/opencode/opencode.json",
+      surface: "mcp",
+      target: "opencode",
+    }),
+  );
 });
 
 test("write --root --target=cursor writes only ~/.cursor/mcp.json", async () => {
