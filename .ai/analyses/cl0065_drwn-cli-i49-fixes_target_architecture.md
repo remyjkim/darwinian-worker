@@ -77,12 +77,13 @@ Source investigation: I49 (auth 7/8 pass; deploy read/lifecycle pass; new-deploy
 ### Fix 4 — read a chat run's result (P2, feature)
 
 - **Problem**: `worker chat` POSTs `/api/minds/:slug/chat` (`chat.ts:46`) and prints the raw response, which is `{ "runId": … }` — an **async run handle, not the reply**. There is no CLI way to fetch the run's output.
-- **Approach** (≥2 options, decide at GATE 2):
+- **Approach** — **DECIDED (Owner, 2026-07-22): A + B + web link.**
   - (A) **`worker chat` waits/streams**: after receiving `runId`, poll/stream the run until complete and print the assistant message; keep raw-JSON behind `--json`.
-  - (B) **Add `drwn worker run status <runId>`** (+ maybe `worker runs <slug>`) to fetch a run result on demand; `chat` still returns the `runId`.
-  - Preference leans (A) for the smoke-test use case + (B) for scripting; may do both. Depends on which run/read endpoints the Deploy API exposes (confirm during planning).
+  - **Web-app link**: alongside the reply (and immediately on receiving the `runId`, so it's usable even if the wait times out), print the studio web-app URL for the run/conversation so the user can open it in the browser. Exact URL path to confirm with Remy (GATE 2).
+  - (B) **Add `drwn worker run status <runId>`** to fetch a run's status/result on demand.
+  - Implementation still depends on which run-read/stream endpoints the Deploy API exposes (confirm during planning).
 - **Test intent**:
-  - *Behaviors*: chat returns a readable reply (A) and/or run-status fetches a completed/failed/in-progress run (B); `--json` still yields machine output; timeout/failed-run handled.
+  - *Behaviors*: chat waits and prints a readable reply + the web-app URL (A); run-status fetches a completed/failed/in-progress run (B); `--json` still yields machine output; timeout/failed-run handled (URL still printed on timeout).
   - *Seams*: inject `fetch`; fake run lifecycle (queued→running→done); control time/poll interval (`DRWN_POLL_MS`).
   - *Layers*: unit/command-level with a faked API; no live-gateway dependency in CI.
   - *Note*: this is the async subcommand gap discussed in the I49 Slack thread; larger than the others — candidate to sequence last.
@@ -118,7 +119,13 @@ Source investigation: I49 (auth 7/8 pass; deploy read/lifecycle pass; new-deploy
 ## Open questions (resolve at GATE 2)
 
 1. Fix 2: migrate-on-read vs. explicit `drwn init --migrate`/repair command?
-2. Fix 4: does the Deploy API expose a run-read/stream endpoint (drives option A vs B)?
+2. Fix 4 (UX decided: A wait/stream + web-app link + B `worker run status`): what run-read/stream endpoint does the Deploy API expose, and what is the studio web-app URL path for a run/conversation? (Remy)
+
+## Owner decisions of record
+
+- **2026-07-22 · Fix 4 UX**: chat waits/streams the reply **and** prints the studio web-app URL; additionally add `drwn worker run status <runId>`. (JGB)
+- **2026-07-22 · Fix 3**: approach approved as designed — shared classifier helper; "Cannot reach Deploy API" reserved for genuine network failures. (JGB)
+- **2026-07-22 · Scope**: Fix 5 descoped → I80; Fix 6 kept in I65. (JGB)
 
 ## GATE 1 checklist (workflow ceremony — pending)
 
