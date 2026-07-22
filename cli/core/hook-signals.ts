@@ -3,7 +3,7 @@
 
 import { basename, dirname, join } from "node:path";
 
-export const SIGNAL_SCHEMA_VERSION = 1 as const;
+export const SIGNAL_SCHEMA_VERSION = 2 as const;
 
 export type SkillPhase = "pre" | "post" | "fail" | "expansion";
 
@@ -27,6 +27,22 @@ export interface HookPayload {
 export interface CardRef {
   name: string;
   version: string;
+  /** Content signature from the lock. Optional: v1 stamps predate it. */
+  integrity?: string;
+}
+
+/** A Worker root, joined to the version and signature of its Card entry. */
+export interface WorkerRootRef {
+  name: string;
+  version: string;
+  kind: "card" | "blueprint";
+  integrity: string;
+}
+
+/** The active Worker graph: the roots a session runs, plus every Card they reach. */
+export interface ActiveWorkerGraph {
+  cards: CardRef[];
+  workerRoots: WorkerRootRef[];
 }
 
 const PHASE_EVENT: Record<SkillPhase, string> = {
@@ -62,7 +78,7 @@ function transcriptBasename(payload: HookPayload): string {
   return payload.transcript_path ? basename(payload.transcript_path) : "";
 }
 
-export function buildCardUsageRecord(payload: HookPayload, cards: CardRef[], nowIso: string) {
+export function buildCardUsageRecord(payload: HookPayload, graph: ActiveWorkerGraph, nowIso: string) {
   return {
     schema_version: SIGNAL_SCHEMA_VERSION,
     type: "card_usage",
@@ -72,7 +88,8 @@ export function buildCardUsageRecord(payload: HookPayload, cards: CardRef[], now
     cwd: payload.cwd,
     transcript_basename: transcriptBasename(payload),
     ...agentFields(payload),
-    cards,
+    worker_roots: graph.workerRoots,
+    cards: graph.cards,
   };
 }
 
@@ -124,8 +141,12 @@ export function buildSkillRecord(payload: HookPayload, phase: SkillPhase, nowIso
   };
 }
 
-/** Parse the cards from the LAST `card_usage` line in a (possibly mixed) sink. */
-export function parseLastCardUsageCards(sinkText: string): CardRef[] | null {
+/**
+ * The graph recorded by the LAST `card_usage` line in a (possibly mixed) sink: its flattened
+ * cards AND its worker roots. `workerRoots` is empty for a v1 stamp (or a malformed field),
+ * which reads as "changed" against any real root set. Null when the sink has no `card_usage`.
+ */
+export function parseLastCardUsageGraph(sinkText: string): { cards: CardRef[]; workerRoots: WorkerRootRef[] } | null {
   const lines = sinkText.split("\n");
   for (let i = lines.length - 1; i >= 0; i -= 1) {
     const line = lines[i]?.trim();
@@ -138,15 +159,40 @@ export function parseLastCardUsageCards(sinkText: string): CardRef[] | null {
     }
     if (parsed && typeof parsed === "object" && (parsed as { type?: string }).type === "card_usage") {
       const cards = (parsed as { cards?: unknown }).cards;
-      return Array.isArray(cards) ? (cards as CardRef[]) : [];
+      const workerRoots = (parsed as { worker_roots?: unknown }).worker_roots;
+      return {
+        cards: Array.isArray(cards) ? (cards as CardRef[]) : [],
+        workerRoots: Array.isArray(workerRoots) ? (workerRoots as WorkerRootRef[]) : [],
+      };
     }
   }
   return null;
 }
 
+/** Parse the cards from the LAST `card_usage` line in a (possibly mixed) sink. */
+export function parseLastCardUsageCards(sinkText: string): CardRef[] | null {
+  return parseLastCardUsageGraph(sinkText)?.cards ?? null;
+}
+
 export function cardsEqual(a: CardRef[], b: CardRef[]): boolean {
   if (a.length !== b.length) return false;
-  const key = (c: CardRef) => `${c.name}@${c.version}`;
+  // Integrity is part of the key: a local Card can be edited without its version moving.
+  const key = (c: CardRef) => `${c.name}@${c.version}#${c.integrity ?? ""}`;
+  const sortedA = [...a].map(key).sort();
+  const sortedB = [...b].map(key).sort();
+  return sortedA.every((value, index) => value === sortedB[index]);
+}
+
+/**
+ * Compares the Worker root graph as a SET. The flattened card list does NOT pin the root
+ * membership: `validateCardLockfile` checks a Blueprint's member COUNT but never member identity,
+ * so a count-preserving member swap admits a different root set over a byte-identical card closure
+ * (dw#52 follow-up). Root ORDER is cosmetic and ignored; `kind`/`integrity` are part of the key
+ * because the stamp attributes a session by them.
+ */
+export function workerRootsEqual(a: WorkerRootRef[], b: WorkerRootRef[]): boolean {
+  if (a.length !== b.length) return false;
+  const key = (r: WorkerRootRef) => `${r.name}@${r.version}#${r.kind}#${r.integrity}`;
   const sortedA = [...a].map(key).sort();
   const sortedB = [...b].map(key).sort();
   return sortedA.every((value, index) => value === sortedB[index]);
