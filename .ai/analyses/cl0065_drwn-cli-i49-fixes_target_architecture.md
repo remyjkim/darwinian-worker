@@ -127,9 +127,10 @@ Source investigation: I49 (auth 7/8 pass; deploy read/lifecycle pass; new-deploy
 - **2026-07-22 · Fix 3**: approach approved as designed — shared classifier helper; "Cannot reach Deploy API" reserved for genuine network failures. (JGB)
 - **2026-07-22 · Scope**: Fix 5 descoped → I80; Fix 6 kept in I65. (JGB)
 
-## GATE 1 checklist (workflow ceremony — pending)
+## Gate state (I65)
 
-- [ ] Reviewer set (qualified approver)
-- [ ] Draft docs-PR opened (`#65 — docs: drwn CLI I49 fixes target architecture`)
-- [ ] Gate = Proposed; Turn converted → Reviewer; 🚦 ping in the #65 thread
-- [ ] On approval: Owner flips Gate = Arch-Approved, pickup → Planned, then write `cl0065_drwn-cli-i49-fixes_task_plan.md` with the full `Testing strategy (TDD contract)` (GATE 2)
+| Gate | Artifact | Review surface | State (2026-07-22) | Next |
+|---|---|---|---|---|
+| 🚦 **GATE 1** — Architecture | `.ai/analyses/cl0065_drwn-cli-i49-fixes_target_architecture.md` | docs-PR [#56](https://github.com/remyjkim/darwinian-worker/pull/56) + Notion toggle-stack | **Awaiting review** — Turn = Remy, 🚦 pinged 07/22 | On approval: Gate = Arch-Approved, pickup → Planned |
+| 🚦 **GATE 2** — Task plan (TDD contract) | `.ai/tasks/cl0065_drwn-cli-i49-fixes_task_plan.md` | docs-PR (not yet opened) | **Drafting** on `junggyubae/I65-plan` (branched from the G1 branch) | Open docs-PR; needs Remy inputs: Fix 4 endpoint shape + web URL path, Fix 2 migration mode |
+| 🚦 **GATE 3** — Code + `Testing & CI evidence` | code-PR (branch `junggyubae/I65`) | code-PR | **Not started** | After Plan-Approved; Fixes 1, 2, 6 first, then 3, then 4 |
