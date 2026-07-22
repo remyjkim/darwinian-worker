@@ -273,6 +273,110 @@ describe("emitCardUsage", () => {
   });
 });
 
+// dw#52 follow-up (Remy's review): write-on-change must key on the whole ROOT GRAPH
+// (cards + worker_roots membership), not the flattened card list alone. `validateCardLockfile`
+// checks a blueprint's member COUNT but never member identity (card-lock.ts:225), so a
+// count-preserving member swap keeps every card's integrity — hence the flat closure — identical
+// while the root membership moves. The cards-only key was blind to that; these pin the fix.
+describe("emitCardUsage — write-on-change keys on the root graph", () => {
+  const bp = (composedFrom: string[]) => lockEntry("b", "1.0.0", "sha256-b", { kind: "blueprint", composedFrom });
+  // Four cards; NONE of these entries differ between the two graphs. Only the root membership does.
+  const swapCards = () => [bp(["x", "y"]), lockEntry("x", "1.0.0", "sha256-x"), lockEntry("y", "1.0.0", "sha256-y"), lockEntry("z", "1.0.0", "sha256-z")];
+  // roots {b, z}: b composes its real members [x, y]; z is a standalone root.
+  const graphBefore: ProjectLockGraph = {
+    workerRoots: [
+      { name: "b", requested: "file:../b", kind: "blueprint", members: ["x", "y"] },
+      { name: "z", requested: "file:../z", kind: "card", members: [] },
+    ],
+    cards: swapCards(),
+  };
+  // roots {b, y}: b.members SWAPPED to [x, z] (still length 2 -> count check passes), y promoted
+  // to a standalone root, z demoted into b's membership. b's manifest — hence integrity — untouched.
+  const graphAfter: ProjectLockGraph = {
+    workerRoots: [
+      { name: "b", requested: "file:../b", kind: "blueprint", members: ["x", "z"] },
+      { name: "y", requested: "file:../y", kind: "card", members: [] },
+    ],
+    cards: swapCards(),
+  };
+
+  /** A project dir whose `.agents/drwn/card.lock` the hot path (resolveActiveGraphFromLock) reads. */
+  function tempProject() {
+    const proj = mkdtempSync(join(tmpdir(), "drwn-hook-graphkey-"));
+    dirs.push(proj);
+    const transcriptPath = join(proj, "sess.jsonl");
+    return { proj, payload: { session_id: "sess", transcript_path: transcriptPath, cwd: proj }, sinkPath: join(proj, "sess.drwn-signals.jsonl") };
+  }
+
+  test("re-stamps when a root is demoted via a count-preserving member swap (same card closure)", async () => {
+    const { proj, payload, sinkPath } = tempProject();
+    const clock = (t: string) => ({ now: () => t });
+
+    await writeCardLock(proj, graphBefore);
+    await emitCardUsage(payload, clock("2026-07-19T00:00:00.000Z"));
+    await writeCardLock(proj, graphAfter); // worker_roots {b,z} -> {b,y}; cards byte-identical
+    await emitCardUsage(payload, clock("2026-07-19T00:00:01.000Z"));
+
+    const stamps = readLines(sinkPath).filter((l) => l.type === "card_usage");
+    expect(stamps).toHaveLength(2);
+    expect(stamps.map((s) => s.worker_roots.map((r: { name: string }) => r.name).sort().join(","))).toEqual(["b,z", "b,y"]);
+    // The flattened closure is the same across both stamps — proof the roots, not the cards, drove the re-stamp.
+    expect(stamps[0].cards).toEqual(stamps[1].cards);
+  });
+
+  test("stays quiet when only the root ORDER changes (reordering is cosmetic)", async () => {
+    const { proj, payload, sinkPath } = tempProject();
+    const reordered = (order: Array<"a" | "b">): ProjectLockGraph => ({
+      workerRoots: order.map((name) => ({ name, requested: `file:../${name}`, kind: "card" as const, members: [] })),
+      cards: order.map((name) => lockEntry(name, "1.0.0", `sha256-${name}`)),
+    });
+
+    await writeCardLock(proj, reordered(["a", "b"]));
+    await emitCardUsage(payload, { now: () => "2026-07-19T00:00:00.000Z" });
+    await writeCardLock(proj, reordered(["b", "a"])); // same membership {a,b}, order flipped
+    await emitCardUsage(payload, { now: () => "2026-07-19T00:00:01.000Z" });
+
+    expect(readLines(sinkPath).filter((l) => l.type === "card_usage")).toHaveLength(1);
+  });
+
+  test("does not churn on an unchanged root graph (idempotent across runs)", async () => {
+    const { proj, payload, sinkPath } = tempProject();
+    await writeCardLock(proj, graphAfter);
+    await emitCardUsage(payload, { now: () => "2026-07-19T00:00:00.000Z" });
+    await emitCardUsage(payload, { now: () => "2026-07-19T00:00:01.000Z" });
+    expect(readLines(sinkPath).filter((l) => l.type === "card_usage")).toHaveLength(1);
+  });
+
+  test("re-stamps a v1 sidecar (no worker_roots) exactly once, then stays quiet", async () => {
+    const { proj, payload, sinkPath } = tempProject();
+    // A stamp written under the old cards-only key: no worker_roots field at all.
+    writeFileSync(sinkPath, `${JSON.stringify({ schema_version: 1, type: "card_usage", cards: [{ name: "z", version: "1.0.0" }] })}\n`);
+    await writeCardLock(proj, graphAfter);
+    await emitCardUsage(payload, { now: () => "2026-07-19T00:00:00.000Z" }); // graphs differ → one re-stamp
+    await emitCardUsage(payload, { now: () => "2026-07-19T00:00:01.000Z" }); // now unchanged → no loop
+    expect(readLines(sinkPath).filter((l) => l.type === "card_usage")).toHaveLength(2);
+  });
+
+  test("re-stamps once when the prior stamp's closure MATCHES but it carries no worker_roots (root key isolated)", async () => {
+    const { proj, payload, sinkPath } = tempProject();
+    const graph: ProjectLockGraph = {
+      workerRoots: [{ name: "a", requested: "file:../a", kind: "card", members: [] }],
+      cards: [lockEntry("a", "1.0.0", "sha256-a")],
+    };
+    // Prior stamp: cards byte-identical to what this graph resolves to, but the worker_roots field
+    // is absent — so ONLY the root key (empty set vs {a}) can drive the re-stamp, not the closure.
+    writeFileSync(sinkPath, `${JSON.stringify({ schema_version: 1, type: "card_usage", cards: [{ name: "a", version: "1.0.0", integrity: "sha256-a" }] })}\n`);
+    await writeCardLock(proj, graph);
+    await emitCardUsage(payload, { now: () => "2026-07-19T00:00:00.000Z" }); // cards equal, roots [] vs {a} → one re-stamp
+    await emitCardUsage(payload, { now: () => "2026-07-19T00:00:01.000Z" }); // now equal → quiet
+    const stamps = readLines(sinkPath).filter((l) => l.type === "card_usage");
+    expect(stamps).toHaveLength(2);
+    // The closure never moved — the root key alone carried the change.
+    expect(stamps[0].cards).toEqual([{ name: "a", version: "1.0.0", integrity: "sha256-a" }]);
+    expect(stamps[1].cards).toEqual([{ name: "a", version: "1.0.0", integrity: "sha256-a" }]);
+  });
+});
+
 describe("resolveActiveGraphFromLock", () => {
   test("joins each Worker root to the version and integrity of its Card", async () => {
     const root = await writeLock({
