@@ -420,6 +420,33 @@ async function readManifestFromDir(dir: string): Promise<CardManifest> {
   return manifest;
 }
 
+async function readHistoricalManifestForDiff(
+  agentsDir: string,
+  name: string,
+  version: string,
+): Promise<CardManifest> {
+  const barePath = resolveCardBareRepoPath(agentsDir, name);
+  const commit = await git.revParse(barePath, `refs/tags/v${version}^{commit}`);
+  const treeSha = await git.getCommitTree(barePath, commit);
+  const dir = await ensureExtracted(agentsDir, barePath, treeSha);
+  const manifestPath = join(dir, "card.json");
+  if (!existsSync(manifestPath)) {
+    throw new Error(`Card is missing card.json: ${dir}`);
+  }
+  const parsed = JSON.parse(await readFile(manifestPath, "utf8")) as unknown;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(`Historical Card manifest is not an object: ${name}@${version}`);
+  }
+  const manifest = parsed as CardManifest;
+  if (manifest.name !== name) {
+    throw new DrwnError("CARD_NAME_MISMATCH", `expected ${name}, got ${String(manifest.name)}`);
+  }
+  if (manifest.version !== version) {
+    throw new Error(`Historical Card version mismatch: expected ${version}, got ${String(manifest.version)}`);
+  }
+  return manifest;
+}
+
 async function revParseOptional(repoPath: string, ref: string): Promise<string | null> {
   try {
     return await git.revParse(repoPath, ref);
@@ -723,7 +750,9 @@ export async function publishCard(agentsDir: string, name: string, options: Publ
   const existingVersions = versionsFromTags(tags);
   const previousVersion = existingVersions.at(-1);
   if (previousVersion) {
-    const previousManifest = await readPublishedCardManifest(agentsDir, manifest.name, previousVersion);
+    // Historical tags are immutable diff inputs and may predate the current schema.
+    // The new source above remains fully validated before this compatibility read.
+    const previousManifest = await readHistoricalManifestForDiff(agentsDir, manifest.name, previousVersion);
     const classification = diffCards(previousManifest, manifest).classification;
     if (!options.forceBumpMismatch) {
       assertSemverBumpMatchesClassification({
