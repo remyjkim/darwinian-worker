@@ -6,6 +6,14 @@ import { resolveCredentialsPath } from "./paths";
 import { resolveToken, refreshStoredCredential } from "./auth/resolve-token";
 import { drwnCliProfile } from "./auth/profile";
 
+// Typed so presenters can distinguish missing auth from connectivity (I65 Fix 3).
+export class NotAuthenticatedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NotAuthenticatedError";
+  }
+}
+
 function withBearer(init: RequestInit | undefined, token: string): RequestInit {
   const headers = new Headers(init?.headers);
   headers.set("authorization", `Bearer ${token}`);
@@ -30,7 +38,7 @@ export async function fetchWithWorkerAuth(
   const credentialsPath = resolveCredentialsPath(context.agentsDir);
   const auth = await resolveToken({ credentialsPath, env, fetcher, profile });
   if (!auth) {
-    throw new Error("Not authenticated. Run `drwn login` first, or set DRWN_TOKEN for headless execution.");
+    throw new NotAuthenticatedError("Not authenticated. Run `drwn login` first, or set DRWN_TOKEN for headless execution.");
   }
 
   const first = await fetcher(input, withBearer(init, auth.token));
