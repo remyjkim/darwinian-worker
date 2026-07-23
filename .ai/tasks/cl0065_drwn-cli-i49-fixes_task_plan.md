@@ -118,20 +118,26 @@ if (/unknown revision|bad revision|not a valid object name|ambiguous argument|co
 }
 ```
 
-### Fix 4 — read a chat run (P2, feature) · `cli/commands/worker/chat.ts` + new `cli/commands/worker/run-status.ts`
+### Fix 4 — read a chat run (P2, feature) · `cli/commands/worker/chat.ts` + new `cli/commands/worker/run-status.ts` + `cli/core/worker-run.ts`
 
-**UX decided (Owner, 2026-07-22):** A + B + web link. Implementation blocked only on Remy's answers: **(i)** the Deploy API run-read/stream endpoint shape, **(ii)** the studio web-app URL path for a run/conversation.
+**UX decided (Owner, 2026-07-22):** A + B + web link. **Endpoint contract grounded from source** (2026-07-22, `studio-deployment` `workers/deploy-api/src/chat-proxy.ts` + `workers/engine/src/worker.ts` + `containerized-cli-harness/packages/coordination`), removing the Remy dependency:
+
+- `POST /api/minds/:slug/chat` `{message}` → `{runId}` (unchanged).
+- `GET /api/chat/:runId/poll?since=N` (runId-addressed, no slug) → `{status, result, lastSeq, events}`.
+- `status ∈ running | yielded | done | failed | not_found`; **yielded** = the mind replied and awaits the next message (the conversational settle state); settled = anything ≠ running.
+- Reply text: `orchestrator_turn.thought` events (single-agent reply); `worker_result.output` coerced via the console's `{text|result|error}` rules (mirrored in `cli/core/worker-run.ts`).
+- Web-app URL: `${apiBaseUrl}/c/${runId}` (studio console `ConversationPage`, same-origin with the Deploy API).
 
 **Change A (`worker chat`):**
-1. POST `/api/minds/:slug/chat` as today → get `runId`.
-2. Immediately print the web-app URL for the run (survives timeouts): `Run started: <runId>` + `Open in browser: <studio-web-url>/<run-path>`.
-3. Poll (or stream, per endpoint) the run to a terminal state — poll interval via `DRWN_POLL_MS` (test seam), overall cap via `DRWN_CHAT_TIMEOUT_MS` (default ~120s).
-4. Terminal states: done → print the assistant message; failed → error + exit 1; timeout → "still running, check later" + `worker run status` hint + exit 0 (the run is not an error).
-5. `--json`: print the raw final run object (or the initial `{runId}` + `--no-wait` if we add it — decide in review).
+1. POST as today → `{runId}`. A response without `runId` keeps the legacy raw-JSON passthrough.
+2. Immediately print `Run: <runId>` + `Open in browser: ${apiBaseUrl}/c/<runId>` (survives timeouts).
+3. Poll `/api/chat/:runId/poll` from `since=0`, advancing `since=lastSeq`; interval `DRWN_POLL_MS` (default 1500), cap `DRWN_CHAT_TIMEOUT_MS` (default 120s).
+4. Settled: failed → `Run failed: <error>` on stderr + exit 1; yielded/done → replies printed + exit 0; timeout → hint to `drwn worker run status <runId>` + exit 0.
+5. `--json` waits and prints one object `{runId, url, status, result, events}`; `--no-wait` returns the handle without polling (decided: both flags, per plan review recommendation).
 
-**Change B (`worker run status <runId>`):** new clipanion command; GET the run by id; print status (queued/running/done/failed) and, when done, the assistant message; `--json` for the raw object. Reuses `fetchJsonWithWorkerAuth` + `describeWorkerError` (Fix 3).
+**Change B (`worker run status <runId>`):** new clipanion command; GET `/api/chat/:runId/poll?since=0`; print status + web URL + visible replies; `not_found`/`failed` → exit 1; `--json` prints the raw poll body. Reuses `fetchJsonWithWorkerAuth` + `describeWorkerError` (Fix 3).
 
-**Options considered:** wait-only (rejected — scripting needs the handle + a fetch path); status-only (rejected — chat's primary use is conversational, the reply belongs in the terminal). Chosen: both + browser link.
+**Options considered:** wait-only (rejected — scripting needs the handle + a fetch path); status-only (rejected — chat's primary use is conversational, the reply belongs in the terminal); SSE stream route (deferred — polling is the JSON sibling of the same cursor, CI-testable without stream plumbing; stream upgrade possible later without contract change).
 
 ---
 
@@ -194,7 +200,7 @@ No env prereqs beyond `DRWN_TEST_KEYCHAIN_DIR` (set by the fixtures); no network
 3. **GATE 3:** open the code-PR with the `Testing & CI evidence` section; convert Turn → Remy for final review.
 
 ## Open questions for review
-1. Fix 2 — migrate-on-read acceptable, or require an explicit command? (recommend migrate-on-read)
-2. Fix 4 — Remy: run-read/stream endpoint shape + studio web-app URL path for a run.
-3. Fix 4 — should `--json` imply `--no-wait` (print `{runId}` and exit), or wait and print the final run object? (recommend: wait; add `--no-wait` for scripts)
-4. One PR for both phases, or Phase 1 PR + Phase 2 PR? (recommend two PRs — Phase 1 unblocks users immediately, Fix 4 rides the endpoint availability)
+1. Fix 2 — migrate-on-read acceptable, or require an explicit command? (recommend migrate-on-read; implemented as migrate-on-read)
+2. ~~Fix 4 — endpoint shape + web URL path~~ **Resolved 07/22** — grounded from `studio-deployment`/`containerized-cli-harness` source (see Fix 4 section); no Remy dependency remains.
+3. ~~Fix 4 — `--json` semantics~~ **Resolved 07/22** — `--json` waits and prints the final object; `--no-wait` added for scripts.
+4. One PR for both phases, or split? **Both phases landed on one implementation branch** (`junggyubae/I65-impl`) since Fix 4 unblocked same-day.
