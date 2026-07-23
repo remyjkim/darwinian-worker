@@ -22,6 +22,20 @@ describe("describeWorkerError", () => {
     expect(described).not.toContain("Cannot reach");
   });
 
+  test("surfaces refresh-path auth failures without the connectivity banner (G2 review note 1)", () => {
+    // resolve-token/device-flow throw plain Errors on the refresh path; the
+    // presenter must still classify them as auth, not connectivity.
+    const notAuth = describeWorkerError(new Error("Not authenticated. Run `drwn login` first."), API);
+    expect(notAuth).toBe("Not authenticated. Run `drwn login` first.");
+    expect(notAuth).not.toContain("Cannot reach");
+
+    const legacy = describeWorkerError(new Error("Legacy credentials found. Run `drwn login` again."), API);
+    expect(legacy).not.toContain("Cannot reach");
+
+    const dahBody = describeWorkerError(new Error("DAH token response did not include access_token."), API);
+    expect(dahBody).not.toContain("Cannot reach");
+  });
+
   test("labels network failures as connectivity", () => {
     const described = describeWorkerError(new TypeError("fetch failed: getaddrinfo ENOTFOUND studio.darwiniantools.com"), API);
     expect(described).toBe(`Cannot reach Deploy API at ${API}: fetch failed: getaddrinfo ENOTFOUND studio.darwiniantools.com`);

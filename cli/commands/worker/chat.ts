@@ -130,6 +130,10 @@ export class WorkerChatCommand extends BaseCommand {
       }
       since = body.lastSeq ?? since;
       if (isSettledRunStatus(body.status)) {
+        if (body.status === "not_found") {
+          this.context.stderr.write(`Run ${runId} not found.\n`);
+          return 1;
+        }
         if (body.status === "failed") {
           this.context.stderr.write(`Run failed: ${describeRunFailure(body.result)}\n`);
           return 1;

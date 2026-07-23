@@ -2,17 +2,14 @@
 // ABOUTME: Adds DAH bearer tokens and retries once after a 401 by refreshing stored credentials.
 
 import type { AgentsContext } from "../context";
+import { NotAuthenticatedError } from "./errors";
 import { resolveCredentialsPath } from "./paths";
 import { resolveToken, refreshStoredCredential } from "./auth/resolve-token";
 import { drwnCliProfile } from "./auth/profile";
 
-// Typed so presenters can distinguish missing auth from connectivity (I65 Fix 3).
-export class NotAuthenticatedError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "NotAuthenticatedError";
-  }
-}
+// Re-exported for existing importers; the class lives in core/errors to stay
+// import-cycle-free with the auth modules (I65 Fix 3).
+export { NotAuthenticatedError };
 
 function withBearer(init: RequestInit | undefined, token: string): RequestInit {
   const headers = new Headers(init?.headers);

@@ -158,6 +158,15 @@ describe("worker chat wait (I65 Fix 4)", () => {
     expect(result.stdout).toContain("drwn worker run status run_42");
   });
 
+  test("a not_found run exits 1 like run status (G2 review note 2)", async () => {
+    stubRunLifecycle([{ status: "not_found", lastSeq: 0, events: [] }]);
+
+    const result = await runChat(["worker", "chat", "harari", "--message", "hello"]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("not found");
+  });
+
   test("--json waits and prints one machine-readable object", async () => {
     stubRunLifecycle([
       {
