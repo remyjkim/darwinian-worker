@@ -1,375 +1,561 @@
-# ABOUTME: GATE 2 implementation plan for CL0024 — worker instructions projection (AGENTS.md block, Claude adapter, consent, authoring, diagnostics).
-# ABOUTME: Status Blocked pending Review 02: cl0024_review01 returned a no-go; this plan awaits revision against that review's acceptance gate.
+# ABOUTME: Review 02 execution plan for explicit Worker-instructions projection into a drwn-owned AGENTS.md block and Claude adapter.
+# ABOUTME: Closes Review 01 with one contribution resolver, explicit consent only, dual hash domains, safe lifecycle rules, and OrgWorkerBundleV1 conformance.
 
-# Worker Instructions Projection (I24 · Phase 1) Implementation Plan
+# Worker Instructions Projection V1 Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+**Issue:** CL0024 / I24
+**Version:** V1
+**Program:** `ARCH-PROV-REM-2026-07-23`
+**Status:** Local implementation complete and verified on the owner-approved checkout; immutable `OrgWorkerBundleV1` producer/consumer conformance is checksum-pinned, and `drwn install --frozen --org-worker-bundle` verifies exact active-worker/Card pins and writes a bounded deterministic receipt. Live Claude/Cursor/OpenCode ingestion sessions and publication remain separately authorized and are `NOT RUN`.
+**Created:** 2026-07-22
+**Updated:** 2026-07-23
+**Repository:** `/Users/pureicis/dev/darwinian-minds`
+**Evidence base:** `346f560d8825dfa709499f998b39e733239fca94`; re-record status/revision before Task 0.
+**Execution mode:** use the current checkout as explicitly directed; create no separate worktree or commit until the remediation is fully complete. Preserve every unrelated file/change.
 
-**Status:** Blocked — Review 01
-(`.ai/tasks/cl0024_review01_worker-instructions-projection-execution-readiness.md`)
-returned a GATE 2 no-go on 2026-07-22; do not execute until a revision passes Review 02.
-**Created:** 2026-07-22 · **Updated:** 2026-07-23
+## 1. Binding references
 
-Contracts settled 072326 in the architecture doc that already amend this plan's text:
-consent is always explicit (no first-party auto-grant); contribution = explicit
-instructions only (bundled-skill fallback retired for the projection path, one
-canonical contribution resolver); dual hash domains (content digest vs managed-block
-ownership hash); documentation targets `docs-docusaurus/`, not `docs-astro/`; the CI
-matrix claim below overstates platform coverage. The full revision lands as Review 02
-input.
+- `.ai/analyses/cl0024_worker-instructions-projection_target_architecture.md`
+- `.ai/analyses/125_feature_canonical_instructions_projection_decision_analysis.md`
+- `.ai/analyses/126_feature_canonical_instructions_architecture_proposal.html`
+- `.ai/tasks/cl0024_review01_worker-instructions-projection-execution-readiness.md`
+- `.ai/tasks/cl0024_review02_worker-instructions-projection-execution-readiness.md`
+- `/Users/pureicis/dev/darwinian-org/.ai/analyses/08_architect_organization_provisioning_blueprint_target_architecture.md`
+- `/Users/pureicis/dev/darwinian-org/.ai/tasks/01_org-worker-bundle-v1_task_plan.md`
 
-**References:**
-`.ai/analyses/cl0024_worker-instructions-projection_target_architecture.md`,
-`.ai/analyses/125_feature_canonical_instructions_projection_decision_analysis.md`,
-`.ai/analyses/126_feature_canonical_instructions_architecture_proposal.html`,
-`.ai/tasks/cl0024_review01_worker-instructions-projection-execution-readiness.md`,
-`darwinian-org/.ai/analyses/08_architect_organization_provisioning_blueprint_target_architecture.md`
+## 2. Goal and boundary
 
-**Issue:** #24 (CL Issue Tracker) · **Gate context:** GATE 2 artifact (task plan with TDD
-contract) following the GATE 1 architecture set: analyses cl0024 (target architecture,
-decisions folded 072226/072326), 125 (decision analysis), 126 (approved report).
+Project the active Worker's composed explicit instructions into a consent-gated,
+drwn-owned managed block inside repository-root `AGENTS.md`, optionally maintain the
+Claude import adapter, expose stable doctor/status evidence, and consume
+`OrgWorkerBundleV1` without absorbing organization-level authority.
 
-**Goal:** Project the composed worker instructions into a consent-gated, drwn-owned
-managed block in repository-root `AGENTS.md` (plus the `.claude/CLAUDE.md` import
-adapter), close the authoring gap, and make doctor verify delivery — the last hop the
-contract has promised since `project-worker-v1.md`.
+This plan owns:
 
-**Architecture:** Reuse `buildInstructionsArtifact` (the single composer) filtered
-through a new per-card instruction-consent class that mirrors hook consent exactly
-(lock field, trust flag, digest ack, first-party auto-grant, strict-mode CI failure).
-Render the composition into a marker-delimited, hash-sentineled block merged into
-`AGENTS.md` via a shared managed-block helper extracted from git-hygiene; write the
-one-line Claude adapter when absent. New `"instructions"` projection surface
-(project-scope, target-agnostic) rides the existing write-record/cleanup machinery,
-with one new cleanup branch for block removal.
+- explicit instruction contribution, consent, composition, projection, ownership,
+  drift, cleanup, diagnostics, and documentation;
+- a project-scoped, target-agnostic `"instructions"` write-record surface;
+- producer/consumer conformance for resolved Card and explicit instruction inputs.
 
-**Tech Stack:** Bun + TypeScript, bun:test, Clipanion commands, existing helpers in
-`test/helpers.ts` (`scaffoldCliFixture`, `runAgentsCli`, `publishCardWithSkills`,
-`installProjectWorkers`).
+This plan does not own:
 
-**Branching (per agreed flow):** implementation branches off the docs-PR branch after
-GATE 1 approval; commits are plain conventional commits with no AI attribution.
+- brand or organization provenance decisions;
+- inter-Worker grants, communication protocols, or collaboration flows;
+- machine-capability grant application;
+- Foundry apply/reconcile/readiness;
+- nested `AGENTS.md`, per-target instruction variants, or session-hook injection.
 
----
+## 3. Frozen V1 decisions
 
-## Testing strategy — the TDD contract (v0.3 GATE 2 requirement)
+1. **Explicit instructions only.** The canonical contribution resolver reads
+   `manifest.instructions.text` or the exact bytes at `manifest.instructions.path`.
+   Bundled skills, hooks, READMEs, and model output are not instruction fallback.
+2. **One resolver.** Consent, content digest, composition, write-time acknowledgement,
+   doctor, status, and `OrgWorkerBundleV1` ingestion use the same resolver.
+3. **Explicit consent for every Card origin.** Local/first-party origin does not
+   bypass consent; there is no first-party auto-grant.
+4. **Dual hash domains.**
+   - Card/composed **content digest** hashes canonical instruction content bytes.
+   - managed-block **ownership hash** hashes exact rendered block bytes, including
+     markers and managed header, under a distinct domain separator.
+5. **Consented byte identity.** The Worker-generated consented instructions artifact
+   and `AGENTS.md` body use the same composed bytes. An unconsented contributor is
+   absent from both and produces a warning; `--strict` returns nonzero.
+6. **User-file safety.** Bytes outside a recognized managed block are preserved
+   exactly. Malformed, duplicate, nested, reversed, or partial markers fail closed.
+7. **Adapter truth.** A foreign `.claude/CLAUDE.md` already containing a valid
+   `@../AGENTS.md` import satisfies delivery without ownership. Foreign files without
+   the import are warning-only unless `--apply-claude-adapter` is explicitly supplied.
+8. **Project scope.** Instructions are target-agnostic and project-only. Machine scope
+   rejects them. Partial MCP/skill/target writes retain but do not rewrite ownership.
+9. **Organization boundary.** `OrgWorkerBundleV1` contributes resolved Cards and
+   explicit instructions. Grant/protocol/provenance references remain opaque metadata.
 
-**Layers**
+## 4. TDD and evidence protocol
 
-| Layer | What it proves | Files |
-| --- | --- | --- |
-| Unit | Managed-block extract/render round-trips; consent validity incl. first-party auto-grant; composer consent filter | `test/core-managed-block.test.ts` (new), `test/core-instruction-consent.test.ts` (new) |
-| Integration | AGENTS.md merge preserves user sections; drift throw + `--force`; block cleanup on worker removal; adapter lifecycle; write-record surface rules | `test/commands-write-instructions.test.ts` (new) |
-| Command | `card trust --instructions` / `untrust`; `card source set --instructions-*`; `write --apply-claude-adapter` | same file + existing card-command test files |
-| Doctor | Block staleness, adapter advisory, Instruction-ID mismatch | `test/core-instructions-drift.test.ts` (new, modeled on `core-mcp-drift.test.ts`) |
-| E2E | Publish → install → trust → write → block + adapter on disk; unconsented card excluded with warning; `--strict` fails | extend `test/commands-write-instructions.test.ts` (CLI-spawned, real store) |
-| Smoke | Real binary in scratch workspace: full flow + idempotent rewrite byte/mtime check | manual step in Task 14 (commands given) |
+For every behavior:
 
-**Ordered red→green sequence:** exactly the task order below — every task starts with a
-failing test. **Exact commands:** `bun test ./test/<file>.test.ts` per task; full suite
-`bun test ./test/`; typecheck `bunx tsc --noEmit`; release gate
-`bun run verify:release`. **CI:** the existing CLI CI matrix (Validate + Command bridge
-× ubuntu/windows/macos) runs all of the above; no new jobs.
+1. add one focused test;
+2. run the exact focused command and inspect the intended RED;
+3. implement the smallest GREEN;
+4. rerun the focused test;
+5. refactor only under green;
+6. record command, exit code, counts, and evidence path.
 
-**Non-goals (deliberate, from 124 D5):** machine scope; nested `AGENTS.md`; per-target
-instruction variants; the sub-worker workstream (own GATE 1); org-side compilation
-(analysis 127); session-start hook injection (B-Q6 shelved).
+A missing module/symbol or asserted behavior mismatch is valid RED. A broken fixture,
+wrong import, missing dependency install, or unrelated baseline failure is not.
+Unexpected behavior triggers `systematic-debugging`; completion claims require
+`verification-before-completion`.
 
-**Residual risk after this plan:** V1–V3 from 124 §6 stay manual (cursor
-non-double-read of `.claude/CLAUDE.md`, opencode AGENTS.md-over-CLAUDE.md preference,
-HTML-comment marker ingestion) — one live session each, listed in Task 14; consent-UX
-friction is a watch item, mitigated by first-party auto-grant.
+## 5. Ordered implementation tasks
 
----
+### Task 0 — Revalidate baseline and freeze consumer fixtures
 
-## Part A — Shared managed-block helper
+**Files**
 
-### Task 1: Extract `managed-block.ts` from git-hygiene (pure refactor)
+- Create: `test/fixtures/instructions/{explicit-text,explicit-path,no-instructions}.json`
+- Create: `test/fixtures/org-worker-bundle-v1/` from the immutable producer packet
+- Modify only if needed: the test fixture manifest
 
-**Files:**
-- Create: `cli/core/managed-block.ts`
-- Modify: `cli/core/git-hygiene.ts` (delegate; behavior unchanged)
-- Test: `test/core-managed-block.test.ts` (new)
+**RED**
 
-**Step 1 — failing test:**
+- fixture manifest verifier does not exist;
+- current composer fallback includes bundled skill bytes;
+- producer fixture cannot be verified because packet identity is absent.
 
-```ts
-// ABOUTME: Pins marker-parameterized managed-block extraction and rendering.
-// ABOUTME: The shared idiom for drwn-owned spans inside user-owned files.
-import { describe, expect, test } from "bun:test";
-import { extractBlock, renderBlock } from "../cli/core/managed-block";
+**GREEN**
 
-const markers = { start: "<!-- drwn:instructions:start -->", end: "<!-- drwn:instructions:end -->" };
+- record branch/revision/status, Bun/Node versions, baseline counts, current CI jobs,
+  active docs root, and exact producer packet digest;
+- freeze one text, path, empty, mixed-consent, CRLF, and adversarial contribution;
+- freeze valid/invalid producer fixtures without copying the producer schema;
+- record the existing bundled-skill behavior as the characterization test that later
+  changes intentionally.
 
-describe("managed-block", () => {
-  test("extract returns before/block/after and round-trips through render", () => {
-    const doc = `# Mine\n\n${markers.start}\nowned\n${markers.end}\n\n## Also mine\n`;
-    const parts = extractBlock(doc.split("\n"), markers);
-    expect(parts.block.join("\n")).toContain("owned");
-    expect(parts.before.join("\n")).toContain("# Mine");
-    expect(parts.after.join("\n")).toContain("## Also mine");
-  });
+**Commands**
 
-  test("absent markers yield an empty block and full before", () => {
-    const parts = extractBlock(["# Mine", ""], markers);
-    expect(parts.block).toEqual([]);
-    expect(parts.before).toEqual(["# Mine", ""]);
-  });
-
-  test("renderBlock wraps content in the markers", () => {
-    expect(renderBlock(["body"], markers)).toEqual([markers.start, "body", markers.end]);
-  });
-});
+```bash
+bun test ./test/core-worker-generator.test.ts
+bun test ./test/
+bunx tsc --noEmit
 ```
 
-**Step 2:** `bun test ./test/core-managed-block.test.ts` — FAIL (module missing).
+If the full baseline is not green, diagnose before feature edits.
 
-**Step 3:** Create `managed-block.ts` by generalizing `extractDrwnBlock`/`renderDrwnBlock`
-(`git-hygiene.ts:40-58`): same algorithm, markers passed as `{start, end}`; end-of-block
-detection = the end marker (not blank line — note this differs from the gitignore block,
-which ends at blank line; parameterize with an `endsAt: "marker" | "blank"` option so
-git-hygiene keeps byte-identical behavior via `endsAt: "blank"` + its single marker).
+### Task 1 — Add byte-preserving managed-block primitives
 
-**Step 4:** New test PASS **and** `bun test ./test/core-git-hygiene.test.ts` PASS
-(refactor proof). **Step 5:** commit `refactor(core): extract shared managed-block helpers`.
+**Files**
 
----
+- Create: `cli/core/managed-block.ts`
+- Modify: `cli/core/git-hygiene.ts`
+- Create: `test/core-managed-block.test.ts`
+- Re-run: `test/core-git-hygiene.test.ts`
 
-## Part B — Instruction consent class (mirrors hook consent)
+**Contract**
 
-### Task 2: Lock field + validator
+`parseManagedBlock(bytes, markers)` returns exactly one of:
 
-**Files:**
-- Modify: `cli/core/card-lock.ts` — `CardLockEntry` gains `instructionConsent?: { consentedAt: string; consentedRange: string }` beside `hookConsent` (`:44-47`); add `validateInstructionConsent` mirroring `validateHookConsent` (`:365-372`) and wire it in the entry parser (`:293,309`).
-- Test: locate the card-lock validation suite (`grep -ln "validateHookConsent\|hookConsent" test/*.test.ts`) and add matching cases: valid shape accepted, non-ISO `consentedAt` rejected, round-trip preserved.
+- `absent` with original bytes/newline/final-newline metadata;
+- `present` with exact `before`, `block`, and `after` byte slices;
+- `malformed` with stable code and no writable result.
 
-TDD steps as Task 1 (failing cases first). Commit
-`feat(card): record instruction consent in the lock`.
+RED cases cover start-only, end-only, duplicate, nested, reversed, marker collision in
+user content, LF, CRLF, no final newline, empty/whitespace file, and insertion policy.
+GREEN preserves every byte outside the block. Git hygiene delegates without byte drift.
 
-### Task 3: `isInstructionConsentValid` + first-party auto-grant
+```bash
+bun test ./test/core-managed-block.test.ts
+bun test ./test/core-git-hygiene.test.ts
+```
 
-**Files:**
-- Create: `cli/core/instruction-consent.ts`
-- Test: `test/core-instruction-consent.test.ts` (new)
+### Task 2 — Add instruction consent schema and update lifecycle
 
-**Behavior (write tests first, one per bullet):**
-- A card that contributes no instructions (no `manifest.instructions`, no Blueprint
-  `identity.instructions`) is always valid — export
-  `cardContributesInstructions(entry)` for reuse by the composer filter and doctor.
-- First-party cards are always valid: determine the predicate from `CardOrigin`
-  (`card-lock.ts` — read the `origin` union first; first-party = the origin that
-  `drwn card publish` records for cards in the local store's sources root,
-  `resolveSourcesRoot` in `store-paths.ts`). Pin it with one fixture published via
-  `publishCardWithSkills` (its origin IS first-party) and one hand-built lock entry
-  with a catalog/git origin.
-- Otherwise valid iff `satisfies(entry.version, entry.instructionConsent.consentedRange)`
-  — same semver call as `isHookConsentValid` (`hook-consent.ts:7-16`).
+**Files**
 
-Commit `feat(card): validate instruction consent with first-party auto-grant`.
+- Modify: `cli/core/card-lock.ts`
+- Modify: `cli/core/card-project.ts`
+- Modify: `cli/commands/card/outdated.ts`
+- Modify the existing Card status/show renderer located during Task 0, recording path
+- Modify/create tests:
+  `test/core-card-lock.test.ts`,
+  `test/commands-card-outdated-fetch.test.ts`,
+  `test/commands-card-trust.test.ts`,
+  and the exact update/status tests identified in Task 0
 
-### Task 4: `card trust --instructions` / `untrust`, with digest ack
-
-**Files:**
-- Modify: `cli/commands/card/trust.ts` — add `instructions = Option.Boolean("--instructions", false, …)`; require at least one of `--hooks`/`--instructions`; on the instructions path call a new `setInstructionConsent(projectRoot, agentsDir, spec, range)` in `cli/core/card-project.ts` (mirror `setHookConsent` — find it by grep, copy shape).
-- Modify: the untrust command (find via `grep -rln "untrust" cli/commands/`) symmetrically.
-- Modify: `cli/core/hook-consent-ack.ts` pattern — add `computeInstructionsDigest(card, contentRoot)` hashing the card's instruction contribution (manifest text, or resolved `instructions.path` bytes, plus Blueprint `identity.instructions`), and record the ack with a distinct key prefix. Consent is content-aware, exactly like hooks.
-- Test: extend the trust-flow coverage (find via `grep -ln "card.*trust" test/*.test.ts`; `cli-hook-write-e2e.test.ts:56` shows the e2e usage) — trust writes the lock field with default range `^<version>`; `--range` honored; untrust clears; digest ack recorded.
-
-Commit `feat(cli): grant and revoke instruction consent per card`.
-
----
-
-## Part C — Composition, block, and sync step
-
-### Task 5: Export the composer + consent filter
-
-**Files:**
-- Modify: `cli/core/worker-generator/sync-worker.ts` — export `buildInstructionsArtifact`
-  (currently module-private; no body changes).
-- Create: `cli/core/sync-instructions.ts` (started here, completed in Task 6) with:
+**Schema**
 
 ```ts
-export function composeConsentedInstructions(state: EffectiveState): {
-  text: string | null;
-  excluded: string[];  // card names skipped for missing consent
+instructionConsent?: {
+  consentedAt: string
+  consentedRange: string
+  contentDigest: `sha256-${string}`
 }
 ```
 
-  — filters `state.activeCards` through `isInstructionConsentValid` +
-  `cardContributesInstructions` before calling `buildInstructionsArtifact`; returns
-  `text: null` when the filtered composition is empty.
-- Test (`test/commands-write-instructions.test.ts`, unit-style through the export):
-  consented closure composes identically to the generated artifact bytes; an
-  unconsented third-party card lands in `excluded` and its text is absent; empty →
-  null.
+RED/GREEN:
 
-Commit `feat(instructions): compose worker instructions through the consent gate`.
+- validate ISO time, semver range, and digest;
+- round-trip lock bytes;
+- compatible update carries consent only when version remains in range and content
+  digest is unchanged;
+- version/content drift drops consent and emits actionable outdated/status guidance;
+- install/update/trust/untrust persistence is atomic;
+- JSON and human readouts expose consent state without instruction content.
 
-### Task 6: Block render + AGENTS.md merge + adapter
+```bash
+bun test ./test/core-card-lock.test.ts
+bun test ./test/commands-card-outdated-fetch.test.ts
+bun test ./test/commands-card-trust.test.ts
+```
 
-**Files:**
+### Task 3 — Implement the one explicit-contribution resolver and digest lifecycle
+
+**Files**
+
+- Create: `cli/core/instruction-contribution.ts` (contribution resolution and consent validation)
+- Create: `cli/core/instruction-consent-ack.ts`
+- Modify: `cli/core/worker-generator/sync-worker.ts`
+- Create: `test/core-instruction-consent.test.ts`
+- Modify/create the focused Worker-generator test from Task 0
+
+**API**
+
+```ts
+resolveExplicitInstructionContribution(card, contentRoot):
+  | { bytes: Uint8Array; contentDigest: string; source: "text" | "path" }
+  | null
+
+isInstructionConsentValid(card, contribution): boolean
+```
+
+RED/GREEN:
+
+- text/path resolve to exact canonical bytes;
+- traversal, absolute path, missing/oversize/non-UTF-8 file fails with stable code;
+- bundled skill only returns `null`;
+- every current Card origin requires the same explicit-consent rule;
+- version range and exact content digest both match;
+- compute/has/record acknowledgement uses a distinct namespace;
+- cross-machine lock with no local acknowledgement emits once, then records;
+- content change invalidates both consent and old acknowledgement.
+
+```bash
+bun test ./test/core-instruction-consent.test.ts
+bun test ./test/core-worker-generator.test.ts
+```
+
+### Task 4 — Add trust/untrust instruction commands
+
+**Files**
+
+- Modify: `cli/commands/card/trust.ts`
+- Modify the exact untrust command found under `cli/commands/card/`
+- Modify: `cli/core/card-project.ts`
+- Modify: `cli/commands/write.ts` for acknowledgement notice only
+- Modify: `test/commands-card-trust.test.ts`
+
+RED/GREEN:
+
+- require at least one of `--hooks` or `--instructions`;
+- support both atomically and preserve hook behavior;
+- default range `^<resolvedVersion>`; explicit range must include current version;
+- trust records exact current content digest and time;
+- no-contribution trust returns usage error;
+- untrust clears only selected consent;
+- same input is idempotent; failure leaves lock unchanged;
+- JSON/human output and cross-machine acknowledgement are stable.
+
+```bash
+bun test ./test/commands-card-trust.test.ts
+```
+
+### Task 5 — Add the project-only instructions write-record surface
+
+**Files**
+
+- Modify: `cli/core/write-record.ts`
+- Revalidate unchanged: `cli/core/projection-ownership.ts`
+- Modify: `test/core-write-record-v1.test.ts`
+- Modify: `test/commands-write-partial-ownership.test.ts`
+
+RED/GREEN:
+
+- add `ProjectionSurface = ... | "instructions"`;
+- valid only at project scope with no target;
+- reject machine scope and targeted entry;
+- store managed-fields ownership hash for exact rendered block bytes;
+- store adapter as managed-content or managed-fields according to transition state;
+- `--mcp-only`, `--skills-only`, and `--target` retain bytes/mtime/ownership unchanged;
+- schema remains backward-readable for prior records.
+
+```bash
+bun test ./test/core-write-record-v1.test.ts
+bun test ./test/commands-write-partial-ownership.test.ts
+```
+
+### Task 6 — Implement pure composition and desired-state sync
+
+**Files**
+
+- Create: `cli/core/sync-instructions.ts`
+- Modify: `cli/core/worker-generator/sync-worker.ts`
+- Create: `test/core-sync-instructions.test.ts`
+
+**API**
+
+```ts
+composeConsentedInstructions(state): {
+  bytes: Uint8Array | null
+  contentDigest: string | null
+  excluded: Array<{ card: string; reason: string }>
+}
+
+planInstructionProjection(input): InstructionProjectionPlan
+```
+
+RED/GREEN:
+
+- one consented + one unconsented Card yields exactly consented bytes in both Worker
+  artifact and planned `AGENTS.md` body;
+- empty composition produces no placeholder block;
+- header contains `Instruction-ID` and content digest;
+- ownership hash uses domain-separated exact marker+header+body bytes;
+- absent block inserts at the documented position;
+- matching block is byte/mtime idempotent;
+- body/header/marker tamper independently fails without mutation;
+- `force` heals only a uniquely recognized previously owned block;
+- warnings contain Card IDs, not instruction text.
+
+This task tests the pure/direct seam; it does not use CLI-spawned integration before
+pipeline wiring exists.
+
+```bash
+bun test ./test/core-sync-instructions.test.ts
+```
+
+### Task 7 — Wire typed options, pipeline, cleanup, and watch
+
+**Files**
+
+- Modify: `cli/core/types.ts`
+- Modify: `cli/core/effective-state.ts`
+- Modify: `cli/commands/write.ts`
+- Modify: `cli/core/sync.ts`
+- Modify: `cli/core/write-watch.ts`
+- Create: `test/commands-write-instructions.test.ts`
+- Modify: `test/commands-write-watch.test.ts`
+
+Thread exact options:
+
+```text
+WriteCommand --strict / --apply-claude-adapter
+  -> SyncOptions
+  -> normalized/effective state
+  -> syncRepository
+  -> syncInstructions
+```
+
+RED/GREEN:
+
+- normal mode warns for excluded Cards; `--strict` returns nonzero with no partial
+  instruction mutation;
+- full project write invokes instructions after state/card resolution;
+- partial writes do not invoke or clean instruction projection;
+- desired projection verifies prior ownership before replace;
+- no-longer-desired cleanup removes only unchanged owned bytes, retains user content,
+  and warns on drift;
+- removed Worker, empty composition, same-path replacement, force, dry-run, and
+  failure atomicity are covered;
+- external edits to root `AGENTS.md` and `.claude/CLAUDE.md` trigger one re-evaluation;
+  self-writes are suppressed and cannot loop;
+- watch run-once retains strict/adapter options.
+
+```bash
+bun test ./test/commands-write-instructions.test.ts
+bun test ./test/commands-write-watch.test.ts
+```
+
+### Task 8 — Implement the Claude adapter transition table
+
+**Files**
+
 - Modify: `cli/core/sync-instructions.ts`
+- Modify: `cli/core/sync.ts`
+- Extend: `test/commands-write-instructions.test.ts`
 
-**Behavior (tests first, integration via `runAgentsCli` in a
-`publishCardWithSkills`-style project whose card was published with instructions —
-Task 9's authoring flag makes this ergonomic; until then write `card.json` instructions
-via the test's source-dir edit, as `cli-hook-write-e2e.test.ts:38-47` does for hooks):**
+| Current state | Default | With `--apply-claude-adapter` | Ownership |
+|---|---|---|---|
+| absent | write exact `@../AGENTS.md\n` | same | managed-content |
+| exact owned adapter | preserve/idempotent | same | retain |
+| foreign with valid import | preserve, no warning | preserve | none |
+| foreign without import | preserve + advisory | add marked import block | managed-fields block |
+| formerly owned one-line file with user edits | preserve + ownership-drift warning | fail unless `--force` and recognized | drop/replace per proof |
+| projection removed | delete exact owned-only file; otherwise remove unchanged owned block | same | remove |
 
-1. Fresh project → `drwn write` → `AGENTS.md` created containing only the block:
-   markers per 124 D1, header comment with `Instruction-ID: <activeWorker>@<version>`
-   and `Content-Hash: sha256-…` (hash of the composed text), body = composed bytes.
-2. Pre-existing `AGENTS.md` with user sections → block inserted, user bytes preserved
-   exactly; rewrite is byte/mtime idempotent.
-3. `.claude/CLAUDE.md` absent → written with exactly `@../AGENTS.md\n`, recorded
-   managed-content. Present-and-foreign → untouched, warning emitted.
-4. Ownership: managed-fields entry `{path: "AGENTS.md", surface: "instructions",
-   fields: ["block"], fieldHashes: {block}}`; adapter recorded managed-content with
-   surface `"instructions"`.
-5. Tampered block + write → drift error naming `--force`; `--force` heals.
-6. No active worker / empty composition → no block written; a previously owned block is
-   removed (user sections kept) — asserted after Task 8's cleanup branch.
+Malformed adapter markers fail closed. Force never overwrites unrelated foreign bytes.
 
-Commit `feat(instructions): project the worker-instructions block into AGENTS.md`.
+```bash
+bun test ./test/commands-write-instructions.test.ts --test-name-pattern adapter
+```
 
-### Task 7: Write-record surface
+### Task 9 — Add instruction authoring to source mutation
 
-**Files:**
-- Modify: `cli/core/write-record.ts` — `ProjectionSurface` + `"instructions"`; zod
-  `surface` enum; ownership rule: `instructions` → `target === undefined`. The
-  machine-scope refinement (`:116`, permits only mcp/skill) already rejects it — add
-  the positive assertion to `test/core-write-record-v1.test.ts` (valid project entry;
-  invalid with a target; invalid at machine scope).
-- Note (verified): `isProjectionOwnershipSelected` needs **no change** — the final
-  fallthrough gives instructions full-write-only materialization and retention under
-  `--mcp-only`/`--skills-only`/`--target`. Pin that with one row in
-  `test/commands-write-partial-ownership.test.ts` (each partial mode preserves
-  `AGENTS.md` bytes/mtime and ownership).
+**Files**
 
-Commit `feat(write-record): add the instructions projection surface`.
+- Modify: `cli/commands/card/source/set.ts`
+- Modify: `cli/core/card-source.ts`
+- Modify the exact existing source-set tests identified in Task 0
 
-### Task 8: Pipeline slot + block-aware cleanup
+Extend `CardSourceManifestPatch` with mutually exclusive instruction text/path and
+explicit clear semantics. RED/GREEN command parsing, core patch, replace, clear,
+conflicting flags, relative-safe path, immediate manifest validation, publish, and
+lock resolution. Invalid input fails during `source set`, not deferred to publish.
 
-**Files:**
-- Modify: `cli/core/sync.ts` — invoke `syncInstructions(state, previousRecord?.managedPaths ?? [])`
-  beside `syncWorkers` under the full-write condition
-  (`!state.normalized.mcpOnly && !state.normalized.skillsOnly && !state.scopedOptions.target`);
-  merge changes/warnings/managedPaths as the other steps do.
-- Modify: `cleanupRemovedManagedPaths` (`sync.ts:278+`) — **new branch** (verified gap:
-  the managed-fields branch handles only per-server-hash and codex entries; an
-  `AGENTS.md` block entry currently falls through silently): for entries with
-  `surface === "instructions"` and `kind === "managed-fields"`, load the file, extract
-  the block via `managed-block.ts`; if the block hash matches the recorded hash, remove
-  the block (delete the file only when nothing but whitespace remains) — else warn
-  `preserved user-owned path`.
-- Strict mode: when `excluded` is non-empty, push the warning
-  (`"Skipping instructions from <card>: missing or out-of-range instruction consent. Run drwn card trust <card> --instructions."`);
-  under `drwn write --strict` fail instead (find how `--strict` currently propagates —
-  `strictHooks` precedent in `sync-hooks.ts:85-90`; reuse the existing `--strict` flag
-  per 124 §5 wording, noting in the PR that it now also covers consent).
-- Test: worker removed from config → next write removes the block, keeps user text;
-  unconsented card → warning + `--strict` non-zero exit.
+```bash
+bun test ./test/commands-card-source-set.test.ts
+```
 
-Commit `feat(write): materialize and reconcile the AGENTS.md instructions block`.
+Use the exact existing filename if Task 0 discovers a differently named suite and
+record that evidence before RED.
 
----
+### Task 10 — Consume `OrgWorkerBundleV1` safely
 
-## Part D — Authoring, adapter fix flag, contract docs
+**Files**
 
-### Task 9: `card source set --instructions-text|--instructions-path`
+- Create: `cli/core/org-worker-bundle-v1.ts`
+- Create: `test/org-worker-bundle-v1-conformance.test.ts`
+- Add minimal install/write input wiring only after naming the current seam in Task 0
 
-**Files:**
-- Modify: `cli/commands/card/source/set.ts` — two new `Option.String` flags, mutually
-  exclusive (UsageError when both); text → `instructions: {text}`, path →
-  `instructions: {path}` validated relative-safe by the existing
-  `validateInstructionsField` (`card-manifest.ts:101-112`) on the next
-  publish/validate pass.
-- Test: extend the `card source set` coverage (find via
-  `grep -ln "source.*set" test/*.test.ts`): each flag round-trips into `card.json`;
-  both → usage error; publish of a text-instruction card succeeds and locks.
+RED/GREEN:
 
-Commit `feat(card): author instructions from the command line`.
+- parse producer goldens and reject every negative fixture;
+- verify blueprint/bundle identity and each resolved Card `contentDigest`;
+- frozen mode forbids network, floating resolution, or local-source substitution;
+- ingest explicit instructions only;
+- require explicit instruction consent; no first-party auto-grant;
+- keep grant/protocol/organization-provenance references as opaque receipt metadata;
+- reject credential, harness-file, applied-state, or current-readiness claims;
+- prove content digest and ownership hash remain distinct;
+- USMS producer fixture → bundle validate → dry-run write receipt.
 
-### Task 10: `drwn write --apply-claude-adapter`
+```bash
+bun test ./test/org-worker-bundle-v1-conformance.test.ts
+bun test ./test/commands-write-instructions.test.ts
+```
 
-**Files:**
-- Modify: `cli/commands/write.ts` + `cli/core/sync-instructions.ts`
+### Task 11 — Add stable doctor/status instruction-delivery contracts
 
-One deliberate deviation from 124 D2's wording, with reason: doctor is report-only by
-stated philosophy (`docs/cli-quickref.md`: "drwn doctor reports issues without fixing
-them"), so the explicit fix verb lives on `write` instead. Behavior: with the flag, a
-present-but-foreign `.claude/CLAUDE.md` gains the import line inside a drwn marker
-block (managed-block helpers, markers `<!-- drwn:claude-adapter:start/end -->`),
-recorded as a managed-fields block entry; without the flag behavior is unchanged
-(warning only). Removal semantics mirror Task 8. Tests: foreign file untouched by
-default; flag applies the marked line preserving user content; cleanup removes only
-the marked block.
+**Files**
 
-Commit `feat(write): explicit claude adapter application for foreign files`.
+- Modify: `cli/core/diagnostics.ts`
+- Modify: `cli/commands/doctor.ts`
+- Modify: `cli/commands/status.ts`
+- Create: `test/core-instructions-drift.test.ts`
+- Modify the existing doctor/status JSON and human-renderer tests named in Task 0
 
-### Task 11: Contract line + user docs + CHANGELOG
+Extend `ProjectStatusV1` additively with:
 
-**Files:**
-- Modify: `docs/contracts/project-worker-v1.md` (~line 108) — the sentence "The
-  selected root also produces the active aggregate instructions used for projection"
-  becomes a true description: composed worker instructions project as a consent-gated
-  managed block in root `AGENTS.md` with a `.claude/CLAUDE.md` import adapter;
-  unconsented cards are excluded with a warning.
-- Modify: `docs/cli-quickref.md` (Card hooks section gains the instructions-consent
-  sibling; write section gains the AGENTS.md surface), `docs-astro` per-project +
-  how-apply pages, `CHANGELOG.md` (Unreleased → Added).
-- Run the suite (release-readiness "documentation presence" gate rides it).
+```ts
+instructionDelivery: {
+  state: "absent" | "current" | "drifted" | "blocked"
+  instructionId?: string
+  contentDigest?: string
+  ownershipHash?: string
+  adapter: "absent" | "owned" | "foreign-valid" | "foreign-missing" | "drifted"
+  issues: Array<{
+    code:
+      | "INSTRUCTIONS_BLOCK_MALFORMED"
+      | "INSTRUCTIONS_CONTENT_STALE"
+      | "INSTRUCTIONS_OWNERSHIP_DRIFT"
+      | "INSTRUCTIONS_ID_STALE"
+      | "INSTRUCTIONS_CONSENT_REQUIRED"
+      | "CLAUDE_ADAPTER_MISSING"
+      | "CLAUDE_ADAPTER_DRIFT"
+    severity: "error" | "warning" | "advisory"
+  }>
+}
+```
 
-Commit `docs: describe the worker instructions projection contract`.
+Errors affect doctor exit health; warnings/advisories do not unless strict mode is
+explicit. JSON and human output are tested. This is a separate project instruction
+delivery section, not an extension of user-home ambient skill/MCP taxonomy.
 
----
+```bash
+bun test ./test/core-instructions-drift.test.ts
+bun test ./test/commands-doctor.test.ts
+bun test ./test/commands-status.test.ts
+```
 
-## Part E — Doctor, verification, closure
+Record exact existing filenames if repository naming differs.
 
-### Task 12: Doctor checks + ambient observation
+### Task 12 — Update active contracts and documentation
 
-**Files:**
-- Modify: `cli/core/diagnostics.ts` — three additions, each test-first in
-  `test/core-instructions-drift.test.ts` (copy the `core-mcp-drift.test.ts` fixture
-  pattern):
-  1. **Block staleness:** recompute `composeConsentedInstructions`; compare to the
-     block's `Content-Hash`; report `instructions:<path>` drift.
-  2. **Adapter advisory:** `.claude/CLAUDE.md` missing the import (and not
-     drwn-marked) → advisory naming `--apply-claude-adapter`.
-  3. **Instruction-ID match:** header worker@version ≠ active worker → stale-identity
-     finding.
-- Modify: `cli/core/ambient-capabilities.ts` — observe root `AGENTS.md`
-  (present/absent, drwn block present) so `drwn status` reports delivery state.
+**Files**
 
-Commit `feat(doctor): verify instructions delivery and adapter state`.
+- Modify: `docs/contracts/project-worker-v1.md`
+- Modify: `docs/cli-quickref.md`
+- Modify exact relevant pages under `docs-docusaurus/`
+- Modify: `CHANGELOG.md`
+- Do not edit `docs-astro/`
 
-### Task 13: E2E + partial/idempotency hardening
+Document explicit instructions only, consent lifecycle, content digest versus ownership
+hash, warning/strict behavior, user-file ownership, adapter transitions,
+`OrgWorkerBundleV1` boundary, diagnostics, and rollback.
 
-**Files:**
-- Test: `test/commands-write-instructions.test.ts` — the full ladder in one CLI-spawned
-  flow (publish instruction-bearing card → install → write unconsented → trust → write
-  → assert block+adapter → rewrite idempotent (bytes+mtime) → tamper→strict-fail→force
-  → remove worker → block gone, user text intact). Plus the partial-ownership row from
-  Task 7.
+```bash
+bun run docs:build
+```
 
-Run: `bun test ./test/commands-write-instructions.test.ts` then the full suite +
-`bunx tsc --noEmit`. Commit `test(instructions): end-to-end projection coverage`.
+Documentation build is a separate gate; `verify:release` does not substitute for it.
 
-### Task 14: Full gates + binary smoke + manual verify items
+### Task 13 — Full integration, binary smoke, and release gates
 
-1. `bun test ./test/` — expect green; `bun run verify:release` — expect 15/15 PASS.
-2. Binary smoke (scratch home, pattern from the opencode/cursor cycle):
-   `drwn card new` → `card source set --instructions-text "…"` → `card publish` →
-   project `drwn add`/`use` → `card trust <card> --instructions` → `drwn write` →
-   assert `AGENTS.md` block + `.claude/CLAUDE.md`; re-run write → `shasum` unchanged;
-   `opencode debug config` in the workspace boots cleanly with the file present.
-3. Manual verify items to schedule (residual risk, 124 §6): V1 cursor-agent session
-   (distinct sentinels in AGENTS.md vs .claude/CLAUDE.md — assert no double-read),
-   V2 opencode AGENTS.md-over-CLAUDE.md preference live, V3 the "report the active
-   Instruction-ID" smoke prompt per harness. Record outcomes on the I24 page.
+One CLI-spawned journey:
 
----
+```text
+author explicit instructions
+ -> publish/install/use
+ -> write warns/excludes
+ -> trust --instructions
+ -> write creates block + adapter
+ -> repeat proves bytes and mtime unchanged
+ -> tamper proves fail-closed / force behavior
+ -> compatible and incompatible update consent lifecycle
+ -> Worker removal cleans only owned bytes
+```
 
-## Execution order & dependencies
+Add a portable test helper that compares bytes and `mtimeNs`; `shasum` alone is
+insufficient. Run a scratch-home binary smoke. Live Cursor/OpenCode/Claude ingestion
+probes remain explicit operator gates and are recorded `NOT RUN` unless the exact
+binary/session is available and authorized; config parsing alone is not evidence of
+instruction ingestion.
 
-1 → (2 → 3 → 4) → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → 14. Tasks 9–11 can run in
-parallel after 8. ~14 tasks, each independently green and committable.
+```bash
+bun test ./test/core-managed-block.test.ts
+bun test ./test/core-instruction-consent.test.ts
+bun test ./test/core-sync-instructions.test.ts
+bun test ./test/core-write-record-v1.test.ts
+bun test ./test/commands-write-partial-ownership.test.ts
+bun test ./test/commands-write-watch.test.ts
+bun test ./test/commands-write-instructions.test.ts
+bun test ./test/org-worker-bundle-v1-conformance.test.ts
+bun test ./test/core-instructions-drift.test.ts
+bun test ./test/
+bunx tsc --noEmit
+bun run docs:build
+bun run verify:release
+```
+
+## 6. Exit evidence
+
+CL0024 exits only with:
+
+- exact source/packet revisions and dirty-state ownership record;
+- focused RED and GREEN receipts for every task;
+- full test/typecheck/docs/release results with pass/skip/fail counts;
+- valid/negative `OrgWorkerBundleV1` producer-consumer matrix;
+- explicit-instructions-only and mixed-consent byte-identity proof;
+- every-origin explicit-consent matrix and update lifecycle proof;
+- independent content digest and ownership hash vectors;
+- malformed-marker/user-byte-preservation matrix;
+- adapter transition, cleanup, partial-write, and watch-loop evidence;
+- doctor/status JSON and human output fixtures;
+- binary smoke receipt and honest status for each manual live-session gate.
+
+## 7. Rollback
+
+Before release, disable/remove the new pipeline call and retain prior write records;
+do not delete a user `AGENTS.md`. Cleanup may remove only exact bytes proven owned by
+the prior write record. If a released projection is faulty, publish a V1 patch,
+denylist the bad fixture/package digest, and keep instruction projection disabled until
+consumer conformance is green. Never recover by enabling implicit consent, treating a
+skill as instructions, overwriting malformed user files, or conflating content and
+ownership hashes.
+
+## 8. Execution evidence log
+
+Append; never rewrite prior evidence.
+
+| Timestamp | Task | Base revision | RED command/result | GREEN command/result | Tests/skips | Evidence | Actor |
+|---|---|---|---|---|---|---|---|
+| 2026-07-23 | Tasks 0–9, local implementation and frozen bundle install | `346f560d8825dfa709499f998b39e733239fca94` | Focused RED tests exposed missing projection, unsafe reserved-marker adoption, malformed adapter misclassification, absent cross-machine acknowledgement, and the missing immutable bundle-install boundary | Focused suites, `bunx tsc --noEmit`, docs build, release verification, and full `bun test ./test/` pass | 1,637 pass; 6 environment/live skips; 0 fail across 285 files | Producer fixture checksum matches; exact bytes/mtime idempotence, consent lifecycle, symlink/path safety, partial writes, tamper recovery, diagnostics, frozen install receipt, and CLI journeys covered. Live Claude/Cursor/OpenCode ingestion `NOT RUN`. | Codex |
