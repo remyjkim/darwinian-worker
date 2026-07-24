@@ -87,6 +87,8 @@ describe("write-watch helpers", () => {
     await mkdir(linked, { recursive: true });
     const paths = collectWriteWatchPaths(root, [`file:${linked}`]);
     expect(paths).toContain(join(root, ".agents", "drwn"));
+    expect(paths).toContain(join(root, "AGENTS.md"));
+    expect(paths).toContain(join(root, ".claude", "CLAUDE.md"));
     expect(paths).toContain(linked);
     expect(paths.some((path) => path.startsWith("file:"))).toBe(false);
   });
