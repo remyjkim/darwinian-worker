@@ -14,6 +14,7 @@ const DETAILS = [
   "  drwn worker deployments <slug>",
   "  drwn worker chat <slug> --message <text>",
   "  drwn worker rollback <slug>",
+  "  drwn worker routine create <slug>",
   "  drwn worker delete <slug> --force",
 ].join("\n");
 
