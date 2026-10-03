@@ -18,9 +18,13 @@ describe("Worker published-candidate verification workflow", () => {
   test("dispatches from reviewed main behind a distinct read-only approval environment", () => {
     expect(workflow).toContain("preflight:");
     expect(workflow).toContain("needs: [preflight]");
+    expect(workflow).toMatch(/preflight:[\s\S]*?timeout-minutes: 5[\s\S]*?verify_ubuntu:/);
+    expect(workflow.match(/--connect-timeout 10 --max-time 30/g)).toHaveLength(4);
     expect(workflow).toContain("deployment-branch-policies");
     expect(workflow).toContain("-f scripts/release/published-verification-environment.jq");
     expect(workflow).toContain("-f scripts/release/published-verification-branches.jq");
+    expect(workflow.match(/-f scripts\/release\/published-verification-environment\.jq/g)).toHaveLength(2);
+    expect(workflow.match(/-f scripts\/release\/published-verification-branches\.jq/g)).toHaveLength(2);
     expect(workflow).toContain("-f scripts/release/published-verification-failed-run.jq");
     expect(workflow).toContain("-f scripts/release/published-verification-failed-jobs.jq");
     expect(workflow).toContain('GITHUB_REF" != "refs/heads/main"');
@@ -81,6 +85,9 @@ describe("Worker published-candidate verification workflow", () => {
 
   test("retains an evidence receipt only after both installed platform checks succeed", () => {
     expect(workflow).toContain("needs: [verify_ubuntu, verify_macos]");
+    expect(workflow).toContain('actions/runs/$GITHUB_RUN_ID/approvals');
+    expect(workflow).toContain("-f scripts/release/published-verification-approval.jq");
+    expect(workflow).toContain("approvedBy: $approvedBy");
     expect(workflow).toContain('test "$UBUNTU_SHA" = "$MACOS_SHA"');
     expect(workflow).toContain("darwinian-worker-i448-published-verification");
     expect(workflow).toContain("actions/upload-artifact@v4");

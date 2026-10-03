@@ -89,4 +89,21 @@ describe("published-candidate external policy predicates", () => {
       jobs: [...jobs.jobs, jobs.jobs[1]],
     })).toBe(false);
   });
+
+  test("requires a recorded approval by the exact reviewer for this environment", () => {
+    const approval = {
+      state: "approved",
+      user: { login: "mind001-cl" },
+      environments: [{ name: "darwinian-release-verification" }],
+    };
+    expect(accepts("published-verification-approval.jq", [approval])).toBe(true);
+    expect(accepts("published-verification-approval.jq", [])).toBe(false);
+    expect(accepts("published-verification-approval.jq", [
+      { ...approval, user: { login: "remyjkim" } },
+    ])).toBe(false);
+    expect(accepts("published-verification-approval.jq", [
+      { ...approval, environments: [{ name: "darwinian-npm-publish" }] },
+    ])).toBe(false);
+    expect(accepts("published-verification-approval.jq", [approval, approval])).toBe(false);
+  });
 });

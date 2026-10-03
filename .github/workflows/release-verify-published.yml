@@ -19,6 +19,7 @@ jobs:
   preflight:
     name: Refuse an absent or unprotected verification environment
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
     steps:
@@ -33,10 +34,12 @@ jobs:
           fi
           ENV_URL="https://api.github.com/repos/$GITHUB_REPOSITORY/environments/darwinian-release-verification"
           curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            --connect-timeout 10 --max-time 30 \
             "$ENV_URL" > "$RUNNER_TEMP/verification-environment.json"
           jq -e -f scripts/release/published-verification-environment.jq \
             "$RUNNER_TEMP/verification-environment.json" > /dev/null
           curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            --connect-timeout 10 --max-time 30 \
             "$ENV_URL/deployment-branch-policies" \
             > "$RUNNER_TEMP/verification-branch-policies.json"
           jq -e -f scripts/release/published-verification-branches.jq \
@@ -74,6 +77,21 @@ jobs:
             echo "The verifier no longer runs at current reviewed main." >&2
             exit 1
           fi
+
+      - name: Re-read exact approval policy after the protected job starts
+        run: |
+          ENV_URL="https://api.github.com/repos/$GITHUB_REPOSITORY/environments/darwinian-release-verification"
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            --connect-timeout 10 --max-time 30 \
+            "$ENV_URL" > "$RUNNER_TEMP/verification-environment.json"
+          jq -e -f scripts/release/published-verification-environment.jq \
+            "$RUNNER_TEMP/verification-environment.json" > /dev/null
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            --connect-timeout 10 --max-time 30 \
+            "$ENV_URL/deployment-branch-policies" \
+            > "$RUNNER_TEMP/verification-branch-policies.json"
+          jq -e -f scripts/release/published-verification-branches.jq \
+            "$RUNNER_TEMP/verification-branch-policies.json" > /dev/null
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -367,9 +385,13 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: read
     steps:
+      - uses: actions/checkout@v4
+
       - name: Rejoin both platforms into one redacted receipt
         env:
+          GH_TOKEN: ${{ github.token }}
           FAILED_RUN_ID: ${{ inputs.failed_run_id }}
           UBUNTU_SHA: ${{ needs.verify_ubuntu.outputs.tar_sha256 }}
           MACOS_SHA: ${{ needs.verify_macos.outputs.tar_sha256 }}
@@ -382,6 +404,11 @@ jobs:
           test "$UBUNTU_SHA" = "$MACOS_SHA"
           test "$UBUNTU_LATEST" = "$MACOS_LATEST"
           test "$UBUNTU_LATEST" = "1.3.0"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/approvals" \
+            > "$RUNNER_TEMP/verification-approvals.json"
+          jq -e -f scripts/release/published-verification-approval.jq \
+            "$RUNNER_TEMP/verification-approvals.json" > /dev/null
+          APPROVED_BY="$(jq -r '.[0].user.login' "$RUNNER_TEMP/verification-approvals.json")"
           jq -n \
             --arg observedAt "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" \
             --arg failedRunId "$FAILED_RUN_ID" \
@@ -391,6 +418,7 @@ jobs:
             --arg tarSha256 "$UBUNTU_SHA" \
             --arg priorLatest "$UBUNTU_LATEST" \
             --arg runUrl "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --arg approvedBy "$APPROVED_BY" \
             '{
               schema: "darwinian.worker.published-candidate-verification",
               schemaVersion: 1,
@@ -408,6 +436,8 @@ jobs:
               },
               ubuntu: "success",
               macos: "success",
+              approvalEnvironment: "darwinian-release-verification",
+              approvedBy: $approvedBy,
               runUrl: $runUrl
             }' > "$RUNNER_TEMP/published-verification.json"
 
