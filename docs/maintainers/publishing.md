@@ -46,12 +46,28 @@ a future reviewed non-OIDC credential authority). Trusted-publishing OIDC does
 not authenticate `npm dist-tag`, so a GitHub protected environment alone is not
 promotion authority.
 
-If publication has already succeeded and a later step fails, use
-`.github/workflows/release-recovery.yml` with the exact failed run ID and an
-policy-approved closed-schema recovery receipt. Recovery has no OIDC,
-token, publish, repack, retag, dist-tag, or unpublish path. It may verify npm
-candidate bytes/tag and run installed smokes only. It cannot create or repair a
-GitHub Release.
+If publication has already succeeded and a later step fails, never rerun
+publication. The tag-locked `.github/workflows/release-recovery.yml` requires
+registry `gitHead` and can be used with the exact failed run ID and a
+policy-approved closed receipt only when that field is present and correct.
+For the observed absent registry `gitHead`, use the separately reviewed
+`.github/workflows/release-verify-published.yml` on current `main` after
+configuring and reading back its dedicated `darwinian-release-verification`
+environment. That environment requires the distinct `mind001-cl` approval,
+prevents self-review and admin bypass, admits `main` only, and carries no
+secret or OIDC trust. A preflight refuses a missing or misconfigured
+environment before scheduling a deployment, and the workflow verifies the
+live policy and recorded approval again. The verifier proves the annotated
+tag, failed run,
+authorized dry-run artifact, registry metadata, direct registry tar bytes,
+and Ubuntu/macOS installed smokes before retaining its receipt.
+
+Both recovery paths are read-only: no OIDC, token, publish, repack, retag,
+dist-tag, unpublish, or GitHub Release path. An absent `gitHead` is acceptable
+only in the new path after exact metadata, tar SHA-256, package manifest,
+embedded build identity, and frozen source provenance match. A present but
+wrong `gitHead` is a refusal. Neither path authorizes `latest` promotion;
+that remains a separate interactive npm-2FA decision after green verification.
 
 ## Publishing `drwn-command-bridge`
 
