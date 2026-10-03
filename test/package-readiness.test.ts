@@ -108,8 +108,8 @@ describe("package readiness", () => {
     );
     const releaseWorkflow = readFileSync(join(process.cwd(), ".github", "workflows", "release.yml"), "utf8");
 
-    // The additive Nix parity job also needs the pinned skills submodule.
-    expect(ciWorkflow.match(/submodules: true/g)).toHaveLength(4);
+    // The Nix toolchain and both additive artifact jobs also pin the skills submodule.
+    expect(ciWorkflow.match(/submodules: true/g)).toHaveLength(6);
     expect(docsPreviewWorkflow.match(/submodules: true/g)).toHaveLength(1);
     expect(docsProductionWorkflow.match(/submodules: true/g)).toHaveLength(1);
     expect(releaseWorkflow.match(/submodules: true/g)).toHaveLength(2);
