@@ -202,3 +202,32 @@ jobs:
         env:
           DRWN_RUN_REAL_KEYCHAIN_TESTS: '1'
         run: bun test test/core-secret-store-backends.test.ts
+
+  nix-toolchain:
+    name: Nix toolchain parity (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 75
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: true
+
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+
+      - name: Validate frozen Nix outputs
+        run: |
+          nix --extra-experimental-features 'nix-command flakes' flake check --no-update-lock-file -L
+          git diff --exit-code -- flake.lock
+
+      - name: Run fresh tests in the pinned development shell
+        run: |
+          nix --extra-experimental-features 'nix-command flakes' develop --no-update-lock-file .#default \
+            --command bash scripts/ci-nix-toolchain.sh
