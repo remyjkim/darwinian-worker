@@ -1,0 +1,382 @@
+name: CLI Published Candidate Verification
+
+on:
+  workflow_dispatch:
+    inputs:
+      failed_run_id:
+        description: Exact failed v1.4.2 release run
+        required: true
+        type: string
+      authorization_receipt:
+        description: Closed recovery authorization receipt
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify_ubuntu:
+    name: Verify existing candidate (ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: darwinian-release-verification
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      artifact_id: ${{ steps.provenance.outputs.artifact_id }}
+      artifact_digest: ${{ steps.provenance.outputs.artifact_digest }}
+      source_commit: ${{ steps.provenance.outputs.source_commit }}
+      tar_sha256: ${{ steps.registry.outputs.tar_sha256 }}
+      latest: ${{ steps.registry.outputs.latest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require reviewed main
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Published-candidate verification must use current main." >&2
+            exit 1
+          fi
+          git fetch --no-tags origin main
+          if [ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ] ||
+             [ "$(git rev-parse origin/main)" != "$GITHUB_SHA" ]; then
+            echo "The verifier no longer runs at current reviewed main." >&2
+            exit 1
+          fi
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.21'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install frozen verification dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate closed recovery authority and frozen tag
+        id: identity
+        env:
+          FAILED_RUN_ID: ${{ inputs.failed_run_id }}
+          RECOVERY_AUTHORIZATION: ${{ inputs.authorization_receipt }}
+        run: |
+          if ! [[ "$FAILED_RUN_ID" =~ ^[1-9][0-9]*$ ]]; then
+            echo "The failed run ID is not a positive decimal number." >&2
+            exit 1
+          fi
+          printf '%s' "$RECOVERY_AUTHORIZATION" > "$RUNNER_TEMP/recovery-authorization.json"
+          bun scripts/release-cli.ts parse-recovery-authorization \
+            "$RUNNER_TEMP/recovery-authorization.json" \
+            > "$RUNNER_TEMP/parsed-recovery-authorization.json"
+          jq -e --arg failedRunId "$FAILED_RUN_ID" \
+            '(.failedRunId | tostring) == $failedRunId and .tag == "v1.4.2" and .action == "verify_candidate"' \
+            "$RUNNER_TEMP/parsed-recovery-authorization.json" > /dev/null
+          git fetch origin refs/tags/v1.4.2:refs/tags/v1.4.2
+          if [ "$(git cat-file -t "refs/tags/v1.4.2")" != "tag" ]; then
+            echo "The release ref is not an annotated tag." >&2
+            exit 1
+          fi
+          SOURCE_COMMIT="$(git rev-parse 'refs/tags/v1.4.2^{}')"
+          git for-each-ref --format='%(contents)' refs/tags/v1.4.2 \
+            > "$RUNNER_TEMP/tag-annotation.txt"
+          bun scripts/release-cli.ts parse-tag-authorization \
+            "$RUNNER_TEMP/tag-annotation.txt" \
+            > "$RUNNER_TEMP/tag-authorization.json"
+          echo "source_commit=$SOURCE_COMMIT" >> "$GITHUB_OUTPUT"
+
+      - name: Prove the exact failed canonical publication run
+        env:
+          FAILED_RUN_ID: ${{ inputs.failed_run_id }}
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_COMMIT: ${{ steps.identity.outputs.source_commit }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$FAILED_RUN_ID" \
+            > "$RUNNER_TEMP/failed-run.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$FAILED_RUN_ID/jobs?filter=latest&per_page=100" \
+            > "$RUNNER_TEMP/failed-run-jobs.json"
+          jq -e --arg commit "$SOURCE_COMMIT" --arg runId "$FAILED_RUN_ID" '
+            (.id | tostring) == $runId and
+            .path == ".github/workflows/release.yml" and
+            .event == "push" and
+            .head_branch == "v1.4.2" and
+            .head_sha == $commit and
+            .conclusion == "failure"
+          ' "$RUNNER_TEMP/failed-run.json" > /dev/null
+          jq -e '
+            ([.jobs[] | select(.name == "Validate authorized tag" and .conclusion == "success")] | length) == 1 and
+            ([.jobs[] | select(.name == "Publish I336 candidate to npm" and .conclusion == "failure")] | length) == 1
+          ' "$RUNNER_TEMP/failed-run-jobs.json" > /dev/null
+
+      - name: Rejoin the immutable dry-run artifact and release provenance
+        id: provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RUN_ID="$(jq -r '.dryRunRunId' "$RUNNER_TEMP/tag-authorization.json")"
+          RUN_ATTEMPT="$(jq -r '.dryRunRunAttempt' "$RUNNER_TEMP/tag-authorization.json")"
+          ARTIFACT_ID="$(jq -r '.artifactId' "$RUNNER_TEMP/tag-authorization.json")"
+          AUTH_DIGEST="$(jq -r '.artifactDigest' "$RUNNER_TEMP/tag-authorization.json")"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" \
+            > "$RUNNER_TEMP/dry-run.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/attempts/$RUN_ATTEMPT/jobs?per_page=100" \
+            > "$RUNNER_TEMP/dry-run-jobs.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts?per_page=100" \
+            > "$RUNNER_TEMP/dry-run-artifacts.json"
+          API_DIGEST="$(jq -r --argjson id "$ARTIFACT_ID" '
+            [.artifacts[] | select(.id == $id)] |
+            if length == 1 then .[0].digest else empty end
+          ' "$RUNNER_TEMP/dry-run-artifacts.json")"
+          if [ "$API_DIGEST" != "$AUTH_DIGEST" ]; then
+            echo "Authorized artifact metadata differs from the frozen tag." >&2
+            exit 1
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip" \
+            > "$RUNNER_TEMP/candidate.zip"
+          ARCHIVE_SHA256="$(sha256sum "$RUNNER_TEMP/candidate.zip" | cut -d ' ' -f 1)"
+          if [ "sha256:$ARCHIVE_SHA256" != "$AUTH_DIGEST" ]; then
+            echo "Downloaded artifact archive differs from the authorization." >&2
+            exit 1
+          fi
+          mkdir "$RUNNER_TEMP/candidate"
+          unzip -q "$RUNNER_TEMP/candidate.zip" -d "$RUNNER_TEMP/candidate"
+          bun scripts/release-cli.ts requalify-artifact \
+            "$RUNNER_TEMP/candidate/darwinian-1.4.2.tgz" \
+            "$RUNNER_TEMP/candidate/release-candidate.json" \
+            > "$RUNNER_TEMP/candidate-artifact.json"
+          jq -n \
+            --rawfile receipt "$RUNNER_TEMP/candidate/release-candidate.json" \
+            --rawfile annotation "$RUNNER_TEMP/tag-annotation.txt" \
+            --slurpfile run "$RUNNER_TEMP/dry-run.json" \
+            --slurpfile jobs "$RUNNER_TEMP/dry-run-jobs.json" \
+            --slurpfile artifacts "$RUNNER_TEMP/dry-run-artifacts.json" \
+            --slurpfile artifact "$RUNNER_TEMP/candidate-artifact.json" \
+            --arg commit "${{ steps.identity.outputs.source_commit }}" \
+            --arg originMain "$GITHUB_SHA" \
+            --argjson artifactId "$ARTIFACT_ID" \
+            '{
+              receiptText: $receipt,
+              tagAnnotation: $annotation,
+              tag: {name: "v1.4.2", type: "tag", peeledCommit: $commit},
+              checkoutCommit: $commit,
+              originMainCommit: $originMain,
+              run: {
+                id: $run[0].id,
+                attempt: $run[0].run_attempt,
+                url: $run[0].html_url,
+                workflowPath: $run[0].path,
+                event: $run[0].event,
+                headSha: $run[0].head_sha,
+                conclusion: $run[0].conclusion
+              },
+              jobs: [$jobs[0].jobs[] | {name, conclusion}],
+              artifacts: [
+                $artifacts[0].artifacts[]
+                | select(.id == $artifactId)
+                | {id, name, digest, expired, runId: .workflow_run.id}
+              ],
+              artifact: $artifact[0]
+            }' > "$RUNNER_TEMP/recovery-provenance.json"
+          bun scripts/release-cli.ts verify-recovery-provenance \
+            "$RUNNER_TEMP/recovery-provenance.json"
+          {
+            echo "artifact_id=$ARTIFACT_ID"
+            echo "artifact_digest=$AUTH_DIGEST"
+            echo "source_commit=${{ steps.identity.outputs.source_commit }}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Wait for registry bytes and verify Ubuntu installed behavior
+        id: registry
+        run: |
+          TARBALL_URL="https://registry.npmjs.org/darwinian/-/darwinian-1.4.2.tgz"
+          mkdir "$RUNNER_TEMP/published"
+          for ATTEMPT in $(seq 1 30); do
+            if npm view darwinian@1.4.2 version gitHead dist.shasum dist.integrity dist.tarball \
+              --json --prefer-online --cache "$RUNNER_TEMP/npm-registry-probe" \
+              > "$RUNNER_TEMP/registry-raw.json" 2>/dev/null; then
+              jq '{
+                version,
+                gitHead,
+                dist: {
+                  shasum: .["dist.shasum"],
+                  integrity: .["dist.integrity"]
+                }
+              }' "$RUNNER_TEMP/registry-raw.json" > "$RUNNER_TEMP/registry.json"
+              if bun scripts/release-cli.ts verify-registry \
+                "$RUNNER_TEMP/registry.json" \
+                "$RUNNER_TEMP/candidate-artifact.json" \
+                > "$RUNNER_TEMP/verified-registry.json" &&
+                 [ "$(jq -r '.["dist.tarball"]' "$RUNNER_TEMP/registry-raw.json")" = "$TARBALL_URL" ] &&
+                 curl --fail --location --proto '=https' --tlsv1.2 \
+                   --header 'Cache-Control: no-cache' \
+                   "$TARBALL_URL" \
+                   --output "$RUNNER_TEMP/published/darwinian-1.4.2.tgz" 2>/dev/null &&
+                 bun scripts/release-cli.ts requalify-artifact \
+                   "$RUNNER_TEMP/published/darwinian-1.4.2.tgz" \
+                   "$RUNNER_TEMP/candidate/release-candidate.json" \
+                   > "$RUNNER_TEMP/published-artifact.json" &&
+                 [ "$(sha256sum "$RUNNER_TEMP/published/darwinian-1.4.2.tgz" | cut -d ' ' -f 1)" = \
+                   "$(jq -r '.sha256' "$RUNNER_TEMP/candidate-artifact.json")" ]; then
+                break
+              fi
+            fi
+            echo "Registry metadata and exact tar not jointly available (attempt $ATTEMPT/30)." >&2
+            sleep 10
+          done
+          test -s "$RUNNER_TEMP/published-artifact.json"
+          bun scripts/release-cli.ts smoke-artifact \
+            "$RUNNER_TEMP/published/darwinian-1.4.2.tgz" \
+            "$RUNNER_TEMP/published-smoke"
+          npm view darwinian dist-tags --json --prefer-online \
+            > "$RUNNER_TEMP/dist-tags.json"
+          jq -e '.["i336-candidate"] == "1.4.2" and .latest == "1.3.0"' \
+            "$RUNNER_TEMP/dist-tags.json" > /dev/null
+          {
+            echo "tar_sha256=$(jq -r '.sha256' "$RUNNER_TEMP/published-artifact.json")"
+            echo "latest=$(jq -r '.latest' "$RUNNER_TEMP/dist-tags.json")"
+          } >> "$GITHUB_OUTPUT"
+
+  verify_macos:
+    name: Verify existing candidate (macos)
+    needs: [verify_ubuntu]
+    runs-on: macos-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      tar_sha256: ${{ steps.macos_registry.outputs.tar_sha256 }}
+      latest: ${{ steps.macos_registry.outputs.latest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.21'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install frozen verification dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Verify exact candidate artifact and macOS registry bytes
+        id: macos_registry
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ARTIFACT_ID="${{ needs.verify_ubuntu.outputs.artifact_id }}"
+          AUTH_DIGEST="${{ needs.verify_ubuntu.outputs.artifact_digest }}"
+          TARBALL_URL="https://registry.npmjs.org/darwinian/-/darwinian-1.4.2.tgz"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip" \
+            > "$RUNNER_TEMP/candidate.zip"
+          ARCHIVE_SHA256="$(shasum -a 256 "$RUNNER_TEMP/candidate.zip" | cut -d ' ' -f 1)"
+          test "sha256:$ARCHIVE_SHA256" = "$AUTH_DIGEST"
+          mkdir "$RUNNER_TEMP/candidate" "$RUNNER_TEMP/published"
+          unzip -q "$RUNNER_TEMP/candidate.zip" -d "$RUNNER_TEMP/candidate"
+          bun scripts/release-cli.ts requalify-artifact \
+            "$RUNNER_TEMP/candidate/darwinian-1.4.2.tgz" \
+            "$RUNNER_TEMP/candidate/release-candidate.json" \
+            > "$RUNNER_TEMP/candidate-artifact.json"
+          npm view darwinian@1.4.2 version gitHead dist.shasum dist.integrity dist.tarball \
+            --json --prefer-online > "$RUNNER_TEMP/registry-raw.json"
+          jq '{
+            version,
+            gitHead,
+            dist: {
+              shasum: .["dist.shasum"],
+              integrity: .["dist.integrity"]
+            }
+          }' "$RUNNER_TEMP/registry-raw.json" > "$RUNNER_TEMP/registry.json"
+          bun scripts/release-cli.ts verify-registry \
+            "$RUNNER_TEMP/registry.json" \
+            "$RUNNER_TEMP/candidate-artifact.json"
+          test "$(jq -r '.["dist.tarball"]' "$RUNNER_TEMP/registry-raw.json")" = "$TARBALL_URL"
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            --header 'Cache-Control: no-cache' \
+            "$TARBALL_URL" \
+            --output "$RUNNER_TEMP/published/darwinian-1.4.2.tgz"
+          bun scripts/release-cli.ts requalify-artifact \
+            "$RUNNER_TEMP/published/darwinian-1.4.2.tgz" \
+            "$RUNNER_TEMP/candidate/release-candidate.json" \
+            > "$RUNNER_TEMP/published-artifact.json"
+          test "$(shasum -a 256 "$RUNNER_TEMP/published/darwinian-1.4.2.tgz" | cut -d ' ' -f 1)" = \
+            "$(jq -r '.sha256' "$RUNNER_TEMP/candidate-artifact.json")"
+          bun scripts/release-cli.ts smoke-artifact \
+            "$RUNNER_TEMP/published/darwinian-1.4.2.tgz" \
+            "$RUNNER_TEMP/published-smoke"
+          npm view darwinian dist-tags --json --prefer-online \
+            > "$RUNNER_TEMP/dist-tags.json"
+          jq -e '.["i336-candidate"] == "1.4.2" and .latest == "1.3.0"' \
+            "$RUNNER_TEMP/dist-tags.json" > /dev/null
+          {
+            echo "tar_sha256=$(jq -r '.sha256' "$RUNNER_TEMP/published-artifact.json")"
+            echo "latest=$(jq -r '.latest' "$RUNNER_TEMP/dist-tags.json")"
+          } >> "$GITHUB_OUTPUT"
+
+  retain_verification:
+    name: Retain published-candidate verification
+    needs: [verify_ubuntu, verify_macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Rejoin both platforms into one redacted receipt
+        env:
+          FAILED_RUN_ID: ${{ inputs.failed_run_id }}
+          UBUNTU_SHA: ${{ needs.verify_ubuntu.outputs.tar_sha256 }}
+          MACOS_SHA: ${{ needs.verify_macos.outputs.tar_sha256 }}
+          UBUNTU_LATEST: ${{ needs.verify_ubuntu.outputs.latest }}
+          MACOS_LATEST: ${{ needs.verify_macos.outputs.latest }}
+          SOURCE_COMMIT: ${{ needs.verify_ubuntu.outputs.source_commit }}
+          ARTIFACT_ID: ${{ needs.verify_ubuntu.outputs.artifact_id }}
+          ARTIFACT_DIGEST: ${{ needs.verify_ubuntu.outputs.artifact_digest }}
+        run: |
+          test "$UBUNTU_SHA" = "$MACOS_SHA"
+          test "$UBUNTU_LATEST" = "$MACOS_LATEST"
+          test "$UBUNTU_LATEST" = "1.3.0"
+          jq -n \
+            --arg observedAt "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" \
+            --arg failedRunId "$FAILED_RUN_ID" \
+            --arg sourceCommit "$SOURCE_COMMIT" \
+            --arg artifactId "$ARTIFACT_ID" \
+            --arg artifactDigest "$ARTIFACT_DIGEST" \
+            --arg tarSha256 "$UBUNTU_SHA" \
+            --arg priorLatest "$UBUNTU_LATEST" \
+            --arg runUrl "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            '{
+              schema: "darwinian.worker.published-candidate-verification",
+              schemaVersion: 1,
+              observedAt: $observedAt,
+              tag: "v1.4.2",
+              failedRunId: ($failedRunId | tonumber),
+              sourceCommit: $sourceCommit,
+              artifactId: ($artifactId | tonumber),
+              artifactDigest: $artifactDigest,
+              npm: {
+                version: "1.4.2",
+                candidateTag: "i336-candidate",
+                latest: $priorLatest,
+                tarSha256: $tarSha256
+              },
+              ubuntu: "success",
+              macos: "success",
+              runUrl: $runUrl
+            }' > "$RUNNER_TEMP/published-verification.json"
+
+      - name: Retain redacted verification receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: darwinian-worker-i448-published-verification
+          path: ${{ runner.temp }}/published-verification.json
+          if-no-files-found: error
+          retention-days: 30
