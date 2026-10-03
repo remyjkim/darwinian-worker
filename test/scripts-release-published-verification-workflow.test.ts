@@ -16,6 +16,13 @@ describe("Worker published-candidate verification workflow", () => {
   });
 
   test("dispatches from reviewed main behind a distinct read-only approval environment", () => {
+    expect(workflow).toContain("preflight:");
+    expect(workflow).toContain("needs: [preflight]");
+    expect(workflow).toContain("deployment-branch-policies");
+    expect(workflow).toContain("-f scripts/release/published-verification-environment.jq");
+    expect(workflow).toContain("-f scripts/release/published-verification-branches.jq");
+    expect(workflow).toContain("-f scripts/release/published-verification-failed-run.jq");
+    expect(workflow).toContain("-f scripts/release/published-verification-failed-jobs.jq");
     expect(workflow).toContain('GITHUB_REF" != "refs/heads/main"');
     expect(workflow).toContain("name: darwinian-release-verification");
     expect(workflow).toContain("actions: read");
@@ -37,6 +44,7 @@ describe("Worker published-candidate verification workflow", () => {
   });
 
   test("joins the failed run, immutable tag, and exact retained dry-run artifact", () => {
+    expect(workflow).toContain('FAILED_RUN_ID" != "37105684003"');
     expect(workflow).toContain("release-cli.ts parse-recovery-authorization");
     expect(workflow).toContain('git cat-file -t "refs/tags/v1.4.2"');
     expect(workflow).toContain("release-cli.ts parse-tag-authorization");
@@ -58,6 +66,7 @@ describe("Worker published-candidate verification workflow", () => {
     expect(workflow).toContain('sha256sum "$RUNNER_TEMP/published/darwinian-1.4.2.tgz"');
     expect(workflow).toContain("release-cli.ts smoke-artifact");
     expect(workflow).toContain("runs-on: macos-latest");
+    expect(workflow).toContain("macOS registry metadata and exact tar not jointly available");
     expect(workflow).not.toContain("npm pack");
   });
 

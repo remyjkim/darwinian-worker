@@ -16,8 +16,35 @@ permissions:
   contents: read
 
 jobs:
+  preflight:
+    name: Refuse an absent or unprotected verification environment
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check exact GitHub approval and branch policy before deployment
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "The read-only recovery may dispatch only from main." >&2
+            exit 1
+          fi
+          ENV_URL="https://api.github.com/repos/$GITHUB_REPOSITORY/environments/darwinian-release-verification"
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            "$ENV_URL" > "$RUNNER_TEMP/verification-environment.json"
+          jq -e -f scripts/release/published-verification-environment.jq \
+            "$RUNNER_TEMP/verification-environment.json" > /dev/null
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            "$ENV_URL/deployment-branch-policies" \
+            > "$RUNNER_TEMP/verification-branch-policies.json"
+          jq -e -f scripts/release/published-verification-branches.jq \
+            "$RUNNER_TEMP/verification-branch-policies.json" > /dev/null
+
   verify_ubuntu:
     name: Verify existing candidate (ubuntu)
+    needs: [preflight]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
@@ -70,6 +97,10 @@ jobs:
             echo "The failed run ID is not a positive decimal number." >&2
             exit 1
           fi
+          if [ "$FAILED_RUN_ID" != "37105684003" ]; then
+            echo "This recovery lane accepts only the failed v1.4.2 publication run." >&2
+            exit 1
+          fi
           printf '%s' "$RECOVERY_AUTHORIZATION" > "$RUNNER_TEMP/recovery-authorization.json"
           bun scripts/release-cli.ts parse-recovery-authorization \
             "$RUNNER_TEMP/recovery-authorization.json" \
@@ -100,18 +131,11 @@ jobs:
             > "$RUNNER_TEMP/failed-run.json"
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$FAILED_RUN_ID/jobs?filter=latest&per_page=100" \
             > "$RUNNER_TEMP/failed-run-jobs.json"
-          jq -e --arg commit "$SOURCE_COMMIT" --arg runId "$FAILED_RUN_ID" '
-            (.id | tostring) == $runId and
-            .path == ".github/workflows/release.yml" and
-            .event == "push" and
-            .head_branch == "v1.4.2" and
-            .head_sha == $commit and
-            .conclusion == "failure"
-          ' "$RUNNER_TEMP/failed-run.json" > /dev/null
-          jq -e '
-            ([.jobs[] | select(.name == "Validate authorized tag" and .conclusion == "success")] | length) == 1 and
-            ([.jobs[] | select(.name == "Publish I336 candidate to npm" and .conclusion == "failure")] | length) == 1
-          ' "$RUNNER_TEMP/failed-run-jobs.json" > /dev/null
+          jq -e --arg commit "$SOURCE_COMMIT" --arg runId "$FAILED_RUN_ID" \
+            -f scripts/release/published-verification-failed-run.jq \
+            "$RUNNER_TEMP/failed-run.json" > /dev/null
+          jq -e -f scripts/release/published-verification-failed-jobs.jq \
+            "$RUNNER_TEMP/failed-run-jobs.json" > /dev/null
 
       - name: Rejoin the immutable dry-run artifact and release provenance
         id: provenance
@@ -195,6 +219,7 @@ jobs:
         run: |
           TARBALL_URL="https://registry.npmjs.org/darwinian/-/darwinian-1.4.2.tgz"
           mkdir "$RUNNER_TEMP/published"
+          VERIFIED=0
           for ATTEMPT in $(seq 1 30); do
             if npm view darwinian@1.4.2 version gitHead dist.shasum dist.integrity dist.tarball \
               --json --prefer-online --cache "$RUNNER_TEMP/npm-registry-probe" \
@@ -222,13 +247,14 @@ jobs:
                    > "$RUNNER_TEMP/published-artifact.json" &&
                  [ "$(sha256sum "$RUNNER_TEMP/published/darwinian-1.4.2.tgz" | cut -d ' ' -f 1)" = \
                    "$(jq -r '.sha256' "$RUNNER_TEMP/candidate-artifact.json")" ]; then
+                VERIFIED=1
                 break
               fi
             fi
             echo "Registry metadata and exact tar not jointly available (attempt $ATTEMPT/30)." >&2
             sleep 10
           done
-          test -s "$RUNNER_TEMP/published-artifact.json"
+          test "$VERIFIED" = "1"
           bun scripts/release-cli.ts smoke-artifact \
             "$RUNNER_TEMP/published/darwinian-1.4.2.tgz" \
             "$RUNNER_TEMP/published-smoke"
@@ -287,30 +313,42 @@ jobs:
             "$RUNNER_TEMP/candidate/darwinian-1.4.2.tgz" \
             "$RUNNER_TEMP/candidate/release-candidate.json" \
             > "$RUNNER_TEMP/candidate-artifact.json"
-          npm view darwinian@1.4.2 version gitHead dist.shasum dist.integrity dist.tarball \
-            --json --prefer-online > "$RUNNER_TEMP/registry-raw.json"
-          jq '{
-            version,
-            gitHead,
-            dist: {
-              shasum: .["dist.shasum"],
-              integrity: .["dist.integrity"]
-            }
-          }' "$RUNNER_TEMP/registry-raw.json" > "$RUNNER_TEMP/registry.json"
-          bun scripts/release-cli.ts verify-registry \
-            "$RUNNER_TEMP/registry.json" \
-            "$RUNNER_TEMP/candidate-artifact.json"
-          test "$(jq -r '.["dist.tarball"]' "$RUNNER_TEMP/registry-raw.json")" = "$TARBALL_URL"
-          curl --fail --location --proto '=https' --tlsv1.2 \
-            --header 'Cache-Control: no-cache' \
-            "$TARBALL_URL" \
-            --output "$RUNNER_TEMP/published/darwinian-1.4.2.tgz"
-          bun scripts/release-cli.ts requalify-artifact \
-            "$RUNNER_TEMP/published/darwinian-1.4.2.tgz" \
-            "$RUNNER_TEMP/candidate/release-candidate.json" \
-            > "$RUNNER_TEMP/published-artifact.json"
-          test "$(shasum -a 256 "$RUNNER_TEMP/published/darwinian-1.4.2.tgz" | cut -d ' ' -f 1)" = \
-            "$(jq -r '.sha256' "$RUNNER_TEMP/candidate-artifact.json")"
+          VERIFIED=0
+          for ATTEMPT in $(seq 1 30); do
+            if npm view darwinian@1.4.2 version gitHead dist.shasum dist.integrity dist.tarball \
+              --json --prefer-online --cache "$RUNNER_TEMP/npm-registry-probe" \
+              > "$RUNNER_TEMP/registry-raw.json" 2>/dev/null; then
+              jq '{
+                version,
+                gitHead,
+                dist: {
+                  shasum: .["dist.shasum"],
+                  integrity: .["dist.integrity"]
+                }
+              }' "$RUNNER_TEMP/registry-raw.json" > "$RUNNER_TEMP/registry.json"
+              if bun scripts/release-cli.ts verify-registry \
+                "$RUNNER_TEMP/registry.json" \
+                "$RUNNER_TEMP/candidate-artifact.json" \
+                > "$RUNNER_TEMP/verified-registry.json" &&
+                 [ "$(jq -r '.["dist.tarball"]' "$RUNNER_TEMP/registry-raw.json")" = "$TARBALL_URL" ] &&
+                 curl --fail --location --proto '=https' --tlsv1.2 \
+                   --header 'Cache-Control: no-cache' \
+                   "$TARBALL_URL" \
+                   --output "$RUNNER_TEMP/published/darwinian-1.4.2.tgz" 2>/dev/null &&
+                 bun scripts/release-cli.ts requalify-artifact \
+                   "$RUNNER_TEMP/published/darwinian-1.4.2.tgz" \
+                   "$RUNNER_TEMP/candidate/release-candidate.json" \
+                   > "$RUNNER_TEMP/published-artifact.json" &&
+                 [ "$(shasum -a 256 "$RUNNER_TEMP/published/darwinian-1.4.2.tgz" | cut -d ' ' -f 1)" = \
+                   "$(jq -r '.sha256' "$RUNNER_TEMP/candidate-artifact.json")" ]; then
+                VERIFIED=1
+                break
+              fi
+            fi
+            echo "macOS registry metadata and exact tar not jointly available (attempt $ATTEMPT/30)." >&2
+            sleep 10
+          done
+          test "$VERIFIED" = "1"
           bun scripts/release-cli.ts smoke-artifact \
             "$RUNNER_TEMP/published/darwinian-1.4.2.tgz" \
             "$RUNNER_TEMP/published-smoke"
