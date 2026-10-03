@@ -44,6 +44,8 @@ release contracts, the fresh full test gate, and release-readiness test mode.
 It gives `bun link` isolated temporary global registration and binary
 directories for the CLI parity test, and verifies both links there instead of
 touching an ambient user-global `darwinian` link or relying on its `PATH`.
+The parity test itself also scopes both Bun global directories to its own
+temporary fixture, so an ordinary test-gate run has the same isolation.
 It then refuses changes to either lock.
 `nix flake check` builds checks for the current system, not every declared
 platform. Hosted CI independently exercises Linux and macOS.
@@ -62,3 +64,25 @@ tests, and record any package-member or behavior difference. Artifact
 construction under Nix is a later experiment: qualify one produced tar and
 publish only those exact bytes through the existing protected release path
 after independent review. Do not retag or republish `darwinian@1.4.2`.
+
+## Additive source-tar experiment
+
+`nix build --no-link --no-update-lock-file .#workerArtifact` is available
+only as a no-publish experiment. It selects the files in the npm package
+allowlist, requires a clean Git commit for the embedded build identity, and
+uses pinned Node/npm to run `npm pack` with `NPM_CONFIG_OFFLINE=true`.
+It does not install application dependencies in the derivation or convert
+`bun.lock` into a second lockfile.
+
+The unprivileged Ubuntu CI job runs the existing artifact qualifier and safe
+installed smoke against that one tar. It also makes a conventional npm pack
+from the same clean source and compares the complete package-member
+inventories, including optional members, before retaining tar, npm pack
+metadata, digest, and smoke evidence for 14 days as
+`nix-worker-artifact-experiment`. A dependent macOS job downloads the exact
+tar, checks its SHA-256 and source commit against independently exported
+Ubuntu job outputs, compares its requalified member inventory, and runs the
+same safe installed smoke. This tests the Nix-produced artifact on two systems,
+but the experiment is not the published 1.4.2 tar, and no CI step can promote
+it to npm. A future release may adopt this output only after reviewed
+cross-platform evidence and an explicit change to the protected publisher.

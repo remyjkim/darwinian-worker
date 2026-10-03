@@ -54,6 +54,16 @@
         }
       );
 
+      packages = eachSystem (
+        _system: pkgs: {
+          workerArtifact = import ./nix/worker-artifact.nix {
+            inherit pkgs;
+            repoRoot = ./.;
+            sourceCommit = self.rev or "0000000000000000000000000000000000000000";
+          };
+        }
+      );
+
       checks = eachSystem (
         _system: pkgs: {
           toolchain =

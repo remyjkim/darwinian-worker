@@ -231,3 +231,108 @@ jobs:
         run: |
           nix --extra-experimental-features 'nix-command flakes' develop --no-update-lock-file .#default \
             --command bash scripts/ci-nix-toolchain.sh
+
+  nix-artifact-experiment:
+    name: Nix source artifact experiment (ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      tar_sha256: ${{ steps.nix_identity.outputs.tar_sha256 }}
+      source_commit: ${{ steps.nix_identity.outputs.source_commit }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: true
+
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+
+      - name: Build one offline Nix source tar
+        run: |
+          nix --extra-experimental-features 'nix-command flakes' build --no-link \
+            --no-update-lock-file --print-out-paths .#workerArtifact \
+            > "$RUNNER_TEMP/nix-artifact-path"
+
+      - name: Qualify and smoke that exact tar
+        run: |
+          DRWN_NIX_ARTIFACT_DIR="$(tr -d '[:space:]' < "$RUNNER_TEMP/nix-artifact-path")"
+          nix --extra-experimental-features 'nix-command flakes' develop --no-update-lock-file .#default \
+            --command bun install --frozen-lockfile
+          nix --extra-experimental-features 'nix-command flakes' develop --no-update-lock-file .#default \
+            --command bash scripts/verify-nix-artifact.sh \
+              "$DRWN_NIX_ARTIFACT_DIR" "$RUNNER_TEMP/nix-artifact-evidence"
+
+      - name: Export independently qualified artifact identity
+        id: nix_identity
+        run: |
+          DRWN_NIX_ARTIFACT_JSON="$RUNNER_TEMP/nix-artifact-evidence/artifact.json"
+          jq -e \
+            --arg commit "${{ github.event.pull_request.head.sha || github.sha }}" \
+            '.sourceCommit == $commit and .version == "1.4.2"' \
+            "$DRWN_NIX_ARTIFACT_JSON" > /dev/null
+          {
+            echo "tar_sha256=$(jq -r '.sha256' "$DRWN_NIX_ARTIFACT_JSON")"
+            echo "source_commit=$(jq -r '.sourceCommit' "$DRWN_NIX_ARTIFACT_JSON")"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Retain no-publish artifact evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: nix-worker-artifact-experiment
+          path: |
+            ${{ runner.temp }}/nix-artifact-evidence/darwinian-1.4.2.tgz
+            ${{ runner.temp }}/nix-artifact-evidence/npm-pack.json
+            ${{ runner.temp }}/nix-artifact-evidence/artifact.json
+            ${{ runner.temp }}/nix-artifact-evidence/artifact-sha256
+            ${{ runner.temp }}/nix-artifact-evidence/conventional-artifact.json
+            ${{ runner.temp }}/nix-artifact-evidence/smoke.json
+          if-no-files-found: error
+          retention-days: 14
+
+  nix-artifact-macos:
+    name: Nix source artifact downloaded smoke (macos)
+    needs: [nix-artifact-experiment]
+    runs-on: macos-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: true
+
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: nix-worker-artifact-experiment
+          path: ${{ runner.temp }}/nix-artifact-evidence
+
+      - name: Requalify the downloaded tar and run installed smokes
+        run: |
+          DRWN_NIX_EVIDENCE_DIR="$RUNNER_TEMP/nix-artifact-evidence"
+          DRWN_EXPECTED_SHA="${{ needs.nix-artifact-experiment.outputs.tar_sha256 }}"
+          DRWN_EXPECTED_COMMIT="${{ needs.nix-artifact-experiment.outputs.source_commit }}"
+          test "$(tr -d '[:space:]' < "$DRWN_NIX_EVIDENCE_DIR/artifact-sha256")" = "$DRWN_EXPECTED_SHA"
+          DRWN_ACTUAL_SHA="$(shasum -a 256 "$DRWN_NIX_EVIDENCE_DIR/darwinian-1.4.2.tgz" | cut -d ' ' -f 1)"
+          test "$DRWN_ACTUAL_SHA" = "$DRWN_EXPECTED_SHA"
+          nix --extra-experimental-features 'nix-command flakes' develop --no-update-lock-file .#default \
+            --command bun install --frozen-lockfile
+          nix --extra-experimental-features 'nix-command flakes' develop --no-update-lock-file .#default \
+            --command bun scripts/release-cli.ts qualify-artifact \
+              "$DRWN_NIX_EVIDENCE_DIR/npm-pack.json" "$DRWN_NIX_EVIDENCE_DIR" \
+              > "$RUNNER_TEMP/nix-artifact-macos.json"
+          jq -e \
+            --arg commit "$DRWN_EXPECTED_COMMIT" \
+            --arg sha "$DRWN_EXPECTED_SHA" \
+            --slurpfile ubuntu "$DRWN_NIX_EVIDENCE_DIR/artifact.json" \
+            '.sourceCommit == $commit and .sha256 == $sha and
+             .members == $ubuntu[0].members and .version == $ubuntu[0].version' \
+            "$RUNNER_TEMP/nix-artifact-macos.json" > /dev/null
+          nix --extra-experimental-features 'nix-command flakes' develop --no-update-lock-file .#default \
+            --command bun scripts/release-cli.ts smoke-artifact \
+              "$DRWN_NIX_EVIDENCE_DIR/darwinian-1.4.2.tgz" "$RUNNER_TEMP/nix-artifact-smoke"
