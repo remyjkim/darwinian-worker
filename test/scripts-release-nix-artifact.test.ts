@@ -44,6 +44,9 @@ describe("Nix Worker artifact experiment", () => {
     expect(script).toContain("release-cli.ts smoke-artifact");
     expect(script).toContain("artifact-sha256");
     expect(script).toContain('cp "$DRWN_NIX_ARTIFACT_DIR/npm-pack.json"');
+    expect(script).toContain("scripts/release/build-identity.ts");
+    expect(script).toContain("npm pack --ignore-scripts --json");
+    expect(script).toContain("-f scripts/release/nix-artifact-members.jq");
     expect(script).not.toContain("npm publish");
     expect(script).not.toContain("npm dist-tag");
   });
@@ -62,6 +65,11 @@ describe("Nix Worker artifact experiment", () => {
     expect(experiment).toContain("actions/download-artifact@v4");
     expect(experiment).toContain("release-cli.ts qualify-artifact");
     expect(experiment).toContain("release-cli.ts smoke-artifact");
+    expect(experiment).toContain("tar_sha256: ${{ steps.nix_identity.outputs.tar_sha256 }}");
+    expect(experiment).toContain("source_commit: ${{ steps.nix_identity.outputs.source_commit }}");
+    expect(experiment).toContain("needs.nix-artifact-experiment.outputs.tar_sha256");
+    expect(experiment).toContain("needs.nix-artifact-experiment.outputs.source_commit");
+    expect(experiment).toContain('.members == $ubuntu[0].members');
     for (const forbidden of ["id-token: write", "NPM_TOKEN", "secrets.", "npm publish", "npm dist-tag"]) {
       expect(experiment).not.toContain(forbidden);
     }
@@ -69,10 +77,14 @@ describe("Nix Worker artifact experiment", () => {
 
   test("documents the clean-commit, no-publish experiment boundary", () => {
     const guide = readFileSync(join(root, "docs", "nix-toolchain.md"), "utf8");
+    const releaseProcess = readFileSync(join(root, "docs", "release-process.md"), "utf8");
     expect(guide).toContain(".#workerArtifact");
     expect(guide).toContain("clean Git commit");
     expect(guide).toContain("NPM_CONFIG_OFFLINE");
     expect(guide).toContain("nix-worker-artifact-experiment");
     expect(guide).toContain("not the published 1.4.2 tar");
+    expect(guide).toContain("conventional npm pack");
+    expect(guide).toContain("independently exported");
+    expect(releaseProcess).toContain("docs/nix-toolchain.md");
   });
 });

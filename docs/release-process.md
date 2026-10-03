@@ -151,6 +151,10 @@ Worker publication is also distinct from Services adoption. Do not describe a
 green release as deployment, live Buzz delivery, membership, resource
 authorization, or production traffic proof.
 
+The additive Nix source-tar experiment is described in
+`docs/nix-toolchain.md`. Its CI output is not the authorized v1.4.2 dry-run
+artifact and cannot be substituted into this tag-locked publication path.
+
 ### Recovery after npm publication
 
 If npm candidate publication succeeds but a later registry or installed smoke

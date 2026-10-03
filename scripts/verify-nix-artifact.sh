@@ -20,6 +20,21 @@ bun scripts/release-cli.ts qualify-artifact \
   "$DRWN_NIX_ARTIFACT_DIR/npm-pack.json" \
   "$DRWN_NIX_ARTIFACT_DIR" > "$DRWN_NIX_EVIDENCE_DIR/artifact.json"
 
+# The standard pack is a comparison witness, never an alternative publication input.
+bun scripts/release/build-identity.ts > "$DRWN_NIX_EVIDENCE_DIR/source-build-identity.json"
+mkdir -p "$DRWN_NIX_EVIDENCE_DIR/conventional"
+NPM_CONFIG_OFFLINE=true npm pack --ignore-scripts --json \
+  --pack-destination "$DRWN_NIX_EVIDENCE_DIR/conventional" \
+  --cache "$DRWN_NIX_EVIDENCE_DIR/conventional/npm-cache" \
+  > "$DRWN_NIX_EVIDENCE_DIR/conventional/npm-pack.json"
+bun scripts/release-cli.ts qualify-artifact \
+  "$DRWN_NIX_EVIDENCE_DIR/conventional/npm-pack.json" \
+  "$DRWN_NIX_EVIDENCE_DIR/conventional" \
+  > "$DRWN_NIX_EVIDENCE_DIR/conventional-artifact.json"
+jq -e --slurpfile canonical "$DRWN_NIX_EVIDENCE_DIR/conventional-artifact.json" \
+  -f scripts/release/nix-artifact-members.jq \
+  "$DRWN_NIX_EVIDENCE_DIR/artifact.json" > /dev/null
+
 DRWN_SOURCE_COMMIT="$(git rev-parse HEAD)"
 jq -e --arg commit "$DRWN_SOURCE_COMMIT" \
   '.sourceCommit == $commit and .version == "1.4.2"' \

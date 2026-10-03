@@ -73,11 +73,14 @@ It does not install application dependencies in the derivation or convert
 `bun.lock` into a second lockfile.
 
 The unprivileged Ubuntu CI job runs the existing artifact qualifier and safe
-installed smoke against that one tar, then retains tar, npm pack metadata,
-digest, and smoke evidence for 14 days as
+installed smoke against that one tar. It also makes a conventional npm pack
+from the same clean source and compares the complete package-member
+inventories, including optional members, before retaining tar, npm pack
+metadata, digest, and smoke evidence for 14 days as
 `nix-worker-artifact-experiment`. A dependent macOS job downloads the exact
-tar, checks its SHA-256 and source commit, requalifies it, and runs the same
-safe installed smoke. This tests the Nix-produced artifact on two systems,
+tar, checks its SHA-256 and source commit against independently exported
+Ubuntu job outputs, compares its requalified member inventory, and runs the
+same safe installed smoke. This tests the Nix-produced artifact on two systems,
 but the experiment is not the published 1.4.2 tar, and no CI step can promote
 it to npm. A future release may adopt this output only after reviewed
 cross-platform evidence and an explicit change to the protected publisher.
