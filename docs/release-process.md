@@ -197,6 +197,9 @@ It must have no secrets or OIDC trust. Dispatch from current `main` with
 `failed_run_id=37105684003` and a fresh closed recovery authorization JSON
 using the schema above, tag `v1.4.2`, and action `verify_candidate`.
 This is a new protected approval; the old publish approval is not reusable.
+An unprotected preflight checks the live policy before the protected job can
+be scheduled. The job re-reads it after approval, and the final receipt
+requires GitHub to report an actual `mind001-cl` approval for this environment.
 
 The verifier rejoins the exact failed run, immutable tag, successful dry run,
 artifact ID/digest, receipt, and packed identity. A present registry `gitHead`

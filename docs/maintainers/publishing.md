@@ -55,7 +55,10 @@ For the observed absent registry `gitHead`, use the separately reviewed
 configuring and reading back its dedicated `darwinian-release-verification`
 environment. That environment requires the distinct `mind001-cl` approval,
 prevents self-review and admin bypass, admits `main` only, and carries no
-secret or OIDC trust. The verifier proves the annotated tag, failed run,
+secret or OIDC trust. A preflight refuses a missing or misconfigured
+environment before scheduling a deployment, and the workflow verifies the
+live policy and recorded approval again. The verifier proves the annotated
+tag, failed run,
 authorized dry-run artifact, registry metadata, direct registry tar bytes,
 and Ubuntu/macOS installed smokes before retaining its receipt.
 
