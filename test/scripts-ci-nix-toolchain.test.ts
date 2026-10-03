@@ -36,6 +36,13 @@ describe("Nix CI toolchain pilot", () => {
     expect(script).toContain('test "$(node --version)" = "v24.21.0"');
     expect(script).toContain('test "$(npm --version)" = "11.19.0"');
     expect(script).toContain("bun install --frozen-lockfile");
+    expect(script).toContain('DRWN_BUN_BIN_DIR="$(mktemp -d');
+    expect(script).toContain('export BUN_INSTALL_BIN="$DRWN_BUN_BIN_DIR/bin"');
+    expect(script).toContain('DRWN_BUN_BIN_PATH="$(bun pm bin -g)"');
+    expect(script).toContain('export PATH="$DRWN_BUN_BIN_PATH:$PATH"');
+    expect(script).not.toContain("BUN_INSTALL_GLOBAL_DIR");
+    expect(script).toContain("bun link");
+    expect(script).toContain('test -L "$BUN_INSTALL_BIN/drwn"');
     expect(script).toContain("bun run typecheck");
     expect(script).toContain("bun run test:gate");
     expect(script).toContain("git diff --exit-code -- bun.lock flake.lock");

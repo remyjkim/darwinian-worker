@@ -41,9 +41,11 @@ permission to disable TLS verification or a setting to impose on Linux CI.
 The script prints actual executable paths, checks exact versions, installs
 `bun.lock` dependencies with `--frozen-lockfile`, and runs typecheck, focused
 release contracts, the fresh full test gate, and release-readiness test mode.
-It then refuses changes to either lock. `nix flake check` builds checks for the
-current system, not every declared platform. Hosted CI independently exercises
-Linux and macOS.
+It gives `bun link` an isolated temporary binary directory for the global CLI
+parity test and verifies `drwn` was linked there, instead of relying on an
+ambient user-global `PATH`. It then refuses changes to either lock.
+`nix flake check` builds checks for the current system, not every declared
+platform. Hosted CI independently exercises Linux and macOS.
 
 ## Boundaries and upgrades
 
