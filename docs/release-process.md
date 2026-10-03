@@ -154,8 +154,11 @@ authorization, or production traffic proof.
 ### Recovery after npm publication
 
 If npm candidate publication succeeds but a later registry or installed smoke
-fails, the ordinary workflow cannot be rerun because `1.4.2` now exists. Use
-`.github/workflows/release-recovery.yml` only after a new policy-conformant approval.
+fails, the ordinary workflow cannot be rerun because `1.4.2` now exists. Do
+not treat a successful npm publish step as a green release. The original
+`.github/workflows/release-recovery.yml` is frozen under `v1.4.2` and requires
+registry `gitHead`. It remains available only when that field is present and
+matches the tagged source.
 
 Dispatch `CLI Release Recovery` with ref `v1.4.2`, the exact failed canonical
 release run ID, and this closed authorization JSON (with the real canonical
@@ -180,6 +183,34 @@ to agree and proves `i336-candidate` still resolves to `1.4.2`. It may run
 Ubuntu/macOS installed smokes only. It cannot create or repair a GitHub Release.
 Any identity mismatch stops
 for a separately authorized deprecation and patch roll-forward decision.
+
+### Verification when npm omits `gitHead`
+
+For the observed candidate under `i336-candidate`, npm did not expose
+`gitHead`; its first metadata read was also visible before a fresh npm pack
+could resolve the version. The old tag-locked recovery cannot pass this
+condition. Use the reviewed-main `.github/workflows/release-verify-published.yml`
+instead, only after its separate `darwinian-release-verification` environment
+has been configured and read back with sole required reviewer `mind001-cl`,
+self-review prevention, no admin bypass, and a main-only deployment policy.
+It must have no secrets or OIDC trust. Dispatch from current `main` with
+`failed_run_id=37105684003` and a fresh closed recovery authorization JSON
+using the schema above, tag `v1.4.2`, and action `verify_candidate`.
+This is a new protected approval; the old publish approval is not reusable.
+
+The verifier rejoins the exact failed run, immutable tag, successful dry run,
+artifact ID/digest, receipt, and packed identity. A present registry `gitHead`
+must match. When it is absent, the remaining metadata and directly downloaded
+canonical npm tar must match the authorized artifact, including SHA-256 and
+package members. Ubuntu and macOS must both run installed smokes. It retains
+a redacted receipt only after both jobs pass. It has no publish, OIDC, token,
+repack, retag, dist-tag, unpublish, or GitHub Release path. The original red
+run remains red; this is a separate verified recovery record.
+
+`latest` must still equal the prior `1.3.0` until a separately approved
+interactive npm-2FA promotion. Verify registry bytes, candidate tag, latest
+readback, and installed behavior before and after that operation. If any
+identity or platform check fails, stop rather than bypassing the gate.
 
 ## Releasing `drwn-command-bridge`
 
