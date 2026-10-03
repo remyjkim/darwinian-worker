@@ -44,6 +44,8 @@ release contracts, the fresh full test gate, and release-readiness test mode.
 It gives `bun link` isolated temporary global registration and binary
 directories for the CLI parity test, and verifies both links there instead of
 touching an ambient user-global `darwinian` link or relying on its `PATH`.
+The parity test itself also scopes both Bun global directories to its own
+temporary fixture, so an ordinary test-gate run has the same isolation.
 It then refuses changes to either lock.
 `nix flake check` builds checks for the current system, not every declared
 platform. Hosted CI independently exercises Linux and macOS.
